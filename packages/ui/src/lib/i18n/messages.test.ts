@@ -9,6 +9,7 @@ import { dict as plDict } from './messages/pl';
 import { dict as ptBrDict } from './messages/pt-BR';
 import { dict as ukDict } from './messages/uk';
 import { dict as zhCnDict } from './messages/zh-CN';
+import { dict as ruDict } from './messages/ru';
 import { dict as zhTwDict } from './messages/zh-TW';
 
 const localeDictionaries = {
@@ -20,6 +21,7 @@ const localeDictionaries = {
   uk: ukDict,
   ko: koDict,
   pl: plDict,
+  ru: ruDict,
   'zh-CN': zhCnDict,
   'zh-TW': zhTwDict,
 } as const;
@@ -37,6 +39,14 @@ describe('i18n dictionaries', () => {
     for (const [, dictionary] of Object.entries(localeDictionaries)) {
       expect(dictionary['common.language.french']).toBeTruthy();
       expect(dictionary['common.language.japanese']).toBeTruthy();
+      expect(dictionary['common.language.russian']).toBeTruthy();
     }
+  });
+
+  test('russian dictionary falls back to english for untranslated keys', () => {
+    expect(ruDict['common.language.english']).toBe('Английский');
+    expect(ruDict['common.language.russian']).toBe('Русский');
+    // english key exists in enDict — ru extends enDict via spread, so this is covered
+    expect(ruDict['settings.openchamber.visual.option.followUpBehavior.steer.label']).toBeTruthy();
   });
 });

@@ -14,9 +14,6 @@ import { ElectronSshManager } from './ssh-manager.mjs';
 import { createTrayController } from './tray.mjs';
 import { resolveManagedOpenCodeCwd } from './opencode-cwd.mjs';
 import { sanitizeRuntimeRequestHeaders } from './runtime-request-headers.mjs';
-import { assertUpdaterCapability } from './updater-capability.mjs';
-import { checkForDesktopUpdate } from './updater-check.mjs';
-import { resolveUpdaterFeed } from './updater-feed.mjs';
 import { mintOutsideFileGrant } from '@openchamber/web/server/lib/fs/routes.js';
 
 const execFileAsync = promisify(execFile);
@@ -63,9 +60,6 @@ const shouldStartInBackground = (loginItemSettings = readLoginItemSettings()) =>
 // Set the product name early so electron-log derives its log directory as
 // ~/Library/Logs/OpenChamber/ (not ~/Library/Logs/@openchamber/electron/).
 app.setName('OpenChamber');
-if (process.platform === 'linux') {
-  app.setDesktopName('openchamber.desktop');
-}
 if (isDev) {
   app.setPath('userData', path.join(app.getPath('appData'), 'OpenChamber Dev'));
 }
@@ -868,37 +862,13 @@ const fetchVersionPayload = async (versionUrl, { headers, timeoutMs }) => {
   }
 };
 
-const probeHostWithTimeout = async (url, timeoutMs, clientToken = '', requestHeaders = {}, expectedServerId = '') => {
+const probeHostWithTimeout = async (url, timeoutMs, clientToken = '', requestHeaders = {}) => {
   const versionUrl = buildVersionUrl(url);
   if (!versionUrl) {
     throw new Error('Invalid URL');
   }
 
   const started = Date.now();
-
-  // Identity gate for learned/untrusted addresses: verify the UNAUTHENTICATED
-  // /health identity before the token-carrying version fetch, so the bearer
-  // token is never sent to a re-assigned address that now belongs to a
-  // different machine. Older servers omit serverId from /health; only an
-  // explicit mismatch rejects.
-  if (typeof expectedServerId === 'string' && expectedServerId.trim()) {
-    const healthUrl = buildHealthUrl(url);
-    if (healthUrl) {
-      try {
-        const response = await fetch(healthUrl, { signal: AbortSignal.timeout(timeoutMs), headers: { Accept: 'application/json' } });
-        if (response.ok) {
-          const payload = await response.json().catch(() => null);
-          const reported = typeof payload?.serverId === 'string' ? payload.serverId.trim() : '';
-          if (reported && reported !== expectedServerId.trim()) {
-            return { status: 'wrong-service', latencyMs: Date.now() - started };
-          }
-        }
-      } catch {
-        // Unreachable/timeout surfaces in the version fetch below.
-      }
-    }
-  }
-
   try {
     const headers = { ...sanitizeRuntimeRequestHeaders(requestHeaders), Accept: 'application/json' };
     const token = typeof clientToken === 'string' ? clientToken.trim() : '';
@@ -2074,6 +2044,10 @@ const dispatchDeepLink = (link) => {
     emitToAllWindows('openchamber:open-session', { sessionId: link.value });
     return;
   }
+  if (link.type === 'project' && link.value) {
+    emitToAllWindows('openchamber:open-project', { projectPath: link.value });
+    return;
+  }
   if (link.type === 'host' && link.value) {
     void switchToHostById(link.value);
     return;
@@ -2184,11 +2158,12 @@ const readThemeSource = () => {
 };
 
 const getWindowIconPath = () => {
-  if (process.platform !== 'win32' && process.platform !== 'linux') return undefined;
-  const iconFileName = process.platform === 'linux' ? 'icon.png' : 'icon.ico';
+  if (process.platform !== 'win32' && process.platform !== 'linux') {
+    return undefined;
+  }
   const iconPath = isDev
-    ? path.join(__dirname, 'resources', 'icons', iconFileName)
-    : path.join(process.resourcesPath, 'icons', iconFileName);
+    ? path.join(__dirname, 'resources', 'icons', 'icon.ico')
+    : path.join(process.resourcesPath, 'icons', 'icon.ico');
   return fs.existsSync(iconPath) ? iconPath : undefined;
 };
 
@@ -2210,8 +2185,7 @@ const createBrowserWindow = ({ label, restoreGeometry, url, runtimeConfig = {} }
   const desktopRequestHeaders = rendererRuntimeConfig.requestHeaders || {};
   const desktopHome = os.homedir() || '';
   const desktopMacosMajor = String(macosMajorVersion());
-  const usesFramelessChrome = process.platform === 'win32' || process.platform === 'linux';
-  const usesCustomTitleBar = process.platform === 'darwin' || usesFramelessChrome;
+  const usesCustomTitleBar = process.platform === 'darwin' || process.platform === 'win32';
   // macOS vibrancy, on by default; users can disable it (Appearance settings).
   const useVibrancy = process.platform === 'darwin' && readSettingsRoot().desktopVibrancy !== false;
   const titleBarOverlayEnabled = false;
@@ -2233,7 +2207,7 @@ const createBrowserWindow = ({ label, restoreGeometry, url, runtimeConfig = {} }
     // here: setting it in the constructor leaves the material uncomposited on a
     // cold launch until a window event. No `transparent: true` either — vibrancy
     // alone is enough and composites reliably once applied to a live window.
-    frame: usesFramelessChrome ? false : undefined,
+    frame: process.platform === 'win32' ? false : undefined,
     autoHideMenuBar: autoHidesNativeMenuBar,
     // Electron's hiddenInset adds its own extra inset, which leaves the controls
     // visibly lower than the app header. Use a plain hidden title bar instead.
@@ -2606,7 +2580,6 @@ const createMiniChatWindow = async ({ mode, sessionId = '', directory = '', proj
   const desktopRequestHeaders = effectiveRuntimeConfig.requestHeaders || {};
   const desktopHome = os.homedir() || '';
   const desktopMacosMajor = String(macosMajorVersion());
-  const usesFramelessChrome = process.platform === 'win32' || process.platform === 'linux';
   // macOS vibrancy, on by default; users can disable it (Appearance settings).
   const useVibrancy = process.platform === 'darwin' && readSettingsRoot().desktopVibrancy !== false;
   const browserWindow = new BrowserWindow({
@@ -2622,9 +2595,9 @@ const createMiniChatWindow = async ({ mode, sessionId = '', directory = '', proj
     // here: setting it in the constructor leaves the material uncomposited on a
     // cold launch until a window event. No `transparent: true` either — vibrancy
     // alone is enough and composites reliably once applied to a live window.
-    frame: usesFramelessChrome ? false : undefined,
+    frame: process.platform === 'win32' ? false : undefined,
     autoHideMenuBar: process.platform !== 'darwin',
-    titleBarStyle: process.platform === 'darwin' || usesFramelessChrome ? 'hidden' : 'default',
+    titleBarStyle: process.platform === 'darwin' || process.platform === 'win32' ? 'hidden' : 'default',
     trafficLightPosition: process.platform === 'darwin' ? { x: 16, y: 17 } : undefined,
     webPreferences: {
       additionalArguments: [
@@ -2822,6 +2795,10 @@ const compareSemver = (left, right) => {
   return 0;
 };
 
+const parseGithubRepo = () => {
+  return { owner: 'gest0r1', repo: 'openchamber-ru' };
+};
+
 const setupAutoUpdater = () => {
   if (!app.isPackaged) {
     return;
@@ -2833,13 +2810,11 @@ const setupAutoUpdater = () => {
   autoUpdater.disableWebInstaller = false;
   autoUpdater.logger = log;
 
-  const testBuild = typeof __OPENCHAMBER_UPDATER_E2E_BUILD__ !== 'undefined'
-    && __OPENCHAMBER_UPDATER_E2E_BUILD__ === true;
-  const feed = resolveUpdaterFeed({ testBuild });
-  autoUpdater.setFeedURL(feed);
-  log.info('[electron] updater feed configured', {
-    provider: feed.provider,
-    target: feed.provider === 'github' ? `${feed.owner}/${feed.repo}` : feed.url,
+  const { owner, repo } = parseGithubRepo();
+  autoUpdater.setFeedURL({
+    provider: 'github',
+    owner,
+    repo,
   });
 
   autoUpdater.on('download-progress', (progress) => {
@@ -3799,7 +3774,7 @@ const handleInvoke = async (browserWindow, command, args = {}) => {
         emitToAllWindows('openchamber:installed-apps-updated', apps);
       };
       if (process.platform !== 'darwin' && process.platform !== 'win32') {
-        return { apps: [], hasCache: false, isCacheStale: false, supported: false };
+        throw new Error('desktop_get_installed_apps is only supported on macOS and Windows');
       }
       if (!hasCache || isCacheStale || args.force === true) {
         void refresh();
@@ -3839,7 +3814,7 @@ const handleInvoke = async (browserWindow, command, args = {}) => {
       return getOrCreateDesktopInstallId();
 
     case 'desktop_host_probe':
-      return probeHostWithTimeout(String(args.url || ''), 2_000, String(args.clientToken || ''), args.requestHeaders || {}, String(args.expectedServerId || ''));
+      return probeHostWithTimeout(String(args.url || ''), 2_000, String(args.clientToken || ''), args.requestHeaders || {});
 
     case 'desktop_remote_password_login':
       return loginRemoteAndIssueClientToken({
@@ -3902,18 +3877,22 @@ const handleInvoke = async (browserWindow, command, args = {}) => {
     }
 
     case 'desktop_check_for_updates': {
-      assertUpdaterCapability({ packaged: app.isPackaged });
       const currentVersion = APP_VERSION;
-      const { available, updateInfo, updateResult, nextVersion, pendingUpdate } = await checkForDesktopUpdate({
-        autoUpdater,
-        currentVersion,
-        pendingUpdate: state.pendingUpdate,
-        compareVersions: compareSemver,
-      });
+      let updateResult = null;
+      try {
+        updateResult = await autoUpdater.checkForUpdates();
+      } catch {
+      }
+
+      const updateInfo = updateResult?.updateInfo;
+      const nextVersion =
+        (typeof updateInfo?.version === 'string' && updateInfo.version) ||
+        currentVersion;
+      const available = compareSemver(nextVersion, currentVersion) > 0;
       const body =
         (typeof updateInfo?.releaseNotes === 'string' && updateInfo.releaseNotes.trim() ? updateInfo.releaseNotes : null) ||
         await parseRelevantChangelogNotes(currentVersion, nextVersion);
-      state.pendingUpdate = pendingUpdate;
+      state.pendingUpdate = available ? { version: nextVersion, electronUpdate: updateResult } : null;
       return {
         available,
         currentVersion,
@@ -3926,7 +3905,6 @@ const handleInvoke = async (browserWindow, command, args = {}) => {
     }
 
     case 'desktop_download_and_install_update':
-      assertUpdaterCapability({ packaged: app.isPackaged });
       if (!state.pendingUpdate) {
         throw new Error('No pending update');
       }
@@ -3972,7 +3950,6 @@ const handleInvoke = async (browserWindow, command, args = {}) => {
 
     case 'desktop_restart': {
       const applyUpdate = Boolean(state.pendingUpdate?.downloaded && app.isPackaged);
-      if (applyUpdate) assertUpdaterCapability({ packaged: app.isPackaged });
       log.info(`[electron] desktop_restart applyUpdate=${applyUpdate} packaged=${app.isPackaged}`);
       if (applyUpdate && process.platform === 'darwin' && typeof app.isInApplicationsFolder === 'function') {
         try {

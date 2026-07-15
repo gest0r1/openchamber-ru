@@ -57,11 +57,11 @@ import { SyncProvider, useSession, useSessionMessages } from '@/sync/sync-contex
 import { SyncAppEffects } from './AppEffects';
 import { MobileChangesSurface } from './MobileChangesSurface';
 import { MobileFilesSurface } from './MobileFilesSurface';
-import { BusyDots } from '@/components/chat/message/parts/BusyDots';
 import { MobileSessionsSheet } from './MobileSessionsSheet';
 import { MobileSurfaceShell } from './MobileSurfaceShell';
+import { ProjectNotesTodoPanel } from '@/components/session/ProjectNotesTodoPanel';
 import { DedicatedMobileAppProvider, type MobileAppActions } from './mobileAppContext';
-import { autoConnectLastInstance, connectionDisplayUrl, getAutoConnectTargetLabel, isActiveRuntimeConnection, reprobeActiveConnection, useMobileConnection } from './mobileConnections';
+import { autoConnectLastInstance, connectionDisplayUrl, isActiveRuntimeConnection, reprobeActiveConnection, useMobileConnection } from './mobileConnections';
 import { isRelayModeActive } from '@/lib/relay/runtime-tunnel';
 import { isQrScanSupported, parseConnectionPayload, scanConnectionQr } from './mobileQrScan';
 import { reconnectAppForTransportSwitch, resetAppForRuntimeEndpointChange } from './runtimeEndpointReset';
@@ -78,11 +78,20 @@ const MOBILE_SETTINGS_PAGES = [
   'sessions',
   'git',
   'magic-prompts',
+  'snippets',
+  'projects',
+  'remote-instances',
+  'agents',
   'behavior',
+  'commands',
   'mcp',
+  'plugins',
   'providers',
   'usage',
+  'skills.installed',
+  'skills.catalog',
   'voice',
+  'tunnel',
   'about',
 ] as const;
 
@@ -658,7 +667,7 @@ const getProjectLabel = (path: string): string => {
 };
 
 type OverflowItem = {
-  key: 'files' | 'changes' | 'mcp' | 'instances' | 'update' | 'settings';
+  key: 'files' | 'changes' | 'notes' | 'mcp' | 'instances' | 'update' | 'settings';
   icon?: IconName;
   iconNode?: React.ReactNode;
   label: string;
@@ -982,13 +991,10 @@ const MobileInstancesSurface: React.FC<{
 
   const saveInstance = React.useCallback((event: React.FormEvent) => {
     event.preventDefault();
-    // The id is what makes this an EDIT: saveConnection uses it to preserve the
-    // existing relay/https candidates (and the Keychain token they key) instead
-    // of rebuilding the instance from the single URL field.
-    void saveConnection({ id: editingId ?? undefined, url, label, clientToken }).then((saved) => {
+    void saveConnection({ url, label, clientToken }).then((saved) => {
       if (saved) resetForm();
     });
-  }, [clientToken, editingId, label, resetForm, saveConnection, url]);
+  }, [clientToken, label, resetForm, saveConnection, url]);
 
   // Scan a pairing QR into the add/edit form fields (does not change edit mode, so
   // the form-reset effect doesn't wipe the scanned values). The user reviews + saves.
@@ -1960,6 +1966,22 @@ const MobileHeader: React.FC<{
     return getProjectDisplayLabel(project, directory) || t('mobile.header.noProject');
   }, [availableWorktreesByProject, currentWorktreeMetadata?.projectDirectory, effectiveDirectory, projects, t]);
 
+  const projectRef = React.useMemo(() => {
+    const directory = normalizePath(effectiveDirectory);
+    if (!directory) return null;
+    const metadataProject = currentWorktreeMetadata?.projectDirectory
+      ? resolveProjectForDirectory(projects, currentWorktreeMetadata.projectDirectory)
+      : null;
+    const project = metadataProject ?? resolveProjectForSessionDirectory(projects, availableWorktreesByProject, directory);
+    return project ? { id: project.id, path: project.path } : null;
+  }, [availableWorktreesByProject, currentWorktreeMetadata?.projectDirectory, effectiveDirectory, projects]);
+
+  const gitDirectories = useGitStore((state) => state.directories);
+  const canCreateWorktree = React.useMemo(() => {
+    if (!projectRef) return false;
+    return gitDirectories.get(projectRef.path)?.isGitRepo === true;
+  }, [projectRef, gitDirectories]);
+
   const sessionTitle = currentSession?.title?.trim();
   const primaryLabel = sessionTitle || (currentSessionId ? t('mobile.sessions.untitled') : projectLabel);
   const secondaryLabel = currentSessionId ? projectLabel : '';
@@ -2073,6 +2095,7 @@ const MobileShell: React.FC<{ onActiveConnectionDeleted: () => void }> = ({ onAc
   const [overflowOpen, setOverflowOpen] = React.useState(false);
   // When set, the Changes surface opens directly into the per-file diff for this path.
   const [pendingChangesDiff, setPendingChangesDiff] = React.useState<{ path: string; staged: boolean } | null>(null);
+  const [notesOpen, setNotesOpen] = React.useState(false);
   const currentDirectory = useDirectoryStore((state) => state.currentDirectory);
   const setSettingsPage = useUIStore((state) => state.setSettingsPage);
   const updateAvailable = useUpdateStore((state) => state.available);
@@ -2085,6 +2108,34 @@ const MobileShell: React.FC<{ onActiveConnectionDeleted: () => void }> = ({ onAc
   const loadMcpConfigs = useMcpConfigStore((state) => state.loadMcpConfigs);
   const gitStatus = useGitStatus(normalizePath(currentDirectory) || null);
   const dirtyChangeCount = gitStatus?.files?.length ?? 0;
+
+  // Project/notes context — need currentSessionId and effectiveDirectory
+  const currentSessionId = useSessionUIStore((state) => state.currentSessionId);
+  const currentSessionDirectory = useSessionUIStore(
+    React.useCallback((state) => (currentSessionId ? state.getDirectoryForSession(currentSessionId) : null), [currentSessionId]),
+  );
+  const effectiveDirectory = currentSessionDirectory || currentDirectory;
+
+  const projects = useProjectsStore((state) => state.projects);
+  const projectRef = React.useMemo(() => {
+    const directory = normalizePath(effectiveDirectory);
+    if (!directory) return null;
+    const metadataProject = resolveProjectForDirectory(projects, directory);
+    return metadataProject ? { id: metadataProject.id, path: metadataProject.path } : null;
+  }, [effectiveDirectory, projects]);
+
+  const gitDirectories = useGitStore((state) => state.directories);
+  const canCreateWorktree = React.useMemo(() => {
+    if (!projectRef) return false;
+    return gitDirectories.get(projectRef.path)?.isGitRepo === true;
+  }, [projectRef, gitDirectories]);
+
+  const projectLabel = React.useMemo(() => {
+    const directory = normalizePath(effectiveDirectory);
+    if (!directory) return t('mobile.header.noProject');
+    const project = resolveProjectForDirectory(projects, directory);
+    return getProjectDisplayLabel(project, directory) || t('mobile.header.noProject');
+  }, [effectiveDirectory, projects, t]);
 
   // iPad (Capacitor): sessions live in a persistent full-height left sidebar
   // and Changes/Files in a right sidebar, instead of phone sheets/surfaces.
@@ -2207,7 +2258,7 @@ const MobileShell: React.FC<{ onActiveConnectionDeleted: () => void }> = ({ onAc
   const chatMainRef = React.useRef<HTMLElement>(null);
   const chatAnimRef = React.useRef<HTMLDivElement>(null);
   const swipeDirectionRef = React.useRef<'prev' | 'next' | null>(null);
-  const currentSessionId = useSessionUIStore((state) => state.currentSessionId);
+  // currentSessionId declared above in project/notes context block
   // Record the swipe direction; the animation itself runs in the layout effect below, once the
   // new session's content has committed — running it inline in the swipe callback raced the
   // re-render and dropped the animation on roughly every other switch.
@@ -2258,6 +2309,10 @@ const MobileShell: React.FC<{ onActiveConnectionDeleted: () => void }> = ({ onAc
       setInstancesOpen(false);
       return true;
     }
+    if (notesOpen) {
+      setNotesOpen(false);
+      return true;
+    }
     if (settingsOpen) {
       setSettingsOpen(false);
       return true;
@@ -2267,7 +2322,7 @@ const MobileShell: React.FC<{ onActiveConnectionDeleted: () => void }> = ({ onAc
       return true;
     }
     return false;
-  }, [changesOpen, closeChanges, filesOpen, instancesOpen, mcpOpen, overflowOpen, sessionsSheetOpen, settingsOpen, updateOpen]);
+  }, [changesOpen, closeChanges, filesOpen, instancesOpen, mcpOpen, notesOpen, overflowOpen, sessionsSheetOpen, settingsOpen, updateOpen]);
 
   useNativeAndroidBackButton(handleNativeBack);
 
@@ -2340,7 +2395,14 @@ const MobileShell: React.FC<{ onActiveConnectionDeleted: () => void }> = ({ onAc
           },
         );
       }
+      // Notes available on all mobile surfaces
       items.push({
+        key: 'notes',
+        icon: 'file-list-2',
+        label: t('mobile.menu.notes'),
+        onSelect: () => setNotesOpen(true),
+      },
+      {
         key: 'mcp',
         iconNode: <McpIcon className="size-5 shrink-0 text-muted-foreground" />,
         label: t('mobile.menu.mcp'),
@@ -2630,6 +2692,26 @@ const MobileShell: React.FC<{ onActiveConnectionDeleted: () => void }> = ({ onAc
           </MobileSurfaceShell>
         ) : null}
 
+        {notesOpen ? (
+          <MobileSurfaceShell
+            open
+            onClose={() => setNotesOpen(false)}
+            ariaLabel={t('mobile.menu.notes')}
+            title={t('mobile.menu.notes')}
+          >
+            <ErrorBoundary>
+              <div className="h-full overflow-auto">
+                <ProjectNotesTodoPanel
+                  projectRef={projectRef}
+                  projectLabel={projectLabel}
+                  canCreateWorktree={canCreateWorktree}
+                  onActionComplete={() => setNotesOpen(false)}
+                />
+              </div>
+            </ErrorBoundary>
+          </MobileSurfaceShell>
+        ) : null}
+
         {settingsOpen ? (
           <MobileSurfaceShell
             open
@@ -2692,9 +2774,6 @@ export function MobileApp({ apis }: MobileAppProps) {
   // splash so we don't flash the connect screen; 'done' means we either connected or
   // exhausted the attempt (then the connect screen shows).
   const [autoConnectPhase, setAutoConnectPhase] = React.useState<'pending' | 'attempting' | 'done'>('pending');
-  // The instance the splash says we are connecting to. Read once on mount —
-  // auto-connect targets the most-recent saved connection from the same list.
-  const autoConnectLabel = React.useMemo(() => getAutoConnectTargetLabel(), []);
   // Bumped to force a re-render (and thus a fresh `sdk` prop for SyncProvider)
   // after a same-device transport swap — reconnects the sync layer in place with
   // no remount. The value itself is unused; only the re-render matters.
@@ -3059,19 +3138,8 @@ export function MobileApp({ apis }: MobileAppProps) {
     // (no saved instance, unreachable, or needs re-login).
     if (autoConnectPhase !== 'done') {
       return (
-        <main className="relative flex min-h-dvh items-center justify-center bg-background text-foreground">
+        <main className="flex min-h-dvh items-center justify-center bg-background text-foreground">
           <OpenChamberLogo width={120} height={120} isAnimated />
-          {/* Absolutely positioned below the (still perfectly centered) logo so
-              the text never pushes it up. 50% + half the 120px logo + a gap. */}
-          {autoConnectLabel ? (
-            <div className="absolute inset-x-0 top-[calc(50%+84px)] flex flex-col items-center gap-0.5 px-6 text-center">
-              <p className="typography-small text-muted-foreground">{t('mobile.connect.splash.connectingTo')}</p>
-              <p className="typography-small text-foreground">
-                {autoConnectLabel}
-                <BusyDots />
-              </p>
-            </div>
-          ) : null}
         </main>
       );
     }

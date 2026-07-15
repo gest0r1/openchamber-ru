@@ -292,31 +292,51 @@ export function applyDirectoryEvent(
     }
 
     case "session.status": {
-      const props = event.properties as { sessionID: string; status: SessionStatus }
-      if (areSessionStatusesEqual(draft.session_status[props.sessionID], props.status)) {
+      const rawProps = event.properties as Record<string, unknown>
+      const sessionID = typeof rawProps.sessionID === "string" && (rawProps.sessionID as string).length > 0
+        ? (rawProps.sessionID as string)
+        : typeof rawProps.sessionId === "string" && (rawProps.sessionId as string).length > 0
+          ? (rawProps.sessionId as string)
+          : undefined
+      if (!sessionID) return false
+      const status = rawProps.status as SessionStatus
+      if (!status) return false
+      if (areSessionStatusesEqual(draft.session_status[sessionID], status)) {
         return false
       }
-      draft.session_status[props.sessionID] = props.status
+      draft.session_status[sessionID] = status
       return true
     }
 
     case "session.idle": {
-      const props = event.properties as { sessionID: string }
+      const rawProps = event.properties as Record<string, unknown>
+      const sessionID = typeof rawProps.sessionID === "string" && (rawProps.sessionID as string).length > 0
+        ? (rawProps.sessionID as string)
+        : typeof rawProps.sessionId === "string" && (rawProps.sessionId as string).length > 0
+          ? (rawProps.sessionId as string)
+          : undefined
+      if (!sessionID) return false
       const status = { type: "idle" } as const
-      if (areSessionStatusesEqual(draft.session_status[props.sessionID], status)) {
+      if (areSessionStatusesEqual(draft.session_status[sessionID], status)) {
         return false
       }
-      draft.session_status[props.sessionID] = status
+      draft.session_status[sessionID] = status
       return true
     }
 
     case "session.error": {
-      const props = event.properties as { sessionID: string }
+      const rawProps = event.properties as Record<string, unknown>
+      const sessionID = typeof rawProps.sessionID === "string" && (rawProps.sessionID as string).length > 0
+        ? (rawProps.sessionID as string)
+        : typeof rawProps.sessionId === "string" && (rawProps.sessionId as string).length > 0
+          ? (rawProps.sessionId as string)
+          : undefined
+      if (!sessionID) return false
       const status = { type: "idle" } as const
-      if (areSessionStatusesEqual(draft.session_status[props.sessionID], status)) {
+      if (areSessionStatusesEqual(draft.session_status[sessionID], status)) {
         return false
       }
-      draft.session_status[props.sessionID] = status
+      draft.session_status[sessionID] = status
       return true
     }
 
