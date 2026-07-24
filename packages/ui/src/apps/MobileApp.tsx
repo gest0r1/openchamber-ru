@@ -58,11 +58,11 @@ import { SyncProvider, useSession, useSessionMessages } from '@/sync/sync-contex
 import { SyncAppEffects } from './AppEffects';
 import { MobileChangesSurface } from './MobileChangesSurface';
 import { MobileFilesSurface } from './MobileFilesSurface';
-import { BusyDots } from '@/components/chat/message/parts/BusyDots';
 import { MobileSessionsSheet } from './MobileSessionsSheet';
 import { MobileSurfaceShell } from './MobileSurfaceShell';
+import { ProjectNotesTodoPanel } from '@/components/session/ProjectNotesTodoPanel';
 import { DedicatedMobileAppProvider, type MobileAppActions } from './mobileAppContext';
-import { autoConnectLastInstance, connectionDisplayUrl, getAutoConnectTargetLabel, isActiveRuntimeConnection, reprobeActiveConnection, useMobileConnection } from './mobileConnections';
+import { autoConnectLastInstance, connectionDisplayUrl, isActiveRuntimeConnection, reprobeActiveConnection, useMobileConnection } from './mobileConnections';
 import { isRelayModeActive } from '@/lib/relay/runtime-tunnel';
 import { isQrScanSupported, parseConnectionPayload, scanConnectionQr } from './mobileQrScan';
 import { reconnectAppForTransportSwitch, resetAppForRuntimeEndpointChange } from './runtimeEndpointReset';
@@ -73,18 +73,26 @@ import { useEdgeSwipeSessionSwitch } from './useEdgeSwipeSessionSwitch';
 import { useNativePushRegistration } from './useNativePushRegistration';
 
 const MOBILE_SETTINGS_PAGES = [
-  'general',
   'appearance',
   'chat',
   'notifications',
   'sessions',
   'git',
   'magic-prompts',
+  'snippets',
+  'projects',
+  'remote-instances',
+  'agents',
   'behavior',
+  'commands',
   'mcp',
+  'plugins',
   'providers',
   'usage',
+  'skills.installed',
+  'skills.catalog',
   'voice',
+  'tunnel',
   'about',
 ] as const;
 
@@ -660,7 +668,7 @@ const getProjectLabel = (path: string): string => {
 };
 
 type OverflowItem = {
-  key: 'files' | 'changes' | 'terminal' | 'mcp' | 'instances' | 'update' | 'settings';
+  key: 'files' | 'changes' | 'notes' | 'mcp' | 'instances' | 'update' | 'settings';
   icon?: IconName;
   iconNode?: React.ReactNode;
   label: string;
@@ -2066,7 +2074,6 @@ const MobileShell: React.FC<{ onActiveConnectionDeleted: () => void }> = ({ onAc
   const [sessionsSheetOpen, setSessionsSheetOpen] = React.useState(false);
   const [filesOpen, setFilesOpen] = React.useState(false);
   const [changesOpen, setChangesOpen] = React.useState(false);
-  const [terminalOpen, setTerminalOpen] = React.useState(false);
   const [mcpOpen, setMcpOpen] = React.useState(false);
   const [instancesOpen, setInstancesOpen] = React.useState(false);
   const [isMcpRefreshing, setIsMcpRefreshing] = React.useState(false);
@@ -2076,6 +2083,7 @@ const MobileShell: React.FC<{ onActiveConnectionDeleted: () => void }> = ({ onAc
   const [overflowOpen, setOverflowOpen] = React.useState(false);
   // When set, the Changes surface opens directly into the per-file diff for this path.
   const [pendingChangesDiff, setPendingChangesDiff] = React.useState<{ path: string; staged: boolean } | null>(null);
+  const [notesOpen, setNotesOpen] = React.useState(false);
   const currentDirectory = useDirectoryStore((state) => state.currentDirectory);
   const setSettingsPage = useUIStore((state) => state.setSettingsPage);
   const updateAvailable = useUpdateStore((state) => state.available);
@@ -2088,6 +2096,34 @@ const MobileShell: React.FC<{ onActiveConnectionDeleted: () => void }> = ({ onAc
   const loadMcpConfigs = useMcpConfigStore((state) => state.loadMcpConfigs);
   const gitStatus = useGitStatus(normalizePath(currentDirectory) || null);
   const dirtyChangeCount = gitStatus?.files?.length ?? 0;
+
+  // Project/notes context — need currentSessionId and effectiveDirectory
+  const notesCurrentSessionId = useSessionUIStore((state) => state.currentSessionId);
+  const notesCurrentSessionDirectory = useSessionUIStore(
+    React.useCallback((state) => (notesCurrentSessionId ? state.getDirectoryForSession(notesCurrentSessionId) : null), [notesCurrentSessionId]),
+  );
+  const notesEffectiveDirectory = notesCurrentSessionDirectory || currentDirectory;
+
+  const notesProjects = useProjectsStore((state) => state.projects);
+  const projectRef = React.useMemo(() => {
+    const directory = normalizePath(notesEffectiveDirectory);
+    if (!directory) return null;
+    const metadataProject = resolveProjectForDirectory(notesProjects, directory);
+    return metadataProject ? { id: metadataProject.id, path: metadataProject.path } : null;
+  }, [notesEffectiveDirectory, notesProjects]);
+
+  const notesGitDirectories = useGitStore((state) => state.directories);
+  const canCreateWorktree = React.useMemo(() => {
+    if (!projectRef) return false;
+    return notesGitDirectories.get(projectRef.path)?.isGitRepo === true;
+  }, [projectRef, notesGitDirectories]);
+
+  const projectLabel = React.useMemo(() => {
+    const directory = normalizePath(notesEffectiveDirectory);
+    if (!directory) return t('mobile.header.noProject');
+    const project = resolveProjectForDirectory(notesProjects, directory);
+    return getProjectDisplayLabel(project, directory) || t('mobile.header.noProject');
+  }, [notesEffectiveDirectory, notesProjects, t]);
 
   // iPad (Capacitor): sessions live in a persistent full-height left sidebar
   // and Changes/Files in a right sidebar, instead of phone sheets/surfaces.
@@ -2261,6 +2297,10 @@ const MobileShell: React.FC<{ onActiveConnectionDeleted: () => void }> = ({ onAc
       setInstancesOpen(false);
       return true;
     }
+    if (notesOpen) {
+      setNotesOpen(false);
+      return true;
+    }
     if (settingsOpen) {
       setSettingsOpen(false);
       return true;
@@ -2270,7 +2310,7 @@ const MobileShell: React.FC<{ onActiveConnectionDeleted: () => void }> = ({ onAc
       return true;
     }
     return false;
-  }, [changesOpen, closeChanges, filesOpen, instancesOpen, mcpOpen, overflowOpen, sessionsSheetOpen, settingsOpen, updateOpen]);
+  }, [changesOpen, closeChanges, filesOpen, instancesOpen, mcpOpen, notesOpen, overflowOpen, sessionsSheetOpen, settingsOpen, updateOpen]);
 
   useNativeAndroidBackButton(handleNativeBack);
 
@@ -2344,10 +2384,10 @@ const MobileShell: React.FC<{ onActiveConnectionDeleted: () => void }> = ({ onAc
         );
       }
       items.push({
-        key: 'terminal',
-        icon: 'terminal',
-        label: t('mobile.menu.terminal'),
-        onSelect: () => setTerminalOpen(true),
+        key: 'notes',
+        icon: 'file-list-2',
+        label: t('mobile.menu.notes'),
+        onSelect: () => setNotesOpen(true),
       });
       items.push({
         key: 'mcp',
@@ -2569,17 +2609,22 @@ const MobileShell: React.FC<{ onActiveConnectionDeleted: () => void }> = ({ onAc
           </MobileSurfaceShell>
         ) : null}
 
-        {terminalOpen ? (
+        {notesOpen ? (
           <MobileSurfaceShell
             open
-            onClose={() => setTerminalOpen(false)}
-            ariaLabel={t('mobile.menu.terminal')}
-            title={t('mobile.menu.terminal')}
-            disableSwipeDismiss
-            disableEscapeDismiss
+            onClose={() => setNotesOpen(false)}
+            ariaLabel={t('mobile.menu.notes')}
+            title={t('mobile.menu.notes')}
           >
             <ErrorBoundary>
-              <TerminalView visible />
+              <div className="h-full overflow-auto">
+                <ProjectNotesTodoPanel
+                  projectRef={projectRef}
+                  projectLabel={projectLabel}
+                  canCreateWorktree={canCreateWorktree}
+                  onActionComplete={() => setNotesOpen(false)}
+                />
+              </div>
             </ErrorBoundary>
           </MobileSurfaceShell>
         ) : null}
@@ -2716,9 +2761,6 @@ export function MobileApp({ apis }: MobileAppProps) {
   // splash so we don't flash the connect screen; 'done' means we either connected or
   // exhausted the attempt (then the connect screen shows).
   const [autoConnectPhase, setAutoConnectPhase] = React.useState<'pending' | 'attempting' | 'done'>('pending');
-  // The instance the splash says we are connecting to. Read once on mount —
-  // auto-connect targets the most-recent saved connection from the same list.
-  const autoConnectLabel = React.useMemo(() => getAutoConnectTargetLabel(), []);
   // Bumped to force a re-render (and thus a fresh `sdk` prop for SyncProvider)
   // after a same-device transport swap — reconnects the sync layer in place with
   // no remount. The value itself is unused; only the re-render matters.
@@ -3083,19 +3125,8 @@ export function MobileApp({ apis }: MobileAppProps) {
     // (no saved instance, unreachable, or needs re-login).
     if (autoConnectPhase !== 'done') {
       return (
-        <main className="relative flex min-h-dvh items-center justify-center bg-background text-foreground">
+        <main className="flex min-h-dvh items-center justify-center bg-background text-foreground">
           <OpenChamberLogo width={120} height={120} isAnimated />
-          {/* Absolutely positioned below the (still perfectly centered) logo so
-              the text never pushes it up. 50% + half the 120px logo + a gap. */}
-          {autoConnectLabel ? (
-            <div className="absolute inset-x-0 top-[calc(50%+84px)] flex flex-col items-center gap-0.5 px-6 text-center">
-              <p className="typography-small text-muted-foreground">{t('mobile.connect.splash.connectingTo')}</p>
-              <p className="typography-small text-foreground">
-                {autoConnectLabel}
-                <BusyDots />
-              </p>
-            </div>
-          ) : null}
         </main>
       );
     }

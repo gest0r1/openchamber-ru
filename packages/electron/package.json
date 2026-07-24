@@ -159,8 +159,8 @@
     },
     "publish": {
       "provider": "github",
-      "owner": "openchamber",
-      "repo": "openchamber"
+      "owner": "gest0r1",
+      "repo": "openchamber-ru"
     }
   }
 }
