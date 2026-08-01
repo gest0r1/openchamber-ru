@@ -137,15 +137,29 @@ export type AgentWithExtras = Agent & {
 };
 
 /** Parse the subfolder group name from an agent file path.
- *  e.g. "~/.config/opencode/agents/business/ceo.md" → "business"
- *  e.g. "~/.config/opencode/agents/ceo.md"          → undefined
+ *  Runtime dir: "~/.opencode/agent/subagents/code/x.md" → "code"
+ *              "~/.opencode/agent/core/x.md"            → undefined
+ *  Legacy:     "~/.config/opencode/agents/business/ceo.md" → "business"
+ *              "~/.config/opencode/agents/ceo.md"          → undefined
  */
 function parseAgentGroup(path: string | null | undefined): string | undefined {
   if (!path) return undefined;
   const normalizedPath = path.replace(/\\/g, '/');
-  const idx = normalizedPath.lastIndexOf('/agents/');
-  if (idx === -1) return undefined;
-  const relative = normalizedPath.substring(idx + '/agents/'.length);
+
+  // Runtime dir structure: ~/.opencode/agent/{core|subagents/{category}}/{name}.md
+  const runtimeIdx = normalizedPath.lastIndexOf('/.opencode/agent/');
+  if (runtimeIdx !== -1) {
+    const relative = normalizedPath.substring(runtimeIdx + '/.opencode/agent/'.length);
+    const parts = relative.split('/');
+    // parts: [core|subagents, (category), filename] — group is the category
+    if (parts.length >= 3 && parts[0] === 'subagents') return parts[1];
+    return undefined;
+  }
+
+  // Legacy dir structure: ~/.config/opencode/agents/{group}/{name}.md
+  const legacyIdx = normalizedPath.lastIndexOf('/agents/');
+  if (legacyIdx === -1) return undefined;
+  const relative = normalizedPath.substring(legacyIdx + '/agents/'.length);
   const parts = relative.split('/');
   // parts[0] = group, parts[1] = filename; need at least 2 parts
   return parts.length > 1 ? parts[0] : undefined;

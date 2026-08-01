@@ -2,9 +2,9 @@ import fs from 'fs';
 import path from 'path';
 import {
   CONFIG_FILE,
-  AGENT_DIR,
   AGENT_SCOPE,
   ensureDirs,
+  getAgentDirectoryRoots,
   parseMdFile,
   writeMdFile,
   readConfigLayers,
@@ -46,22 +46,31 @@ function getProjectAgentPath(workingDirectory, agentName) {
 
 /**
  * Create a per-request lookup cache for user-level agent path resolution.
+ * Indexes are kept per directory root so that one root is fully searched
+ * (flat + subfolders) before falling back to the next, lower-priority root.
  */
 function createAgentLookupCache() {
   return {
-    userAgentIndexByName: new Map(),
-    userAgentLookupByName: new Map(),
-    userAgentIndexReady: false,
+    userAgentIndexByRoot: new Map(),
+    userAgentIndexedRoots: new Set(),
   };
 }
 
-function buildUserAgentIndex(cache) {
-  if (cache.userAgentIndexReady) return;
-  cache.userAgentIndexReady = true;
+/**
+ * Build (once per root) the agent index for a single root: name -> full path,
+ * first file wins within the root, subfolders are walked in sorted order.
+ */
+function indexAgentRoot(cache, rootDir) {
+  if (cache.userAgentIndexedRoots.has(rootDir)) {
+    return cache.userAgentIndexByRoot.get(rootDir);
+  }
+  cache.userAgentIndexedRoots.add(rootDir);
+  const index = new Map();
+  cache.userAgentIndexByRoot.set(rootDir, index);
 
-  if (!fs.existsSync(AGENT_DIR)) return;
+  if (!fs.existsSync(rootDir)) return index;
 
-  const dirsToVisit = [AGENT_DIR];
+  const dirsToVisit = [rootDir];
   while (dirsToVisit.length > 0) {
     const dir = dirsToVisit.pop();
     let entries;
@@ -76,8 +85,8 @@ function buildUserAgentIndex(cache) {
     for (const entry of entries) {
       if (!entry.isFile() || !entry.name.endsWith('.md')) continue;
       const agentName = entry.name.slice(0, -3);
-      if (!cache.userAgentIndexByName.has(agentName)) {
-        cache.userAgentIndexByName.set(agentName, path.join(dir, entry.name));
+      if (!index.has(agentName)) {
+        index.set(agentName, path.join(dir, entry.name));
       }
     }
 
@@ -88,38 +97,68 @@ function buildUserAgentIndex(cache) {
       }
     }
   }
+
+  return index;
 }
 
-function getIndexedUserAgentPath(agentName, cache) {
-  if (cache.userAgentLookupByName.has(agentName)) {
-    return cache.userAgentLookupByName.get(agentName);
-  }
-
-  buildUserAgentIndex(cache);
-  const found = cache.userAgentIndexByName.get(agentName) || null;
-  cache.userAgentLookupByName.set(agentName, found);
-  return found;
+/**
+ * Resolve an agent within a single root: flat path first, then subfolders.
+ * Returns null when the agent is not present in this root.
+ */
+function getAgentPathInRoot(agentName, rootDir, cache) {
+  const flatPath = path.join(rootDir, `${agentName}.md`);
+  if (fs.existsSync(flatPath)) return flatPath;
+  return indexAgentRoot(cache, rootDir).get(agentName) || null;
 }
 
 /**
  * Get user-level agent path — walks subfolders to support grouped layouts.
- * e.g. ~/.config/opencode/agents/business/ceo-diginno.md
+ * Priority: each root is fully searched (flat then subfolders) before moving
+ * to the next root, so the runtime dir (~/.opencode/agent) always wins over
+ * legacy dirs for reads. Default (new agent) is runtime dir flat path.
  */
 function getUserAgentPath(agentName, lookupCache = null) {
-  // 1. Check flat path first (legacy / newly created agents)
-  const pluralPath = path.join(AGENT_DIR, `${agentName}.md`);
-  if (fs.existsSync(pluralPath)) return pluralPath;
-
-  const legacyPath = path.join(AGENT_DIR, '..', 'agent', `${agentName}.md`);
-  if (fs.existsSync(legacyPath)) return legacyPath;
-
-  // 2. Lookup subfolders for grouped layout
   const cache = lookupCache || createAgentLookupCache();
-  const found = getIndexedUserAgentPath(agentName, cache);
-  if (found) return found;
+  for (const root of getAgentDirectoryRoots()) {
+    const found = getAgentPathInRoot(agentName, root, cache);
+    if (found) return found;
+  }
+  return path.join(getAgentDirectoryRoots()[0], `${agentName}.md`);
+}
 
-  // 3. Return expected flat path as default (for new agent creation)
-  return pluralPath;
+/**
+ * Validate a user-supplied agent category so it cannot escape the runtime
+ * agent dir via path traversal. Falls back to 'core' when absent.
+ */
+function sanitizeAgentCategory(category) {
+  const value = typeof category === 'string' ? category.trim() : '';
+  if (!value) return 'core';
+  if (value === '.' || value.includes('..') || value.includes('/') || value.includes('\\')) {
+    throw new Error(`Invalid agent category: ${value}`);
+  }
+  return value;
+}
+
+/**
+ * Determine the category subdirectory an agent should be written to.
+ * - `mode: subagent` -> `subagents/{category}` (category from config or 'core')
+ * - anything else (`primary`, absent, `all`) -> `core`
+ * @returns {string} relative category path, e.g. 'subagents/code' or 'core'
+ */
+function getAgentCategory(agentName, config = {}) {
+  if (config.mode === 'subagent') {
+    return path.join('subagents', sanitizeAgentCategory(config.category));
+  }
+  return 'core';
+}
+
+/**
+ * Write path for a new user-level agent: runtime dir + category subfolder.
+ */
+function getUserAgentWritePath(agentName, config = {}, lookupCache = null) {
+  const existing = getUserAgentPath(agentName, lookupCache);
+  if (fs.existsSync(existing)) return existing;
+  return path.join(getAgentDirectoryRoots()[0], getAgentCategory(agentName, config), `${agentName}.md`);
 }
 
 /**
@@ -143,9 +182,11 @@ function getAgentScope(agentName, workingDirectory, lookupCache = null) {
 }
 
 /**
- * Get the path where an agent should be written based on scope
+ * Get the path where an agent should be written based on scope.
+ * Existing agents keep their current location (incl. legacy dirs); new user
+ * agents go to the runtime dir with a category subfolder.
  */
-function getAgentWritePath(agentName, workingDirectory, requestedScope, lookupCache = null) {
+function getAgentWritePath(agentName, workingDirectory, requestedScope, lookupCache = null, config = {}) {
   // For updates: check existing location first (project takes precedence)
   const existing = getAgentScope(agentName, workingDirectory, lookupCache);
   if (existing.path) {
@@ -163,7 +204,7 @@ function getAgentWritePath(agentName, workingDirectory, requestedScope, lookupCa
 
   return {
     scope: AGENT_SCOPE.USER,
-    path: getUserAgentPath(agentName, lookupCache)
+    path: getUserAgentWritePath(agentName, config, lookupCache)
   };
 }
 
@@ -347,7 +388,7 @@ function createAgent(agentName, config, workingDirectory, scope) {
     targetPath = projectPath;
     targetScope = AGENT_SCOPE.PROJECT;
   } else {
-    targetPath = userPath;
+    targetPath = getUserAgentWritePath(agentName, config, lookupCache);
     targetScope = AGENT_SCOPE.USER;
   }
 
@@ -356,6 +397,7 @@ function createAgent(agentName, config, workingDirectory, scope) {
     Object.entries(rawFrontmatter).filter(([, value]) => value !== null && value !== undefined)
   );
 
+  fs.mkdirSync(path.dirname(targetPath), { recursive: true });
   writeMdFile(targetPath, frontmatter, prompt || '');
   console.log(`Created new agent: ${agentName} (scope: ${targetScope}, path: ${targetPath})`);
 }
@@ -364,7 +406,7 @@ function updateAgent(agentName, updates, workingDirectory) {
   ensureDirs();
   const lookupCache = createAgentLookupCache();
 
-  const { scope, path: mdPath } = getAgentWritePath(agentName, workingDirectory, undefined, lookupCache);
+  const { scope, path: mdPath } = getAgentWritePath(agentName, workingDirectory, undefined, lookupCache, updates);
   const mdExists = mdPath && fs.existsSync(mdPath);
 
   const layers = readConfigLayers(workingDirectory);
@@ -382,7 +424,9 @@ function updateAgent(agentName, updates, workingDirectory) {
   let targetScope = scope;
 
   if (!mdExists && isBuiltinOverride) {
-    targetPath = getUserAgentPath(agentName, lookupCache);
+    // Newly created override file: write to the category path computed by
+    // getAgentWritePath (runtime dir + category subfolder).
+    targetPath = mdPath;
     targetScope = AGENT_SCOPE.USER;
   }
 
@@ -560,6 +604,7 @@ function updateAgent(agentName, updates, workingDirectory) {
   }
 
   if (mdModified && mdData) {
+    fs.mkdirSync(path.dirname(targetPath), { recursive: true });
     writeMdFile(targetPath, mdData.frontmatter, mdData.body);
   }
 
@@ -640,4 +685,9 @@ export {
   createAgent,
   updateAgent,
   deleteAgent,
+  getUserAgentPath,
+  getUserAgentWritePath,
+  getAgentScope,
+  getAgentWritePath,
+  getAgentCategory,
 };

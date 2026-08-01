@@ -54,9 +54,10 @@ This module provides OpenCode server integration utilities for the web server ru
 - `OPENCODE_DATA_DIR`: OpenCode data directory path constant.
 
 ## Public exports (shared.js)
-- `OPENCODE_CONFIG_DIR`, `AGENT_DIR`, `COMMAND_DIR`, `SKILL_DIR`, `CONFIG_FILE`, `CUSTOM_CONFIG_FILE`: Path constants.
+- `OPENCODE_CONFIG_DIR`, `AGENT_DIR`, `RUNTIME_AGENT_DIR`, `COMMAND_DIR`, `SKILL_DIR`, `CONFIG_FILE`, `CUSTOM_CONFIG_FILE`: Path constants. `AGENT_DIR` is the legacy user agent dir (`~/.config/opencode/agents`); `RUNTIME_AGENT_DIR` (`~/.opencode/agent`) is where the OpenCode binary reads user agents and where new user agents are written.
 - `AGENT_SCOPE`, `COMMAND_SCOPE`, `SKILL_SCOPE`: Scope constants with USER and PROJECT values.
-- `ensureDirs()`: Creates required OpenCode directories.
+- `ensureDirs()`: Creates required OpenCode directories (config dir, legacy agents dir, runtime agent dir, commands, skills).
+- `getAgentDirectoryRoots()`: Returns user-level agent dir roots in read priority order: runtime dir, legacy `agents` dir, legacy singular `agent` dir. Honors the `OPENCHAMBER_HOME` override (temp HOME for tests).
 - `parseMdFile(filePath)`, `writeMdFile(filePath, frontmatter, body)`: Markdown file operations with YAML frontmatter.
 - `getConfigPaths(workingDirectory)`, `readConfigLayers(workingDirectory)`, `readConfig(workingDirectory)`: Config file operations with layer merging (user, project, custom).
 - `writeConfig(config, filePath)`: Writes config with automatic backup.
@@ -359,8 +360,10 @@ The runtime maintains active-session count incrementally from idempotent activit
 ## Storage and configuration
 - Provider auth: `~/.local/share/opencode/auth.json`.
 - User config: `~/.config/opencode/opencode.json`.
+- User agents (runtime dir, read by the OpenCode binary): `~/.opencode/agent/` — flat files plus `core/` and `subagents/{category}/` subfolders. New user agents are written here; existing agents in legacy dirs (`~/.config/opencode/agents/`, `~/.config/opencode/agent/`) keep their location and continue to be read.
 - Project config: `<workingDirectory>/.opencode/opencode.json` or `opencode.json`.
 - Custom config: `OPENCODE_CONFIG` env var path.
+- Home override for tests: `OPENCHAMBER_HOME` env var.
 - Rate limit config: `OPENCHAMBER_RATE_LIMIT_MAX_ATTEMPTS`, `OPENCHAMBER_RATE_LIMIT_NO_IP_MAX_ATTEMPTS` env vars.
 
 ## Notes for contributors
