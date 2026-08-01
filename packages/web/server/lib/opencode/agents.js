@@ -53,6 +53,7 @@ function createAgentLookupCache() {
   return {
     userAgentIndexByRoot: new Map(),
     userAgentIndexedRoots: new Set(),
+    userAgentNormalizedIndexByRoot: new Map(),
     frontmatterNameByRoot: new Map(),
     frontmatterNameScanned: new Set(),
   };
@@ -152,6 +153,8 @@ function indexAgentRoot(cache, rootDir) {
   cache.userAgentIndexedRoots.add(rootDir);
   const index = new Map();
   cache.userAgentIndexByRoot.set(rootDir, index);
+  const normalizedIndex = new Map();
+  cache.userAgentNormalizedIndexByRoot.set(rootDir, normalizedIndex);
 
   if (!fs.existsSync(rootDir)) return index;
 
@@ -173,6 +176,10 @@ function indexAgentRoot(cache, rootDir) {
       if (!index.has(agentName)) {
         index.set(agentName, path.join(dir, entry.name));
       }
+      const normalizedKey = normalizeAgentName(agentName);
+      if (!normalizedIndex.has(normalizedKey)) {
+        normalizedIndex.set(normalizedKey, path.join(dir, entry.name));
+      }
     }
 
     for (let i = entries.length - 1; i >= 0; i -= 1) {
@@ -187,16 +194,34 @@ function indexAgentRoot(cache, rootDir) {
 }
 
 /**
+ * Normalize an agent name for case-insensitive basename matching: lowercase
+ * and strip every non-alphanumeric character, so `SeniorTechnicalPlanReviewer`
+ * and `senior-technical-plan-reviewer` normalize to the same key. Used as a
+ * last-resort fallback for files that lack a frontmatter `name`.
+ */
+function normalizeAgentName(name) {
+  return String(name).toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
+/**
  * Resolve an agent within a single root: flat basename, then subfolder
- * basename, then frontmatter `name` (case-insensitive). Returns null when the
- * agent is not present in this root.
+ * basename, then frontmatter `name`, then normalized basename
+ * (case-insensitive, punctuation-insensitive). Returns null when the agent is
+ * not present in this root.
  */
 function getAgentPathInRoot(agentName, rootDir, cache) {
   const flatPath = path.join(rootDir, `${agentName}.md`);
   if (fs.existsSync(flatPath)) return flatPath;
   const indexed = indexAgentRoot(cache, rootDir).get(agentName);
   if (indexed) return indexed;
-  return getAgentByFrontmatterName(agentName, rootDir, cache);
+  const byFrontmatter = getAgentByFrontmatterName(agentName, rootDir, cache);
+  if (byFrontmatter) return byFrontmatter;
+  const normalizedIndex = cache.userAgentNormalizedIndexByRoot.get(rootDir);
+  if (normalizedIndex) {
+    const byNormalized = normalizedIndex.get(normalizeAgentName(agentName));
+    if (byNormalized) return byNormalized;
+  }
+  return null;
 }
 
 /**
@@ -528,9 +553,10 @@ function updateAgent(agentName, updates, workingDirectory) {
 
   let mdData = mdExists ? parseMdFile(mdPath) : (isBuiltinOverride ? { frontmatter: {}, body: '' } : null);
 
-  if (!mdExists && isBuiltinOverride && mdData && typeof mdData.frontmatter.name !== 'string') {
+  if (mdData && typeof mdData.frontmatter.name !== 'string') {
     // Register the agent under its display name like createAgent does, so the
-    // runtime keys it by `name` instead of the raw basename.
+    // runtime keys it by `name` instead of the raw basename. Applies to both
+    // fresh overrides and pre-existing files that lost their `name` field.
     mdData.frontmatter.name = agentName;
   }
 
@@ -707,8 +733,9 @@ function updateAgent(agentName, updates, workingDirectory) {
 
   if (mdModified && mdData) {
     // Fresh override files must keep their frontmatter `name` — a payload
-    // with `name: null` would otherwise strip the registration field.
-    if (!mdExists && isBuiltinOverride && typeof mdData.frontmatter.name !== 'string') {
+    // with `name: null` would otherwise strip the registration field. Existing
+    // files that lack it also get it backfilled so later lookups resolve.
+    if (typeof mdData.frontmatter.name !== 'string') {
       mdData.frontmatter.name = agentName;
       mdModified = true;
     }
