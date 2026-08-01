@@ -117,6 +117,99 @@ describe('agents', () => {
     );
   });
 
+  test('display name resolves to the existing slug file via frontmatter name', () => {
+    writeAgentFile(
+      '.opencode/agent/subagents/code/senior-technical-plan-reviewer.md',
+      '---\nname: SeniorTechnicalPlanReviewer\nmode: subagent\n---\nbody',
+    );
+    expect(agents.getUserAgentPath('SeniorTechnicalPlanReviewer')).toBe(
+      path.join(home, '.opencode', 'agent', 'subagents', 'code', 'senior-technical-plan-reviewer.md'),
+    );
+  });
+
+  test('display name resolves case-insensitively to slug file', () => {
+    writeAgentFile(
+      '.opencode/agent/subagents/code/plan-reviewer-x.md',
+      '---\nname: PlanReviewerX\nmode: subagent\n---\nbody',
+    );
+    expect(agents.getUserAgentPath('planreviewerx')).toBe(
+      path.join(home, '.opencode', 'agent', 'subagents', 'code', 'plan-reviewer-x.md'),
+    );
+  });
+
+  test('getAgentWritePath: display name updates existing slug file (no duplicate)', () => {
+    writeAgentFile(
+      '.opencode/agent/subagents/code/senior-technical-plan-reviewer.md',
+      '---\nname: SeniorTechnicalPlanReviewer\nmode: subagent\nmodel: gpt-5.5\n---\nbody',
+    );
+    const result = agents.getAgentWritePath('SeniorTechnicalPlanReviewer', null, undefined, null, {
+      mode: 'subagent',
+      model: 'gpt-5.6-luna',
+    });
+    expect(result.path).toBe(
+      path.join(home, '.opencode', 'agent', 'subagents', 'code', 'senior-technical-plan-reviewer.md'),
+    );
+  });
+
+  test('createAgent refuses to duplicate an agent whose display name already exists', () => {
+    writeAgentFile(
+      '.opencode/agent/subagents/code/senior-technical-plan-reviewer.md',
+      '---\nname: SeniorTechnicalPlanReviewer\nmode: subagent\n---\nbody',
+    );
+    expect(() =>
+      agents.createAgent('SeniorTechnicalPlanReviewer', { mode: 'subagent' }, null, 'user'),
+    ).toThrow(/already exists/);
+  });
+
+  test('createAgent writes name field into frontmatter', () => {
+    agents.createAgent('new-with-name', { mode: 'subagent' }, null, 'user');
+    const content = fs.readFileSync(
+      path.join(home, '.opencode', 'agent', 'subagents', 'core', 'new-with-name.md'),
+      'utf8',
+    );
+    expect(content).toMatch(/^name: new-with-name$/m);
+  });
+
+  test('deleteAgent by display name removes the existing slug file', () => {
+    writeAgentFile(
+      '.opencode/agent/subagents/code/delete-by-name.md',
+      '---\nname: DeleteByName\nmode: subagent\n---\nbody',
+    );
+    agents.deleteAgent('DeleteByName', null, 'user');
+    expect(fs.existsSync(path.join(home, '.opencode', 'agent', 'subagents', 'code', 'delete-by-name.md'))).toBe(
+      false,
+    );
+  });
+
+  test('createAgent/updateAgent/deleteAgent reject traversal agent names', () => {
+    expect(() => agents.createAgent('../evil', { mode: 'subagent' }, null, 'user')).toThrow(
+      /Invalid agent name/,
+    );
+    expect(() => agents.updateAgent('a/b', { model: 'x' }, null)).toThrow(/Invalid agent name/);
+    expect(() => agents.deleteAgent('..', null, 'user')).toThrow(/Invalid agent name/);
+  });
+
+  test('frontmatter name in body does not resolve the agent', () => {
+    // The `name:` line lives AFTER the closing frontmatter marker: the block
+    // scan must not treat it as the agent's display name.
+    writeAgentFile(
+      '.opencode/agent/subagents/code/body-name-test.md',
+      '---\nmode: subagent\n---\n\nname: FakeDisplayName\nbody',
+    );
+    expect(agents.getUserAgentPath('FakeDisplayName')).toBe(
+      path.join(home, '.opencode', 'agent', 'FakeDisplayName.md'),
+    );
+  });
+
+  test('updateAgent with name:null still keeps name on fresh override', () => {
+    agents.updateAgent('null-name-override', { model: 'gpt-x', mode: 'subagent', name: null }, null);
+    const content = fs.readFileSync(
+      path.join(home, '.opencode', 'agent', 'subagents', 'core', 'null-name-override.md'),
+      'utf8',
+    );
+    expect(content).toMatch(/^name: null-name-override$/m);
+  });
+
   test('getAgentWritePath: runtime subfolder wins over legacy flat', () => {
     writeAgentFile('.opencode/agent/subagents/code/dup-write.md', 'runtime');
     writeAgentFile('.config/opencode/agents/dup-write.md', 'legacy');

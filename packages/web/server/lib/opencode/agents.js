@@ -53,7 +53,92 @@ function createAgentLookupCache() {
   return {
     userAgentIndexByRoot: new Map(),
     userAgentIndexedRoots: new Set(),
+    frontmatterNameByRoot: new Map(),
+    frontmatterNameScanned: new Set(),
   };
+}
+
+/**
+ * Reject agent names that could escape the agent directories via path
+ * traversal. Called by every mutating entrypoint before the name is used in
+ * a path; reads only ever resolve to a default path, so they cannot write.
+ */
+function assertSafeAgentName(agentName) {
+  if (
+    typeof agentName !== 'string' ||
+    !agentName.trim() ||
+    agentName.includes('/') ||
+    agentName.includes('\\') ||
+    agentName.includes('..') ||
+    path.isAbsolute(agentName)
+  ) {
+    throw new Error(`Invalid agent name: ${agentName}`);
+  }
+}
+
+/**
+ * Extract the `name` field from an agent markdown file's frontmatter without
+ * a full YAML parse — display names are plain scalars in practice. Only the
+ * block between the opening/closing `---` markers is examined (bounded scan),
+ * so body lines like `name: ...` can never false-positive. Returns null when
+ * the file has no usable frontmatter `name`.
+ */
+function getAgentFrontmatterName(filePath) {
+  let head;
+  try {
+    head = fs.readFileSync(filePath, 'utf8').slice(0, 65536);
+  } catch {
+    return null;
+  }
+  const block = /^---\r?\n([\s\S]*?)\r?\n---\r?\n/.exec(head);
+  if (!block) return null;
+  const nameMatch = /^name:\s*['"]?([^'"\n]+)['"]?\s*$/m.exec(block[1]);
+  return nameMatch ? nameMatch[1].trim() : null;
+}
+
+/**
+ * Lazily build (once per root) a name -> path index from frontmatter `name`
+ * fields. Runtime files are stored under slug basenames (e.g.
+ * `senior-technical-plan-reviewer.md`) while their frontmatter `name` holds
+ * the display id (e.g. `SeniorTechnicalPlanReviewer`); matching on it lets a
+ * UI display name resolve to the existing slug file instead of creating a
+ * duplicate. Keys are lowercased so matching is case-insensitive.
+ */
+function getAgentByFrontmatterName(agentName, rootDir, cache) {
+  if (!cache.frontmatterNameScanned.has(rootDir)) {
+    cache.frontmatterNameScanned.add(rootDir);
+    const map = new Map();
+    cache.frontmatterNameByRoot.set(rootDir, map);
+
+    if (!fs.existsSync(rootDir)) return null;
+
+    const dirsToVisit = [rootDir];
+    while (dirsToVisit.length > 0) {
+      const dir = dirsToVisit.pop();
+      let entries;
+      try {
+        entries = fs.readdirSync(dir, { withFileTypes: true });
+      } catch {
+        continue;
+      }
+      entries.sort((a, b) => a.name.localeCompare(b.name));
+      for (const entry of entries) {
+        if (entry.isDirectory()) {
+          dirsToVisit.push(path.join(dir, entry.name));
+          continue;
+        }
+        if (!entry.isFile() || !entry.name.endsWith('.md')) continue;
+        const filePath = path.join(dir, entry.name);
+        const frontmatterName = getAgentFrontmatterName(filePath);
+        if (frontmatterName && !map.has(frontmatterName.toLowerCase())) {
+          map.set(frontmatterName.toLowerCase(), filePath);
+        }
+      }
+    }
+  }
+
+  const map = cache.frontmatterNameByRoot.get(rootDir);
+  return (map && map.get(agentName.toLowerCase())) || null;
 }
 
 /**
@@ -102,13 +187,16 @@ function indexAgentRoot(cache, rootDir) {
 }
 
 /**
- * Resolve an agent within a single root: flat path first, then subfolders.
- * Returns null when the agent is not present in this root.
+ * Resolve an agent within a single root: flat basename, then subfolder
+ * basename, then frontmatter `name` (case-insensitive). Returns null when the
+ * agent is not present in this root.
  */
 function getAgentPathInRoot(agentName, rootDir, cache) {
   const flatPath = path.join(rootDir, `${agentName}.md`);
   if (fs.existsSync(flatPath)) return flatPath;
-  return indexAgentRoot(cache, rootDir).get(agentName) || null;
+  const indexed = indexAgentRoot(cache, rootDir).get(agentName);
+  if (indexed) return indexed;
+  return getAgentByFrontmatterName(agentName, rootDir, cache);
 }
 
 /**
@@ -360,6 +448,7 @@ function getAgentConfig(agentName, workingDirectory, lookupCache = createAgentLo
 }
 
 function createAgent(agentName, config, workingDirectory, scope) {
+  assertSafeAgentName(agentName);
   ensureDirs();
   const lookupCache = createAgentLookupCache();
 
@@ -396,6 +485,12 @@ function createAgent(agentName, config, workingDirectory, scope) {
   const frontmatter = Object.fromEntries(
     Object.entries(rawFrontmatter).filter(([, value]) => value !== null && value !== undefined)
   );
+  // The runtime registers agents by their frontmatter `name`; without it the
+  // file would be identified by its basename only and future edits using the
+  // display name would miss it (creating a duplicate file).
+  if (typeof frontmatter.name !== 'string' || !frontmatter.name.trim()) {
+    frontmatter.name = agentName;
+  }
 
   fs.mkdirSync(path.dirname(targetPath), { recursive: true });
   writeMdFile(targetPath, frontmatter, prompt || '');
@@ -403,6 +498,7 @@ function createAgent(agentName, config, workingDirectory, scope) {
 }
 
 function updateAgent(agentName, updates, workingDirectory) {
+  assertSafeAgentName(agentName);
   ensureDirs();
   const lookupCache = createAgentLookupCache();
 
@@ -431,6 +527,12 @@ function updateAgent(agentName, updates, workingDirectory) {
   }
 
   let mdData = mdExists ? parseMdFile(mdPath) : (isBuiltinOverride ? { frontmatter: {}, body: '' } : null);
+
+  if (!mdExists && isBuiltinOverride && mdData && typeof mdData.frontmatter.name !== 'string') {
+    // Register the agent under its display name like createAgent does, so the
+    // runtime keys it by `name` instead of the raw basename.
+    mdData.frontmatter.name = agentName;
+  }
 
   let mdModified = false;
   let jsonModified = false;
@@ -604,6 +706,12 @@ function updateAgent(agentName, updates, workingDirectory) {
   }
 
   if (mdModified && mdData) {
+    // Fresh override files must keep their frontmatter `name` — a payload
+    // with `name: null` would otherwise strip the registration field.
+    if (!mdExists && isBuiltinOverride && typeof mdData.frontmatter.name !== 'string') {
+      mdData.frontmatter.name = agentName;
+      mdModified = true;
+    }
     fs.mkdirSync(path.dirname(targetPath), { recursive: true });
     writeMdFile(targetPath, mdData.frontmatter, mdData.body);
   }
@@ -626,6 +734,7 @@ function deleteJsonAgentEntry(config, agentName) {
 }
 
 function deleteAgent(agentName, workingDirectory, scope) {
+  assertSafeAgentName(agentName);
   const lookupCache = createAgentLookupCache();
   const requestedScope = scope === AGENT_SCOPE.PROJECT || scope === AGENT_SCOPE.USER ? scope : null;
 
