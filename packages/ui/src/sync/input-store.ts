@@ -105,14 +105,14 @@ export type InputState = {
    * render the chips outside ChatInput (e.g. under the welcome message on
    * narrow layouts); consumed by ChatInput, which owns the command-aware submit.
    */
-  pendingPresetSubmit: string | null
+  pendingPresetSubmit: { text: string; type: "command" | "skill" } | null
   attachedFiles: AttachedFile[]
   activeEditorFile: VSCodeActiveEditorFile | null
 
   setPendingInputText: (text: string | null, mode?: "replace" | "append" | "append-inline") => void
   consumePendingInputText: () => { text: string; mode: "replace" | "append" | "append-inline" } | null
-  requestPresetSubmit: (text: string) => void
-  consumePendingPresetSubmit: () => string | null
+  requestPresetSubmit: (text: string, type: "command" | "skill") => void
+  consumePendingPresetSubmit: () => { text: string; type: "command" | "skill" } | null
   setPendingSyntheticParts: (parts: SyntheticContextPart[] | null) => void
   consumePendingSyntheticParts: () => SyntheticContextPart[] | null
   addAttachedFile: (file: File) => Promise<boolean>
@@ -144,7 +144,7 @@ export const useInputStore = create<InputState>()((set, get) => ({
     return { text: pendingInputText, mode: pendingInputMode }
   },
 
-  requestPresetSubmit: (text) => set({ pendingPresetSubmit: text }),
+  requestPresetSubmit: (text, type) => set({ pendingPresetSubmit: { text, type } }),
 
   consumePendingPresetSubmit: () => {
     const { pendingPresetSubmit } = get()
@@ -175,6 +175,8 @@ export const useInputStore = create<InputState>()((set, get) => ({
       if (hasGeneratedFilenameCollision(generatedFilenames, get().attachedFiles)) continue
 
       const attachedFiles: AttachedFile[] = []
+      const isDocumentExtraction = preparedFiles.length > 1
+      const sourceDocumentId = isDocumentExtraction ? `${Date.now()}-${Math.random().toString(36).slice(2)}` : undefined
       for (const prepared of preparedFiles) {
         let dataUrl: string
         try {
@@ -191,6 +193,7 @@ export const useInputStore = create<InputState>()((set, get) => ({
           filename: prepared.file.name,
           size: prepared.file.size,
           source: "local",
+          sourceDocumentId,
         })
       }
 
@@ -202,7 +205,13 @@ export const useInputStore = create<InputState>()((set, get) => ({
   },
 
   removeAttachedFile: (id) =>
-    set((s) => ({ attachedFiles: s.attachedFiles.filter((f) => f.id !== id) })),
+    set((s) => {
+      const target = s.attachedFiles.find((f) => f.id === id)
+      if (target?.sourceDocumentId) {
+        return { attachedFiles: s.attachedFiles.filter((f) => f.sourceDocumentId !== target.sourceDocumentId) }
+      }
+      return { attachedFiles: s.attachedFiles.filter((f) => f.id !== id) }
+    }),
 
   setAttachedFiles: (files) => {
     attachmentReadGeneration += 1

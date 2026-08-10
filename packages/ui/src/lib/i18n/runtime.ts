@@ -1,10 +1,10 @@
-export type Locale = 'en' | 'fr' | 'zh-CN' | 'zh-TW' | 'uk' | 'es' | 'pt-BR' | 'ko' | 'pl' | 'ja' | 'ru';
+export type Locale = 'en' | 'de' | 'fr' | 'zh-CN' | 'zh-TW' | 'uk' | 'es' | 'pt-BR' | 'ko' | 'pl' | 'ja' | 'ru';
 
-export const LOCALES = ['en', 'fr', 'zh-CN', 'zh-TW', 'uk', 'es', 'pt-BR', 'ko', 'pl', 'ja', 'ru'] as const satisfies readonly Locale[];
+export const LOCALES = ['en', 'de', 'fr', 'zh-CN', 'zh-TW', 'uk', 'es', 'pt-BR', 'ko', 'pl', 'ja', 'ru'] as const satisfies readonly Locale[];
 
 export const DEFAULT_LOCALE: Locale = 'en';
 
-export const LOCALE_LABEL_KEYS: Record<Locale, 'common.language.english' | 'common.language.french' | 'common.language.simplifiedChinese' | 'common.language.traditionalChinese' | 'common.language.ukrainian' | 'common.language.spanish' | 'common.language.brazilianPortuguese' | 'common.language.korean' | 'common.language.polish' | 'common.language.japanese' | 'common.language.russian'> = {
+export const LOCALE_LABEL_KEYS: Record<Locale, 'common.language.english' | 'common.language.german' | 'common.language.french' | 'common.language.simplifiedChinese' | 'common.language.traditionalChinese' | 'common.language.ukrainian' | 'common.language.spanish' | 'common.language.brazilianPortuguese' | 'common.language.korean' | 'common.language.polish' | 'common.language.japanese' | 'common.language.russian'> = {
   en: 'common.language.english',
   fr: 'common.language.french',
   'zh-CN': 'common.language.simplifiedChinese',
@@ -14,6 +14,7 @@ export const LOCALE_LABEL_KEYS: Record<Locale, 'common.language.english' | 'comm
   'pt-BR': 'common.language.brazilianPortuguese',
   ko: 'common.language.korean',
   pl: 'common.language.polish',
+  de: 'common.language.german',
   ja: 'common.language.japanese',
   ru: 'common.language.russian',
 };
@@ -59,6 +60,9 @@ export function normalizeLocale(value: string | undefined | null): Locale {
   }
   if (normalized === 'ja' || normalized.startsWith('ja-')) {
     return 'ja';
+  }
+  if (normalized === 'de' || normalized.startsWith('de-')) {
+    return 'de';
   }
   if (normalized === 'pl' || normalized.startsWith('pl-')) {
     return 'pl';

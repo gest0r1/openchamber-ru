@@ -1,4 +1,4 @@
-import type { ProjectEntry, TerminalShell } from '@/lib/api/types';
+import type { ProjectEntry, RuntimeAPIs, TerminalShell } from '@/lib/api/types';
 import { getInjectedBootOutcome } from '@/lib/desktopBoot';
 import type { DraftStarterRef } from '@/lib/draftStarters';
 import type { MobileKeyboardMode } from '@/lib/mobileKeyboardMode';
@@ -38,8 +38,11 @@ export type SkillCatalogConfig = {
   gitIdentityId?: string;
 };
 
-export type DesktopWindowControlsPosition = 'auto' | 'left' | 'right';
+export type DesktopWindowControlsPosition = 'left' | 'right';
 export type DesktopWindowControlsSide = 'left' | 'right';
+export type DesktopWindowControlAction = 'close' | 'minimize' | 'maximize';
+// No fixed-width constant: control width depends on the style (classic vs traffic-lights).
+export type DesktopWindowControlsStyle = 'classic' | 'traffic-lights';
 
 export type DesktopSettings = {
   themeId?: string;
@@ -65,6 +68,10 @@ export type DesktopSettings = {
   securityScopedBookmarks?: string[];
   pinnedDirectories?: string[];
   showReasoningTraces?: boolean;
+  /** Whether the in-chat work-status panel may render. */
+  workStatusPanelEnabled?: boolean;
+  /** Work-status panel sections the user switched off. */
+  workStatusHiddenSections?: string[];
   collapsibleThinkingBlocks?: boolean;
   showDeletionDialog?: boolean;
   nativeNotificationsEnabled?: boolean;
@@ -104,6 +111,7 @@ export type DesktopSettings = {
     renamedGroups?: Record<string, string>;  // groupId -> custom label
   }>;  // Per-provider custom model groups configuration
   autoDeleteEnabled?: boolean;
+  autoSaveEnabled?: boolean;
   autoDeleteAfterDays?: number;
   sessionRetentionAction?: 'archive' | 'delete';
   tunnelProvider?: string;
@@ -127,6 +135,10 @@ export type DesktopSettings = {
   sessionGoalDefaultBudgetEnabled?: boolean;
   sessionGoalDefaultBudget?: number;
   smallModelOverride?: string; // format: "provider/model"
+  // The walkthrough needs structured output and a roomy context, which the
+  // small model is often deliberately not chosen for. Unset means "use the
+  // small model"; a value replaces it for this feature only.
+  walkthroughModelOverride?: string; // format: "provider/model"
   defaultGitIdentityId?: string; // ''/undefined = unset, 'global' or profile id
   openInAppId?: string;
   autoCreateWorktree?: boolean;
@@ -141,8 +153,11 @@ export type DesktopSettings = {
   pwaOrientation?: 'system' | 'portrait' | 'landscape';
   mobileKeyboardMode?: MobileKeyboardMode;
   desktopWindowControlsPosition?: DesktopWindowControlsPosition;
+  desktopWindowControlsStyle?: DesktopWindowControlsStyle;
   inputSpellcheckEnabled?: boolean;
   showOpenCodeUpdateNotifications?: boolean;
+  agentControlToolEnabled?: boolean;
+  optimizeSystemPrompt?: boolean;
   openCodeUpdateToastDismissedVersion?: string;
   showToolFileIcons?: boolean;
   codeBlockLineWrap?: boolean;
@@ -206,8 +221,10 @@ export type DesktopSettings = {
   sttLanguage?: string;
   // Global draft welcome starters (pinned commands/skills), persisted to settings.json
   draftStarters?: DraftStarterRef[];
+  draftStartersVisible?: boolean;
   // One-time migration marker: Craft a Goal was offered in the starter row.
   draftStartersCraftGoalAdded?: boolean;
+  draftStartersScheduleTaskAdded?: boolean;
 };
 
 type DesktopBridgeGlobal = {
@@ -223,6 +240,7 @@ type DesktopBridgeGlobal = {
 
 type ElectronRuntimeGlobal = {
   runtime?: string;
+  arch?: string;
   macVibrancy?: boolean;
   macVibrancySupported?: boolean;
   trayEnabled?: boolean;
@@ -246,8 +264,8 @@ export const getElectronPlatform = (): string | null => {
   return typeof platform === 'string' ? platform : null;
 };
 
-/** Width of the three in-app window control buttons (3 × w-11). */
-export const DESKTOP_WINDOW_CONTROLS_WIDTH_PX = 132;
+/** Default side for in-app window controls (Windows-style, right). */
+export const DEFAULT_DESKTOP_WINDOW_CONTROLS_POSITION: DesktopWindowControlsPosition = 'right';
 
 /** Windows and Linux use frameless windows with in-app minimize/maximize/close controls. */
 export const usesFramelessElectronChrome = (): boolean => {
@@ -256,21 +274,36 @@ export const usesFramelessElectronChrome = (): boolean => {
   return platform === 'win32' || platform === 'linux';
 };
 
-export const getDefaultDesktopWindowControlsSide = (platform: string | null = getElectronPlatform()): DesktopWindowControlsSide => {
-  if (platform === 'linux') {
-    return 'left';
+/** Normalize a stored preference; legacy `auto` maps to the right-side default. */
+export const normalizeDesktopWindowControlsPosition = (
+  value: unknown,
+): DesktopWindowControlsPosition | undefined => {
+  if (value === 'left' || value === 'right') {
+    return value;
   }
-  return 'right';
+  // Legacy "auto" never read OS chrome config; treat it as the right default.
+  if (value === 'auto') {
+    return DEFAULT_DESKTOP_WINDOW_CONTROLS_POSITION;
+  }
+  return undefined;
 };
 
 export const resolveDesktopWindowControlsSide = (
   preference: DesktopWindowControlsPosition | undefined,
-  platform: string | null = getElectronPlatform(),
 ): DesktopWindowControlsSide => {
-  if (preference === 'left' || preference === 'right') {
-    return preference;
-  }
-  return getDefaultDesktopWindowControlsSide(platform);
+  return preference === 'left' ? 'left' : DEFAULT_DESKTOP_WINDOW_CONTROLS_POSITION;
+};
+
+/**
+ * Left matches macOS traffic-light order (close, minimize, maximize).
+ * Right keeps Windows order (minimize, maximize, close).
+ */
+export const getDesktopWindowControlsOrder = (
+  side: DesktopWindowControlsSide,
+): DesktopWindowControlAction[] => {
+  return side === 'left'
+    ? ['close', 'minimize', 'maximize']
+    : ['minimize', 'maximize', 'close'];
 };
 
 export const hasDesktopInvoke = (): boolean => {
@@ -502,6 +535,27 @@ export const isDesktopShell = (): boolean => {
   return isElectronShell();
 };
 
+/**
+ * Raises the desktop window.
+ *
+ * Used when work finishes somewhere the app cannot be reached from — an MCP
+ * authorization completing in the system browser, for instance. Browsers will
+ * not follow a custom-protocol link back without a user gesture, so the app
+ * brings itself forward instead of asking the page to do it.
+ */
+export const focusDesktopWindow = async (): Promise<boolean> => {
+  if (!isDesktopShell()) return false;
+  try {
+    return Boolean(await invokeDesktop('desktop_focus_window'));
+  } catch {
+    return false;
+  }
+};
+
+export const canRequestNativeDirectoryAccess = (): boolean => (
+  isDesktopShell() && hasDesktopInvoke() && isDesktopLocalOriginActive()
+);
+
 export const startDesktopWindowDrag = async (): Promise<boolean> => {
   if (!isDesktopShell()) {
     return false;
@@ -533,6 +587,15 @@ export const isWebRuntime = (): boolean => {
   return !isVSCodeRuntime();
 };
 
+/**
+ * Electron reuses the web RuntimeAPIs implementation, so distinguish a browser
+ * client from an Electron renderer with both the runtime descriptor and shell.
+ */
+export const isBrowserClientRuntime = (
+  platform: RuntimeAPIs['runtime']['platform'],
+  desktopShell = isDesktopShell(),
+): boolean => platform === 'web' && !desktopShell;
+
 export const getDesktopHomeDirectory = async (): Promise<string | null> => {
   if (typeof window !== 'undefined') {
     const embedded = window.__OPENCHAMBER_HOME__;
@@ -548,12 +611,13 @@ export const requestDirectoryAccess = async (
   directoryPath: string
 ): Promise<{ success: boolean; path?: string; projectId?: string; error?: string }> => {
   // Desktop shell on local instance: use native folder picker.
-  if (hasDesktopInvoke() && isDesktopLocalOriginActive()) {
+  if (canRequestNativeDirectoryAccess()) {
     try {
       const selected = await getDesktopBridge()?.openDialog?.({
         directory: true,
         multiple: false,
         title: 'Select Working Directory',
+        ...(directoryPath ? { defaultPath: directoryPath } : {}),
       });
       if (!selected || typeof selected !== 'string') {
         return { success: false, error: 'Directory selection cancelled' };
@@ -565,7 +629,7 @@ export const requestDirectoryAccess = async (
     }
   }
 
-  return { success: true, path: directoryPath };
+  return { success: false, error: 'Native directory picker not available' };
 };
 
 const isDesktopFileGrantResult = (
@@ -911,11 +975,6 @@ export const fetchDesktopInstalledApps = async (
 ): Promise<FetchDesktopInstalledAppsResult> => {
   if (!hasDesktopInvoke() || !isDesktopLocalOriginActive()) {
     return { apps: [], success: false, hasCache: false, isCacheStale: false };
-  }
-
-  // Linux desktop does not resolve installed GUI apps; skip the IPC round-trip.
-  if (getElectronPlatform() === 'linux') {
-    return { apps: [], success: true, hasCache: false, isCacheStale: false };
   }
 
   const candidate = Array.isArray(apps) ? apps.filter((value) => typeof value === 'string') : [];

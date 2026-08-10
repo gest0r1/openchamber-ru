@@ -53,7 +53,13 @@ Server-side integration modules used by API routes and runtime services.
 
 OpenChamber-owned event stream helpers for server-sent runtime events.
 
-- Module docs: `packages/web/server/lib/event-stream/DOCUMENTATION.md`
+- Sync: `packages/ui/src/sync/DOCUMENTATION.md`
+- Stores: `packages/ui/src/stores/DOCUMENTATION.md`
+- CLI: `packages/web/bin/lib/DOCUMENTATION.md`
+- Performance measurement tooling: `scripts/perf/DOCUMENTATION.md`
+- VS Code runtime: `packages/vscode/src/DOCUMENTATION.md`
+- Electron: `packages/electron/README.md`
+- Mobile: `packages/mobile/README.md`
 
 ##### fs
 
@@ -535,56 +541,54 @@ systemctl --user status openchamber.service  # проверить, нет ли E
 
 Список всех изменений в форке относительно upstream (`upstream/main..origin/main`).
 
-31 файл изменён, 5491 строка добавлена, 488 удалено (последний sync: upstream v1.16.1, 61 коммит).
+Актуальный sync: **upstream v1.18.1+ (merge 2026-08-10, 357 коммитов)**, ветка `sync/upstream-v1.18.1` — ожидает push.
 
 ### Конфигурация
 
 | Файл | Изменение | Причина |
 |---|---|---|
-| `package.json` | Добавлен `cron-parser ^5.6.1` | Зависимость scheduled-tasks |
-| `bun.lock` | Обновлён `cron-parser` 5.5.0→5.6.1 + `luxon` 3.7.1→3.7.2 | Синхронизация lockfile |
-| `.github/workflows/*.yml` | Node.js 22→20 | Окружение сборщика не поддерживает 22 |
-| `.github/workflows/*.yml` | Удалены `prepare:opencode-cli`, `verify:opencode-cli`, `cache bundled CLI` | Не требуется для локальной сборки |
-| `.github/workflows/label-merge-conflict.yml` | Удалён | Нет `workflow` scope у GitHub-токена |
-| `.github/workflows/release-desktop-smoke.yml` | `windows-2022`→`windows-latest` | Синхронизация с настройками runner |
-| `.github/workflows/release-desktop-win.yml` | Добавлен | Windows-only workflow_dispatch сборка Electron для форка (без подписи, без macOS) |
-| `packages/electron/package.json` | `build.publish` → `gest0r1/openchamber-ru` | electron-updater указывает на форк, а не upstream |
-| `packages/electron/main.mjs` | `parseGithubRepo` → `gest0r1/openchamber-ru` | runtime auto-updater feed URL указывает на форк |
+| `package.json` | `cron-parser ^5.6.1` | Зависимость scheduled-tasks |
+| `bun.lock` | `cron-parser` 5.8.1, `luxon` 3.7.2, `adm-zip` 0.6.0 (GHSA-xcpc-8h2w-3j85) | Security-фикс + lockfile |
+| `.github/workflows/*.yml` | Node.js 22 (апстрим-стандарт) | После sync v1.18.1 форк принял Node 22 |
+| `.github/workflows/label-merge-conflict.yml`, `opencode-smoke.yml` | Удалены | Нет `workflow` scope у GitHub-токена |
+| `.github/workflows/release-desktop-win.yml` | Добавлен (форк) | Windows-only workflow_dispatch сборка Electron |
+| `packages/electron/package.json` | `build.publish` → `gest0r1/openchamber-ru`; NSIS `oneClick: false` + ярлыки | electron-updater на форк; Windows-инсталлер |
+| `packages/electron/main.mjs` | URL (CHANGELOG, bug/feature report) → `gest0r1/openchamber-ru` | runtime auto-updater feed на форк |
+| `packages/electron/updater-feed.mjs` | `owner: gest0r1`, `repo: openchamber-ru` | PRODUCTION_UPDATER_FEED на форк |
 
 ### Русская локаль
 
-- `packages/ui/src/lib/i18n/messages/ru.ts` — **2632 строки**, полный перевод UI
+- `packages/ui/src/lib/i18n/messages/ru.ts` — **2632 строки**, полный перевод UI (после sync v1.18.1 удалены 35 ключей, удалённых апстримом; новые 439 ключей апстрима покрыты `...enDict` fallback)
 - `packages/ui/src/lib/i18n/messages/ru.settings.ts` — **1800 строк**, перевод Settings
 - `packages/ui/src/lib/i18n/bootstrap.ts` — русские bootstrap-сообщения
-- `packages/ui/src/lib/i18n/runtime.ts` — добавлен `ru` в `Locale`, `LOCALES`, `LOCALE_LABEL_KEYS`, `normalizeLocale`
+- `packages/ui/src/lib/i18n/runtime.ts` — добавлены `ru` и `de` в `Locale`, `LOCALES`, `LOCALE_LABEL_KEYS`, `normalizeLocale`
 - `packages/ui/src/lib/i18n/intl.ts` — `ru`→`ru-RU`
-- `packages/ui/src/lib/i18n/store.ts` — динамический import `ru` словаря
-- `packages/ui/src/lib/i18n/messages.test.ts` — тест русского словаря
+- `packages/ui/src/lib/i18n/store.ts` — динамический import `ru` и `de` словарей
+- `packages/ui/src/lib/i18n/messages.test.ts` — тест parity всех локалей
 - `packages/ui/src/lib/i18n/messages/en.ts` — добавлен `common.language.russian`, `mobile.menu.notes`
+- `packages/ui/src/lib/i18n/messages/de.ts` — добавлены `common.language.russian`, `mobile.menu.notes` (parity с en)
 - `packages/ui/src/lib/i18n/messages/en.settings.ts` — voice mode keys (`enableVoiceMode/enableVoiceModeAria`)
 - Все остальные локали (es, fr, ja, ko, pl, pt-BR, uk, zh-CN, zh-TW): добавлены `mobile.menu.notes` и voice mode keys
 
 ### PWA/Mobile
 
 | Файл | Изменение |
-|---|---|
+|---|---|---|
 | `MobileApp.tsx` | Добавлены скрытые страницы Settings: `snippets`, `projects`, `remote-instances`, `agents`, `commands`, `plugins`, `skills.installed`, `skills.catalog`, `tunnel` |
-| `MobileApp.tsx` | Добавлен `Notes & Todos` (ProjectNotesTodoPanel) в overflow-меню |
-| `MobileApp.tsx` | Добавлен проект-контекст (projectRef, canCreateWorktree) для notes |
+| `MobileApp.tsx` | Notes & Todos (ProjectNotesTodoPanel) — после sync v1.18.1 апстрим реализовал Notes в workspace drawer сам, форк-патч не нужен |
 
 ### Event pipeline / Sync
 
 | Файл | Изменение |
 |---|---|
-| `event-pipeline.ts` | `sessionID`/`sessionId` fallback — SDK местами присылает `sessionId` вместо `sessionID` |
-| `event-reducer.ts` | Те же fallback для `session.status`, `session.idle`, `session.error` |
-| `sync-context.tsx` | Auto-accept permissions: retry 3× с exponential backoff (500ms, 1000ms, 2000ms) |
+| `event-pipeline.ts` | `sessionID`/`sessionId` fallback — SDK местами присылает `sessionId` вместо `sessionID` (после sync v1.18.1 поглощён апстримом, форк-версия совпадает) |
+| `sync-context.tsx` | Auto-accept retry — после sync v1.18.1 апстрим имеет собственный `retry`-модуль (`packages/ui/src/sync/retry.ts`), форк-костыль дропнут |
 
 ### Message queue
 
 | Файл | Изменение |
 |---|---|
-| `messageQueueStore.test.ts` | Тесты `normalizeFollowUpBehavior`: legacy `immediate`→`steer` migration |
+| `messageQueueStore.test.ts` | После sync v1.18.1 апстрим содержит `normalizeFollowUpBehavior` (immediate→steer) и `DEFAULT_FOLLOW_UP_BEHAVIOR = 'queue'`; форк-тест адаптирован под апстрим-логику |
 
 ### Документация
 

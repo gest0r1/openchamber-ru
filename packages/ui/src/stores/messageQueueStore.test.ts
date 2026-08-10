@@ -1,74 +1,118 @@
-import { describe, expect, test } from 'bun:test';
-
+import { beforeEach, describe, expect, test } from "bun:test"
 import {
-  DEFAULT_FOLLOW_UP_BEHAVIOR,
-  isFollowUpBehavior,
+  createMessageQueueTarget,
+  getMessageQueueKey,
+  migrateMessageQueueState,
   normalizeFollowUpBehavior,
-} from './messageQueueStore';
+  parseMessageQueueKey,
+  useMessageQueueStore,
+} from "./messageQueueStore"
 
-describe('follow-up behavior', () => {
-  test('default value is queue', () => {
-    expect(DEFAULT_FOLLOW_UP_BEHAVIOR).toBe('queue');
-  });
+beforeEach(() => {
+  useMessageQueueStore.setState({ queuedMessages: {}, quarantinedLegacyMessages: {}, sendingIds: {} })
+})
 
-  describe('isFollowUpBehavior', () => {
-    test('returns true for steer', () => {
-      expect(isFollowUpBehavior('steer')).toBe(true);
-    });
+describe("message queue runtime ownership", () => {
+  test("isolates colliding session IDs by runtime and directory", () => {
+    const a = createMessageQueueTarget("session-1", "/repo", "runtime-a")!
+    const b = createMessageQueueTarget("session-1", "/repo", "runtime-b")!
+    useMessageQueueStore.getState().addToQueue(a, { content: "from A" })
+    useMessageQueueStore.getState().addToQueue(b, { content: "from B" })
 
-    test('returns true for queue', () => {
-      expect(isFollowUpBehavior('queue')).toBe(true);
-    });
+    expect(useMessageQueueStore.getState().getQueueForTarget(a)[0]?.content).toBe("from A")
+    expect(useMessageQueueStore.getState().getQueueForTarget(b)[0]?.content).toBe("from B")
+  })
 
-    test('returns false for undefined', () => {
-      expect(isFollowUpBehavior(undefined)).toBe(false);
-    });
+  test("round trips a composite queue key", () => {
+    const target = createMessageQueueTarget("session-1", "/repo", "runtime-a")!
+    expect(parseMessageQueueKey(getMessageQueueKey(target))).toEqual(target)
+  })
 
-    test('returns false for null', () => {
-      expect(isFollowUpBehavior(null)).toBe(false);
-    });
+  test("quarantines legacy session-only queues instead of activating them", () => {
+    const migrated = migrateMessageQueueState({
+      queuedMessages: {
+        "session-1": [{ id: "queued-1", content: "legacy", createdAt: 1 }],
+      },
+    }, 1)
 
-    test('returns false for legacy immediate value', () => {
-      expect(isFollowUpBehavior('immediate')).toBe(false);
-    });
+    expect(migrated.queuedMessages).toEqual({})
+    expect(migrated.quarantinedLegacyMessages?.["session-1"]?.[0]?.content).toBe("legacy")
+  })
 
-    test('returns false for random string', () => {
-      expect(isFollowUpBehavior('unknown')).toBe(false);
-    });
-  });
+  test("bounds each queue to the newest 20 messages", () => {
+    const target = createMessageQueueTarget("session-1", "/repo", "runtime-a")!
+    for (let index = 0; index < 25; index += 1) {
+      useMessageQueueStore.getState().addToQueue(target, { content: `message-${index}` })
+    }
 
-  describe('normalizeFollowUpBehavior', () => {
-    test('returns steer when value is immediate (legacy migration)', () => {
-      expect(normalizeFollowUpBehavior('immediate')).toBe('steer');
-    });
+    const queue = useMessageQueueStore.getState().getQueueForTarget(target)
+    expect(queue).toHaveLength(20)
+    expect(queue[0]?.content).toBe("message-5")
+  })
+})
 
-    test('returns steer when value is steer', () => {
-      expect(normalizeFollowUpBehavior('steer')).toBe('steer');
-    });
+describe("in-flight queued sends", () => {
+  test("hides a dispatched message from the sendable queue but keeps it visible", () => {
+    const target = createMessageQueueTarget("session-1", "/repo", "runtime-a")!
+    const store = useMessageQueueStore.getState()
+    store.addToQueue(target, { content: "first" })
+    store.addToQueue(target, { content: "second" })
+    const [first] = useMessageQueueStore.getState().getQueueForTarget(target)
 
-    test('returns queue when value is queue', () => {
-      expect(normalizeFollowUpBehavior('queue')).toBe('queue');
-    });
+    useMessageQueueStore.getState().markSending(target, first.id)
 
-    test('returns steer when legacy queueModeEnabled is false', () => {
-      expect(normalizeFollowUpBehavior(undefined, false)).toBe('steer');
-    });
+    expect(useMessageQueueStore.getState().getQueueForTarget(target)).toHaveLength(2)
+    const sendable = useMessageQueueStore.getState().getSendableQueue(target)
+    expect(sendable).toHaveLength(1)
+    expect(sendable[0]?.content).toBe("second")
 
-    test('returns queue when legacy queueModeEnabled is true', () => {
-      expect(normalizeFollowUpBehavior(undefined, true)).toBe('queue');
-    });
+    useMessageQueueStore.getState().clearSending(target, first.id)
+    expect(useMessageQueueStore.getState().getSendableQueue(target)).toHaveLength(2)
+    expect(useMessageQueueStore.getState().sendingIds).toEqual({})
+  })
 
-    test('returns default when both value and legacy are undefined', () => {
-      expect(normalizeFollowUpBehavior(undefined, undefined)).toBe(DEFAULT_FOLLOW_UP_BEHAVIOR);
-    });
+  test("clearQueue retains a message whose send is still awaiting the server", () => {
+    const target = createMessageQueueTarget("session-1", "/repo", "runtime-a")!
+    const store = useMessageQueueStore.getState()
+    store.addToQueue(target, { content: "in flight" })
+    store.addToQueue(target, { content: "merged by composer" })
+    const [inFlight] = useMessageQueueStore.getState().getQueueForTarget(target)
+    useMessageQueueStore.getState().markSending(target, inFlight.id)
 
-    test('returns default when both value and legacy are null', () => {
-      expect(normalizeFollowUpBehavior(null, null)).toBe(DEFAULT_FOLLOW_UP_BEHAVIOR);
-    });
+    useMessageQueueStore.getState().clearQueue(target)
 
-    test('value takes precedence over legacy', () => {
-      expect(normalizeFollowUpBehavior('steer', true)).toBe('steer');
-      expect(normalizeFollowUpBehavior('queue', false)).toBe('queue');
-    });
-  });
-});
+    const remaining = useMessageQueueStore.getState().getQueueForTarget(target)
+    expect(remaining).toHaveLength(1)
+    expect(remaining[0]?.id).toBe(inFlight.id)
+  })
+
+  test("clearQueue drops everything once no send is in flight", () => {
+    const target = createMessageQueueTarget("session-1", "/repo", "runtime-a")!
+    useMessageQueueStore.getState().addToQueue(target, { content: "queued" })
+
+    useMessageQueueStore.getState().clearQueue(target)
+
+    expect(useMessageQueueStore.getState().getQueueForTarget(target)).toHaveLength(0)
+  })
+})
+
+describe("follow-up behavior normalization", () => {
+  test("collapses legacy immediate onto steer", () => {
+    expect(normalizeFollowUpBehavior("immediate", null)).toBe("steer")
+  })
+
+  test("keeps steer and queue values", () => {
+    expect(normalizeFollowUpBehavior("steer", null)).toBe("steer")
+    expect(normalizeFollowUpBehavior("queue", null)).toBe("queue")
+  })
+
+  test("falls back to the default for unknown values", () => {
+    expect(normalizeFollowUpBehavior("bogus", null)).toBe("queue")
+    expect(normalizeFollowUpBehavior(undefined, undefined)).toBe("queue")
+  })
+
+  test("honors legacy queue mode flag when behavior is unknown", () => {
+    expect(normalizeFollowUpBehavior("bogus", true)).toBe("queue")
+    expect(normalizeFollowUpBehavior("bogus", false)).toBe("steer")
+  })
+})
