@@ -1,14 +1,17 @@
 # Windows-only desktop release build for gest0r1/openchamber-ru fork
 # Triggered manually via workflow_dispatch. Produces unsigned NSIS installer
 # (SmartScreen warning expected — no code signing cert available).
-# Artifacts uploaded to GitHub Actions storage (7-day retention).
-# No auto-publish — artifacts are manual-only and workflow token is read-only.
+# Artifacts uploaded to GitHub Actions storage + GitHub Release created.
 
 name: Build Windows Desktop
 
 on:
   workflow_dispatch:
     inputs:
+      tag_name:
+        description: 'Release tag (e.g. v1.20.0). Leave empty to read from package.json.'
+        required: false
+        type: string
       retention_days:
         description: Artifact retention days
         required: false
@@ -21,7 +24,7 @@ on:
           - '14'
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build-win:
@@ -53,6 +56,19 @@ jobs:
 
       - name: Install dependencies
         run: bun install --frozen-lockfile
+
+      - name: Read package version
+        id: pkg
+        shell: bash
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          TAG="${{ inputs.tag_name }}"
+          if [ -z "$TAG" ]; then
+            TAG="v${VERSION}"
+          fi
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "Resolved tag: ${TAG}"
 
       - name: Build web assets
         working-directory: packages/electron
@@ -87,3 +103,25 @@ jobs:
             packages/electron/dist/latest.yml
           if-no-files-found: error
           retention-days: ${{ fromJSON(inputs.retention_days || 7) }}
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@da05d552573ad5aba039eaac05058a918a7bf631 # v2.2.2
+        with:
+          tag_name: ${{ steps.pkg.outputs.tag }}
+          name: OpenChamber ${{ steps.pkg.outputs.tag }} (Windows)
+          draft: false
+          prerelease: false
+          generate_release_notes: false
+          files: |
+            packages/electron/dist/*.exe
+            packages/electron/dist/*.blockmap
+            packages/electron/dist/latest.yml
+          body: |
+            ## OpenChamber ${{ steps.pkg.outputs.tag }} — Windows
+
+            Unsigned NSIS installer. SmartScreen warning expected (no code signing cert).
+
+            ### Changes
+            See [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md) for details.
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
