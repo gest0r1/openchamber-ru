@@ -139,6 +139,60 @@ install-openchamber.sh
 snapshot → bun install → build:web → npm pack → global runtime install
 ```
 
+### Единая конфигурация OpenCode для CLI и OpenChamber
+
+LLM credentials не дублируются в env. OpenCode Go / Zen / OpenAI OAuth настраиваются через:
+
+```bash
+opencode auth login
+opencode auth list
+```
+
+Каноническое хранилище credentials:
+
+```text
+~/.local/share/opencode/auth.json
+```
+
+Общие MCP/интеграционные переменные находятся в одном файле:
+
+```text
+~/.config/opencode.env
+```
+
+Bootstrap настраивает оба способа запуска на один источник:
+
+```text
+~/.local/share/opencode/auth.json
+              │
+      ┌───────┴────────┐
+      │                │
+  opencode CLI     OpenChamber
+      │                │
+      └── ~/.config/opencode.env
+```
+
+Legacy `~/.config/opencode-web.env` больше не используется: bootstrap мигрирует его в `opencode.env` и удаляет старый файл. `OPENAI_API_KEY` и `OPENCODE_API_KEY` при миграции удаляются из env, чтобы не перекрывать `auth.json`.
+
+### Автозагрузка
+
+Наш `/usr/local/bin/openchamber` автоматически добавляет `--no-env-snapshot` к `openchamber startup enable`. Поэтому штатный OpenChamber `startup.env` не становится второй копией общего окружения. Systemd получает `~/.config/opencode.env` через drop-in, создаваемый bootstrap.
+
+Пример безопасного запуска только на Docker bridge:
+
+```bash
+openchamber startup enable \
+  --host <DOCKER_BRIDGE_IP> \
+  --port 3000 \
+  --ui-password '<password>'
+```
+
+Для root-сервиса после reboot:
+
+```bash
+loginctl enable-linger root
+```
+
 ### Обновление
 
 После push изменений в `gest0r1/openchamber-ru` на сервере повторно запускается та же команда:
@@ -147,7 +201,7 @@ snapshot → bun install → build:web → npm pack → global runtime install
 gh api -H "Accept: application/vnd.github.raw" repos/gest0r1/my-opencode/contents/install-openchamber.sh | bash
 ```
 
-Она скачивает актуальный `main`, пересобирает fork и заменяет установленный runtime-пакет.
+Она скачивает актуальный `main`, пересобирает fork, заменяет установленный runtime-пакет и обновляет launchers/systemd-интеграцию.
 
 > Для fork **не использовать `openchamber update` как основной механизм обновления**. Встроенный updater ориентирован на официальный пакет `@openchamber/web` и upstream. Канонический update fork — повторный запуск `install-openchamber.sh`.
 
