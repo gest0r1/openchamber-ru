@@ -115,6 +115,67 @@ openchamber update
 
 OpenChamber binds to localhost by default. Use `--lan` only on a trusted network and protect browser access with `--ui-password`.
 
+## gest0r1 fork: установка на сервер и обновление
+
+Для этого fork каноническая схема отличается от upstream: разработка ведётся в `gest0r1/openchamber-ru`, а сервер получает только runtime-сборку. Постоянный git clone на сервере не хранится.
+
+Bootstrap находится в приватном `gest0r1/my-opencode` и устанавливает всю связку:
+
+```bash
+gh api -H "Accept: application/vnd.github.raw" repos/gest0r1/my-opencode/contents/install-openchamber.sh | bash
+```
+
+Схема:
+
+```text
+разработка в gest0r1/openchamber-ru
+        ↓
+git commit / git push
+        ↓
+GitHub main
+        ↓
+install-openchamber.sh
+        ↓
+snapshot → bun install → build:web → npm pack → global runtime install
+```
+
+### Обновление
+
+После push изменений в `gest0r1/openchamber-ru` на сервере повторно запускается та же команда:
+
+```bash
+gh api -H "Accept: application/vnd.github.raw" repos/gest0r1/my-opencode/contents/install-openchamber.sh | bash
+```
+
+Она скачивает актуальный `main`, пересобирает fork и заменяет установленный runtime-пакет.
+
+> Для fork **не использовать `openchamber update` как основной механизм обновления**. Встроенный updater ориентирован на официальный пакет `@openchamber/web` и upstream. Канонический update fork — повторный запуск `install-openchamber.sh`.
+
+### Порт
+
+CLI по умолчанию использует порт **3000**.
+
+```bash
+openchamber --ui-password '<password>'
+```
+
+Другой порт задаётся параметром `--port` или `-p`:
+
+```bash
+openchamber --port 3001 --ui-password '<password>'
+# или
+openchamber -p 3001 --ui-password '<password>'
+```
+
+`--port` меняет только порт. По умолчанию OpenChamber остаётся привязан к localhost; сетевое опубликование на LAN/внешний интерфейс настраивается отдельно.
+
+Проверка установленной версии:
+
+```bash
+opencode --version
+openchamber --version
+```
+
 ## Guides
 
 Go deeper with the OpenChamber guides:
