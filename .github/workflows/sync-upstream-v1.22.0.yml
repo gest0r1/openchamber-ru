@@ -1,0 +1,46 @@
+name: Sync upstream v1.22.0
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/sync-upstream-v1.22.0.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Fetch upstream v1.22.0
+        run: |
+          git remote add upstream https://github.com/openchamber/openchamber.git
+          git fetch upstream refs/tags/v1.22.0:refs/tags/upstream-v1.22.0
+
+      - name: Merge upstream into isolated sync branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git switch -C sync/upstream-v1.22.0
+          set +e
+          git merge --no-ff --no-commit upstream-v1.22.0
+          rc=$?
+          set -e
+          if [ "$rc" -ne 0 ]; then
+            echo "::error::Merge conflicts detected. No automatic conflict resolution is performed."
+            echo "Conflicted files:"
+            git diff --name-only --diff-filter=U
+            exit 2
+          fi
+          git commit -m "sync: merge upstream v1.22.0"
+          git push --force-with-lease origin sync/upstream-v1.22.0
