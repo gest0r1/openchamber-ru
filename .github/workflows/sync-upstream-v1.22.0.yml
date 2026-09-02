@@ -189,5 +189,26 @@ jobs:
       - name: Build web
         run: bun run build:web
 
+      - name: Export verified git tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/openchamber-sync
+          git archive --format=tar.gz -o /tmp/openchamber-sync/tree.tar.gz HEAD
+          git diff --name-status main HEAD > /tmp/openchamber-sync/changed.txt
+          git ls-tree -r HEAD > /tmp/openchamber-sync/ls-tree.txt
+          git rev-parse HEAD^{tree} > /tmp/openchamber-sync/tree-sha.txt
+          git rev-parse HEAD > /tmp/openchamber-sync/commit-sha.txt
+          git rev-parse main > /tmp/openchamber-sync/main-sha.txt
+          git rev-parse upstream-v1.22.0 > /tmp/openchamber-sync/upstream-sha.txt
+
+      - name: Upload verified sync tree
+        uses: actions/upload-artifact@v4
+        with:
+          name: openchamber-v1.22.0-verified-tree
+          path: /tmp/openchamber-sync
+          if-no-files-found: error
+          retention-days: 3
+
       - name: Push reviewed sync branch
         run: git push --set-upstream origin sync/upstream-v1.22.0
