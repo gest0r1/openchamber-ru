@@ -1,20 +1,20 @@
 name: Sync upstream v1.22.0
 
 on:
-  push:
+  pull_request:
     branches: [main]
-    paths:
-      - '.github/workflows/sync-upstream-v1.22.0.yml'
 
 permissions:
   contents: write
 
 jobs:
   sync:
+    if: github.head_ref == 'trigger/upstream-v1.22.0-sync'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: main
           fetch-depth: 0
 
       - name: Configure git
