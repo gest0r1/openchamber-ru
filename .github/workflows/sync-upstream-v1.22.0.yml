@@ -36,7 +36,6 @@ jobs:
         run: |
           set -euo pipefail
           git switch -C sync/upstream-v1.22.0
-
           cp packages/ui/src/lib/i18n/bootstrap.ts /tmp/bootstrap.fork.ts
 
           set +e
@@ -48,7 +47,6 @@ jobs:
             conflicts=$(git diff --name-only --diff-filter=U)
             echo "Merge conflicts:"
             echo "$conflicts"
-
             allowed='^(bun.lock|packages/ui/src/lib/i18n/(bootstrap.ts|intl.ts|runtime.ts|store.ts|messages/(en|es|fr|ja|ko|pl|pt-BR|uk|zh-CN|zh-TW)\.ts))$'
             unexpected=$(printf '%s\n' "$conflicts" | grep -Ev "$allowed" || true)
             if [ -n "$unexpected" ]; then
@@ -56,7 +54,6 @@ jobs:
               echo "$unexpected"
               exit 3
             fi
-
             git checkout --theirs -- bun.lock \
               packages/ui/src/lib/i18n/bootstrap.ts \
               packages/ui/src/lib/i18n/intl.ts \
@@ -80,7 +77,6 @@ jobs:
 
           base = Path('packages/ui/src/lib/i18n')
 
-          # runtime.ts: upstream is authoritative; add only RU as an extra locale.
           p = base / 'runtime.ts'
           s = p.read_text()
           s = s.replace(" | 'tr';", " | 'tr' | 'ru';")
@@ -93,15 +89,12 @@ jobs:
           s = s.replace(marker, marker + "  if (normalized === 'ru' || normalized.startsWith('ru-')) {\n    return 'ru';\n  }\n")
           p.write_text(s)
 
-          # intl.ts: keep all upstream mappings and append RU.
           p = base / 'intl.ts'
           s = p.read_text()
           if "  tr: 'tr-TR',\n" not in s:
               raise SystemExit('intl.ts Turkish locale marker not found')
-          s = s.replace("  tr: 'tr-TR',\n", "  tr: 'tr-TR',\n  ru: 'ru-RU',\n")
-          p.write_text(s)
+          p.write_text(s.replace("  tr: 'tr-TR',\n", "  tr: 'tr-TR',\n  ru: 'ru-RU',\n"))
 
-          # store.ts: keep upstream lazy-loading chain and append RU before fallback.
           p = base / 'store.ts'
           s = p.read_text()
           marker = "                    : locale === 'tr'\n                      ? await import('./messages/tr') as { dict: I18nDictionary }\n                      : { dict: enDict };"
@@ -110,34 +103,23 @@ jobs:
           repl = "                    : locale === 'tr'\n                      ? await import('./messages/tr') as { dict: I18nDictionary }\n                      : locale === 'ru'\n                        ? await import('./messages/ru') as { dict: I18nDictionary }\n                        : { dict: enDict };"
           p.write_text(s.replace(marker, repl))
 
-          # bootstrap.ts: extract our RU bootstrap block, apply it to fresh upstream file.
           old = Path('/tmp/bootstrap.fork.ts').read_text()
           m = re.search(r"\nconst RU_MESSAGES: BootstrapMessages = \{.*?\n\};\n", old, re.S)
           if not m:
               raise SystemExit('RU bootstrap block not found in fork')
-          ru_block = m.group(0)
           p = base / 'bootstrap.ts'
           s = p.read_text()
           if 'const TR_MESSAGES: BootstrapMessages' not in s:
               raise SystemExit('bootstrap.ts Turkish block not found')
-          s = s.replace('\nconst TR_MESSAGES: BootstrapMessages', ru_block + '\nconst TR_MESSAGES: BootstrapMessages', 1)
+          s = s.replace('\nconst TR_MESSAGES: BootstrapMessages', m.group(0) + '\nconst TR_MESSAGES: BootstrapMessages', 1)
           s = s.replace("  tr: TR_MESSAGES,\n", "  tr: TR_MESSAGES,\n  ru: RU_MESSAGES,\n")
           p.write_text(s)
 
-          # New I18nKey is defined by en.ts. Add Russian language label to every upstream dictionary.
           translations = {
-              'en.ts': 'Russian',
-              'de.ts': 'Russisch',
-              'fr.ts': 'Russe',
-              'zh-CN.ts': '俄语',
-              'zh-TW.ts': '俄語',
-              'uk.ts': 'Російська',
-              'es.ts': 'Ruso',
-              'pt-BR.ts': 'Russo',
-              'ko.ts': '러시아어',
-              'pl.ts': 'Rosyjski',
-              'ja.ts': 'ロシア語',
-              'tr.ts': 'Rusça',
+              'en.ts': 'Russian', 'de.ts': 'Russisch', 'fr.ts': 'Russe',
+              'zh-CN.ts': '俄语', 'zh-TW.ts': '俄語', 'uk.ts': 'Російська',
+              'es.ts': 'Ruso', 'pt-BR.ts': 'Russo', 'ko.ts': '러시아어',
+              'pl.ts': 'Rosyjski', 'ja.ts': 'ロシア語', 'tr.ts': 'Rusça',
           }
           messages = base / 'messages'
           for fn, value in translations.items():
@@ -154,18 +136,37 @@ jobs:
               else:
                   raise SystemExit(f'Turkish language label marker not found in {fn}')
               p.write_text(''.join(lines))
+
+          # Keep RU as an overlay on the current upstream key set: stale explicit
+          # translations are removed, while new upstream keys fall back via ...enDict.
+          en_text = (messages / 'en.ts').read_text()
+          key_re = re.compile(r'^\s*[\'\"]([^\'\"]+)[\'\"]\s*:', re.M)
+          upstream_keys = set(key_re.findall(en_text))
+          ru_path = messages / 'ru.ts'
+          ru_lines = ru_path.read_text().splitlines(True)
+          kept = []
+          removed = []
+          line_re = re.compile(r'^\s*[\'\"]([^\'\"]+)[\'\"]\s*:')
+          for line in ru_lines:
+              m = line_re.match(line)
+              if m and m.group(1) not in upstream_keys:
+                  removed.append(m.group(1))
+                  continue
+              kept.append(line)
+          ru_path.write_text(''.join(kept))
+          if removed:
+              print('Removed stale RU keys:')
+              for key in removed:
+                  print(f'  - {key}')
           PY
 
-          # Refresh lockfile from merged package manifests so fork-only cron-parser and upstream deps coexist.
           bun install --lockfile-only
-
           git add -A
           if git diff --name-only --diff-filter=U | grep -q .; then
             echo "::error::Unresolved merge conflicts remain"
             git diff --name-only --diff-filter=U
             exit 4
           fi
-
           git commit -m "sync: merge upstream v1.22.0 and preserve RU fork patches"
 
       - name: Verify fork-specific invariants
