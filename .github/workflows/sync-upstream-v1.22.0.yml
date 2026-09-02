@@ -1,7 +1,7 @@
 name: Sync upstream v1.22.0
 
 on:
-  pull_request:
+  pull_request_target:
     branches: [main]
 
 permissions:
@@ -9,7 +9,7 @@ permissions:
 
 jobs:
   sync:
-    if: github.head_ref == 'trigger/upstream-v1.22.0-sync'
+    if: github.event.pull_request.head.ref == 'trigger/upstream-v1.22.0-sync'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -137,8 +137,6 @@ jobs:
                   raise SystemExit(f'Turkish language label marker not found in {fn}')
               p.write_text(''.join(lines))
 
-          # Keep RU as an overlay on the current upstream key set: stale explicit
-          # translations are removed, while new upstream keys fall back via ...enDict.
           en_text = (messages / 'en.ts').read_text()
           key_re = re.compile(r'^\s*[\'\"]([^\'\"]+)[\'\"]\s*:', re.M)
           upstream_keys = set(key_re.findall(en_text))
@@ -192,4 +190,4 @@ jobs:
         run: bun run build:web
 
       - name: Push reviewed sync branch
-        run: git push --force-with-lease origin sync/upstream-v1.22.0
+        run: git push --set-upstream origin sync/upstream-v1.22.0
