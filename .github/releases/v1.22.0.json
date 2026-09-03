@@ -2,5 +2,6 @@
   "tag": "v1.22.0",
   "source_run_id": "33714407057",
   "artifact_id": "9878118755",
-  "artifact_sha256": "e82ba15455ead60142582d595241b443ea737bd15a9a8d23c170370b1a9a9966"
+  "artifact_sha256": "e82ba15455ead60142582d595241b443ea737bd15a9a8d23c170370b1a9a9966",
+  "attempt": 2
 }
