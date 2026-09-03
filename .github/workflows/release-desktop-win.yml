@@ -1,7 +1,6 @@
 # Windows-only desktop release build for gest0r1/openchamber-ru fork
-# Triggered manually via workflow_dispatch. Produces unsigned NSIS installer
-# (SmartScreen warning expected — no code signing cert available).
-# Artifacts uploaded to GitHub Actions storage + GitHub Release created.
+# Produces an unsigned NSIS installer (SmartScreen warning expected — no code signing cert available).
+# Normal use: workflow_dispatch. A narrow release-trigger path is also supported for automated release preparation.
 
 name: Build Windows Desktop
 
@@ -9,7 +8,7 @@ on:
   workflow_dispatch:
     inputs:
       tag_name:
-        description: 'Release tag (e.g. v1.20.0). Leave empty to read from package.json.'
+        description: 'Release tag (e.g. v1.22.0). Leave empty to read from package.json.'
         required: false
         type: string
       retention_days:
@@ -22,6 +21,11 @@ on:
           - '3'
           - '7'
           - '14'
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/release-trigger'
 
 permissions:
   contents: write
@@ -74,6 +78,13 @@ jobs:
         working-directory: packages/electron
         run: bun run build:web-assets
 
+      - name: Prepare bundled OpenCode CLI
+        working-directory: packages/electron
+        shell: bash
+        run: |
+          bun run prepare:opencode-cli
+          bun run verify:opencode-cli
+
       - name: Bundle main process
         working-directory: packages/electron
         run: bun run bundle:main
@@ -92,6 +103,7 @@ jobs:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
         run: |
           node ./scripts/package.mjs --win --${{ matrix.arch }} --publish=never
+          bun run verify:opencode-cli:packaged
 
       - name: Upload Windows installer
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -102,12 +114,13 @@ jobs:
             packages/electron/dist/*.blockmap
             packages/electron/dist/latest.yml
           if-no-files-found: error
-          retention-days: ${{ fromJSON(inputs.retention_days || 7) }}
+          retention-days: ${{ fromJSON(inputs.retention_days || '7') }}
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@da05d552573ad5aba039eaac05058a918a7bf631 # v2.2.2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
         with:
           tag_name: ${{ steps.pkg.outputs.tag }}
+          target_commitish: ${{ github.sha }}
           name: OpenChamber ${{ steps.pkg.outputs.tag }} (Windows)
           draft: false
           prerelease: false
@@ -121,7 +134,13 @@ jobs:
 
             Unsigned NSIS installer. SmartScreen warning expected (no code signing cert).
 
-            ### Changes
-            See [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md) for details.
+            ### Fork changes
+            - Russian interface preserved on top of upstream v1.22.0.
+            - Fork updater/release feed points to gest0r1/openchamber-ru.
+            - Scheduled-tasks dependency and fork-specific agent/runtime fixes preserved.
+            - Bundled OpenCode CLI is prepared and verified during packaging.
+
+            ### Upstream changes
+            See [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md) for the v1.22.0 changes.
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
