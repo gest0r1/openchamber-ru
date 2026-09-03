@@ -1,0 +1,109 @@
+# Publish an already-built Windows artifact as a GitHub Release.
+# A marker under .github/releases/*.json can trigger publication from automation
+# that can write repository contents but cannot dispatch workflows directly.
+
+name: Publish Existing Windows Release
+
+on:
+  push:
+    paths:
+      - '.github/releases/*.json'
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'Release tag (for example v1.22.0)'
+        required: true
+        type: string
+      source_run_id:
+        description: 'Actions run ID containing the artifact'
+        required: true
+        type: string
+      artifact_id:
+        description: 'Artifact ID to publish'
+        required: true
+        type: string
+
+permissions:
+  actions: read
+  contents: write
+
+jobs:
+  publish:
+    name: Publish Windows release
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout fork
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+
+      - name: Resolve release metadata
+        id: meta
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TAG='${{ inputs.tag_name }}'
+            SOURCE_RUN_ID='${{ inputs.source_run_id }}'
+            ARTIFACT_ID='${{ inputs.artifact_id }}'
+          else
+            MARKER=$(git diff-tree --no-commit-id --name-only -r "$GITHUB_SHA" | grep -E '^\.github/releases/[^/]+\.json$' | head -n 1)
+            test -n "$MARKER"
+            TAG=$(jq -r '.tag' "$MARKER")
+            SOURCE_RUN_ID=$(jq -r '.source_run_id' "$MARKER")
+            ARTIFACT_ID=$(jq -r '.artifact_id' "$MARKER")
+          fi
+          test -n "$TAG" && test "$TAG" != "null"
+          test -n "$SOURCE_RUN_ID" && test "$SOURCE_RUN_ID" != "null"
+          test -n "$ARTIFACT_ID" && test "$ARTIFACT_ID" != "null"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "source_run_id=$SOURCE_RUN_ID" >> "$GITHUB_OUTPUT"
+          echo "artifact_id=$ARTIFACT_ID" >> "$GITHUB_OUTPUT"
+          echo "Publishing $TAG from artifact $ARTIFACT_ID (run $SOURCE_RUN_ID)"
+
+      - name: Download verified Windows artifact
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
+        with:
+          artifact-ids: ${{ steps.meta.outputs.artifact_id }}
+          path: release-assets
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ steps.meta.outputs.source_run_id }}
+
+      - name: Verify release files
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f release-assets/OpenChamber-1.22.0-win-x64.exe
+          test -f release-assets/OpenChamber-1.22.0-win-x64.exe.blockmap
+          test -f release-assets/latest.yml
+          ls -lh release-assets
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
+        with:
+          tag_name: ${{ steps.meta.outputs.tag }}
+          target_commitish: ${{ github.sha }}
+          name: OpenChamber ${{ steps.meta.outputs.tag }} (Windows)
+          draft: false
+          prerelease: false
+          generate_release_notes: false
+          files: |
+            release-assets/OpenChamber-1.22.0-win-x64.exe
+            release-assets/OpenChamber-1.22.0-win-x64.exe.blockmap
+            release-assets/latest.yml
+          body: |
+            ## OpenChamber ${{ steps.meta.outputs.tag }} — Windows
+
+            Unsigned NSIS installer. SmartScreen warning expected (no code signing cert).
+
+            ### Fork changes
+            - Russian interface preserved on top of upstream v1.22.0.
+            - Fork updater/release feed points to gest0r1/openchamber-ru.
+            - Scheduled-tasks dependency and fork-specific agent/runtime fixes preserved.
+            - Bundled OpenCode CLI is prepared and verified during packaging.
+
+            ### Upstream changes
+            See [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md) for the v1.22.0 changes.
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
