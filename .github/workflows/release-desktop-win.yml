@@ -1,6 +1,7 @@
 # Windows-only desktop release build for gest0r1/openchamber-ru fork
-# Produces an unsigned NSIS installer (SmartScreen warning expected — no code signing cert available).
-# Normal use: workflow_dispatch. A narrow release-trigger path is also supported for automated release preparation.
+# Triggered manually via workflow_dispatch. Produces an unsigned NSIS installer
+# (SmartScreen warning expected — no code signing cert available).
+# Artifacts are uploaded to GitHub Actions storage and to a GitHub Release.
 
 name: Build Windows Desktop
 
@@ -21,11 +22,6 @@ on:
           - '3'
           - '7'
           - '14'
-  push:
-    branches:
-      - main
-    paths:
-      - '.github/release-trigger'
 
 permissions:
   contents: write
