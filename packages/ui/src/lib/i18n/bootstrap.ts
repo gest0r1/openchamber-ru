@@ -247,6 +247,25 @@ const RU_MESSAGES: BootstrapMessages = {
   loadingData: (providersText, agentsText) => `Загрузка данных (${providersText}, ${agentsText})…`,
 };
 
+const TR_MESSAGES: BootstrapMessages = {
+  startingApi: 'OpenCode API başlatılıyor…',
+  initializing: 'Başlatılıyor…',
+  connecting: 'Bağlanıyor…',
+  connected: 'Bağlandı!',
+  connectionError: 'Bağlantı hatası',
+  disconnected: 'Bağlantı kesildi',
+  reconnecting: 'Yeniden bağlanıyor…',
+  initialDataLoadFailed: 'OpenCode bağlandı ancak ilk veri yükleme başarısız oldu.',
+  cliNotFound: 'OpenCode CLI bulunamadı. Lütfen önce kurun.',
+  providersReady: '✓ Sağlayıcılar',
+  providersLoading: '… Sağlayıcılar',
+  agentsReady: '✓ Agent\'ler',
+  agentsLoading: '… Agent\'ler',
+  startingDevServer: (hostLabel) => `Webview dev sunucusu başlatılıyor (${hostLabel})...`,
+  waitingDevServer: (hostLabel, attempt) => `Webview dev sunucusu bekleniyor (${hostLabel})... deneme ${attempt}`,
+  loadingData: (providersText, agentsText) => `Veriler yükleniyor (${providersText}, ${agentsText})…`,
+};
+
 export const getBootstrapMessages = (locale: Locale): BootstrapMessages => {
   return BOOTSTRAP_MESSAGES[locale];
 };
@@ -263,6 +282,7 @@ const BOOTSTRAP_MESSAGES: Record<Locale, BootstrapMessages> = {
   ko: KO_MESSAGES,
   pl: PL_MESSAGES,
   ja: JA_MESSAGES,
+  tr: TR_MESSAGES,
   ru: RU_MESSAGES,
 };
 

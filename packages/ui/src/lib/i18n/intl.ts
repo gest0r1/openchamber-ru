@@ -13,6 +13,7 @@ const INTL_LOCALE_BY_LOCALE: Record<Locale, string> = {
   ko: 'ko-KR',
   pl: 'pl-PL',
   ja: 'ja-JP',
+  tr: 'tr-TR',
   ru: 'ru-RU',
 };
 
