@@ -212,7 +212,7 @@ systemctl --user status openchamber.service  # проверить, нет ли E
 
 Список всех изменений в форке относительно upstream (`upstream/main..origin/main`).
 
-Актуальный sync: **upstream v1.20.0 (merge 2026-08-23, 239 коммитов)**.
+Актуальный sync: **upstream v1.22.0 (merge 2026-09-03)**. После sync форк находится на 20 собственных коммитов впереди upstream tag; дельта проверяется через `git diff v1.22.0..main`/GitHub compare, а не по строке версии пакета.
 
 ### Конфигурация
 
@@ -221,7 +221,7 @@ systemctl --user status openchamber.service  # проверить, нет ли E
 | `package.json` | `cron-parser ^5.6.1` | Зависимость scheduled-tasks |
 | `bun.lock` | `cron-parser`, `luxon`, `adm-zip` (GHSA-xcpc-8h2w-3j85) | Security-фикс + lockfile |
 | `.github/workflows/label-merge-conflict.yml`, `opencode-smoke.yml` | Удалены | Нет `workflow` scope у GitHub-токена |
-| `.github/workflows/release-desktop-win.yml` | Добавлен (форк) | Windows-only workflow_dispatch сборка Electron |
+| `.github/workflows/release-desktop-win.yml` | Добавлен (форк) | Windows x64 release: build web assets, prepare/verify bundled OpenCode CLI, package NSIS, verify packaged CLI, publish release |
 | `packages/electron/package.json` | `build.publish` → `gest0r1/openchamber-ru`; NSIS `oneClick: false` + ярлыки | electron-updater на форк; Windows-инсталлер |
 | `packages/electron/main.mjs` | URL (CHANGELOG, bug/feature report) → `gest0r1/openchamber-ru` | runtime auto-updater feed на форк |
 | `packages/electron/updater-feed.mjs` | `owner: gest0r1`, `repo: openchamber-ru` | PRODUCTION_UPDATER_FEED на форк |
@@ -231,12 +231,17 @@ systemctl --user status openchamber.service  # проверить, нет ли E
 - `packages/ui/src/lib/i18n/messages/ru.ts` — полный перевод UI (новые ключи апстрима покрыты `...enDict` fallback)
 - `packages/ui/src/lib/i18n/messages/ru.settings.ts` — перевод Settings
 - `packages/ui/src/lib/i18n/bootstrap.ts` — русские bootstrap-сообщения
-- `packages/ui/src/lib/i18n/runtime.ts` — добавлены `ru` и `de` в `Locale`, `LOCALES`, `LOCALE_LABEL_KEYS`, `normalizeLocale`
+- `packages/ui/src/lib/i18n/runtime.ts` — добавлен `ru` в `Locale`, `LOCALES`, `LOCALE_LABEL_KEYS`, `normalizeLocale`
 - `packages/ui/src/lib/i18n/intl.ts` — `ru`→`ru-RU`
-- `packages/ui/src/lib/i18n/store.ts` — динамический import `ru` и `de` словарей
-- `packages/ui/src/lib/i18n/messages.test.ts` — тест parity всех локалей
-- `packages/ui/src/lib/i18n/messages/en.ts` — добавлен `common.language.russian`, `mobile.menu.notes`
-- `packages/ui/src/lib/i18n/messages/de.ts` — добавлены `common.language.russian`, `mobile.menu.notes` (parity с en)
+- `packages/ui/src/lib/i18n/store.ts` — динамический import русского словаря
+- `packages/ui/src/lib/i18n/messages/en.ts` и остальные upstream-словари — добавлен `common.language.russian` для выбора русского языка
+
+### OpenCode agent/runtime fixes
+
+| Файл | Изменение |
+|---|---|
+| `packages/web/server/lib/opencode/agents.js`, `shared.js` | Fork-specific reconciliation/agent runtime fixes retained after upstream v1.22.0 sync |
+| `packages/ui/src/stores/useAgentsStore.ts`, `messageQueueStore.test.ts` | UI/store compatibility for fork agent behavior |
 
 ### PWA/Mobile
 
