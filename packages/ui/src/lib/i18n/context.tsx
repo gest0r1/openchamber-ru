@@ -22,7 +22,7 @@ export const I18nProvider: React.FC<{ children: React.ReactNode }> = ({ children
       locale,
       locales: LOCALES,
       setLocale,
-      label: (targetLocale) => t(LOCALE_LABEL_KEYS[targetLocale]),
+      label: (targetLocale) => targetLocale === 'ru' ? 'Русский' : t(LOCALE_LABEL_KEYS[targetLocale]),
       t,
     };
   }, [dictionary, locale, setLocale]);

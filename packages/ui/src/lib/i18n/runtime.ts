@@ -1,10 +1,15 @@
-export type Locale = 'en' | 'de' | 'fr' | 'zh-CN' | 'zh-TW' | 'uk' | 'es' | 'pt-BR' | 'ko' | 'pl' | 'ja' | 'tr';
+export type Locale = 'en' | 'de' | 'fr' | 'zh-CN' | 'zh-TW' | 'uk' | 'es' | 'pt-BR' | 'ko' | 'pl' | 'ja' | 'tr' | 'ru';
 
-export const LOCALES = ['en', 'de', 'fr', 'zh-CN', 'zh-TW', 'uk', 'es', 'pt-BR', 'ko', 'pl', 'ja', 'tr'] as const satisfies readonly Locale[];
+export const LOCALES = ['en', 'de', 'fr', 'zh-CN', 'zh-TW', 'uk', 'es', 'pt-BR', 'ko', 'pl', 'ja', 'tr', 'ru'] as const satisfies readonly Locale[];
 
 export const DEFAULT_LOCALE: Locale = 'en';
 
-export const LOCALE_LABEL_KEYS: Record<Locale, 'common.language.english' | 'common.language.french' | 'common.language.simplifiedChinese' | 'common.language.traditionalChinese' | 'common.language.ukrainian' | 'common.language.spanish' | 'common.language.brazilianPortuguese' | 'common.language.korean' | 'common.language.polish' | 'common.language.german' | 'common.language.japanese' | 'common.language.turkish'> = {
+type LabelledLocale = Exclude<Locale, 'ru'>;
+type LocaleLabelKey = 'common.language.english' | 'common.language.french' | 'common.language.simplifiedChinese' | 'common.language.traditionalChinese' | 'common.language.ukrainian' | 'common.language.spanish' | 'common.language.brazilianPortuguese' | 'common.language.korean' | 'common.language.polish' | 'common.language.german' | 'common.language.japanese' | 'common.language.turkish';
+
+// Russian is fork-local and intentionally does not expand upstream I18nKey for
+// every upstream locale dictionary. I18nProvider supplies its label directly.
+export const LOCALE_LABEL_KEYS: Record<LabelledLocale, LocaleLabelKey> = {
   en: 'common.language.english',
   fr: 'common.language.french',
   'zh-CN': 'common.language.simplifiedChinese',
@@ -69,6 +74,9 @@ export function normalizeLocale(value: string | undefined | null): Locale {
   }
   if (normalized === 'tr' || normalized.startsWith('tr-')) {
     return 'tr';
+  }
+  if (normalized === 'ru' || normalized.startsWith('ru-')) {
+    return 'ru';
   }
   return DEFAULT_LOCALE;
 }
