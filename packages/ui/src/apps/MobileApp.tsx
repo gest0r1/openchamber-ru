@@ -87,6 +87,8 @@ const MOBILE_SETTINGS_PAGES = [
   'git',
   'magic-prompts',
   'snippets',
+  'projects',
+  'remote-instances',
   'behavior',
   'agents',
   'commands',
@@ -97,6 +99,7 @@ const MOBILE_SETTINGS_PAGES = [
   'providers',
   'usage',
   'voice',
+  'tunnel',
   'integrations',
   'about',
 ] as const;
