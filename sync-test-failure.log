@@ -1,0 +1,1202 @@
+exit_code=1
+--- last 1200 lines ---
+[22m[39mStarting OpenCode on requested port 45678...
+
+[90mstdout[2m | server/lib/opencode/lifecycle.test.js[2m > [22m[2mOpenCode lifecycle[2m > [22m[2mreports the binary when managed OpenCode exits before becoming ready
+[22m[39m[OpenCode] Launching managed server {
+  launchedAt: [32m'2026-09-11T19:18:12.171Z'[39m,
+  sourceBinary: [32m'opencode'[39m,
+  binary: [32m'opencode'[39m,
+  args: [ [32m'serve'[39m, [32m'--hostname'[39m, [32m'127.0.0.1'[39m, [32m'--port'[39m, [32m'45678'[39m ],
+  cwd: [32m'/tmp/project'[39m,
+  hostname: [32m'127.0.0.1'[39m,
+  port: [33m45678[39m,
+  wrapperType: [1mnull[22m,
+  pathEntryCount: [33m3[39m,
+  hasShellEnv: [33mtrue[39m,
+  shellEnvKeysCount: [33m3[39m
+}
+
+[90mstderr[2m | server/lib/opencode/lifecycle.test.js[2m > [22m[2mOpenCode lifecycle[2m > [22m[2mreports the binary when managed OpenCode exits before becoming ready
+[22m[39mFailed to start OpenCode: OpenCode process exited before serving with signal SIGTERM. Binary used: opencode. No stdout/stderr captured
+
+[90mstdout[2m | server/lib/opencode/lifecycle.test.js[2m > [22m[2mOpenCode lifecycle[2m > [22m[2mdoes not retry managed startup when the configured OpenCode binary is invalid
+[22m[39mStarting OpenCode on requested port 45678...
+
+[90mstdout[2m | server/lib/opencode/lifecycle.test.js[2m > [22m[2mOpenCode lifecycle[2m > [22m[2mretries managed OpenCode startup once after a pre-ready exit
+[22m[39mStarting OpenCode on requested port 45678...
+
+[90mstdout[2m | server/lib/opencode/lifecycle.test.js[2m > [22m[2mOpenCode lifecycle[2m > [22m[2mretries managed OpenCode startup once after a pre-ready exit
+[22m[39m[OpenCode] Launching managed server {
+  launchedAt: [32m'2026-09-11T19:18:12.174Z'[39m,
+  sourceBinary: [32m'opencode'[39m,
+  binary: [32m'opencode'[39m,
+  args: [ [32m'serve'[39m, [32m'--hostname'[39m, [32m'127.0.0.1'[39m, [32m'--port'[39m, [32m'45678'[39m ],
+  cwd: [32m'/tmp/project'[39m,
+  hostname: [32m'127.0.0.1'[39m,
+  port: [33m45678[39m,
+  wrapperType: [1mnull[22m,
+  pathEntryCount: [33m3[39m,
+  hasShellEnv: [33mtrue[39m,
+  shellEnvKeysCount: [33m3[39m
+}
+
+[90mstderr[2m | server/lib/opencode/lifecycle.test.js[2m > [22m[2mOpenCode lifecycle[2m > [22m[2mretries managed OpenCode startup once after a pre-ready exit
+[22m[39mFailed to start OpenCode: OpenCode process exited before serving with signal SIGTERM. Binary used: opencode. No stdout/stderr captured
+
+[90mstderr[2m | server/lib/opencode/lifecycle.test.js[2m > [22m[2mOpenCode lifecycle[2m > [22m[2mretries managed OpenCode startup once after a pre-ready exit
+[22m[39m[OpenCode] Managed server startup failed on attempt 1/2; retrying: OpenCode process exited before serving with signal SIGTERM. Binary used: opencode. No stdout/stderr captured
+
+[90mstdout[2m | server/lib/opencode/lifecycle.test.js[2m > [22m[2mOpenCode lifecycle[2m > [22m[2mretries managed OpenCode startup once after a pre-ready exit
+[22m[39mStarting OpenCode on requested port 45678...
+
+[90mstdout[2m | server/lib/opencode/lifecycle.test.js[2m > [22m[2mOpenCode lifecycle[2m > [22m[2mretries managed OpenCode startup once after a pre-ready exit
+[22m[39m[OpenCode] Launching managed server {
+  launchedAt: [32m'2026-09-11T19:18:12.925Z'[39m,
+  sourceBinary: [32m'opencode'[39m,
+  binary: [32m'opencode'[39m,
+  args: [ [32m'serve'[39m, [32m'--hostname'[39m, [32m'127.0.0.1'[39m, [32m'--port'[39m, [32m'45678'[39m ],
+  cwd: [32m'/tmp/project'[39m,
+  hostname: [32m'127.0.0.1'[39m,
+  port: [33m45678[39m,
+  wrapperType: [1mnull[22m,
+  pathEntryCount: [33m3[39m,
+  hasShellEnv: [33mtrue[39m,
+  shellEnvKeysCount: [33m3[39m
+}
+
+ [32m✓[39m server/lib/opencode/lifecycle.test.js [2m([22m[2m29 tests[22m[2m)[22m[33m 2334[2mms[22m[39m
+     [33m[2m✓[22m[39m does not call onOpenCodeRestarted when a managed restart fails [33m 755[2mms[22m[39m
+     [33m[2m✓[22m[39m reports the binary when managed OpenCode exits before becoming ready [33m 753[2mms[22m[39m
+     [33m[2m✓[22m[39m retries managed OpenCode startup once after a pre-ready exit [33m 753[2mms[22m[39m
+ [32m✓[39m server/lib/project-context/runtime.test.js [2m([22m[2m62 tests[22m[2m)[22m[32m 176[2mms[22m[39m
+[90mstdout[2m | server/lib/opencode/settings-runtime.test.js[2m > [22m[2msettings runtime[2m > [22m[2mround-trips both archived-only retention states through instance settings
+[22m[39m[persistSettings] Updating fields: sessionRetentionOnlyArchived, sessionRetentionAction, autoDeleteAfterDays
+
+[90mstdout[2m | server/lib/opencode/settings-runtime.test.js[2m > [22m[2msettings runtime[2m > [22m[2mround-trips both archived-only retention states through instance settings
+[22m[39m[persistSettings] Updating fields: sessionRetentionOnlyArchived, sessionRetentionAction, autoDeleteAfterDays
+
+[90mstdout[2m | server/lib/opencode/settings-runtime.test.js[2m > [22m[2msettings runtime[2m > [22m[2mround-trips shared sidebar preferences through preferences.json
+[22m[39m[persistSettings] Updating fields: sidebarProjectDisplayMode, sidebarSessionGroupingMode, sidebarProjectSortOrder, sidebarShowRecentSection
+
+[90mstderr[2m | server/lib/opencode/settings-runtime.test.js[2m > [22m[2msettings runtime[2m > [22m[2mremoves temp file when writeSettingsToDisk encounters a write error
+[22m[39mFailed to write settings.json: Error: unexpected disk failure
+    at Object.rename [90m(/home/runner/work/openchamber-ru/openchamber-ru/packages/web/[39mserver/lib/opencode/settings-runtime.test.js:376:23[90m)[39m
+    at replaceFile [90m(/home/runner/work/openchamber-ru/openchamber-ru/packages/web/[39mserver/lib/opencode/settings-runtime.js:640:26[90m)[39m
+    at writeJsonFileAtomic [90m(/home/runner/work/openchamber-ru/openchamber-ru/packages/web/[39mserver/lib/opencode/settings-runtime.js:690:13[90m)[39m
+    at Object.writeSettingsToDisk [90m(/home/runner/work/openchamber-ru/openchamber-ru/packages/web/[39mserver/lib/opencode/settings-runtime.js:722:5[90m)[39m
+    at [90m/home/runner/work/openchamber-ru/openchamber-ru/packages/web/[39mserver/lib/opencode/settings-runtime.test.js:401:7
+    at file:///home/runner/work/openchamber-ru/openchamber-ru/node_modules/[4m.bun[24m/@vitest+runner@4.1.5/node_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:1903:20 {
+  code: [32m'EIO'[39m
+}
+
+[90mstdout[2m | server/lib/opencode/settings-runtime.test.js[2m > [22m[2msettings runtime: preferences.json split[2m > [22m[2mroutes profile keys to preferences.json, keeps a legacy copy of them in settings.json, and drops device keys
+[22m[39m[persistSettings] Updating fields: fontSize, desktopLanAccessEnabled, mobileKeyboardMode
+
+[90mstdout[2m | server/lib/opencode/settings-runtime.test.js[2m > [22m[2msettings runtime: preferences.json split[2m > [22m[2mkeeps the timestamp of an unchanged profile key and restamps a changed one
+[22m[39m[persistSettings] Updating fields: fontSize, padding
+
+[90mstdout[2m | server/lib/opencode/settings-runtime.test.js[2m > [22m[2msettings runtime: preferences.json split[2m > [22m[2mkeeps the timestamp of an unchanged profile key and restamps a changed one
+[22m[39m[persistSettings] Updating fields: fontSize, padding
+
+[90mstderr[2m | server/lib/opencode/settings-runtime.test.js[2m > [22m[2msettings runtime: preferences.json split[2m > [22m[2mtreats an unreadable preferences.json as failure: no seed, no overwrite, profile writes refused, instance still served
+[22m[39mPreferences file is unreadable (invalid JSON: Expected property name or '}' in JSON at position 2 (line 1 column 3)); profile writes are paused until it is fixed or removed.
+
+[90mstdout[2m | server/lib/opencode/settings-runtime.test.js[2m > [22m[2msettings runtime: preferences.json split[2m > [22m[2mtreats an unreadable preferences.json as failure: no seed, no overwrite, profile writes refused, instance still served
+[22m[39m[persistSettings] Updating fields: fontSize, desktopKeepAwakeEnabled
+
+[90mstderr[2m | server/lib/opencode/settings-runtime.test.js[2m > [22m[2msettings runtime: preferences.json split[2m > [22m[2mtreats an unreadable preferences.json as failure: no seed, no overwrite, profile writes refused, instance still served
+[22m[39m[persistSettings] Dropping fontSize: preferences file is unreadable
+
+[90mstdout[2m | server/lib/opencode/settings-runtime.test.js[2m > [22m[2msettings runtime: per-surface profile keys[2m > [22m[2mstores a per-surface key under the writing surface and leaves the base alone
+[22m[39m[persistSettings] Updating fields: fontSize
+
+[90mstdout[2m | server/lib/opencode/settings-runtime.test.js[2m > [22m[2msettings runtime: per-surface profile keys[2m > [22m[2mstores a per-surface key under the writing surface and leaves the base alone
+[22m[39m[persistSettings] Updating fields: fontSize, showReasoningTraces
+
+[90mstdout[2m | server/lib/opencode/settings-runtime.test.js[2m > [22m[2msettings runtime: per-surface profile keys[2m > [22m[2ma per-surface key set only from one surface has no base and stays absent elsewhere
+[22m[39m[persistSettings] Updating fields: stickyUserHeader
+
+[90mstdout[2m | server/lib/opencode/settings-runtime.test.js[2m > [22m[2msettings runtime: per-surface profile keys[2m > [22m[2ma surface write of an unrelated key does not copy the resolved per-surface view into the file
+[22m[39m[persistSettings] Updating fields: fontSize
+
+[90mstdout[2m | server/lib/opencode/settings-runtime.test.js[2m > [22m[2msettings runtime: per-surface profile keys[2m > [22m[2ma surface write of an unrelated key does not copy the resolved per-surface view into the file
+[22m[39m[persistSettings] Updating fields: fontSize
+
+[90mstdout[2m | server/lib/opencode/settings-runtime.test.js[2m > [22m[2msettings runtime: per-surface profile keys[2m > [22m[2ma surface write of an unrelated key does not copy the resolved per-surface view into the file
+[22m[39m[persistSettings] Updating fields: showReasoningTraces
+
+[90mstdout[2m | server/lib/opencode/settings-runtime.test.js[2m > [22m[2msettings runtime: per-surface profile keys[2m > [22m[2mignores an unknown surface header value and writes the base
+[22m[39m[persistSettings] Updating fields: fontSize
+
+ [32m✓[39m server/lib/opencode/settings-runtime.test.js [2m([22m[2m20 tests[22m[2m | [22m[33m1 skipped[39m[2m)[22m[32m 140[2mms[22m[39m
+ [32m✓[39m server/lib/projects/project-setup.test.js [2m([22m[2m28 tests[22m[2m)[22m[32m 81[2mms[22m[39m
+[90mstdout[2m | server/lib/session-goal/runtime.test.js[2m > [22m[2msession goal live activity gate[2m > [22m[2maudits normally when the idle parent has no working children
+[22m[39m[session-goal:diagnostic] audit verdict {
+  sessionId: [32m'ses_parent'[39m,
+  provider: [32m'provider'[39m,
+  model: [32m'model'[39m,
+  outputChars: [33m54[39m,
+  verdict: [32m'complete'[39m
+}
+
+[90mstdout[2m | server/lib/session-goal/runtime.test.js[2m > [22m[2msession goal live activity gate[2m > [22m[2maudits normally when the idle parent has no working children
+[22m[39m[session-goal] ses_parent settled as complete (verified by audit)
+
+[90mstdout[2m | server/lib/session-goal/runtime.test.js[2m > [22m[2msession goal live activity gate[2m > [22m[2mskips audit and sends continuation prompt when assistant message finishes with length stop
+[22m[39m[session-goal] continuing ses_parent (turn 2/20, tokens 4196)
+
+[90mstdout[2m | server/lib/session-goal/runtime.test.js[2m > [22m[2msession goal live activity gate[2m > [22m[2mskips audit and sends continuation prompt when assistant message carries MessageOutputLengthError
+[22m[39m[session-goal] continuing ses_parent (turn 2/20, tokens 4196)
+
+[90mstdout[2m | server/lib/session-goal/runtime.test.js[2m > [22m[2msession goal live activity gate[2m > [22m[2mblocks a length finish when the assistant also has a non-length 'APIError'
+[22m[39m[session-goal] ses_parent settled as blocked (APIError)
+
+[90mstdout[2m | server/lib/session-goal/runtime.test.js[2m > [22m[2msession goal live activity gate[2m > [22m[2mblocks a length finish when the assistant also has a non-length 'StructuredOutputError'
+[22m[39m[session-goal] ses_parent settled as blocked (StructuredOutputError)
+
+[90mstdout[2m | server/lib/session-goal/runtime.test.js[2m > [22m[2msession goal live activity gate[2m > [22m[2mblocks a length finish when the assistant also has a non-length 'unnamed errors'
+[22m[39m[session-goal] ses_parent settled as blocked (assistant turn failed)
+
+[90mstdout[2m | server/lib/session-goal/runtime.test.js[2m > [22m[2msession goal live activity gate[2m > [22m[2mblocks after two consecutive length-truncated agent turns without persisting a counter, regardless of message IDs
+[22m[39m[session-goal] continuing ses_parent (turn 2/20, tokens 2)
+
+[90mstdout[2m | server/lib/session-goal/runtime.test.js[2m > [22m[2msession goal live activity gate[2m > [22m[2mblocks after two consecutive length-truncated agent turns without persisting a counter, regardless of message IDs
+[22m[39m[session-goal] ses_parent settled as blocked (repeated output truncation)
+
+[90mstdout[2m | server/lib/session-goal/runtime.test.js[2m > [22m[2msession goal live activity gate[2m > [22m[2mallows one explicit Resume after repeated truncation, then blocks another cutoff
+[22m[39m[session-goal] ses_parent settled as blocked (repeated output truncation)
+
+[90mstdout[2m | server/lib/session-goal/runtime.test.js[2m > [22m[2msession goal live activity gate[2m > [22m[2mallows one explicit Resume after repeated truncation, then blocks another cutoff
+[22m[39m[session-goal] continuing ses_parent (turn 1/20, tokens 2)
+
+[90mstdout[2m | server/lib/session-goal/runtime.test.js[2m > [22m[2msession goal live activity gate[2m > [22m[2mallows one explicit Resume after repeated truncation, then blocks another cutoff
+[22m[39m[session-goal] ses_parent settled as blocked (repeated output truncation)
+
+[90mstdout[2m | server/lib/session-goal/runtime.test.js[2m > [22m[2msession goal live activity gate[2m > [22m[2mkeeps 'budgetLimited' protection on explicit Resume
+[22m[39m[session-goal] ses_parent settled as budgetLimited (token budget reached)
+
+[90mstdout[2m | server/lib/session-goal/runtime.test.js[2m > [22m[2msession goal live activity gate[2m > [22m[2mkeeps 'blocked' protection on explicit Resume
+[22m[39m[session-goal] ses_parent settled as blocked (APIError)
+
+[90mstdout[2m | server/lib/session-goal/runtime.test.js[2m > [22m[2msession goal live activity gate[2m > [22m[2mcontinues after a truncated agent turn followed by a length-finished summary
+[22m[39m[session-goal] continuing ses_parent (turn 2/20, tokens 2)
+
+[90mstdout[2m | server/lib/session-goal/runtime.test.js[2m > [22m[2msession goal live activity gate[2m > [22m[2mcontinues after a truncated agent turn followed by a length-finished summary
+[22m[39m[session-goal] continuing ses_parent (turn 3/20, tokens 2)
+
+[90mstdout[2m | server/lib/session-goal/runtime.test.js[2m > [22m[2msession goal live activity gate[2m > [22m[2mdoes not infer a repeated streak when a completed assistant timestamp is missing
+[22m[39m[session-goal] continuing ses_parent (turn 2/20, tokens 2)
+
+[90mstdout[2m | server/lib/session-goal/runtime.test.js[2m > [22m[2msession goal live activity gate[2m > [22m[2mdoes not infer a repeated streak when a completed assistant timestamp is missing
+[22m[39m[session-goal] continuing ses_parent (turn 3/20, tokens 2)
+
+[90mstdout[2m | server/lib/session-goal/runtime.test.js[2m > [22m[2msession goal live activity gate[2m > [22m[2mignores a missing timestamp on an older assistant when known post-goal turns establish a streak
+[22m[39m[session-goal] continuing ses_parent (turn 2/20, tokens 2)
+
+[90mstdout[2m | server/lib/session-goal/runtime.test.js[2m > [22m[2msession goal live activity gate[2m > [22m[2mignores a missing timestamp on an older assistant when known post-goal turns establish a streak
+[22m[39m[session-goal] ses_parent settled as blocked (repeated output truncation)
+
+[90mstdout[2m | server/lib/session-goal/runtime.test.js[2m > [22m[2msession goal live activity gate[2m > [22m[2mdoes not count a previous truncated turn created at the goal boundary
+[22m[39m[session-goal] continuing ses_parent (turn 2/20, tokens 2)
+
+[90mstdout[2m | server/lib/session-goal/runtime.test.js[2m > [22m[2msession goal live activity gate[2m > [22m[2mdoes not count a previous truncated turn created at the goal boundary
+[22m[39m[session-goal] continuing ses_parent (turn 3/20, tokens 2)
+
+[90mstdout[2m | server/lib/session-goal/runtime.test.js[2m > [22m[2msession goal live activity gate[2m > [22m[2mallows length recovery after an ordinary assistant turn breaks the streak
+[22m[39m[session-goal] continuing ses_parent (turn 2/20, tokens 2)
+
+[90mstdout[2m | server/lib/session-goal/runtime.test.js[2m > [22m[2msession goal live activity gate[2m > [22m[2mallows length recovery after an ordinary assistant turn breaks the streak
+[22m[39m[session-goal] continuing ses_parent (turn 3/20, tokens 2)
+
+[90mstdout[2m | server/lib/session-goal/runtime.test.js[2m > [22m[2msession goal live activity gate[2m > [22m[2mkeeps MessageAbortedError pause behavior instead of continuing
+[22m[39m[session-goal] ses_parent paused after user abort
+
+[90mstdout[2m | server/lib/session-goal/runtime.test.js[2m > [22m[2msession goal live activity gate[2m > [22m[2mchecks the token budget before allowing length recovery
+[22m[39m[session-goal] ses_parent settled as budgetLimited (token budget reached)
+
+[90mstdout[2m | server/lib/session-goal/runtime.test.js[2m > [22m[2msession goal live activity gate[2m > [22m[2mchecks the auto-continuation cap before allowing length recovery
+[22m[39m[session-goal] ses_parent settled as blocked (auto-continuation limit reached)
+
+ [32m✓[39m server/lib/session-goal/runtime.test.js [2m([22m[2m21 tests[22m[2m)[22m[32m 96[2mms[22m[39m
+[90mstdout[2m | server/lib/message-queue/runtime.test.js[2m > [22m[2mmessage queue runtime[2m > [22m[2mdelivers the head of the queue when the session goes idle, in order
+[22m[39m[message-queue] sent queued message to ses_queue_test_1
+
+[90mstdout[2m | server/lib/message-queue/runtime.test.js[2m > [22m[2mmessage queue runtime[2m > [22m[2mdelivers the head of the queue when the session goes idle, in order
+[22m[39m[message-queue] sent queued message to ses_queue_test_1
+
+[90mstdout[2m | server/lib/message-queue/runtime.test.js[2m > [22m[2mmessage queue runtime[2m > [22m[2mdoes not send into a running turn even when the status event says idle
+[22m[39m[message-queue] sent queued message to ses_queue_test_1
+
+[90mstdout[2m | server/lib/message-queue/runtime.test.js[2m > [22m[2mmessage queue runtime[2m > [22m[2mtreats an unreachable OpenCode as unknown, not idle
+[22m[39m[message-queue] sent queued message to ses_queue_test_1
+
+[90mstderr[2m | server/lib/message-queue/runtime.test.js[2m > [22m[2mmessage queue runtime[2m > [22m[2mkeeps a failed item and retries with backoff
+[22m[39m[message-queue] send to ses_queue_test_1 failed (attempt 1): OpenCode POST /session/ses_queue_test_1/prompt_async failed with 500: boom
+
+[90mstdout[2m | server/lib/message-queue/runtime.test.js[2m > [22m[2mmessage queue runtime[2m > [22m[2mkeeps a failed item and retries with backoff
+[22m[39m[message-queue] sent queued message to ses_queue_test_1
+
+[90mstdout[2m | server/lib/message-queue/runtime.test.js[2m > [22m[2mmessage queue runtime[2m > [22m[2mholds delivery briefly after a user abort
+[22m[39m[message-queue] sent queued message to ses_queue_test_1
+
+[90mstdout[2m | server/lib/message-queue/runtime.test.js[2m > [22m[2mmessage queue runtime[2m > [22m[2mhonors a hold until it is released
+[22m[39m[message-queue] sent queued message to ses_queue_test_1
+
+[90mstdout[2m | server/lib/message-queue/runtime.test.js[2m > [22m[2mmessage queue runtime[2m > [22m[2msurvives a restart and delivers once OpenCode reconnects
+[22m[39m[message-queue] restored queues for 1 session(s)
+
+[90mstdout[2m | server/lib/message-queue/runtime.test.js[2m > [22m[2mmessage queue runtime[2m > [22m[2msurvives a restart and delivers once OpenCode reconnects
+[22m[39m[message-queue] sent queued message to ses_queue_test_1
+
+[90mstderr[2m | server/lib/message-queue/runtime.test.js[2m > [22m[2mmessage queue runtime[2m > [22m[2mmoves an unreadable queue file aside instead of treating it as empty
+[22m[39m[message-queue] queue file was unreadable and moved to /tmp/openchamber-message-queue-SMlMVh/message-queue.json.corrupt-1789154294747: Expected property name or '}' in JSON at position 2 (line 1 column 3)
+
+[90mstdout[2m | server/lib/message-queue/runtime.test.js[2m > [22m[2mmessage queue runtime[2m > [22m[2mrefuses to remove or take the item currently being sent
+[22m[39m[message-queue] sent queued message to ses_queue_test_1
+
+[90mstdout[2m | server/lib/message-queue/runtime.test.js[2m > [22m[2mmessage queue runtime[2m > [22m[2mderives a preview for older queued annotations without a saved summary
+[22m[39m[message-queue] sent queued message to ses_queue_test_1
+
+[90mstderr[2m | server/lib/message-queue/runtime.test.js[2m > [22m[2mmessage queue runtime[2m > [22m[2mderives a preview for older queued annotations without a saved summary
+[22m[39m[message-queue] failed to persist queue: ENOENT: no such file or directory, mkdir '/tmp/openchamber-message-queue-xMiC2v'
+
+[90mstdout[2m | server/lib/message-queue/runtime.test.js[2m > [22m[2mmessage queue runtime[2m > [22m[2mnames the directory in the broadcast that empties a queue
+[22m[39m[message-queue] sent queued message to ses_queue_test_1
+
+[90mstderr[2m | server/lib/message-queue/runtime.test.js[2m > [22m[2mmessage queue runtime[2m > [22m[2mnames the directory in the broadcast that empties a queue
+[22m[39m[message-queue] failed to persist queue: ENOENT: no such file or directory, mkdir '/tmp/openchamber-message-queue-PBabEw'
+
+[90mstderr[2m | server/lib/message-queue/runtime.test.js[2m > [22m[2mmessage queue runtime[2m > [22m[2mnames the directory in the broadcast that empties a queue
+[22m[39m[message-queue] failed to persist queue: ENOENT: no such file or directory, mkdir '/tmp/openchamber-message-queue-W1eHsT'
+
+[90mstdout[2m | server/lib/message-queue/runtime.test.js[2m > [22m[2mmessage queue runtime[2m > [22m[2mnames the directory in the broadcast that empties a queue
+[22m[39m[message-queue] sent queued message to ses_queue_test_1
+
+[90mstdout[2m | server/lib/message-queue/runtime.test.js[2m > [22m[2mmessage queue runtime[2m > [22m[2mdispatches a queued slash command through the command endpoint
+[22m[39m[message-queue] sent queued message to ses_queue_test_1
+
+[90mstderr[2m | server/lib/message-queue/runtime.test.js[2m > [22m[2mmessage queue runtime[2m > [22m[2mdispatches a queued slash command through the command endpoint
+[22m[39m[message-queue] failed to persist queue: ENOENT: no such file or directory, mkdir '/tmp/openchamber-message-queue-tKKrI3'
+
+[90mstderr[2m | server/lib/message-queue/runtime.test.js[2m > [22m[2mmessage queue runtime[2m > [22m[2mdispatches a queued slash command through the command endpoint
+[22m[39m[message-queue] failed to persist queue: ENOENT: no such file or directory, mkdir '/tmp/openchamber-message-queue-jnGEFY'
+
+[90mstdout[2m | server/lib/message-queue/runtime.test.js[2m > [22m[2mmessage queue runtime[2m > [22m[2mdispatches a queued slash command through the command endpoint
+[22m[39m[message-queue] sent queued message to ses_queue_test_1
+
+[90mstdout[2m | server/lib/message-queue/runtime.test.js[2m > [22m[2mmessage queue runtime[2m > [22m[2mdelivers captured context as synthetic parts, instructions first, before project knowledge
+[22m[39m[message-queue] sent queued message to ses_queue_test_1
+
+[90mstdout[2m | server/lib/message-queue/runtime.test.js[2m > [22m[2mmessage queue runtime[2m > [22m[2mkeeps files on the command route, which is all that route accepts
+[22m[39m[message-queue] sent queued message to ses_queue_test_1
+
+[90mstdout[2m | server/lib/message-queue/runtime.test.js[2m > [22m[2mmessage queue runtime[2m > [22m[2msends a command queued with context as its expanded prompt, context included
+[22m[39m[message-queue] sent queued message to ses_queue_test_1
+
+[90mstdout[2m | server/lib/message-queue/runtime.test.js[2m > [22m[2mmessage queue runtime[2m > [22m[2msends a skill queued with context as an explicit invocation, context included
+[22m[39m[message-queue] sent queued message to ses_queue_test_1
+
+[90mstderr[2m | server/lib/message-queue/runtime.test.js[2m > [22m[2mmessage queue runtime[2m > [22m[2mattaches pending project knowledge and records its delivery
+[22m[39m[message-queue] failed to persist queue: ENOENT: no such file or directory, mkdir '/tmp/openchamber-message-queue-IgvbwT'
+
+[90mstdout[2m | server/lib/message-queue/runtime.test.js[2m > [22m[2mmessage queue runtime[2m > [22m[2mattaches pending project knowledge and records its delivery
+[22m[39m[message-queue] sent queued message to ses_queue_test_1
+
+ [32m✓[39m server/lib/message-queue/runtime.test.js [2m([22m[2m26 tests[22m[2m)[22m[33m 738[2mms[22m[39m
+[90mstdout[2m | server/opencode-proxy.test.js[2m > [22m[2mOpenCode proxy SSE forwarding[2m > [22m[2mforwards event streams with nginx-safe headers
+[22m[39mSetting up proxy to OpenCode on port 34441
+
+[90mstdout[2m | server/opencode-proxy.test.js[2m > [22m[2mOpenCode proxy SSE forwarding[2m > [22m[2mcloses downstream SSE when the OpenCode upstream stalls despite proxy heartbeats
+[22m[39mSetting up proxy to OpenCode on port 44461
+
+[90mstdout[2m | server/opencode-proxy.test.js[2m > [22m[2mOpenCode proxy SSE forwarding[2m > [22m[2mholds a request through OpenCode warmup and succeeds once ready (no 503/backoff)
+[22m[39mSetting up proxy to OpenCode on port 42197
+
+[90mstdout[2m | server/opencode-proxy.test.js[2m > [22m[2mOpenCode proxy SSE forwarding[2m > [22m[2mreturns 503 fast when OpenCode never becomes ready
+[22m[39mSetting up OpenCode API gate (OpenCode not started yet)
+
+[90mstdout[2m | server/opencode-proxy.test.js[2m > [22m[2mOpenCode proxy SSE forwarding[2m > [22m[2mroutes generic API requests through external OpenCode base URL
+[22m[39mSetting up proxy to OpenCode on port 3902
+
+[90mstdout[2m | server/opencode-proxy.test.js[2m > [22m[2mOpenCode proxy SSE forwarding[2m > [22m[2mreplays parsed urlencoded bodies to generic API proxy requests
+[22m[39mSetting up proxy to OpenCode on port 36387
+
+[90mstdout[2m | server/opencode-proxy.test.js[2m > [22m[2mOpenCode proxy SSE forwarding[2m > [22m[2mreplays parsed JSON bodies to generic API proxy requests
+[22m[39mSetting up proxy to OpenCode on port 39553
+
+[90mstdout[2m | server/opencode-proxy.test.js[2m > [22m[2mOpenCode proxy SSE forwarding[2m > [22m[2msanitizes experimental session list responses and forwards query params
+[22m[39mSetting up proxy to OpenCode on port 46177
+
+[90mstdout[2m | server/opencode-proxy.test.js[2m > [22m[2mOpenCode proxy SSE forwarding[2m > [22m[2msanitizes session list responses without sanitizing session detail responses
+[22m[39mSetting up proxy to OpenCode on port 39685
+
+[90mstdout[2m | server/opencode-proxy.test.js[2m > [22m[2mOpenCode proxy SSE forwarding[2m > [22m[2mforwards unparsed SDK JSON bodies to generic API proxy requests
+[22m[39mSetting up proxy to OpenCode on port 37885
+
+[90mstdout[2m | server/opencode-proxy.test.js[2m > [22m[2mOpenCode proxy SSE forwarding[2m > [22m[2muses the long proxy timeout budget for slow upstream responses
+[22m[39mSetting up proxy to OpenCode on port 44221
+
+[90mstdout[2m | server/opencode-proxy.test.js[2m > [22m[2mOpenCode proxy SSE forwarding[2m > [22m[2mexempts interactive provider OAuth callbacks from the request deadline
+[22m[39mSetting up proxy to OpenCode on port 41785
+
+[90mstdout[2m | server/opencode-proxy.test.js[2m > [22m[2mOpenCode proxy SSE forwarding[2m > [22m[2mstill applies the request deadline to the OAuth authorize call
+[22m[39mSetting up proxy to OpenCode on port 40755
+
+ [32m✓[39m server/opencode-proxy.test.js [2m([22m[2m15 tests[22m[2m)[22m[33m 919[2mms[22m[39m
+ [32m✓[39m server/lib/linear/routes.test.js [2m([22m[2m15 tests[22m[2m)[22m[32m 233[2mms[22m[39m
+[90mstdout[2m | server/lib/opencode/env-runtime.test.js[2m > [22m[2mOpenCode env runtime[2m > [22m[2mkeeps automatic desktop bundled resolution local across relaunch on linux
+[22m[39mResolved opencode CLI: /tmp/openchamber-resources-3QfQoQ/opencode-cli/opencode
+Resolved opencode CLI: /tmp/openchamber-resources-dmK9SU/opencode-cli/opencode
+
+[90mstdout[2m | server/lib/opencode/env-runtime.test.js[2m > [22m[2mOpenCode env runtime[2m > [22m[2mkeeps automatic desktop bundled resolution local across relaunch on darwin
+[22m[39mResolved opencode CLI: /tmp/openchamber-resources-Vukkap/opencode-cli/opencode
+Resolved opencode CLI: /tmp/openchamber-resources-gPdTDp/opencode-cli/opencode
+
+[90mstdout[2m | server/lib/opencode/env-runtime.test.js[2m > [22m[2mOpenCode env runtime[2m > [22m[2mkeeps automatic desktop bundled resolution local across relaunch on win32
+[22m[39mResolved opencode CLI: /tmp/openchamber-resources-LeIFt7/opencode-cli/opencode.exe
+Resolved opencode CLI: /tmp/openchamber-resources-S4lNFW/opencode-cli/opencode.exe
+
+[90mstdout[2m | server/lib/opencode/env-runtime.test.js[2m > [22m[2mOpenCode env runtime[2m > [22m[2mpreserves automatic binary export outside desktop in web
+[22m[39mResolved opencode CLI: /tmp/openchamber-resources-PVp0yw/opencode-cli/opencode
+
+[90mstdout[2m | server/lib/opencode/env-runtime.test.js[2m > [22m[2mOpenCode env runtime[2m > [22m[2mpreserves automatic binary export outside desktop in ssh-remote
+[22m[39mResolved opencode CLI: /tmp/openchamber-resources-zzEdy3/opencode-cli/opencode
+
+[90mstdout[2m | server/lib/opencode/env-runtime.test.js[2m > [22m[2mOpenCode env runtime[2m > [22m[2mpreserves automatic PATH binary export for desktop without a bundled CLI
+[22m[39mResolved opencode CLI: /tmp/openchamber-resources-qAQRXe/opencode-cli/opencode
+
+ [32m✓[39m server/lib/opencode/env-runtime.test.js [2m([22m[2m29 tests[22m[2m | [22m[33m1 skipped[39m[2m)[22m[32m 38[2mms[22m[39m
+[90mstderr[2m | server/lib/git/service.test.js[2m > [22m[2muntracked diffs[2m > [22m[2mrejects fatal conversion errors while preserving other batch entries
+[22m[39mFailed to get Git diff: Error: fatal: unable to read files to diff
+
+    at getNoIndexDiff [90m(/home/runner/work/openchamber-ru/openchamber-ru/packages/web/[39mserver/lib/git/service.js:2480:9[90m)[39m
+[90m    at processTicksAndRejections (node:internal/process/task_queues:103:5)[39m
+    at getDiff [90m(/home/runner/work/openchamber-ru/openchamber-ru/packages/web/[39mserver/lib/git/service.js:2533:14[90m)[39m
+    at [90m/home/runner/work/openchamber-ru/openchamber-ru/packages/web/[39mserver/lib/git/service.test.js:469:5
+    at file:///home/runner/work/openchamber-ru/openchamber-ru/node_modules/[4m.bun[24m/@vitest+runner@4.1.5/node_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:1903:20
+
+ [31m❯[39m server/lib/scheduled-tasks/issue-2710-double-execution.test.js [2m([22m[2m0 test[22m[2m)[22m
+ [32m✓[39m server/lib/event-stream/runtime.test.js [2m([22m[2m11 tests[22m[2m)[22m[32m 161[2mms[22m[39m
+ [32m✓[39m server/lib/agent-tool/runtime.test.js [2m([22m[2m32 tests[22m[2m)[22m[32m 228[2mms[22m[39m
+ [32m✓[39m server/lib/linear/issues.test.js [2m([22m[2m19 tests[22m[2m)[22m[32m 62[2mms[22m[39m
+ [31m❯[39m server/lib/opencode/plugin-routes.test.js [2m([22m[2m29 tests[22m[2m | [22m[33m29 skipped[39m[2m)[22m[32m 20[2mms[22m[39m
+     [2m[90m↓[39m[22m GET /api/config/plugins empty returns entries and files arrays
+     [2m[90m↓[39m[22m GET /registry with empty specs returns empty results
+     [2m[90m↓[39m[22m GET /registry reports update for exact npm version behind latest
+     [2m[90m↓[39m[22m GET /registry reports no update when exact npm version matches latest
+     [2m[90m↓[39m[22m GET /registry reports missing exact npm version
+     [2m[90m↓[39m[22m GET /registry reports missing npm package
+     [2m[90m↓[39m[22m GET /registry reports malformed npm spec
+     [2m[90m↓[39m[22m GET /registry reports existing path plugin ok
+     [2m[90m↓[39m[22m GET /registry reports missing path plugin
+     [2m[90m↓[39m[22m GET /registry treats Windows absolute paths as local paths
+     [2m[90m↓[39m[22m GET /registry reports unreadable path plugin
+     [2m[90m↓[39m[22m GET /registry reports npm network failure without failing route
+     [2m[90m↓[39m[22m GET /registry deduplicates npm package lookups by name
+     [2m[90m↓[39m[22m GET /registry forwards refresh true to npm lookup
+     [2m[90m↓[39m[22m GET /registry rejects more than 100 unique specs
+     [2m[90m↓[39m[22m GET /registry reports bare npm name with null current version
+     [2m[90m↓[39m[22m GET /registry accepts non-exact npm range without missing-version noise
+     [2m[90m↓[39m[22m GET /registry supports scoped npm package specs
+     [2m[90m↓[39m[22m POST /entry creates entry and defers restart
+     [2m[90m↓[39m[22m GET after POST returns created entry
+     [2m[90m↓[39m[22m POST duplicate entry returns 409
+     [2m[90m↓[39m[22m PATCH /entry/:id updates entry in same array index
+     [2m[90m↓[39m[22m DELETE /entry/:id removes entry and prunes plugin key
+     [2m[90m↓[39m[22m POST /file writes plugin dir file
+     [2m[90m↓[39m[22m POST duplicate file returns 409
+     [2m[90m↓[39m[22m PUT /file/:id updates file content
+     [2m[90m↓[39m[22m DELETE /file/:id unlinks file
+     [2m[90m↓[39m[22m PATCH unknown entry id returns 404
+     [2m[90m↓[39m[22m POST invalid fileName returns 400
+ [32m✓[39m server/lib/agent-memory/runtime.test.js [2m([22m[2m33 tests[22m[2m)[22m[32m 145[2mms[22m[39m
+ [31m❯[39m server/lib/opencode/providers.test.js [2m([22m[2m0 test[22m[2m)[22m
+ [32m✓[39m server/lib/openchamber-control/service.test.js [2m([22m[2m21 tests[22m[2m)[22m[32m 43[2mms[22m[39m
+ [32m✓[39m server/lib/agent-memory/actions.test.js [2m([22m[2m29 tests[22m[2m)[22m[32m 53[2mms[22m[39m
+ [31m❯[39m server/lib/opencode/agents.test.js [2m([22m[2m32 tests[22m[2m | [22m[33m32 skipped[39m[2m)[22m[32m 11[2mms[22m[39m
+     [2m[90m↓[39m[22m getUserAgentPath finds agent in runtime dir (flat)
+     [2m[90m↓[39m[22m getUserAgentPath finds agent in runtime dir subfolder
+     [2m[90m↓[39m[22m runtime dir wins over legacy config dir for the same agent name
+     [2m[90m↓[39m[22m getUserAgentPath falls back to legacy config agents dir
+     [2m[90m↓[39m[22m getUserAgentPath falls back to legacy singular agent dir
+     [2m[90m↓[39m[22m getUserAgentPath defaults to runtime flat path for unknown agent
+     [2m[90m↓[39m[22m getAgentCategory: subagent with category, subagent default, primary, absent
+     [2m[90m↓[39m[22m getAgentCategory: mode all and absent mode fall to core
+     [2m[90m↓[39m[22m getAgentCategory: unsafe category throws instead of escaping the dir
+     [2m[90m↓[39m[22m getAgentCategory: empty or whitespace category falls back to subagents/core
+     [2m[90m↓[39m[22m runtime subfolder wins over legacy flat for the same agent name
+     [2m[90m↓[39m[22m display name resolves to the existing slug file via frontmatter name
+     [2m[90m↓[39m[22m display name resolves case-insensitively to slug file
+     [2m[90m↓[39m[22m getAgentWritePath: display name updates existing slug file (no duplicate)
+     [2m[90m↓[39m[22m createAgent refuses to duplicate an agent whose display name already exists
+     [2m[90m↓[39m[22m createAgent writes name field into frontmatter
+     [2m[90m↓[39m[22m deleteAgent by display name removes the existing slug file
+     [2m[90m↓[39m[22m createAgent/updateAgent/deleteAgent reject traversal agent names
+     [2m[90m↓[39m[22m frontmatter name in body does not resolve the agent
+     [2m[90m↓[39m[22m updateAgent with name:null still keeps name on fresh override
+     [2m[90m↓[39m[22m getAgentWritePath: runtime subfolder wins over legacy flat
+     [2m[90m↓[39m[22m deleteAgent removes runtime subfolder before legacy flat
+     [2m[90m↓[39m[22m getAgentSources reports runtime subfolder when legacy flat also exists
+     [2m[90m↓[39m[22m getAgentWritePath: new subagent goes to runtime subagents dir
+     [2m[90m↓[39m[22m getAgentWritePath: new primary goes to runtime core dir
+     [2m[90m↓[39m[22m getAgentWritePath: existing legacy agent keeps its legacy location
+     [2m[90m↓[39m[22m getAgentScope: project agent wins over user agent
+     [2m[90m↓[39m[22m createAgent writes subagent to runtime subagents dir
+     [2m[90m↓[39m[22m createAgent writes primary agent to runtime core dir
+     [2m[90m↓[39m[22m updateAgent creates builtin override in runtime subagents dir
+     [2m[90m↓[39m[22m getAgentSources reports runtime md path
+     [2m[90m↓[39m[22m deleteAgent removes agent from runtime dir subfolder
+ [31m❯[39m server/lib/opencode/shared.test.js [2m([22m[2m0 test[22m[2m)[22m
+ [32m✓[39m server/lib/small-model/index.test.js [2m([22m[2m21 tests[22m[2m)[22m[32m 17[2mms[22m[39m
+ [32m✓[39m server/lib/dev-tunnel/tunnel.test.js [2m([22m[2m14 tests[22m[2m)[22m[33m 361[2mms[22m[39m
+     [33m[2m✓[22m[39m drops a connection that floods a handshake that never completes [33m 305[2mms[22m[39m
+ [31m❯[39m server/lib/opencode/skills.test.js [2m([22m[2m0 test[22m[2m)[22m
+[90mstderr[2m | server/lib/git/service.test.js[2m > [22m[2mcreateWorktree[2m > [22m[2mdoes not fail worktree bootstrap when the post-checkout hook fails
+[22m[39m[GitService] post-checkout hook failed in worktree /tmp/openchamber-git-service-v1Fbih/opencode/worktree/a762e7194988b66db3f28b1c098e47b6e46d5a37/hook-fail-test: Command failed: /tmp/openchamber-git-service-d4saUX/.git/hooks/post-checkout 0000000000000000000000000000000000000000 a762e7194988b66db3f28b1c098e47b6e46d5a37 1
+
+
+[90mstdout[2m | server/lib/ui-auth/ui-auth.test.js[2m > [22m[2mui auth client credential seam[2m > [22m[2maccepts bearer client credentials when UI password auth is enabled
+[22m[39m[JWT] Generated and persisted new secret to /tmp/openchamber-ui-auth-test-D1CNyp/jwt-secret
+
+ [32m✓[39m server/lib/ui-auth/ui-auth.test.js [2m([22m[2m6 tests[22m[2m)[22m[33m 565[2mms[22m[39m
+     [33m[2m✓[22m[39m accepts bearer client credentials when UI password auth is enabled [33m 308[2mms[22m[39m
+ [32m✓[39m server/lib/relay/host-client.test.js [2m([22m[2m1 test[22m[2m)[22m[32m 254[2mms[22m[39m
+[90mstderr[2m | server/lib/notifications/apns-runtime.test.js[2m > [22m[2mapns runtime relay mode (default)[2m > [22m[2mregisters tokens (signed) and posts signed generic text, dropping dead tokens
+[22m[39m[relay-identity] Generating NEW relay signing keypair (serverId changes; previously paired devices must re-pair)
+
+[90mstderr[2m | server/lib/notifications/apns-runtime.test.js[2m > [22m[2mapns runtime relay mode (default)[2m > [22m[2mreuses one persisted keypair (same serverId) across register + send
+[22m[39m[relay-identity] Generating NEW relay signing keypair (serverId changes; previously paired devices must re-pair)
+
+[90mstderr[2m | server/lib/notifications/apns-runtime.test.js[2m > [22m[2mapns runtime relay mode (default)[2m > [22m[2mhonors an explicit sandbox environment override for every token
+[22m[39m[relay-identity] Generating NEW relay signing keypair (serverId changes; previously paired devices must re-pair)
+
+[90mstderr[2m | server/lib/notifications/apns-runtime.test.js[2m > [22m[2mapns runtime relay mode (default)[2m > [22m[2mroutes each token to its registered environment (dev build sandbox, release production)
+[22m[39m[relay-identity] Generating NEW relay signing keypair (serverId changes; previously paired devices must re-pair)
+
+ [32m✓[39m server/lib/notifications/apns-runtime.test.js [2m([22m[2m9 tests[22m[2m)[22m[32m 53[2mms[22m[39m
+ [31m❯[39m server/lib/scheduled-tasks/loops.test.js [2m([22m[2m0 test[22m[2m)[22m
+ [32m✓[39m server/lib/walkthrough/jobs.test.js [2m([22m[2m17 tests[22m[2m)[22m[32m 43[2mms[22m[39m
+ [31m❯[39m server/lib/scheduled-tasks/service.test.js [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m server/lib/quota/providers/openrouter.test.js [2m([22m[2m0 test[22m[2m)[22m
+ [32m✓[39m server/lib/opencode/project-directory-runtime.test.js [2m([22m[2m18 tests[22m[2m)[22m[32m 10[2mms[22m[39m
+ [32m✓[39m server/lib/linear/status.test.js [2m([22m[2m11 tests[22m[2m)[22m[32m 56[2mms[22m[39m
+ [31m❯[39m server/lib/quota/providers/neuralwatt.test.js [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m server/lib/opencode/plugins.test.js [2m([22m[2m14 tests[22m[2m | [22m[33m14 skipped[39m[2m)[22m[32m 13[2mms[22m[39m
+     [2m[90m↓[39m[22m parses raw plugin entries
+     [2m[90m↓[39m[22m serializes plugin entries
+     [2m[90m↓[39m[22m rejects invalid specs and file names
+     [2m[90m↓[39m[22m creates string and tuple entries with duplicate rejection
+     [2m[90m↓[39m[22m routes project entries to project config and user entries to custom user config
+     [2m[90m↓[39m[22m re-resolves custom config env between calls
+     [2m[90m↓[39m[22m updates entries in place and transitions between string and tuple
+     [2m[90m↓[39m[22m deletes entries and prunes empty plugin key
+     [2m[90m↓[39m[22m lists user plugins when a project layer is unparseable
+     [2m[90m↓[39m[22m lists entries from user and project layers with scopes and parsed kinds
+     [2m[90m↓[39m[22m encodes and decodes ids
+     [2m[90m↓[39m[22m round-trips plugin dir files
+     [2m[90m↓[39m[22m rejects duplicate plugin dir files unless overwrite is true
+     [2m[90m↓[39m[22m lists only valid plugin dir files
+[90mstderr[2m | server/lib/git/service.test.js[2m > [22m[2mcreateWorktree[2m > [22m[2mrejects creation from a remote start ref that was never fetched and cannot be fetched
+[22m[39mWorktree bootstrap task failed: spawn git ENOENT
+
+[90mstderr[2m | server/lib/git/service.test.js[2m > [22m[2mcheckoutBranch[2m > [22m[2mrejects an unknown branch
+[22m[39mFailed to checkout branch: GitError: error: pathspec 'does-not-exist' did not match any file(s) known to git
+
+    at Object.action (file:///home/runner/work/openchamber-ru/openchamber-ru/node_modules/[4m.bun[24m/simple-git@3.36.0/node_modules/[4msimple-git[24m/dist/esm/index.js:4399:25)
+    at PluginStore.exec (file:///home/runner/work/openchamber-ru/openchamber-ru/node_modules/[4m.bun[24m/simple-git@3.36.0/node_modules/[4msimple-git[24m/dist/esm/index.js:4438:25)
+    at file:///home/runner/work/openchamber-ru/openchamber-ru/node_modules/[4m.bun[24m/simple-git@3.36.0/node_modules/[4msimple-git[24m/dist/esm/index.js:1323:43
+    at new Promise (<anonymous>)
+    at GitExecutorChain.handleTaskData (file:///home/runner/work/openchamber-ru/openchamber-ru/node_modules/[4m.bun[24m/simple-git@3.36.0/node_modules/[4msimple-git[24m/dist/esm/index.js:1321:16)
+    at GitExecutorChain.attemptRemoteTask (file:///home/runner/work/openchamber-ru/openchamber-ru/node_modules/[4m.bun[24m/simple-git@3.36.0/node_modules/[4msimple-git[24m/dist/esm/index.js:1308:42)
+[90m    at processTicksAndRejections (node:internal/process/task_queues:103:5)[39m
+    at GitExecutorChain.attemptTask (file:///home/runner/work/openchamber-ru/openchamber-ru/node_modules/[4m.bun[24m/simple-git@3.36.0/node_modules/[4msimple-git[24m/dist/esm/index.js:1281:18) {
+  task: {
+    commands: [ [32m'checkout'[39m, [32m'does-not-exist'[39m ],
+    format: [32m'utf-8'[39m,
+    parser: [36m[Function: parser][39m
+  }
+}
+
+ [32m✓[39m server/lib/opencode/managed-process-registry.test.mjs [2m([22m[2m12 tests[22m[2m)[22m[33m 1820[2mms[22m[39m
+       [33m[2m✓[22m[39m reaps a reparented opencode serve matching the recorded port [33m 1804[2mms[22m[39m
+[90mstderr[2m | server/lib/git/service.test.js[2m > [22m[2mcheckoutBranch[2m > [22m[2mreports a clear failure when the remote branch no longer exists
+[22m[39mFailed to checkout branch: Error: Failed to fetch never-pushed from origin: fatal: couldn't find remote ref never-pushed
+
+    at resolveBranchCheckoutTarget [90m(/home/runner/work/openchamber-ru/openchamber-ru/packages/web/[39mserver/lib/git/service.js:3920:13[90m)[39m
+    at checkoutBranch [90m(/home/runner/work/openchamber-ru/openchamber-ru/packages/web/[39mserver/lib/git/service.js:3935:20[90m)[39m
+    at [90m/home/runner/work/openchamber-ru/openchamber-ru/packages/web/[39mserver/lib/git/service.test.js:1529:5
+    at file:///home/runner/work/openchamber-ru/openchamber-ru/node_modules/[4m.bun[24m/@vitest+runner@4.1.5/node_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:1903:20
+
+ [32m✓[39m server/lib/package-manager.test.js [2m([22m[2m14 tests[22m[2m)[22m[32m 16[2mms[22m[39m
+[90mstderr[2m | server/lib/git/routes.test.js[2m > [22m[2mgit routes status discovery[2m > [22m[2mdoes not abort when getStatus throws a non-repo GitError
+[22m[39mGit status skipped for non-repository path: fatal: not a git repository (or any of the parent directories): .git
+
+ [32m✓[39m server/lib/git/routes.test.js [2m([22m[2m11 tests[22m[2m)[22m[32m 17[2mms[22m[39m
+ [32m✓[39m server/lib/project-context/routes.http.test.js [2m([22m[2m24 tests[22m[2m)[22m[32m 102[2mms[22m[39m
+ [32m✓[39m server/lib/session-knowledge/runtime.test.js [2m([22m[2m20 tests[22m[2m)[22m[32m 12[2mms[22m[39m
+[90mstderr[2m | server/lib/git/service.test.js[2m > [22m[2mcherryPick[2m > [22m[2mthrows for an invalid/nonexistent hash
+[22m[39mFailed to cherry-pick: GitError: fatal: bad revision 'deadbeef00000000'
+
+    at Object.action (file:///home/runner/work/openchamber-ru/openchamber-ru/node_modules/[4m.bun[24m/simple-git@3.36.0/node_modules/[4msimple-git[24m/dist/esm/index.js:4399:25)
+    at PluginStore.exec (file:///home/runner/work/openchamber-ru/openchamber-ru/node_modules/[4m.bun[24m/simple-git@3.36.0/node_modules/[4msimple-git[24m/dist/esm/index.js:4438:25)
+    at file:///home/runner/work/openchamber-ru/openchamber-ru/node_modules/[4m.bun[24m/simple-git@3.36.0/node_modules/[4msimple-git[24m/dist/esm/index.js:1323:43
+    at new Promise (<anonymous>)
+    at GitExecutorChain.handleTaskData (file:///home/runner/work/openchamber-ru/openchamber-ru/node_modules/[4m.bun[24m/simple-git@3.36.0/node_modules/[4msimple-git[24m/dist/esm/index.js:1321:16)
+    at GitExecutorChain.attemptRemoteTask (file:///home/runner/work/openchamber-ru/openchamber-ru/node_modules/[4m.bun[24m/simple-git@3.36.0/node_modules/[4msimple-git[24m/dist/esm/index.js:1308:42)
+    at GitExecutorChain.attemptTask (file:///home/runner/work/openchamber-ru/openchamber-ru/node_modules/[4m.bun[24m/simple-git@3.36.0/node_modules/[4msimple-git[24m/dist/esm/index.js:1281:18) {
+  task: {
+    commands: [ [32m'cherry-pick'[39m, [32m'deadbeef00000000'[39m ],
+    format: [32m'utf-8'[39m,
+    parser: [36m[Function: parser][39m
+  }
+}
+
+[90mstderr[2m | server/lib/git/service.test.js[2m > [22m[2mrevertCommit[2m > [22m[2mthrows for an invalid/nonexistent hash
+[22m[39mFailed to revert commit: GitError: fatal: bad revision 'deadbeef00000000'
+
+    at Object.action (file:///home/runner/work/openchamber-ru/openchamber-ru/node_modules/[4m.bun[24m/simple-git@3.36.0/node_modules/[4msimple-git[24m/dist/esm/index.js:4399:25)
+    at PluginStore.exec (file:///home/runner/work/openchamber-ru/openchamber-ru/node_modules/[4m.bun[24m/simple-git@3.36.0/node_modules/[4msimple-git[24m/dist/esm/index.js:4438:25)
+    at file:///home/runner/work/openchamber-ru/openchamber-ru/node_modules/[4m.bun[24m/simple-git@3.36.0/node_modules/[4msimple-git[24m/dist/esm/index.js:1323:43
+    at new Promise (<anonymous>)
+    at GitExecutorChain.handleTaskData (file:///home/runner/work/openchamber-ru/openchamber-ru/node_modules/[4m.bun[24m/simple-git@3.36.0/node_modules/[4msimple-git[24m/dist/esm/index.js:1321:16)
+    at GitExecutorChain.attemptRemoteTask (file:///home/runner/work/openchamber-ru/openchamber-ru/node_modules/[4m.bun[24m/simple-git@3.36.0/node_modules/[4msimple-git[24m/dist/esm/index.js:1308:42)
+[90m    at processTicksAndRejections (node:internal/process/task_queues:103:5)[39m
+    at GitExecutorChain.attemptTask (file:///home/runner/work/openchamber-ru/openchamber-ru/node_modules/[4m.bun[24m/simple-git@3.36.0/node_modules/[4msimple-git[24m/dist/esm/index.js:1281:18) {
+  task: {
+    commands: [ [32m'revert'[39m, [32m'--no-commit'[39m, [32m'deadbeef00000000'[39m ],
+    format: [32m'utf-8'[39m,
+    parser: [36m[Function: parser][39m
+  }
+}
+
+ [32m✓[39m server/lib/session-assist/runtime.test.js [2m([22m[2m9 tests[22m[2m)[22m[33m 887[2mms[22m[39m
+ [32m✓[39m server/lib/opencode/openchamber-routes.test.js [2m([22m[2m8 tests[22m[2m)[22m[32m 63[2mms[22m[39m
+ [32m✓[39m server/lib/projects/project-config.test.js [2m([22m[2m31 tests[22m[2m)[22m[33m 20299[2mms[22m[39m
+     [33m[2m✓[22m[39m times out when a live lock holder never releases [33m 10026[2mms[22m[39m
+     [33m[2m✓[22m[39m releases the write chain after a lock timeout so a later write can complete [33m 10011[2mms[22m[39m
+ [32m✓[39m server/lib/markdown-image-grants/routes.test.js [2m([22m[2m11 tests[22m[2m)[22m[32m 187[2mms[22m[39m
+ [32m✓[39m server/lib/context-obligatory/runtime.test.js [2m([22m[2m5 tests[22m[2m)[22m[32m 43[2mms[22m[39m
+ [32m✓[39m server/lib/realtime-proxy.test.js [2m([22m[2m9 tests[22m[2m)[22m[32m 99[2mms[22m[39m
+ [32m✓[39m server/lib/opencode/session-runtime.test.js [2m([22m[2m7 tests[22m[2m)[22m[32m 16[2mms[22m[39m
+ [32m✓[39m server/lib/walkthrough/language.test.js [2m([22m[2m17 tests[22m[2m)[22m[32m 31[2mms[22m[39m
+ [32m✓[39m server/lib/linear/auth.test.js [2m([22m[2m13 tests[22m[2m)[22m[32m 23[2mms[22m[39m
+ [32m✓[39m server/lib/agent-memory/routes.http.test.js [2m([22m[2m20 tests[22m[2m)[22m[32m 83[2mms[22m[39m
+ [31m❯[39m server/lib/scheduled-tasks/runtime.test.js [2m([22m[2m0 test[22m[2m)[22m
+ [32m✓[39m server/lib/dictation/stream-manager.test.js [2m([22m[2m10 tests[22m[2m)[22m[32m 30[2mms[22m[39m
+ [32m✓[39m server/lib/browser-control/broker.test.js [2m([22m[2m16 tests[22m[2m)[22m[32m 28[2mms[22m[39m
+ [32m✓[39m server/lib/opencode/proxy.test.js [2m([22m[2m13 tests[22m[2m)[22m[32m 68[2mms[22m[39m
+ [32m✓[39m server/lib/relay/cross-compat.test.js [2m([22m[2m5 tests[22m[2m)[22m[32m 57[2mms[22m[39m
+ [32m✓[39m server/lib/client-auth/remote-clients.test.js [2m([22m[2m8 tests[22m[2m)[22m[32m 50[2mms[22m[39m
+[90mstderr[2m | server/lib/git/issue-2746-longpaths.test.js[2m > [22m[2missue #2746 - worktree long path support[2m > [22m[2msurfaces guided bootstrap failure when a path component exceeds the filesystem name limit
+[22m[39mWorktree bootstrap task failed: fatal: cannot create directory at 'server/xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx': File name too long
+Command failed: git -c core.longpaths=true reset --hard
+fatal: cannot create directory at 'server/xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx': File name too long
+The worktree checkout path exceeds this system's path-length limit.
+OpenChamber enables Git `core.longpaths` for worktree population; if this still fails on Windows, enable OS long paths (LongPathsEnabled) or open the repository from a shorter absolute path.
+
+ [32m✓[39m server/lib/git/issue-2746-longpaths.test.js [2m([22m[2m4 tests[22m[2m)[22m[33m 490[2mms[22m[39m
+ [32m✓[39m server/lib/walkthrough/store.test.js [2m([22m[2m15 tests[22m[2m)[22m[32m 202[2mms[22m[39m
+[90mstderr[2m | server/lib/walkthrough/routes.test.js[2m > [22m[2mwalkthrough routes[2m > [22m[2mdistinguishes empty PRs, upstream failure, and invalid sources
+[22m[39mFailed to load pull request diff: Error: GitHub unavailable
+    at getPullRequestDiff [90m(/home/runner/work/openchamber-ru/openchamber-ru/packages/web/[39mserver/lib/walkthrough/routes.test.js:23:46[90m)[39m
+    at [90m/home/runner/work/openchamber-ru/openchamber-ru/packages/web/[39mserver/lib/walkthrough/routes.js:66:31
+[90m    at processTicksAndRejections (node:internal/process/task_queues:103:5)[39m {
+  statusCode: [33m503[39m
+}
+
+ [32m✓[39m server/lib/walkthrough/routes.test.js [2m([22m[2m8 tests[22m[2m)[22m[32m 208[2mms[22m[39m
+ [32m✓[39m server/lib/session-folders/routes.test.js [2m([22m[2m8 tests[22m[2m)[22m[32m 15[2mms[22m[39m
+[90mstderr[2m | bin/lib/cli-settings-accessors.test.js[2m > [22m[2mcli settings accessors[2m > [22m[2mdoes not regenerate the relay identity off a corrupt settings file
+[22m[39m[relay-identity] Generating NEW relay encryption keypair (E2EE trust anchor changes; previously paired devices must re-pair)
+
+ [32m✓[39m bin/lib/cli-settings-accessors.test.js [2m([22m[2m9 tests[22m[2m)[22m[33m 1252[2mms[22m[39m
+     [33m[2m✓[22m[39m atomic writes: concurrent readers never observe a torn file, even under slow writes [33m 616[2mms[22m[39m
+     [33m[2m✓[22m[39m demonstrates the protected failure mode: a naive direct writer tears under the same slow write [33m 609[2mms[22m[39m
+ [32m✓[39m server/lib/session-assist/context.test.js [2m([22m[2m11 tests[22m[2m)[22m[32m 39[2mms[22m[39m
+ [32m✓[39m server/lib/small-model/resolve.test.js [2m([22m[2m17 tests[22m[2m)[22m[32m 17[2mms[22m[39m
+ [32m✓[39m server/lib/event-stream/upstream-reader.test.js [2m([22m[2m5 tests[22m[2m)[22m[32m 85[2mms[22m[39m
+ [32m✓[39m server/lib/linear/oauth.test.js [2m([22m[2m5 tests[22m[2m)[22m[32m 36[2mms[22m[39m
+ [32m✓[39m server/lib/opencode/watcher.test.js [2m([22m[2m4 tests[22m[2m)[22m[32m 63[2mms[22m[39m
+ [32m✓[39m server/lib/relay/flow-control.test.js [2m([22m[2m6 tests[22m[2m)[22m[33m 3544[2mms[22m[39m
+     [33m[2m✓[22m[39m small HTTP response overtakes bulk output without losing bytes or reconnecting [33m 719[2mms[22m[39m
+     [33m[2m✓[22m[39m works without batching [33m 672[2mms[22m[39m
+     [33m[2m✓[22m[39m fragmented WS messages remain complete and precede the close [33m 662[2mms[22m[39m
+     [33m[2m✓[22m[39m legacy fallback {"clientFlow":false} preserves delivery [33m 662[2mms[22m[39m
+     [33m[2m✓[22m[39m legacy fallback {"hostFlow":false} preserves delivery [33m 665[2mms[22m[39m
+ [31m❯[39m server/lib/opencode/skill-routes.test.js [2m([22m[2m0 test[22m[2m)[22m
+ [32m✓[39m server/lib/relay/downstream-scheduler.test.js [2m([22m[2m9 tests[22m[2m)[22m[32m 112[2mms[22m[39m
+ [32m✓[39m server/lib/git/service.test.js [2m([22m[2m117 tests[22m[2m)[22m[33m 32025[2mms[22m[39m
+     [33m[2m✓[22m[39m configures the local SSH command with the targeted simple-git opt-in [33m 412[2mms[22m[39m
+     [33m[2m✓[22m[39m configures the stored credential helper for token auth with the targeted simple-git opt-in [33m 404[2mms[22m[39m
+     [33m[2m✓[22m[39m clears the stored credential helper when switching to SSH auth [33m 609[2mms[22m[39m
+     [33m[2m✓[22m[39m stages successive hunks and never discards a stale staged or committed patch [33m 2804[2mms[22m[39m
+     [33m[2m✓[22m[39m preserves crlf file bytes through stage, unstage and discard [33m 1660[2mms[22m[39m
+     [33m[2m✓[22m[39m preserves mixed file bytes through stage, unstage and discard [33m 1615[2mms[22m[39m
+     [33m[2m✓[22m[39m rejects extra files hidden before the requested patch [33m 743[2mms[22m[39m
+     [33m[2m✓[22m[39m stages a single hunk while leaving the rest unstaged [33m 685[2mms[22m[39m
+     [33m[2m✓[22m[39m discards a single hunk from the working tree [33m 685[2mms[22m[39m
+     [33m[2m✓[22m[39m unstages a single hunk from the index [33m 768[2mms[22m[39m
+     [33m[2m✓[22m[39m rejects a patch whose target path does not match the requested file [33m 604[2mms[22m[39m
+     [33m[2m✓[22m[39m accepts hunk patches for file name.txt [33m 687[2mms[22m[39m
+     [33m[2m✓[22m[39m accepts hunk patches for зміни.txt [33m 703[2mms[22m[39m
+     [33m[2m✓[22m[39m returns only the patch with core.safecrlf=false [33m 366[2mms[22m[39m
+     [33m[2m✓[22m[39m returns only the patch with core.safecrlf=warn [33m 371[2mms[22m[39m
+     [33m[2m✓[22m[39m rejects fatal conversion errors while preserving other batch entries [33m 364[2mms[22m[39m
+     [33m[2m✓[22m[39m rejects truncated patches when the process output exceeds the buffer limit [33m 615[2mms[22m[39m
+     [33m[2m✓[22m[39m supports a folder with nested git repositories from a foreign cwd [33m 721[2mms[22m[39m
+     [33m[2m✓[22m[39m reports directory, Git, and setup bootstrap phases while preserving legacy status [33m 1340[2mms[22m[39m
+     [33m[2m✓[22m[39m waits for active bootstrap work before removing a worktree [33m 594[2mms[22m[39m
+     [33m[2m✓[22m[39m recovers from an unchanged stale index lock while populating a worktree [33m 1087[2mms[22m[39m
+     [33m[2m✓[22m[39m cherry-picks a commit that applies cleanly [33m 314[2mms[22m[39m
+     [33m[2m✓[22m[39m returns conflict info when cherry-picking a conflicting commit [33m 380[2mms[22m[39m
+     [33m[2m✓[22m[39m reverts a commit and stages the revert changes [33m 363[2mms[22m[39m
+     [33m[2m✓[22m[39m returns conflict info when reverting causes a conflict [33m 362[2mms[22m[39m
+     [33m[2m✓[22m[39m soft reset moves HEAD without touching the working tree [33m 366[2mms[22m[39m
+     [33m[2m✓[22m[39m mixed reset moves HEAD and unstages changes [33m 330[2mms[22m[39m
+     [33m[2m✓[22m[39m hard reset with clean working tree succeeds [33m 388[2mms[22m[39m
+     [33m[2m✓[22m[39m hard reset with dirty working tree without force throws [33m 328[2mms[22m[39m
+     [33m[2m✓[22m[39m hard reset with dirty working tree with force succeeds [33m 335[2mms[22m[39m
+     [33m[2m✓[22m[39m handles root and empty commits and rejects invalid hashes [33m 327[2mms[22m[39m
+     [33m[2m✓[22m[39m limits current-branch history to 50 commits without including another branch [33m 452[2mms[22m[39m
+     [33m[2m✓[22m[39m asks for a new base after restacking and compares against the selected parent [33m 315[2mms[22m[39m
+     [33m[2m✓[22m[39m combines committed, staged, unstaged and untracked work without changing the real index [33m 592[2mms[22m[39m
+     [33m[2m✓[22m[39m reports the final file after a staged deletion is recreated, and omits undone branch changes [33m 580[2mms[22m[39m
+     [33m[2m✓[22m[39m keeps local and remote bases distinct and rejects a different checked-out branch [33m 415[2mms[22m[39m
+ [31m❯[39m server/lib/opencode/routes-upgrade.test.js [2m([22m[2m0 test[22m[2m)[22m
+ [32m✓[39m server/lib/dev-servers/parse.test.js [2m([22m[2m22 tests[22m[2m)[22m[32m 16[2mms[22m[39m
+ [32m✓[39m server/lib/permission-auto-accept/runtime.test.js [2m([22m[2m7 tests[22m[2m)[22m[32m 46[2mms[22m[39m
+ [32m✓[39m src/api/files.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 69[2mms[22m[39m
+ [32m✓[39m server/lib/terminal/shells.test.js [2m([22m[2m7 tests[22m[2m)[22m[32m 12[2mms[22m[39m
+ [32m✓[39m server/lib/opencode/settings-normalization-runtime.test.js [2m([22m[2m11 tests[22m[2m)[22m[32m 12[2mms[22m[39m
+ [32m✓[39m server/lib/relay/tunnel-host.test.js [2m([22m[2m7 tests[22m[2m)[22m[32m 261[2mms[22m[39m
+ [32m✓[39m server/lib/tts/routes.test.js [2m([22m[2m10 tests[22m[2m)[22m[32m 61[2mms[22m[39m
+ [32m✓[39m src/runtimeConfig.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 12[2mms[22m[39m
+[90mstdout[2m | server/opencode-worktree-readiness.test.js[2m > [22m[2missue #3464 worktree OpenCode initialization[2m > [22m[2mholds config and session creation until Git is ready, while setup remains pending
+[22m[39mSetting up proxy to OpenCode on port 36407
+
+[90mstdout[2m | server/opencode-worktree-readiness.test.js[2m > [22m[2missue #3464 worktree OpenCode initialization[2m > [22m[2mgates encoded directory headers and the separately forwarded session list
+[22m[39mSetting up proxy to OpenCode on port 43099
+
+ [31m❯[39m server/lib/opencode/config-paths.test.js [2m([22m[2m5 tests[22m[2m | [22m[31m5 failed[39m[2m)[22m[32m 256[2mms[22m[39m
+[31m     [31m×[31m derives all shared constants from a non-empty XDG_CONFIG_HOME[39m[32m 21[2mms[22m[39m
+[31m     [31m×[31m falls back to ~/.config/opencode when XDG_CONFIG_HOME is undefined[39m[32m 171[2mms[22m[39m
+[31m     [31m×[31m falls back to ~/.config/opencode when XDG_CONFIG_HOME is   [39m[32m 55[2mms[22m[39m
+[31m     [31m×[31m keeps global CRUD below XDG_CONFIG_HOME while project files stay in the project[39m[32m 4[2mms[22m[39m
+[31m     [31m×[31m writes global AGENTS.md below XDG_CONFIG_HOME[39m[32m 3[2mms[22m[39m
+[90mstdout[2m | server/opencode-worktree-readiness.test.js[2m > [22m[2missue #3464 worktree OpenCode initialization[2m > [22m[2mdoes not block unrelated directories while a worktree is pending
+[22m[39mSetting up proxy to OpenCode on port 32895
+
+[90mstdout[2m | server/opencode-worktree-readiness.test.js[2m > [22m[2missue #3464 worktree OpenCode initialization[2m > [22m[2mdoes not forward an abandoned request when checkout later finishes
+[22m[39mSetting up proxy to OpenCode on port 42849
+
+ [32m✓[39m server/lib/github/pr-status.test.js [2m([22m[2m8 tests[22m[2m)[22m[32m 11[2mms[22m[39m
+[90mstdout[2m | server/opencode-worktree-readiness.test.js[2m > [22m[2missue #3464 worktree OpenCode initialization[2m > [22m[2mfails closed on bootstrap failure or timeout without initializing OpenCode
+[22m[39mSetting up proxy to OpenCode on port 34919
+
+ [32m✓[39m server/opencode-worktree-readiness.test.js [2m([22m[2m5 tests[22m[2m)[22m[33m 517[2mms[22m[39m
+ [32m✓[39m server/lib/client-auth/pairing.test.js [2m([22m[2m4 tests[22m[2m)[22m[32m 38[2mms[22m[39m
+ [32m✓[39m server/lib/event-stream/rebind.test.js [2m([22m[2m2 tests[22m[2m)[22m[32m 64[2mms[22m[39m
+ [32m✓[39m server/lib/opencode/server-utils-runtime.test.js [2m([22m[2m5 tests[22m[2m)[22m[32m 12[2mms[22m[39m
+ [32m✓[39m server/lib/event-stream/protocol.test.js [2m([22m[2m10 tests[22m[2m)[22m[32m 9[2mms[22m[39m
+ [31m❯[39m server/lib/walkthrough/reproduce-2607.test.js [2m([22m[2m4 tests[22m[2m | [22m[33m4 skipped[39m[2m)[22m[32m 129[2mms[22m[39m
+     [2m[90m↓[39m[22m resolves the deepseek model but reports not ready without a login
+     [2m[90m↓[39m[22m callSmallModel throws a structured no-provider-login error
+     [2m[90m↓[39m[22m generateWalkthrough rejects with structured no-provider-login
+     [2m[90m↓[39m[22m answers the generate route with HTTP 401 and code no-provider-login
+ [32m✓[39m server/lib/linear/status-runtime.test.js [2m([22m[2m3 tests[22m[2m)[22m[32m 193[2mms[22m[39m
+ [31m❯[39m server/lib/quota/providers/cline-pass.test.js [2m([22m[2m0 test[22m[2m)[22m
+ [32m✓[39m server/lib/opencode/npm-registry.test.js [2m([22m[2m14 tests[22m[2m)[22m[32m 51[2mms[22m[39m
+[90mstdout[2m | server/lib/opencode/proxy-agent-wiring.test.js[2m > [22m[2mOpenCode API proxy agent wiring[2m > [22m[2mconstructs every proxy with a keep-alive agent
+[22m[39mSetting up proxy to OpenCode on port 49303
+
+[90mstdout[2m | server/lib/opencode/proxy-agent-wiring.test.js[2m > [22m[2mOpenCode API proxy agent wiring[2m > [22m[2mshares one agent instance across the API and OAuth proxies
+[22m[39mSetting up proxy to OpenCode on port 49303
+
+[90mstdout[2m | server/lib/opencode/proxy-agent-wiring.test.js[2m > [22m[2mOpenCode API proxy agent wiring[2m > [22m[2mmemoizes the agent per scheme rather than allocating one per resolution
+[22m[39mSetting up proxy to OpenCode on port 49303
+
+[90mstdout[2m | server/lib/opencode/proxy-agent-wiring.test.js[2m > [22m[2mOpenCode API proxy agent wiring[2m > [22m[2mresolves an https agent after bootstrap even though registration ran cold
+[22m[39mSetting up OpenCode API gate (OpenCode not started yet)
+
+[90mstdout[2m | server/lib/opencode/proxy-agent-wiring.test.js[2m > [22m[2mOpenCode API proxy agent wiring[2m > [22m[2mkeeps a plain http agent when bootstrap resolves an http target
+[22m[39mSetting up OpenCode API gate (OpenCode not started yet)
+
+[90mstdout[2m | server/lib/opencode/proxy-agent-wiring.test.js[2m > [22m[2mOpenCode API proxy agent wiring[2m > [22m[2mderives an https agent when the target is already https at registration
+[22m[39mSetting up proxy to OpenCode on port 4096
+
+ [32m✓[39m server/lib/opencode/proxy-agent-wiring.test.js [2m([22m[2m6 tests[22m[2m)[22m[32m 14[2mms[22m[39m
+ [31m❯[39m server/sse-routes.test.js [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m server/lib/quota/providers/deepseek.test.js [2m([22m[2m0 test[22m[2m)[22m
+ [32m✓[39m server/lib/relay/e2ee.test.js [2m([22m[2m6 tests[22m[2m)[22m[32m 25[2mms[22m[39m
+ [32m✓[39m server/lib/walkthrough/schema.test.js [2m([22m[2m11 tests[22m[2m)[22m[32m 15[2mms[22m[39m
+ [32m✓[39m server/lib/terminal/terminal-ws-protocol.test.js [2m([22m[2m24 tests[22m[2m)[22m[32m 14[2mms[22m[39m
+ [32m✓[39m server/lib/linear/mapping.test.js [2m([22m[2m7 tests[22m[2m)[22m[32m 21[2mms[22m[39m
+ [32m✓[39m server/lib/event-stream/global-hub.test.js [2m([22m[2m4 tests[22m[2m)[22m[32m 52[2mms[22m[39m
+ [31m❯[39m server/lib/quota/providers/hyper.test.js [2m([22m[2m0 test[22m[2m)[22m
+ [32m✓[39m server/lib/walkthrough/hunks.test.js [2m([22m[2m10 tests[22m[2m)[22m[32m 15[2mms[22m[39m
+ [32m✓[39m server/lib/opencode/plugin-spec.test.js [2m([22m[2m33 tests[22m[2m)[22m[32m 13[2mms[22m[39m
+ [32m✓[39m server/lib/relay/host-lock.test.js [2m([22m[2m7 tests[22m[2m)[22m[32m 7[2mms[22m[39m
+ [32m✓[39m src/api/notifications.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 26[2mms[22m[39m
+ [31m❯[39m server/lib/quota/providers/claude/index.test.js [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m server/lib/opencode/mcp-oauth-callback.test.js [2m([22m[2m0 test[22m[2m)[22m
+ [32m✓[39m server/lib/small-model/runtime-providers.test.js [2m([22m[2m7 tests[22m[2m)[22m[32m 67[2mms[22m[39m
+ [31m❯[39m server/lib/opencode/snippets.test.js [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m server/lib/quota/providers/claude/auth.test.js [2m([22m[2m0 test[22m[2m)[22m
+ [32m✓[39m server/lib/opencode/pwa-manifest-routes.test.js [2m([22m[2m2 tests[22m[2m)[22m[32m 7[2mms[22m[39m
+ [31m❯[39m server/lib/quota/providers/opencode-go.test.js [2m([22m[2m0 test[22m[2m)[22m
+ [32m✓[39m server/lib/agent-memory/project-resolution.test.js [2m([22m[2m10 tests[22m[2m)[22m[32m 11[2mms[22m[39m
+ [32m✓[39m server/lib/system-prompt/runtime.test.js [2m([22m[2m4 tests[22m[2m)[22m[32m 32[2mms[22m[39m
+ [32m✓[39m server/lib/opencode/theme-runtime.test.js [2m([22m[2m3 tests[22m[2m)[22m[32m 5[2mms[22m[39m
+ [32m✓[39m server/lib/opencode/env-config.test.js [2m([22m[2m11 tests[22m[2m)[22m[32m 14[2mms[22m[39m
+ [32m✓[39m server/lib/walkthrough/pull-request.test.js [2m([22m[2m6 tests[22m[2m)[22m[32m 23[2mms[22m[39m
+ [32m✓[39m server/lib/browser-control/routes.test.js [2m([22m[2m6 tests[22m[2m)[22m[32m 78[2mms[22m[39m
+ [32m✓[39m server/lib/tts/language-detect.test.js [2m([22m[2m27 tests[22m[2m)[22m[32m 18[2mms[22m[39m
+ [31m❯[39m server/lib/quota/providers/claude/transforms.test.js [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m server/lib/quota/providers/kimi.test.js [2m([22m[2m0 test[22m[2m)[22m
+ [32m✓[39m server/lib/walkthrough/digest.test.js [2m([22m[2m7 tests[22m[2m)[22m[32m 16[2mms[22m[39m
+[90mstderr[2m | server/lib/relay/identity.test.js[2m > [22m[2mrelay identity[2m > [22m[2mderives a stable serverId from the signing key and persists both keypairs
+[22m[39m[relay-identity] Generating NEW relay signing keypair (serverId changes; previously paired devices must re-pair)
+
+[90mstderr[2m | server/lib/relay/identity.test.js[2m > [22m[2mrelay identity[2m > [22m[2mderives a stable serverId from the signing key and persists both keypairs
+[22m[39m[relay-identity] Generating NEW relay encryption keypair (E2EE trust anchor changes; previously paired devices must re-pair)
+
+[90mstderr[2m | server/lib/relay/identity.test.js[2m > [22m[2mrelay identity[2m > [22m[2mreuses an existing signing key (serverId stays stable across installs)
+[22m[39m[relay-identity] Generating NEW relay encryption keypair (E2EE trust anchor changes; previously paired devices must re-pair)
+
+[90mstderr[2m | server/lib/relay/identity.test.js[2m > [22m[2mrelay identity[2m > [22m[2mproduces a verifiable relay auth signature
+[22m[39m[relay-identity] Generating NEW relay signing keypair (serverId changes; previously paired devices must re-pair)
+
+[90mstderr[2m | server/lib/relay/identity.test.js[2m > [22m[2mrelay identity[2m > [22m[2mproduces a verifiable relay auth signature
+[22m[39m[relay-identity] Generating NEW relay encryption keypair (E2EE trust anchor changes; previously paired devices must re-pair)
+
+ [32m✓[39m server/lib/relay/identity.test.js [2m([22m[2m3 tests[22m[2m)[22m[32m 16[2mms[22m[39m
+ [32m✓[39m server/lib/linear/teams.test.js [2m([22m[2m3 tests[22m[2m)[22m[32m 43[2mms[22m[39m
+ [32m✓[39m server/lib/tunnels/index.test.js [2m([22m[2m2 tests[22m[2m)[22m[32m 7[2mms[22m[39m
+ [32m✓[39m server/lib/notifications/push-runtime.test.js [2m([22m[2m3 tests[22m[2m)[22m[32m 11[2mms[22m[39m
+ [32m✓[39m server/lib/opencode/path-utils.test.js [2m([22m[2m12 tests[22m[2m)[22m[32m 8[2mms[22m[39m
+ [32m✓[39m server/lib/session-goal/create.test.js [2m([22m[2m3 tests[22m[2m)[22m[32m 12[2mms[22m[39m
+ [31m❯[39m server/lib/quota/providers/crof.test.js [2m([22m[2m0 test[22m[2m)[22m
+ [32m✓[39m server/lib/data-dir-migration.test.js [2m([22m[2m3 tests[22m[2m)[22m[32m 27[2mms[22m[39m
+ [32m✓[39m server/lib/openchamber-control/screenshots.test.js [2m([22m[2m7 tests[22m[2m)[22m[32m 8[2mms[22m[39m
+ [32m✓[39m server/lib/tunnels/executable-search.test.js [2m([22m[2m5 tests[22m[2m)[22m[32m 9[2mms[22m[39m
+ [32m✓[39m server/lib/openchamber-control/action-resolution.test.js [2m([22m[2m9 tests[22m[2m)[22m[32m 10[2mms[22m[39m
+ [32m✓[39m server/lib/opencode/project-icon-routes.test.js [2m([22m[2m1 test[22m[2m)[22m[32m 8[2mms[22m[39m
+ [32m✓[39m server/lib/terminal/theme-response.test.js [2m([22m[2m5 tests[22m[2m)[22m[32m 6[2mms[22m[39m
+ [31m❯[39m server/lib/quota/providers/copilot.test.js [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m server/lib/quota/providers/zai.test.js [2m([22m[2m0 test[22m[2m)[22m
+ [32m✓[39m server/proxy-headers.test.js [2m([22m[2m7 tests[22m[2m)[22m[32m 31[2mms[22m[39m
+ [32m✓[39m server/lib/notifications/template-runtime.test.js [2m([22m[2m5 tests[22m[2m)[22m[32m 37[2mms[22m[39m
+[90mstderr[2m | server/lib/relay/service.test.js[2m > [22m[2mrelay service passive hosting[2m > [22m[2mnever claims or starts the host passively when passive hosting is disabled
+[22m[39m[relay-identity] Generating NEW relay encryption keypair (E2EE trust anchor changes; previously paired devices must re-pair)
+
+[90mstderr[2m | server/lib/relay/service.test.js[2m > [22m[2mrelay service passive hosting[2m > [22m[2mforce-claims for an explicit pairing even when passive hosting is disabled
+[22m[39m[relay-identity] Generating NEW relay encryption keypair (E2EE trust anchor changes; previously paired devices must re-pair)
+
+ [32m✓[39m server/lib/relay/service.test.js [2m([22m[2m2 tests[22m[2m)[22m[32m 25[2mms[22m[39m
+ [32m✓[39m server/lib/opencode/startup-performance.test.js [2m([22m[2m3 tests[22m[2m)[22m[32m 10[2mms[22m[39m
+ [31m❯[39m server/lib/walkthrough/languages.test.js [2m([22m[2m4 tests[22m[2m | [22m[31m2 failed[39m[2m)[22m[32m 18[2mms[22m[39m
+[31m     [31m×[31m covers every locale the interface offers[39m[32m 12[2mms[22m[39m
+     [32m✓[39m offers nothing the interface cannot label[32m 1[2mms[22m[39m
+[31m     [31m×[31m resolves every interface locale to itself rather than to the default[39m[32m 3[2mms[22m[39m
+     [32m✓[39m names every supported language in English, for the prompt[32m 1[2mms[22m[39m
+ [32m✓[39m server/lib/opencode/static-routes-runtime.test.js [2m([22m[2m3 tests[22m[2m)[22m[32m 37[2mms[22m[39m
+ [32m✓[39m server/lib/security/request-security.test.js [2m([22m[2m4 tests[22m[2m)[22m[32m 6[2mms[22m[39m
+ [32m✓[39m server/lib/skills-catalog/cache.test.js [2m([22m[2m5 tests[22m[2m)[22m[33m 1298[2mms[22m[39m
+     [33m[2m✓[22m[39m persists successful scans to disk for later processes [33m 1206[2mms[22m[39m
+ [32m✓[39m server/lib/skills-catalog/github-meta.test.js [2m([22m[2m4 tests[22m[2m)[22m[32m 40[2mms[22m[39m
+ [32m✓[39m server/lib/agent-memory/threat-patterns.test.js [2m([22m[2m13 tests[22m[2m)[22m[32m 14[2mms[22m[39m
+ [32m✓[39m server/lib/changelog/update-notes.test.js [2m([22m[2m4 tests[22m[2m)[22m[32m 6[2mms[22m[39m
+ [32m✓[39m server/lib/opencode/restart-session-recovery.test.js [2m([22m[2m1 test[22m[2m)[22m[32m 13[2mms[22m[39m
+ [31m❯[39m server/lib/network-defaults.test.js [2m([22m[2m5 tests[22m[2m | [22m[31m1 failed[39m[2m)[22m[33m 551[2mms[22m[39m
+[31m     [31m×[31m initializes the server entrypoint in a fresh Node process[39m[33m 546[2mms[22m[39m
+     [32m✓[39m raises the per-attempt connect timeout on runtimes that expose the setter[32m 1[2mms[22m[39m
+     [32m✓[39m is a no-op on runtimes without the setter[32m 0[2mms[22m[39m
+     [32m✓[39m survives a throwing setter[32m 1[2mms[22m[39m
+     [32m✓[39m leaves family autoselection itself untouched[32m 1[2mms[22m[39m
+ [32m✓[39m server/lib/relay/tunnel-codec.test.js [2m([22m[2m5 tests[22m[2m)[22m[32m 135[2mms[22m[39m
+ [31m❯[39m server/lib/quota/providers/codex.test.js [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m server/lib/quota/providers/ollama-cloud.test.js [2m([22m[2m0 test[22m[2m)[22m
+ [32m✓[39m server/lib/path-realpath-cache.test.js [2m([22m[2m4 tests[22m[2m)[22m[32m 7[2mms[22m[39m
+ [32m✓[39m server/lib/quota/utils/formatters.test.js [2m([22m[2m8 tests[22m[2m)[22m[32m 33[2mms[22m[39m
+ [32m✓[39m server/lib/opencode/claude-cli-auth.test.js [2m([22m[2m3 tests[22m[2m)[22m[32m 9[2mms[22m[39m
+ [32m✓[39m ../ui/src/components/views/MultiFileDiffEntry.vitest.tsx [2m([22m[2m1 test[22m[2m)[22m[33m 5532[2mms[22m[39m
+   [33m[2m✓[22m[39m hidden diff entries defer reads, retain completed content and refresh changed files on resume [33m 5530[2mms[22m[39m
+ [32m✓[39m server/lib/walkthrough/model-settings.test.js [2m([22m[2m4 tests[22m[2m)[22m[32m 10[2mms[22m[39m
+ [32m✓[39m server/lib/inherited-env.test.js [2m([22m[2m6 tests[22m[2m)[22m[32m 6[2mms[22m[39m
+ [32m✓[39m server/lib/dictation/local/model-catalog.test.js [2m([22m[2m5 tests[22m[2m)[22m[32m 12[2mms[22m[39m
+ [32m✓[39m scripts/dev-server-watch.test.mjs [2m([22m[2m4 tests[22m[2m)[22m[32m 7[2mms[22m[39m
+[90mstdout[2m | server/lib/opencode/shutdown-runtime.test.js[2m > [22m[2mgraceful shutdown runtime[2m > [22m[2mclears the server close timeout when the server closes first
+[22m[39mStarting graceful shutdown...
+Skipping OpenCode shutdown (external server)
+HTTP server closed
+
+[90mstdout[2m | server/lib/opencode/shutdown-runtime.test.js[2m > [22m[2mgraceful shutdown runtime[2m > [22m[2mclears the server close timeout when the server closes first
+[22m[39mGraceful shutdown complete
+
+ [32m✓[39m server/lib/opencode/shutdown-runtime.test.js [2m([22m[2m1 test[22m[2m)[22m[32m 10[2mms[22m[39m
+ [31m❯[39m server/lib/quota/providers/exe-dev.test.js [2m([22m[2m0 test[22m[2m)[22m
+ [32m✓[39m server/lib/opencode/network-runtime.test.js [2m([22m[2m4 tests[22m[2m)[22m[32m 109[2mms[22m[39m
+ [32m✓[39m server/lib/notifications/emitter-runtime.test.js [2m([22m[2m3 tests[22m[2m)[22m[32m 10[2mms[22m[39m
+ [32m✓[39m server/lib/ngrok-tunnel.test.js [2m([22m[2m5 tests[22m[2m)[22m[32m 6[2mms[22m[39m
+ [32m✓[39m server/lib/quota/credentials/store.test.js [2m([22m[2m2 tests[22m[2m)[22m[32m 10[2mms[22m[39m
+[90mstderr[2m | server/lib/opencode/server-startup-runtime.test.js[2m > [22m[2muncaught exception policy[2m > [22m[2ma single uncaught exception keeps the server running
+[22m[39mUncaught Exception: Error: setTypeOfService EINVAL
+    at [90m/home/runner/work/openchamber-ru/openchamber-ru/packages/web/[39mserver/lib/opencode/server-startup-runtime.test.js:27:43
+    at file:///home/runner/work/openchamber-ru/openchamber-ru/node_modules/[4m.bun[24m/@vitest+runner@4.1.5/node_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:302:11
+    at file:///home/runner/work/openchamber-ru/openchamber-ru/node_modules/[4m.bun[24m/@vitest+runner@4.1.5/node_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:1903:26
+    at file:///home/runner/work/openchamber-ru/openchamber-ru/node_modules/[4m.bun[24m/@vitest+runner@4.1.5/node_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:2326:20
+    at new Promise (<anonymous>)
+    at runWithCancel (file:///home/runner/work/openchamber-ru/openchamber-ru/node_modules/[4m.bun[24m/@vitest+runner@4.1.5/node_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:2323:10)
+    at file:///home/runner/work/openchamber-ru/openchamber-ru/node_modules/[4m.bun[24m/@vitest+runner@4.1.5/node_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:2305:20
+    at new Promise (<anonymous>)
+    at runWithTimeout (file:///home/runner/work/openchamber-ru/openchamber-ru/node_modules/[4m.bun[24m/@vitest+runner@4.1.5/node_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:2272:10)
+    at file:///home/runner/work/openchamber-ru/openchamber-ru/node_modules/[4m.bun[24m/@vitest+runner@4.1.5/node_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:2955:64
+
+[90mstderr[2m | server/lib/opencode/server-startup-runtime.test.js[2m > [22m[2muncaught exception policy[2m > [22m[2ma storm of uncaught exceptions still shuts down
+[22m[39mUncaught Exception: Error: stray 0
+    at [90m/home/runner/work/openchamber-ru/openchamber-ru/packages/web/[39mserver/lib/opencode/server-startup-runtime.test.js:34:45
+    at file:///home/runner/work/openchamber-ru/openchamber-ru/node_modules/[4m.bun[24m/@vitest+runner@4.1.5/node_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:302:11
+    at file:///home/runner/work/openchamber-ru/openchamber-ru/node_modules/[4m.bun[24m/@vitest+runner@4.1.5/node_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:1903:26
+    at file:///home/runner/work/openchamber-ru/openchamber-ru/node_modules/[4m.bun[24m/@vitest+runner@4.1.5/node_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:2326:20
+    at new Promise (<anonymous>)
+    at runWithCancel (file:///home/runner/work/openchamber-ru/openchamber-ru/node_modules/[4m.bun[24m/@vitest+runner@4.1.5/node_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:2323:10)
+    at file:///home/runner/work/openchamber-ru/openchamber-ru/node_modules/[4m.bun[24m/@vitest+runner@4.1.5/node_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:2305:20
+    at new Promise (<anonymous>)
+    at runWithTimeout (file:///home/runner/work/openchamber-ru/openchamber-ru/node_modules/[4m.bun[24m/@vitest+runner@4.1.5/node_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:2272:10)
+    at file:///home/runner/work/openchamber-ru/openchamber-ru/node_modules/[4m.bun[24m/@vitest+runner@4.1.5/node_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:2955:64
+Uncaught Exception: Error: stray 1
+    at [90m/home/runner/work/openchamber-ru/openchamber-ru/packages/web/[39mserver/lib/opencode/server-startup-runtime.test.js:34:45
+    at file:///home/runner/work/openchamber-ru/openchamber-ru/node_modules/[4m.bun[24m/@vitest+runner@4.1.5/node_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:302:11
+    at file:///home/runner/work/openchamber-ru/openchamber-ru/node_modules/[4m.bun[24m/@vitest+runner@4.1.5/node_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:1903:26
+    at file:///home/runner/work/openchamber-ru/openchamber-ru/node_modules/[4m.bun[24m/@vitest+runner@4.1.5/node_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:2326:20
+    at new Promise (<anonymous>)
+    at runWithCancel (file:///home/runner/work/openchamber-ru/openchamber-ru/node_modules/[4m.bun[24m/@vitest+runner@4.1.5/node_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:2323:10)
+    at file:///home/runner/work/openchamber-ru/openchamber-ru/node_modules/[4m.bun[24m/@vitest+runner@4.1.5/node_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:2305:20
+    at new Promise (<anonymous>)
+    at runWithTimeout (file:///home/runner/work/openchamber-ru/openchamber-ru/node_modules/[4m.bun[24m/@vitest+runner@4.1.5/node_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:2272:10)
+    at file:///home/runner/work/openchamber-ru/openchamber-ru/node_modules/[4m.bun[24m/@vitest+runner@4.1.5/node_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:2955:64
+Uncaught Exception: Error: stray 2
+    at [90m/home/runner/work/openchamber-ru/openchamber-ru/packages/web/[39mserver/lib/opencode/server-startup-runtime.test.js:34:45
+    at file:///home/runner/work/openchamber-ru/openchamber-ru/node_modules/[4m.bun[24m/@vitest+runner@4.1.5/node_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:302:11
+    at file:///home/runner/work/openchamber-ru/openchamber-ru/node_modules/[4m.bun[24m/@vitest+runner@4.1.5/node_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:1903:26
+    at file:///home/runner/work/openchamber-ru/openchamber-ru/node_modules/[4m.bun[24m/@vitest+runner@4.1.5/node_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:2326:20
+    at new Promise (<anonymous>)
+    at runWithCancel (file:///home/runner/work/openchamber-ru/openchamber-ru/node_modules/[4m.bun[24m/@vitest+runner@4.1.5/node_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:2323:10)
+    at file:///home/runner/work/openchamber-ru/openchamber-ru/node_modules/[4m.bun[24m/@vitest+runner@4.1.5/node_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:2305:20
+    at new Promise (<anonymous>)
+    at runWithTimeout (file:///home/runner/work/openchamber-ru/openchamber-ru/node_modules/[4m.bun[24m/@vitest+runner@4.1.5/node_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:2272:10)
+    at file:///home/runner/work/openchamber-ru/openchamber-ru/node_modules/[4m.bun[24m/@vitest+runner@4.1.5/node_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:2955:64
+Uncaught Exception: Error: stray 3
+    at [90m/home/runner/work/openchamber-ru/openchamber-ru/packages/web/[39mserver/lib/opencode/server-startup-runtime.test.js:34:45
+    at file:///home/runner/work/openchamber-ru/openchamber-ru/node_modules/[4m.bun[24m/@vitest+runner@4.1.5/node_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:302:11
+    at file:///home/runner/work/openchamber-ru/openchamber-ru/node_modules/[4m.bun[24m/@vitest+runner@4.1.5/node_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:1903:26
+    at file:///home/runner/work/openchamber-ru/openchamber-ru/node_modules/[4m.bun[24m/@vitest+runner@4.1.5/node_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:2326:20
+    at new Promise (<anonymous>)
+    at runWithCancel (file:///home/runner/work/openchamber-ru/openchamber-ru/node_modules/[4m.bun[24m/@vitest+runner@4.1.5/node_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:2323:10)
+    at file:///home/runner/work/openchamber-ru/openchamber-ru/node_modules/[4m.bun[24m/@vitest+runner@4.1.5/node_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:2305:20
+    at new Promise (<anonymous>)
+    at runWithTimeout (file:///home/runner/work/openchamber-ru/openchamber-ru/node_modules/[4m.bun[24m/@vitest+runner@4.1.5/node_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:2272:10)
+    at file:///home/runner/work/openchamber-ru/openchamber-ru/node_modules/[4m.bun[24m/@vitest+runner@4.1.5/node_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:2955:64
+Uncaught Exception: Error: stray 4
+    at [90m/home/runner/work/openchamber-ru/openchamber-ru/packages/web/[39mserver/lib/opencode/server-startup-runtime.test.js:34:45
+    at file:///home/runner/work/openchamber-ru/openchamber-ru/node_modules/[4m.bun[24m/@vitest+runner@4.1.5/node_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:302:11
+    at file:///home/runner/work/openchamber-ru/openchamber-ru/node_modules/[4m.bun[24m/@vitest+runner@4.1.5/node_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:1903:26
+    at file:///home/runner/work/openchamber-ru/openchamber-ru/node_modules/[4m.bun[24m/@vitest+runner@4.1.5/node_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:2326:20
+    at new Promise (<anonymous>)
+    at runWithCancel (file:///home/runner/work/openchamber-ru/openchamber-ru/node_modules/[4m.bun[24m/@vitest+runner@4.1.5/node_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:2323:10)
+    at file:///home/runner/work/openchamber-ru/openchamber-ru/node_modules/[4m.bun[24m/@vitest+runner@4.1.5/node_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:2305:20
+    at new Promise (<anonymous>)
+    at runWithTimeout (file:///home/runner/work/openchamber-ru/openchamber-ru/node_modules/[4m.bun[24m/@vitest+runner@4.1.5/node_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:2272:10)
+    at file:///home/runner/work/openchamber-ru/openchamber-ru/node_modules/[4m.bun[24m/@vitest+runner@4.1.5/node_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:2955:64
+Uncaught Exception: Error: stray 5
+    at [90m/home/runner/work/openchamber-ru/openchamber-ru/packages/web/[39mserver/lib/opencode/server-startup-runtime.test.js:34:45
+    at file:///home/runner/work/openchamber-ru/openchamber-ru/node_modules/[4m.bun[24m/@vitest+runner@4.1.5/node_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:302:11
+    at file:///home/runner/work/openchamber-ru/openchamber-ru/node_modules/[4m.bun[24m/@vitest+runner@4.1.5/node_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:1903:26
+    at file:///home/runner/work/openchamber-ru/openchamber-ru/node_modules/[4m.bun[24m/@vitest+runner@4.1.5/node_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:2326:20
+    at new Promise (<anonymous>)
+    at runWithCancel (file:///home/runner/work/openchamber-ru/openchamber-ru/node_modules/[4m.bun[24m/@vitest+runner@4.1.5/node_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:2323:10)
+    at file:///home/runner/work/openchamber-ru/openchamber-ru/node_modules/[4m.bun[24m/@vitest+runner@4.1.5/node_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:2305:20
+    at new Promise (<anonymous>)
+    at runWithTimeout (file:///home/runner/work/openchamber-ru/openchamber-ru/node_modules/[4m.bun[24m/@vitest+runner@4.1.5/node_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:2272:10)
+    at file:///home/runner/work/openchamber-ru/openchamber-ru/node_modules/[4m.bun[24m/@vitest+runner@4.1.5/node_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:2955:64
+Uncaught Exception: Error: stray 6
+    at [90m/home/runner/work/openchamber-ru/openchamber-ru/packages/web/[39mserver/lib/opencode/server-startup-runtime.test.js:34:45
+    at file:///home/runner/work/openchamber-ru/openchamber-ru/node_modules/[4m.bun[24m/@vitest+runner@4.1.5/node_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:302:11
+    at file:///home/runner/work/openchamber-ru/openchamber-ru/node_modules/[4m.bun[24m/@vitest+runner@4.1.5/node_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:1903:26
+    at file:///home/runner/work/openchamber-ru/openchamber-ru/node_modules/[4m.bun[24m/@vitest+runner@4.1.5/node_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:2326:20
+    at new Promise (<anonymous>)
+    at runWithCancel (file:///home/runner/work/openchamber-ru/openchamber-ru/node_modules/[4m.bun[24m/@vitest+runner@4.1.5/node_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:2323:10)
+    at file:///home/runner/work/openchamber-ru/openchamber-ru/node_modules/[4m.bun[24m/@vitest+runner@4.1.5/node_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:2305:20
+    at new Promise (<anonymous>)
+    at runWithTimeout (file:///home/runner/work/openchamber-ru/openchamber-ru/node_modules/[4m.bun[24m/@vitest+runner@4.1.5/node_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:2272:10)
+    at file:///home/runner/work/openchamber-ru/openchamber-ru/node_modules/[4m.bun[24m/@vitest+runner@4.1.5/node_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:2955:64
+Uncaught Exception: Error: stray 7
+    at [90m/home/runner/work/openchamber-ru/openchamber-ru/packages/web/[39mserver/lib/opencode/server-startup-runtime.test.js:34:45
+    at file:///home/runner/work/openchamber-ru/openchamber-ru/node_modules/[4m.bun[24m/@vitest+runner@4.1.5/node_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:302:11
+    at file:///home/runner/work/openchamber-ru/openchamber-ru/node_modules/[4m.bun[24m/@vitest+runner@4.1.5/node_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:1903:26
+    at file:///home/runner/work/openchamber-ru/openchamber-ru/node_modules/[4m.bun[24m/@vitest+runner@4.1.5/node_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:2326:20
+    at new Promise (<anonymous>)
+    at runWithCancel (file:///home/runner/work/openchamber-ru/openchamber-ru/node_modules/[4m.bun[24m/@vitest+runner@4.1.5/node_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:2323:10)
+    at file:///home/runner/work/openchamber-ru/openchamber-ru/node_modules/[4m.bun[24m/@vitest+runner@4.1.5/node_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:2305:20
+    at new Promise (<anonymous>)
+    at runWithTimeout (file:///home/runner/work/openchamber-ru/openchamber-ru/node_modules/[4m.bun[24m/@vitest+runner@4.1.5/node_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:2272:10)
+    at file:///home/runner/work/openchamber-ru/openchamber-ru/node_modules/[4m.bun[24m/@vitest+runner@4.1.5/node_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:2955:64
+Uncaught Exception: Error: stray 8
+    at [90m/home/runner/work/openchamber-ru/openchamber-ru/packages/web/[39mserver/lib/opencode/server-startup-runtime.test.js:34:45
+    at file:///home/runner/work/openchamber-ru/openchamber-ru/node_modules/[4m.bun[24m/@vitest+runner@4.1.5/node_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:302:11
+    at file:///home/runner/work/openchamber-ru/openchamber-ru/node_modules/[4m.bun[24m/@vitest+runner@4.1.5/node_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:1903:26
+    at file:///home/runner/work/openchamber-ru/openchamber-ru/node_modules/[4m.bun[24m/@vitest+runner@4.1.5/node_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:2326:20
+    at new Promise (<anonymous>)
+    at runWithCancel (file:///home/runner/work/openchamber-ru/openchamber-ru/node_modules/[4m.bun[24m/@vitest+runner@4.1.5/node_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:2323:10)
+    at file:///home/runner/work/openchamber-ru/openchamber-ru/node_modules/[4m.bun[24m/@vitest+runner@4.1.5/node_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:2305:20
+    at new Promise (<anonymous>)
+    at runWithTimeout (file:///home/runner/work/openchamber-ru/openchamber-ru/node_modules/[4m.bun[24m/@vitest+runner@4.1.5/node_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:2272:10)
+    at file:///home/runner/work/openchamber-ru/openchamber-ru/node_modules/[4m.bun[24m/@vitest+runner@4.1.5/node_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:2955:64
+Uncaught Exception: Error: stray 9
+    at [90m/home/runner/work/openchamber-ru/openchamber-ru/packages/web/[39mserver/lib/opencode/server-startup-runtime.test.js:34:45
+    at file:///home/runner/work/openchamber-ru/openchamber-ru/node_modules/[4m.bun[24m/@vitest+runner@4.1.5/node_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:302:11
+    at file:///home/runner/work/openchamber-ru/openchamber-ru/node_modules/[4m.bun[24m/@vitest+runner@4.1.5/node_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:1903:26
+    at file:///home/runner/work/openchamber-ru/openchamber-ru/node_modules/[4m.bun[24m/@vitest+runner@4.1.5/node_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:2326:20
+    at new Promise (<anonymous>)
+    at runWithCancel (file:///home/runner/work/openchamber-ru/openchamber-ru/node_modules/[4m.bun[24m/@vitest+runner@4.1.5/node_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:2323:10)
+    at file:///home/runner/work/openchamber-ru/openchamber-ru/node_modules/[4m.bun[24m/@vitest+runner@4.1.5/node_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:2305:20
+    at new Promise (<anonymous>)
+    at runWithTimeout (file:///home/runner/work/openchamber-ru/openchamber-ru/node_modules/[4m.bun[24m/@vitest+runner@4.1.5/node_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:2272:10)
+    at file:///home/runner/work/openchamber-ru/openchamber-ru/node_modules/[4m.bun[24m/@vitest+runner@4.1.5/node_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:2955:64
+Uncaught Exception: Error: stray 10
+    at [90m/home/runner/work/openchamber-ru/openchamber-ru/packages/web/[39mserver/lib/opencode/server-startup-runtime.test.js:34:45
+    at file:///home/runner/work/openchamber-ru/openchamber-ru/node_modules/[4m.bun[24m/@vitest+runner@4.1.5/node_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:302:11
+    at file:///home/runner/work/openchamber-ru/openchamber-ru/node_modules/[4m.bun[24m/@vitest+runner@4.1.5/node_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:1903:26
+    at file:///home/runner/work/openchamber-ru/openchamber-ru/node_modules/[4m.bun[24m/@vitest+runner@4.1.5/node_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:2326:20
+    at new Promise (<anonymous>)
+    at runWithCancel (file:///home/runner/work/openchamber-ru/openchamber-ru/node_modules/[4m.bun[24m/@vitest+runner@4.1.5/node_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:2323:10)
+    at file:///home/runner/work/openchamber-ru/openchamber-ru/node_modules/[4m.bun[24m/@vitest+runner@4.1.5/node_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:2305:20
+    at new Promise (<anonymous>)
+    at runWithTimeout (file:///home/runner/work/openchamber-ru/openchamber-ru/node_modules/[4m.bun[24m/@vitest+runner@4.1.5/node_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:2272:10)
+    at file:///home/runner/work/openchamber-ru/openchamber-ru/node_modules/[4m.bun[24m/@vitest+runner@4.1.5/node_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:2955:64
+More than 10 uncaught exceptions within a minute; shutting down.
+
+[90mstderr[2m | server/lib/opencode/server-startup-runtime.test.js[2m > [22m[2muncaught exception policy[2m > [22m[2man unhandled rejection is logged without shutting down
+[22m[39mUnhandled Rejection at: Promise { [90mundefined[39m } reason: Error: late failure
+    at [90m/home/runner/work/openchamber-ru/openchamber-ru/packages/web/[39mserver/lib/opencode/server-startup-runtime.test.js:41:44
+    at file:///home/runner/work/openchamber-ru/openchamber-ru/node_modules/[4m.bun[24m/@vitest+runner@4.1.5/node_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:302:11
+    at file:///home/runner/work/openchamber-ru/openchamber-ru/node_modules/[4m.bun[24m/@vitest+runner@4.1.5/node_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:1903:26
+    at file:///home/runner/work/openchamber-ru/openchamber-ru/node_modules/[4m.bun[24m/@vitest+runner@4.1.5/node_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:2326:20
+    at new Promise (<anonymous>)
+    at runWithCancel (file:///home/runner/work/openchamber-ru/openchamber-ru/node_modules/[4m.bun[24m/@vitest+runner@4.1.5/node_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:2323:10)
+    at file:///home/runner/work/openchamber-ru/openchamber-ru/node_modules/[4m.bun[24m/@vitest+runner@4.1.5/node_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:2305:20
+    at new Promise (<anonymous>)
+    at runWithTimeout (file:///home/runner/work/openchamber-ru/openchamber-ru/node_modules/[4m.bun[24m/@vitest+runner@4.1.5/node_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:2272:10)
+    at file:///home/runner/work/openchamber-ru/openchamber-ru/node_modules/[4m.bun[24m/@vitest+runner@4.1.5/node_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:2955:64
+
+ [32m✓[39m server/lib/opencode/server-startup-runtime.test.js [2m([22m[2m3 tests[22m[2m)[22m[32m 22[2mms[22m[39m
+ [31m❯[39m server/lib/opencode/routes-directory.test.js [2m([22m[2m0 test[22m[2m)[22m
+ [32m✓[39m bin/lib/commands-update.test.js [2m([22m[2m1 test[22m[2m)[22m[32m 10[2mms[22m[39m
+ [32m✓[39m server/lib/opencode/upgrade-capability.test.js [2m([22m[2m3 tests[22m[2m)[22m[32m 7[2mms[22m[39m
+ [32m✓[39m bin/lib/cli-control.test.js [2m([22m[2m7 tests[22m[2m)[22m[32m 7[2mms[22m[39m
+ [32m✓[39m server/lib/tunnels/install-help.test.js [2m([22m[2m4 tests[22m[2m)[22m[32m 5[2mms[22m[39m
+ [32m✓[39m server/lib/text/summarization.test.js [2m([22m[2m3 tests[22m[2m)[22m[32m 10[2mms[22m[39m
+ [32m✓[39m server/lib/openchamber-control/routes.test.js [2m([22m[2m2 tests[22m[2m)[22m[32m 39[2mms[22m[39m
+ [32m✓[39m server/lib/agent-memory/feature-flag.test.js [2m([22m[2m4 tests[22m[2m)[22m[32m 7[2mms[22m[39m
+ [32m✓[39m server/lib/opencode/startup-pipeline-runtime.test.js [2m([22m[2m1 test[22m[2m)[22m[32m 5[2mms[22m[39m
+ [32m✓[39m server/lib/github/gh-cli-credential.test.js [2m([22m[2m2 tests[22m[2m)[22m[32m 9[2mms[22m[39m
+ [32m✓[39m bin/cli-output.test.js [2m([22m[2m1 test[22m[2m)[22m[32m 21[2mms[22m[39m
+ [32m✓[39m server/lib/tunnels/types.test.js [2m([22m[2m4 tests[22m[2m)[22m[32m 6[2mms[22m[39m
+ [32m✓[39m server/lib/walkthrough/pr-source.test.js [2m([22m[2m2 tests[22m[2m)[22m[32m 7[2mms[22m[39m
+ [32m✓[39m server/lib/notifications/message.test.js [2m([22m[2m3 tests[22m[2m)[22m[32m 5[2mms[22m[39m
+ [32m✓[39m server/lib/terminal/history.test.js [2m([22m[2m3 tests[22m[2m)[22m[32m 8[2mms[22m[39m
+ [31m❯[39m server/lib/quota/providers/index.test.js [2m([22m[2m0 test[22m[2m)[22m
+ [32m✓[39m server/lib/opencode/provider-env-aliases.test.js [2m([22m[2m3 tests[22m[2m)[22m[32m 7[2mms[22m[39m
+ [32m✓[39m server/lib/security/bind-host.test.js [2m([22m[2m2 tests[22m[2m)[22m[32m 13[2mms[22m[39m
+ [32m✓[39m server/lib/opencode/config-mutation-response.test.js [2m([22m[2m2 tests[22m[2m)[22m[32m 5[2mms[22m[39m
+ [32m✓[39m src/api/git.test.ts [2m([22m[2m1 test[22m[2m)[22m[32m 120[2mms[22m[39m
+ [32m✓[39m server/lib/opencode/hmr-state-runtime.test.js [2m([22m[2m2 tests[22m[2m)[22m[32m 6[2mms[22m[39m
+ [32m✓[39m server/lib/skills-catalog/curated-sources.test.js [2m([22m[2m1 test[22m[2m)[22m[32m 4[2mms[22m[39m
+ [32m✓[39m src/DiffView.hunks.test.ts [2m([22m[2m5 tests[22m[2m)[22m[33m 2504[2mms[22m[39m
+   [33m[2m✓[22m[39m hunk actions refresh unchanged-status patches, survive full context and exclude historical diffs [33m 1744[2mms[22m[39m
+   [33m[2m✓[22m[39m split-view hunk controls occupy the matching rendered annotation rows [33m 385[2mms[22m[39m
+
+[31m⎯⎯⎯⎯⎯⎯[39m[1m[41m Failed Suites 35 [49m[22m[31m⎯⎯⎯⎯⎯⎯[39m
+
+[41m[1m FAIL [22m[49m server/sse-routes.test.js[2m [ server/sse-routes.test.js ][22m
+[41m[1m FAIL [22m[49m server/lib/opencode/agents.test.js[2m > [22magents
+[41m[1m FAIL [22m[49m server/lib/opencode/mcp-oauth-callback.test.js[2m [ server/lib/opencode/mcp-oauth-callback.test.js ][22m
+[41m[1m FAIL [22m[49m server/lib/opencode/plugin-routes.test.js[2m > [22mopencode plugin routes
+[41m[1m FAIL [22m[49m server/lib/opencode/plugins.test.js[2m > [22mopencode plugins data layer
+[41m[1m FAIL [22m[49m server/lib/opencode/providers.test.js[2m [ server/lib/opencode/providers.test.js ][22m
+[41m[1m FAIL [22m[49m server/lib/opencode/routes-directory.test.js[2m [ server/lib/opencode/routes-directory.test.js ][22m
+[41m[1m FAIL [22m[49m server/lib/opencode/routes-upgrade.test.js[2m [ server/lib/opencode/routes-upgrade.test.js ][22m
+[41m[1m FAIL [22m[49m server/lib/opencode/shared.test.js[2m [ server/lib/opencode/shared.test.js ][22m
+[41m[1m FAIL [22m[49m server/lib/opencode/skill-routes.test.js[2m [ server/lib/opencode/skill-routes.test.js ][22m
+[41m[1m FAIL [22m[49m server/lib/opencode/skills.test.js[2m [ server/lib/opencode/skills.test.js ][22m
+[41m[1m FAIL [22m[49m server/lib/opencode/snippets.test.js[2m [ server/lib/opencode/snippets.test.js ][22m
+[41m[1m FAIL [22m[49m server/lib/scheduled-tasks/issue-2710-double-execution.test.js[2m [ server/lib/scheduled-tasks/issue-2710-double-execution.test.js ][22m
+[41m[1m FAIL [22m[49m server/lib/scheduled-tasks/loops.test.js[2m [ server/lib/scheduled-tasks/loops.test.js ][22m
+[41m[1m FAIL [22m[49m server/lib/scheduled-tasks/runtime.test.js[2m [ server/lib/scheduled-tasks/runtime.test.js ][22m
+[41m[1m FAIL [22m[49m server/lib/scheduled-tasks/service.test.js[2m [ server/lib/scheduled-tasks/service.test.js ][22m
+[41m[1m FAIL [22m[49m server/lib/walkthrough/reproduce-2607.test.js[2m > [22missue 2607 — walkthrough blocks unauthenticated providers
+[41m[1m FAIL [22m[49m server/lib/quota/providers/cline-pass.test.js[2m [ server/lib/quota/providers/cline-pass.test.js ][22m
+[41m[1m FAIL [22m[49m server/lib/quota/providers/codex.test.js[2m [ server/lib/quota/providers/codex.test.js ][22m
+[41m[1m FAIL [22m[49m server/lib/quota/providers/copilot.test.js[2m [ server/lib/quota/providers/copilot.test.js ][22m
+[41m[1m FAIL [22m[49m server/lib/quota/providers/crof.test.js[2m [ server/lib/quota/providers/crof.test.js ][22m
+[41m[1m FAIL [22m[49m server/lib/quota/providers/deepseek.test.js[2m [ server/lib/quota/providers/deepseek.test.js ][22m
+[41m[1m FAIL [22m[49m server/lib/quota/providers/exe-dev.test.js[2m [ server/lib/quota/providers/exe-dev.test.js ][22m
+[41m[1m FAIL [22m[49m server/lib/quota/providers/hyper.test.js[2m [ server/lib/quota/providers/hyper.test.js ][22m
+[41m[1m FAIL [22m[49m server/lib/quota/providers/index.test.js[2m [ server/lib/quota/providers/index.test.js ][22m
+[41m[1m FAIL [22m[49m server/lib/quota/providers/kimi.test.js[2m [ server/lib/quota/providers/kimi.test.js ][22m
+[41m[1m FAIL [22m[49m server/lib/quota/providers/neuralwatt.test.js[2m [ server/lib/quota/providers/neuralwatt.test.js ][22m
+[41m[1m FAIL [22m[49m server/lib/quota/providers/ollama-cloud.test.js[2m [ server/lib/quota/providers/ollama-cloud.test.js ][22m
+[41m[1m FAIL [22m[49m server/lib/quota/providers/opencode-go.test.js[2m [ server/lib/quota/providers/opencode-go.test.js ][22m
+[41m[1m FAIL [22m[49m server/lib/quota/providers/openrouter.test.js[2m [ server/lib/quota/providers/openrouter.test.js ][22m
+[41m[1m FAIL [22m[49m server/lib/quota/providers/zai.test.js[2m [ server/lib/quota/providers/zai.test.js ][22m
+[41m[1m FAIL [22m[49m server/lib/quota/providers/claude/auth.test.js[2m [ server/lib/quota/providers/claude/auth.test.js ][22m
+[41m[1m FAIL [22m[49m server/lib/quota/providers/claude/index.test.js[2m [ server/lib/quota/providers/claude/index.test.js ][22m
+[41m[1m FAIL [22m[49m server/lib/quota/providers/claude/transforms.test.js[2m [ server/lib/quota/providers/claude/transforms.test.js ][22m
+[31m[1mError[22m: Failed to parse source for import analysis because the content contains invalid JS syntax. If you are using JSX, make sure to name the file with the .jsx or .tsx extension.[39m
+  Plugin: [35mvite:import-analysis[39m
+  File: [36m/home/runner/work/openchamber-ru/openchamber-ru/packages/web/server/lib/opencode/shared.js[39m:78:3
+[33m  76 |   * the managed fork uses ~/.opencode/agent as the canonical runtime directory
+  77 |   * while preserving legacy ~/.config/opencode/{agents,agent} fallbacks.
+  78 |   */
+     |     ^
+  79 |  export function getAgentDirectoryRoots() {
+  80 |    const home = resolveOpenChamberHome();[39m
+[90m [2m❯[22m TransformPluginContext._formatLog ../../node_modules/.bun/vite@7.3.1+47866bd3dbfc1e32/node_modules/vite/dist/node/chunks/config.js:[2m28999:43[22m[39m
+[90m [2m❯[22m TransformPluginContext.error ../../node_modules/.bun/vite@7.3.1+47866bd3dbfc1e32/node_modules/vite/dist/node/chunks/config.js:[2m28996:14[22m[39m
+[90m [2m❯[22m TransformPluginContext.transform ../../node_modules/.bun/vite@7.3.1+47866bd3dbfc1e32/node_modules/vite/dist/node/chunks/config.js:[2m27082:10[22m[39m
+[90m [2m❯[22m EnvironmentPluginContainer.transform ../../node_modules/.bun/vite@7.3.1+47866bd3dbfc1e32/node_modules/vite/dist/node/chunks/config.js:[2m28797:14[22m[39m
+[90m [2m❯[22m loadAndTransform ../../node_modules/.bun/vite@7.3.1+47866bd3dbfc1e32/node_modules/vite/dist/node/chunks/config.js:[2m22670:26[22m[39m
+[90m [2m❯[22m fetchModule ../../node_modules/.bun/vite@7.3.1+47866bd3dbfc1e32/node_modules/vite/dist/node/chunks/config.js:[2m33993:15[22m[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/43]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m server/lib/openchamber-sessions/routes.test.js[2m > [22mopenchamber session routes
+[31m[1mError[22m: Failed to parse source for import analysis because the content contains invalid JS syntax. If you are using JSX, make sure to name the file with the .jsx or .tsx extension.[39m
+  Plugin: [35mvite:import-analysis[39m
+  File: [36m/home/runner/work/openchamber-ru/openchamber-ru/packages/web/server/lib/opencode/shared.js[39m:78:3
+[33m  76 |   * the managed fork uses ~/.opencode/agent as the canonical runtime directory
+  77 |   * while preserving legacy ~/.config/opencode/{agents,agent} fallbacks.
+  78 |   */
+     |     ^
+  79 |  export function getAgentDirectoryRoots() {
+  80 |    const home = resolveOpenChamberHome();[39m
+[90m [2m❯[22m TransformPluginContext._formatLog ../../node_modules/.bun/vite@7.3.1+47866bd3dbfc1e32/node_modules/vite/dist/node/chunks/config.js:[2m28999:43[22m[39m
+[90m [2m❯[22m TransformPluginContext.error ../../node_modules/.bun/vite@7.3.1+47866bd3dbfc1e32/node_modules/vite/dist/node/chunks/config.js:[2m28996:14[22m[39m
+[90m [2m❯[22m TransformPluginContext.transform ../../node_modules/.bun/vite@7.3.1+47866bd3dbfc1e32/node_modules/vite/dist/node/chunks/config.js:[2m27082:10[22m[39m
+[90m [2m❯[22m EnvironmentPluginContainer.transform ../../node_modules/.bun/vite@7.3.1+47866bd3dbfc1e32/node_modules/vite/dist/node/chunks/config.js:[2m28797:14[22m[39m
+[90m [2m❯[22m loadAndTransform ../../node_modules/.bun/vite@7.3.1+47866bd3dbfc1e32/node_modules/vite/dist/node/chunks/config.js:[2m22670:26[22m[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/43]⎯[22m[39m
+
+
+[31m⎯⎯⎯⎯⎯⎯⎯[39m[1m[41m Failed Tests 8 [49m[22m[31m⎯⎯⎯⎯⎯⎯⎯[39m
+
+[41m[1m FAIL [22m[49m server/lib/network-defaults.test.js[2m > [22mapplyConnectAttemptTimeout[2m > [22minitializes the server entrypoint in a fresh Node process
+[31m[1mAssertionError[22m: file:///home/runner/work/openchamber-ru/openchamber-ru/packages/web/server/lib/opencode/shared.js:75
+ * OpenCode v1.18.30 natively scans $HOME/.opencode/{agent,agents}/**/*.md;
+                                                                      ^
+
+SyntaxError: Unexpected token '*'
+    at compileSourceTextModule (node:internal/modules/esm/utils:346:16)
+    at ModuleLoader.moduleStrategy (node:internal/modules/esm/translators:110:18)
+    at #translate (node:internal/modules/esm/loader:559:20)
+    at afterLoad (node:internal/modules/esm/loader:612:29)
+    at ModuleLoader.loadAndTranslate (node:internal/modules/esm/loader:617:12)
+    at #createModuleJob (node:internal/modules/esm/loader:640:36)
+    at #getJobFromResolveResult (node:internal/modules/esm/loader:353:34)
+    at ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:321:41)
+
+Node.js v22.23.2
+: expected 1 to be +0 // Object.is equality[39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[32m- 0[39m
+[31m+ 1[39m
+
+[36m [2m❯[22m server/lib/network-defaults.test.js:[2m20:42[22m[39m
+    [90m 18|[39m       process.exit(0);
+    [90m 19|[39m     `[39m][33m,[39m { encoding[33m:[39m [32m'utf8'[39m[33m,[39m timeout[33m:[39m [34m15_000[39m[33m,[39m windowsHide[33m:[39m [35mtrue[39m })[33m;[39m
+    [90m 20|[39m     [34mexpect[39m(result[33m.[39mstatus[33m,[39m result[33m.[39mstderr)[33m.[39m[34mtoBe[39m([34m0[39m)[33m;[39m
+    [90m   |[39m                                          [31m^[39m
+    [90m 21|[39m   })[33m;[39m
+    [90m 22|[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/43]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m server/lib/opencode/config-paths.test.js[2m > [22mOpenCode global config paths[2m > [22mderives all shared constants from a non-empty XDG_CONFIG_HOME
+[41m[1m FAIL [22m[49m server/lib/opencode/config-paths.test.js[2m > [22mOpenCode global config paths[2m > [22mfalls back to ~/.config/opencode when XDG_CONFIG_HOME is undefined
+[41m[1m FAIL [22m[49m server/lib/opencode/config-paths.test.js[2m > [22mOpenCode global config paths[2m > [22mfalls back to ~/.config/opencode when XDG_CONFIG_HOME is   
+[41m[1m FAIL [22m[49m server/lib/opencode/config-paths.test.js[2m > [22mOpenCode global config paths[2m > [22mkeeps global CRUD below XDG_CONFIG_HOME while project files stay in the project
+[41m[1m FAIL [22m[49m server/lib/opencode/config-paths.test.js[2m > [22mOpenCode global config paths[2m > [22mwrites global AGENTS.md below XDG_CONFIG_HOME
+[31m[1mError[22m: Failed to parse source for import analysis because the content contains invalid JS syntax. If you are using JSX, make sure to name the file with the .jsx or .tsx extension.[39m
+  Plugin: [35mvite:import-analysis[39m
+  File: [36m/home/runner/work/openchamber-ru/openchamber-ru/packages/web/server/lib/opencode/shared.js[39m:78:3
+[33m  76 |   * the managed fork uses ~/.opencode/agent as the canonical runtime directory
+  77 |   * while preserving legacy ~/.config/opencode/{agents,agent} fallbacks.
+  78 |   */
+     |     ^
+  79 |  export function getAgentDirectoryRoots() {
+  80 |    const home = resolveOpenChamberHome();[39m
+[90m [2m❯[22m TransformPluginContext._formatLog ../../node_modules/.bun/vite@7.3.1+47866bd3dbfc1e32/node_modules/vite/dist/node/chunks/config.js:[2m28999:43[22m[39m
+[90m [2m❯[22m TransformPluginContext.error ../../node_modules/.bun/vite@7.3.1+47866bd3dbfc1e32/node_modules/vite/dist/node/chunks/config.js:[2m28996:14[22m[39m
+[90m [2m❯[22m TransformPluginContext.transform ../../node_modules/.bun/vite@7.3.1+47866bd3dbfc1e32/node_modules/vite/dist/node/chunks/config.js:[2m27082:10[22m[39m
+[90m [2m❯[22m EnvironmentPluginContainer.transform ../../node_modules/.bun/vite@7.3.1+47866bd3dbfc1e32/node_modules/vite/dist/node/chunks/config.js:[2m28797:14[22m[39m
+[90m [2m❯[22m loadAndTransform ../../node_modules/.bun/vite@7.3.1+47866bd3dbfc1e32/node_modules/vite/dist/node/chunks/config.js:[2m22670:26[22m[39m
+[90m [2m❯[22m fetchModule ../../node_modules/.bun/vite@7.3.1+47866bd3dbfc1e32/node_modules/vite/dist/node/chunks/config.js:[2m33993:15[22m[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/43]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m server/lib/walkthrough/languages.test.js[2m > [22msupported languages[2m > [22mcovers every locale the interface offers
+[31m[1mAssertionError[22m: add these to LANGUAGE_NAMES in languages.js: ru: expected [ 'ru' ] to deeply equal [][39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[32m- [][39m
+[31m+ [[39m
+[31m+   "ru",[39m
+[31m+ ][39m
+
+[36m [2m❯[22m server/lib/walkthrough/languages.test.js:[2m32:91[22m[39m
+    [90m 30|[39m     const missing = interfaceLocales().filter((locale) => !Object.hasO…
+    [90m 31|[39m
+    [90m 32|[39m     expect(missing, `add these to LANGUAGE_NAMES in languages.js: ${mi…
+    [90m   |[39m                                                                                           [31m^[39m
+    [90m 33|[39m   })[33m;[39m
+    [90m 34|[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/43]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m server/lib/walkthrough/languages.test.js[2m > [22msupported languages[2m > [22mresolves every interface locale to itself rather than to the default
+[31m[1mAssertionError[22m: expected 'en' to be 'ru' // Object.is equality[39m
+
+Expected: [32m"ru"[39m
+Received: [31m"en"[39m
+
+[36m [2m❯[22m server/lib/walkthrough/languages.test.js:[2m46:41[22m[39m
+    [90m 44|[39m   it('resolves every interface locale to itself rather than to the def…
+    [90m 45|[39m     [35mfor[39m ([35mconst[39m locale [35mof[39m [34minterfaceLocales[39m()) {
+    [90m 46|[39m       [34mexpect[39m([34mnormalizeLanguage[39m(locale))[33m.[39m[34mtoBe[39m(locale)[33m;[39m
+    [90m   |[39m                                         [31m^[39m
+    [90m 47|[39m     }
+    [90m 48|[39m   })[33m;[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/43]⎯[22m[39m
+
+
+[2m Test Files [22m [1m[31m38 failed[39m[22m[2m | [22m[1m[32m157 passed[39m[22m[90m (195)[39m
+[2m      Tests [22m [1m[31m8 failed[39m[22m[2m | [22m[1m[32m1839 passed[39m[22m[2m | [22m[33m108 skipped[39m[90m (1955)[39m
+[2m   Start at [22m 19:18:02
+[2m   Duration [22m 48.75s[2m (transform 7.98s, setup 0ms, import 12.60s, tests 92.52s, environment 28ms)[22m
+
+
+::error file=/home/runner/work/openchamber-ru/openchamber-ru/packages/web/server/lib/network-defaults.test.js,title=server/lib/network-defaults.test.js > applyConnectAttemptTimeout > initializes the server entrypoint in a fresh Node process,line=20,column=42::AssertionError: file:///home/runner/work/openchamber-ru/openchamber-ru/packages/web/server/lib/opencode/shared.js:75%0A * OpenCode v1.18.30 natively scans $HOME/.opencode/{agent,agents}/**/*.md;%0A                                                                      ^%0A%0ASyntaxError: Unexpected token '*'%0A    at compileSourceTextModule (node:internal/modules/esm/utils:346:16)%0A    at ModuleLoader.moduleStrategy (node:internal/modules/esm/translators:110:18)%0A    at #translate (node:internal/modules/esm/loader:559:20)%0A    at afterLoad (node:internal/modules/esm/loader:612:29)%0A    at ModuleLoader.loadAndTranslate (node:internal/modules/esm/loader:617:12)%0A    at #createModuleJob (node:internal/modules/esm/loader:640:36)%0A    at #getJobFromResolveResult (node:internal/modules/esm/loader:353:34)%0A    at ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:321:41)%0A%0ANode.js v22.23.2%0A: expected 1 to be +0 // Object.is equality%0A%0A- Expected%0A+ Received%0A%0A- 0%0A+ 1%0A%0A ❯ server/lib/network-defaults.test.js:20:42%0A%0A
+
+::error file=/home/runner/work/openchamber-ru/openchamber-ru/packages/web/server/lib/walkthrough/languages.test.js,title=server/lib/walkthrough/languages.test.js > supported languages > covers every locale the interface offers,line=32,column=91::AssertionError: add these to LANGUAGE_NAMES in languages.js: ru: expected [ 'ru' ] to deeply equal []%0A%0A- Expected%0A+ Received%0A%0A- []%0A+ [%0A+   "ru",%0A+ ]%0A%0A ❯ server/lib/walkthrough/languages.test.js:32:91%0A%0A
+
+::error file=/home/runner/work/openchamber-ru/openchamber-ru/packages/web/server/lib/walkthrough/languages.test.js,title=server/lib/walkthrough/languages.test.js > supported languages > resolves every interface locale to itself rather than to the default,line=46,column=41::AssertionError: expected 'en' to be 'ru' // Object.is equality%0A%0AExpected: "ru"%0AReceived: "en"%0A%0A ❯ server/lib/walkthrough/languages.test.js:46:41%0A%0A
+error: script "test" exited with code 1
+error: script "test" exited with code 1
