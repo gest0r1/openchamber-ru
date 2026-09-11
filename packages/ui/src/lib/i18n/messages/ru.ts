@@ -1,7 +1,7 @@
 import { dict as enDict, type I18nKey } from './en';
 import { settingsDict } from './ru.settings';
 
-export const dict: Record<I18nKey, string> = {
+export const dict = {
   ...enDict,
   ...settingsDict,
   "common.loading": "Загрузка...",
@@ -2566,4 +2566,4 @@ export const dict: Record<I18nKey, string> = {
   "quota.window.chat": "Запросы в чате",
   "quota.window.completions": "Завершения",
   "quota.window.premiumInteractions": "Премиум взаимодействия",
-};
+} as Record<I18nKey, string>;
