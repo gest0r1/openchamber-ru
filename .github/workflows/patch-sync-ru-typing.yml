@@ -1,0 +1,43 @@
+name: patch-sync-ru-typing
+
+on:
+  push:
+    branches:
+      - sync-upstream-2026-09-11
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          ref: sync-upstream-2026-09-11
+          fetch-depth: 1
+      - name: Make RU overrides tolerant of removed upstream keys
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('packages/ui/src/lib/i18n/messages/ru.ts')
+          text = path.read_text(encoding='utf-8')
+          old = 'export const dict: Record<I18nKey, string> = {\n'
+          new = 'export const dict = {\n'
+          if text.count(old) != 1:
+              raise SystemExit(f'expected one typed dict declaration, found {text.count(old)}')
+          text = text.replace(old, new, 1)
+          if not text.endswith('};\n'):
+              raise SystemExit('unexpected ru.ts ending')
+          text = text[:-3] + '} as Record<I18nKey, string>;\n'
+          path.write_text(text, encoding='utf-8')
+          PY
+      - name: Commit patch
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add packages/ui/src/lib/i18n/messages/ru.ts
+          git commit -m 'fix(i18n): tolerate stale Russian override keys'
+          git push origin HEAD:sync-upstream-2026-09-11
