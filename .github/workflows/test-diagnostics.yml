@@ -38,6 +38,6 @@ jobs:
         run: |
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add sync-test-failure.log
+          git add -f sync-test-failure.log
           git commit -m 'ci: record sync test diagnostics'
           git push origin HEAD:sync-upstream-2026-09-11
