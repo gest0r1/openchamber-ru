@@ -1,0 +1,43 @@
+name: patch-sync-ru
+
+on:
+  push:
+    branches:
+      - sync-upstream-2026-09-11
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          ref: sync-upstream-2026-09-11
+          fetch-depth: 1
+      - name: Remove obsolete fork-local I18nKey entry
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('packages/ui/src/lib/i18n/messages/ru.ts')
+          text = path.read_text(encoding='utf-8')
+          target = '  "common.language.russian": "Русский",\n'
+          count = text.count(target)
+          if count != 1:
+              raise SystemExit(f'expected exactly one Russian label entry, found {count}')
+          path.write_text(text.replace(target, ''), encoding='utf-8')
+          PY
+      - name: Commit patch
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add packages/ui/src/lib/i18n/messages/ru.ts
+          if git diff --cached --quiet; then
+            echo 'No patch required.'
+            exit 0
+          fi
+          git commit -m 'fix(i18n): keep Russian locale label fork-local'
+          git push origin HEAD:sync-upstream-2026-09-11
