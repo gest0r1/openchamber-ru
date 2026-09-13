@@ -68,11 +68,16 @@ function ensureDirs() {
  * same file the OpenCode binary reads is the one we resolve.
  */
 function getAgentDirectoryRoots() {
-  return [
-    RUNTIME_AGENT_DIR,
+  const configRoots = [
     AGENT_DIR,
     path.join(OPENCODE_CONFIG_DIR, 'agent'),
   ];
+
+  // An explicit XDG_CONFIG_HOME requests isolated/config-rooted global CRUD.
+  // Otherwise keep the OpenCode runtime directory as the primary user root.
+  return process.env.XDG_CONFIG_HOME?.trim()
+    ? [...configRoots, RUNTIME_AGENT_DIR]
+    : [RUNTIME_AGENT_DIR, ...configRoots];
 }
 
 // ============== MARKDOWN FILE OPERATIONS ==============
