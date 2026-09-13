@@ -2,9 +2,9 @@ import fs from 'fs';
 import path from 'path';
 import {
   CONFIG_FILE,
-  AGENT_DIR,
   AGENT_SCOPE,
   ensureDirs,
+  getAgentDirectoryRoots,
   parseMdFile,
   writeMdFile,
   readConfigLayers,
@@ -46,22 +46,119 @@ function getProjectAgentPath(workingDirectory, agentName) {
 
 /**
  * Create a per-request lookup cache for user-level agent path resolution.
+ * Indexes are kept per directory root so that one root is fully searched
+ * (flat + subfolders) before falling back to the next, lower-priority root.
  */
 function createAgentLookupCache() {
   return {
-    userAgentIndexByName: new Map(),
-    userAgentLookupByName: new Map(),
-    userAgentIndexReady: false,
+    userAgentIndexByRoot: new Map(),
+    userAgentIndexedRoots: new Set(),
+    userAgentNormalizedIndexByRoot: new Map(),
+    frontmatterNameByRoot: new Map(),
+    frontmatterNameScanned: new Set(),
   };
 }
 
-function buildUserAgentIndex(cache) {
-  if (cache.userAgentIndexReady) return;
-  cache.userAgentIndexReady = true;
+/**
+ * Reject agent names that could escape the agent directories via path
+ * traversal. Called by every mutating entrypoint before the name is used in
+ * a path; reads only ever resolve to a default path, so they cannot write.
+ */
+function assertSafeAgentName(agentName) {
+  if (
+    typeof agentName !== 'string' ||
+    !agentName.trim() ||
+    agentName.includes('/') ||
+    agentName.includes('\\') ||
+    agentName.includes('..') ||
+    path.isAbsolute(agentName)
+  ) {
+    throw new Error(`Invalid agent name: ${agentName}`);
+  }
+}
 
-  if (!fs.existsSync(AGENT_DIR)) return;
+/**
+ * Extract the `name` field from an agent markdown file's frontmatter without
+ * a full YAML parse — display names are plain scalars in practice. Only the
+ * block between the opening/closing `---` markers is examined (bounded scan),
+ * so body lines like `name: ...` can never false-positive. Returns null when
+ * the file has no usable frontmatter `name`.
+ */
+function getAgentFrontmatterName(filePath) {
+  let head;
+  try {
+    head = fs.readFileSync(filePath, 'utf8').slice(0, 65536);
+  } catch {
+    return null;
+  }
+  const block = /^---\r?\n([\s\S]*?)\r?\n---\r?\n/.exec(head);
+  if (!block) return null;
+  const nameMatch = /^name:\s*['"]?([^'"\n]+)['"]?\s*$/m.exec(block[1]);
+  return nameMatch ? nameMatch[1].trim() : null;
+}
 
-  const dirsToVisit = [AGENT_DIR];
+/**
+ * Lazily build (once per root) a name -> path index from frontmatter `name`
+ * fields. Runtime files are stored under slug basenames (e.g.
+ * `senior-technical-plan-reviewer.md`) while their frontmatter `name` holds
+ * the display id (e.g. `SeniorTechnicalPlanReviewer`); matching on it lets a
+ * UI display name resolve to the existing slug file instead of creating a
+ * duplicate. Keys are lowercased so matching is case-insensitive.
+ */
+function getAgentByFrontmatterName(agentName, rootDir, cache) {
+  if (!cache.frontmatterNameScanned.has(rootDir)) {
+    cache.frontmatterNameScanned.add(rootDir);
+    const map = new Map();
+    cache.frontmatterNameByRoot.set(rootDir, map);
+
+    if (!fs.existsSync(rootDir)) return null;
+
+    const dirsToVisit = [rootDir];
+    while (dirsToVisit.length > 0) {
+      const dir = dirsToVisit.pop();
+      let entries;
+      try {
+        entries = fs.readdirSync(dir, { withFileTypes: true });
+      } catch {
+        continue;
+      }
+      entries.sort((a, b) => a.name.localeCompare(b.name));
+      for (const entry of entries) {
+        if (entry.isDirectory()) {
+          dirsToVisit.push(path.join(dir, entry.name));
+          continue;
+        }
+        if (!entry.isFile() || !entry.name.endsWith('.md')) continue;
+        const filePath = path.join(dir, entry.name);
+        const frontmatterName = getAgentFrontmatterName(filePath);
+        if (frontmatterName && !map.has(frontmatterName.toLowerCase())) {
+          map.set(frontmatterName.toLowerCase(), filePath);
+        }
+      }
+    }
+  }
+
+  const map = cache.frontmatterNameByRoot.get(rootDir);
+  return (map && map.get(agentName.toLowerCase())) || null;
+}
+
+/**
+ * Build (once per root) the agent index for a single root: name -> full path,
+ * first file wins within the root, subfolders are walked in sorted order.
+ */
+function indexAgentRoot(cache, rootDir) {
+  if (cache.userAgentIndexedRoots.has(rootDir)) {
+    return cache.userAgentIndexByRoot.get(rootDir);
+  }
+  cache.userAgentIndexedRoots.add(rootDir);
+  const index = new Map();
+  cache.userAgentIndexByRoot.set(rootDir, index);
+  const normalizedIndex = new Map();
+  cache.userAgentNormalizedIndexByRoot.set(rootDir, normalizedIndex);
+
+  if (!fs.existsSync(rootDir)) return index;
+
+  const dirsToVisit = [rootDir];
   while (dirsToVisit.length > 0) {
     const dir = dirsToVisit.pop();
     let entries;
@@ -76,8 +173,12 @@ function buildUserAgentIndex(cache) {
     for (const entry of entries) {
       if (!entry.isFile() || !entry.name.endsWith('.md')) continue;
       const agentName = entry.name.slice(0, -3);
-      if (!cache.userAgentIndexByName.has(agentName)) {
-        cache.userAgentIndexByName.set(agentName, path.join(dir, entry.name));
+      if (!index.has(agentName)) {
+        index.set(agentName, path.join(dir, entry.name));
+      }
+      const normalizedKey = normalizeAgentName(agentName);
+      if (!normalizedIndex.has(normalizedKey)) {
+        normalizedIndex.set(normalizedKey, path.join(dir, entry.name));
       }
     }
 
@@ -88,38 +189,89 @@ function buildUserAgentIndex(cache) {
       }
     }
   }
+
+  return index;
 }
 
-function getIndexedUserAgentPath(agentName, cache) {
-  if (cache.userAgentLookupByName.has(agentName)) {
-    return cache.userAgentLookupByName.get(agentName);
-  }
+/**
+ * Normalize an agent name for case-insensitive basename matching: lowercase
+ * and strip every non-alphanumeric character, so `SeniorTechnicalPlanReviewer`
+ * and `senior-technical-plan-reviewer` normalize to the same key. Used as a
+ * last-resort fallback for files that lack a frontmatter `name`.
+ */
+function normalizeAgentName(name) {
+  return String(name).toLowerCase().replace(/[^a-z0-9]/g, '');
+}
 
-  buildUserAgentIndex(cache);
-  const found = cache.userAgentIndexByName.get(agentName) || null;
-  cache.userAgentLookupByName.set(agentName, found);
-  return found;
+/**
+ * Resolve an agent within a single root: flat basename, then subfolder
+ * basename, then frontmatter `name`, then normalized basename
+ * (case-insensitive, punctuation-insensitive). Returns null when the agent is
+ * not present in this root.
+ */
+function getAgentPathInRoot(agentName, rootDir, cache) {
+  const flatPath = path.join(rootDir, `${agentName}.md`);
+  if (fs.existsSync(flatPath)) return flatPath;
+  const indexed = indexAgentRoot(cache, rootDir).get(agentName);
+  if (indexed) return indexed;
+  const byFrontmatter = getAgentByFrontmatterName(agentName, rootDir, cache);
+  if (byFrontmatter) return byFrontmatter;
+  const normalizedIndex = cache.userAgentNormalizedIndexByRoot.get(rootDir);
+  if (normalizedIndex) {
+    const byNormalized = normalizedIndex.get(normalizeAgentName(agentName));
+    if (byNormalized) return byNormalized;
+  }
+  return null;
 }
 
 /**
  * Get user-level agent path — walks subfolders to support grouped layouts.
- * e.g. ~/.config/opencode/agents/business/ceo-diginno.md
+ * Priority: each root is fully searched (flat then subfolders) before moving
+ * to the next root, so the runtime dir (~/.opencode/agent) always wins over
+ * legacy dirs for reads. Default (new agent) is runtime dir flat path.
  */
 function getUserAgentPath(agentName, lookupCache = null) {
-  // 1. Check flat path first (legacy / newly created agents)
-  const pluralPath = path.join(AGENT_DIR, `${agentName}.md`);
-  if (fs.existsSync(pluralPath)) return pluralPath;
-
-  const legacyPath = path.join(AGENT_DIR, '..', 'agent', `${agentName}.md`);
-  if (fs.existsSync(legacyPath)) return legacyPath;
-
-  // 2. Lookup subfolders for grouped layout
   const cache = lookupCache || createAgentLookupCache();
-  const found = getIndexedUserAgentPath(agentName, cache);
-  if (found) return found;
+  for (const root of getAgentDirectoryRoots()) {
+    const found = getAgentPathInRoot(agentName, root, cache);
+    if (found) return found;
+  }
+  return path.join(getAgentDirectoryRoots()[0], `${agentName}.md`);
+}
 
-  // 3. Return expected flat path as default (for new agent creation)
-  return pluralPath;
+/**
+ * Validate a user-supplied agent category so it cannot escape the runtime
+ * agent dir via path traversal. Falls back to 'core' when absent.
+ */
+function sanitizeAgentCategory(category) {
+  const value = typeof category === 'string' ? category.trim() : '';
+  if (!value) return 'core';
+  if (value === '.' || value.includes('..') || value.includes('/') || value.includes('\\')) {
+    throw new Error(`Invalid agent category: ${value}`);
+  }
+  return value;
+}
+
+/**
+ * Determine the category subdirectory an agent should be written to.
+ * - `mode: subagent` -> `subagents/{category}` (category from config or 'core')
+ * - anything else (`primary`, absent, `all`) -> `core`
+ * @returns {string} relative category path, e.g. 'subagents/code' or 'core'
+ */
+function getAgentCategory(agentName, config = {}) {
+  if (config.mode === 'subagent') {
+    return path.join('subagents', sanitizeAgentCategory(config.category));
+  }
+  return 'core';
+}
+
+/**
+ * Write path for a new user-level agent: runtime dir + category subfolder.
+ */
+function getUserAgentWritePath(agentName, config = {}, lookupCache = null) {
+  const existing = getUserAgentPath(agentName, lookupCache);
+  if (fs.existsSync(existing)) return existing;
+  return path.join(getAgentDirectoryRoots()[0], getAgentCategory(agentName, config), `${agentName}.md`);
 }
 
 /**
@@ -143,9 +295,11 @@ function getAgentScope(agentName, workingDirectory, lookupCache = null) {
 }
 
 /**
- * Get the path where an agent should be written based on scope
+ * Get the path where an agent should be written based on scope.
+ * Existing agents keep their current location (incl. legacy dirs); new user
+ * agents go to the runtime dir with a category subfolder.
  */
-function getAgentWritePath(agentName, workingDirectory, requestedScope, lookupCache = null) {
+function getAgentWritePath(agentName, workingDirectory, requestedScope, lookupCache = null, config = {}) {
   // For updates: check existing location first (project takes precedence)
   const existing = getAgentScope(agentName, workingDirectory, lookupCache);
   if (existing.path) {
@@ -163,7 +317,7 @@ function getAgentWritePath(agentName, workingDirectory, requestedScope, lookupCa
 
   return {
     scope: AGENT_SCOPE.USER,
-    path: getUserAgentPath(agentName, lookupCache)
+    path: getUserAgentWritePath(agentName, config, lookupCache)
   };
 }
 
@@ -319,6 +473,7 @@ function getAgentConfig(agentName, workingDirectory, lookupCache = createAgentLo
 }
 
 function createAgent(agentName, config, workingDirectory, scope) {
+  assertSafeAgentName(agentName);
   ensureDirs();
   const lookupCache = createAgentLookupCache();
 
@@ -347,7 +502,7 @@ function createAgent(agentName, config, workingDirectory, scope) {
     targetPath = projectPath;
     targetScope = AGENT_SCOPE.PROJECT;
   } else {
-    targetPath = userPath;
+    targetPath = getUserAgentWritePath(agentName, config, lookupCache);
     targetScope = AGENT_SCOPE.USER;
   }
 
@@ -355,16 +510,24 @@ function createAgent(agentName, config, workingDirectory, scope) {
   const frontmatter = Object.fromEntries(
     Object.entries(rawFrontmatter).filter(([, value]) => value !== null && value !== undefined)
   );
+  // The runtime registers agents by their frontmatter `name`; without it the
+  // file would be identified by its basename only and future edits using the
+  // display name would miss it (creating a duplicate file).
+  if (typeof frontmatter.name !== 'string' || !frontmatter.name.trim()) {
+    frontmatter.name = agentName;
+  }
 
+  fs.mkdirSync(path.dirname(targetPath), { recursive: true });
   writeMdFile(targetPath, frontmatter, prompt || '');
   console.log(`Created new agent: ${agentName} (scope: ${targetScope}, path: ${targetPath})`);
 }
 
 function updateAgent(agentName, updates, workingDirectory) {
+  assertSafeAgentName(agentName);
   ensureDirs();
   const lookupCache = createAgentLookupCache();
 
-  const { scope, path: mdPath } = getAgentWritePath(agentName, workingDirectory, undefined, lookupCache);
+  const { scope, path: mdPath } = getAgentWritePath(agentName, workingDirectory, undefined, lookupCache, updates);
   const mdExists = mdPath && fs.existsSync(mdPath);
 
   const layers = readConfigLayers(workingDirectory);
@@ -382,11 +545,20 @@ function updateAgent(agentName, updates, workingDirectory) {
   let targetScope = scope;
 
   if (!mdExists && isBuiltinOverride) {
-    targetPath = getUserAgentPath(agentName, lookupCache);
+    // Newly created override file: write to the category path computed by
+    // getAgentWritePath (runtime dir + category subfolder).
+    targetPath = mdPath;
     targetScope = AGENT_SCOPE.USER;
   }
 
   let mdData = mdExists ? parseMdFile(mdPath) : (isBuiltinOverride ? { frontmatter: {}, body: '' } : null);
+
+  if (mdData && typeof mdData.frontmatter.name !== 'string') {
+    // Register the agent under its display name like createAgent does, so the
+    // runtime keys it by `name` instead of the raw basename. Applies to both
+    // fresh overrides and pre-existing files that lost their `name` field.
+    mdData.frontmatter.name = agentName;
+  }
 
   let mdModified = false;
   let jsonModified = false;
@@ -560,6 +732,14 @@ function updateAgent(agentName, updates, workingDirectory) {
   }
 
   if (mdModified && mdData) {
+    // Fresh override files must keep their frontmatter `name` — a payload
+    // with `name: null` would otherwise strip the registration field. Existing
+    // files that lack it also get it backfilled so later lookups resolve.
+    if (typeof mdData.frontmatter.name !== 'string') {
+      mdData.frontmatter.name = agentName;
+      mdModified = true;
+    }
+    fs.mkdirSync(path.dirname(targetPath), { recursive: true });
     writeMdFile(targetPath, mdData.frontmatter, mdData.body);
   }
 
@@ -581,6 +761,7 @@ function deleteJsonAgentEntry(config, agentName) {
 }
 
 function deleteAgent(agentName, workingDirectory, scope) {
+  assertSafeAgentName(agentName);
   const lookupCache = createAgentLookupCache();
   const requestedScope = scope === AGENT_SCOPE.PROJECT || scope === AGENT_SCOPE.USER ? scope : null;
 
@@ -640,4 +821,9 @@ export {
   createAgent,
   updateAgent,
   deleteAgent,
+  getUserAgentPath,
+  getUserAgentWritePath,
+  getAgentScope,
+  getAgentWritePath,
+  getAgentCategory,
 };
