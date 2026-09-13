@@ -13,7 +13,10 @@ function resolveOpenChamberHome() {
   return process.env.OPENCHAMBER_HOME || os.homedir();
 }
 
-const OPENCODE_CONFIG_DIR = path.join(\n  process.env.XDG_CONFIG_HOME?.trim() || path.join(resolveOpenChamberHome(), '.config'),\n  'opencode',\n);
+const OPENCODE_CONFIG_DIR = path.join(
+  process.env.XDG_CONFIG_HOME?.trim() || path.join(resolveOpenChamberHome(), '.config'),
+  'opencode',
+);
 // Legacy user agent dir — kept as fallback for agents created before the
 // runtime dir existed. New user agents are written to the runtime dir.
 const AGENT_DIR = path.join(OPENCODE_CONFIG_DIR, 'agents');
