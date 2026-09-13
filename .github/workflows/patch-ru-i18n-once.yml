@@ -1,0 +1,49 @@
+name: patch ru i18n once
+
+on:
+  push:
+    branches:
+      - sync/upstream-v1.23.1
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout pushed head
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          fetch-depth: 0
+
+      - name: Apply exact type-only patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          file='packages/ui/src/lib/i18n/messages/ru.ts'
+          old='export const dict: Record<I18nKey, string> = {'
+          new='export const dict: Record<I18nKey, string> & Record<string, string> = {'
+          grep -Fqx "$old" "$file"
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('packages/ui/src/lib/i18n/messages/ru.ts')
+          old = 'export const dict: Record<I18nKey, string> = {'
+          new = 'export const dict: Record<I18nKey, string> & Record<string, string> = {'
+          text = p.read_text(encoding='utf-8')
+          if text.count(old) != 1:
+              raise SystemExit(f'expected exactly one target line, found {text.count(old)}')
+          p.write_text(text.replace(old, new), encoding='utf-8')
+          PY
+          git diff --check
+          git diff -- "$file"
+
+      - name: Commit source fix
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add packages/ui/src/lib/i18n/messages/ru.ts
+          git commit -m 'fix(i18n): allow legacy Russian translation overrides'
+          git push origin HEAD:sync/upstream-v1.23.1
