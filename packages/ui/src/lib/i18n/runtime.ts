@@ -4,7 +4,9 @@ export const LOCALES = ['en', 'de', 'fr', 'zh-CN', 'zh-TW', 'uk', 'es', 'pt-BR',
 
 export const DEFAULT_LOCALE: Locale = 'en';
 
-export const LOCALE_LABEL_KEYS: Record<Locale, 'common.language.english' | 'common.language.french' | 'common.language.simplifiedChinese' | 'common.language.traditionalChinese' | 'common.language.ukrainian' | 'common.language.spanish' | 'common.language.brazilianPortuguese' | 'common.language.korean' | 'common.language.polish' | 'common.language.german' | 'common.language.japanese' | 'common.language.turkish' | 'common.language.russian'> = {
+type TranslatedLocale = Exclude<Locale, 'ru'>;
+
+export const LOCALE_LABEL_KEYS: Record<TranslatedLocale, 'common.language.english' | 'common.language.french' | 'common.language.simplifiedChinese' | 'common.language.traditionalChinese' | 'common.language.ukrainian' | 'common.language.spanish' | 'common.language.brazilianPortuguese' | 'common.language.korean' | 'common.language.polish' | 'common.language.german' | 'common.language.japanese' | 'common.language.turkish'> = {
   en: 'common.language.english',
   fr: 'common.language.french',
   'zh-CN': 'common.language.simplifiedChinese',
@@ -17,7 +19,22 @@ export const LOCALE_LABEL_KEYS: Record<Locale, 'common.language.english' | 'comm
   de: 'common.language.german',
   ja: 'common.language.japanese',
   tr: 'common.language.turkish',
-  ru: 'common.language.russian',
+};
+
+export const RUSSIAN_LOCALE_LABELS: Record<Locale, string> = {
+  en: 'Russian',
+  de: 'Russisch',
+  fr: 'Russe',
+  'zh-CN': '俄语',
+  'zh-TW': '俄語',
+  uk: 'Російська',
+  es: 'Ruso',
+  'pt-BR': 'Russo',
+  ko: '러시아어',
+  pl: 'Rosyjski',
+  ja: 'ロシア語',
+  tr: 'Rusça',
+  ru: 'Русский',
 };
 
 export const LOCALE_STORAGE_KEY = 'openchamber.i18n.v1';
