@@ -553,12 +553,6 @@ function updateAgent(agentName, updates, workingDirectory) {
 
   let mdData = mdExists ? parseMdFile(mdPath) : (isBuiltinOverride ? { frontmatter: {}, body: '' } : null);
 
-  if (mdData && typeof mdData.frontmatter.name !== 'string') {
-    // Register the agent under its display name like createAgent does, so the
-    // runtime keys it by `name` instead of the raw basename. Applies to both
-    // fresh overrides and pre-existing files that lost their `name` field.
-    mdData.frontmatter.name = agentName;
-  }
 
   let mdModified = false;
   let jsonModified = false;
