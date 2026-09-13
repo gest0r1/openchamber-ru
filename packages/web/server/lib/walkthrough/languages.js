@@ -17,6 +17,7 @@ export const DEFAULT_LANGUAGE = 'en';
 // which every model handles more reliably than a switch mid-sentence.
 const LANGUAGE_NAMES = {
   en: 'English',
+  ru: 'Russian',
   de: 'German',
   fr: 'French',
   'zh-CN': 'Simplified Chinese',
