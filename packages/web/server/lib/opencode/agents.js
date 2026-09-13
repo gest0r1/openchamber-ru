@@ -271,7 +271,14 @@ function getAgentCategory(agentName, config = {}) {
 function getUserAgentWritePath(agentName, config = {}, lookupCache = null) {
   const existing = getUserAgentPath(agentName, lookupCache);
   if (fs.existsSync(existing)) return existing;
-  return path.join(getAgentDirectoryRoots()[0], getAgentCategory(agentName, config), `${agentName}.md`);
+
+  const [primaryRoot] = getAgentDirectoryRoots();
+  // XDG configuration stores legacy user agents flat; the runtime root uses
+  // OpenCode's categorized layout.
+  if (primaryRoot !== RUNTIME_AGENT_DIR) {
+    return path.join(primaryRoot, `${agentName}.md`);
+  }
+  return path.join(primaryRoot, getAgentCategory(agentName, config), `${agentName}.md`);
 }
 
 /**
