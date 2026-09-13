@@ -726,10 +726,9 @@ function updateAgent(agentName, updates, workingDirectory) {
   }
 
   if (mdModified && mdData) {
-    // Fresh override files must keep their frontmatter `name` — a payload
-    // with `name: null` would otherwise strip the registration field. Existing
-    // files that lack it also get it backfilled so later lookups resolve.
-    if (typeof mdData.frontmatter.name !== 'string') {
+    // Only a new built-in override requires an explicit registration name.
+    // Existing files preserve their original frontmatter verbatim.
+    if (creatingNewMd && typeof mdData.frontmatter.name !== 'string') {
       mdData.frontmatter.name = agentName;
       mdModified = true;
     }
