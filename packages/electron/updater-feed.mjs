@@ -1,5 +1,3 @@
-import fs from 'node:fs';
-
 export const PRODUCTION_UPDATER_FEED = Object.freeze({
   provider: 'github',
   owner: 'gest0r1',

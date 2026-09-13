@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import {
   CONFIG_FILE,
+  RUNTIME_AGENT_DIR,
   AGENT_SCOPE,
   ensureDirs,
   getAgentDirectoryRoots,
@@ -271,7 +272,14 @@ function getAgentCategory(agentName, config = {}) {
 function getUserAgentWritePath(agentName, config = {}, lookupCache = null) {
   const existing = getUserAgentPath(agentName, lookupCache);
   if (fs.existsSync(existing)) return existing;
-  return path.join(getAgentDirectoryRoots()[0], getAgentCategory(agentName, config), `${agentName}.md`);
+
+  const [primaryRoot] = getAgentDirectoryRoots();
+  // XDG configuration stores legacy user agents flat; the runtime root uses
+  // OpenCode's categorized layout.
+  if (primaryRoot !== RUNTIME_AGENT_DIR) {
+    return path.join(primaryRoot, `${agentName}.md`);
+  }
+  return path.join(primaryRoot, getAgentCategory(agentName, config), `${agentName}.md`);
 }
 
 /**
@@ -553,12 +561,6 @@ function updateAgent(agentName, updates, workingDirectory) {
 
   let mdData = mdExists ? parseMdFile(mdPath) : (isBuiltinOverride ? { frontmatter: {}, body: '' } : null);
 
-  if (mdData && typeof mdData.frontmatter.name !== 'string') {
-    // Register the agent under its display name like createAgent does, so the
-    // runtime keys it by `name` instead of the raw basename. Applies to both
-    // fresh overrides and pre-existing files that lost their `name` field.
-    mdData.frontmatter.name = agentName;
-  }
 
   let mdModified = false;
   let jsonModified = false;
@@ -732,10 +734,9 @@ function updateAgent(agentName, updates, workingDirectory) {
   }
 
   if (mdModified && mdData) {
-    // Fresh override files must keep their frontmatter `name` — a payload
-    // with `name: null` would otherwise strip the registration field. Existing
-    // files that lack it also get it backfilled so later lookups resolve.
-    if (typeof mdData.frontmatter.name !== 'string') {
+    // Only a new built-in override requires an explicit registration name.
+    // Existing files preserve their original frontmatter verbatim.
+    if (creatingNewMd && typeof mdData.frontmatter.name !== 'string') {
       mdData.frontmatter.name = agentName;
       mdModified = true;
     }

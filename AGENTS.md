@@ -42,7 +42,7 @@ Shared contracts must define intentional behavior for every applicable runtime: 
 - Do not add dependencies unless explicitly requested.
 - Never add or log secrets, bearer tokens, pairing credentials, or sensitive user data.
 - Keep changes minimal and preserve unrelated worktree changes.
-- `CHANGELOG.md` and `packages/vscode/CHANGELOG.md` are the maintainer's release-time work: they get written once, as one story, when the maintainer asks to update the changelog. Until that request, treat both files as read-only — a fix, feature, or merged PR lands without a changelog line.
+- Release notes are the maintainer's release-time work: they get written once, as one story, in `changelog/unreleased.md` when the maintainer asks to update the changelog. Until that request, treat `changelog/` as read-only — a fix, feature, or merged PR lands without a changelog line. `packages/vscode/CHANGELOG.md` and `changelog/index.json` are generated from `changelog/*.md` by `oc-dev create-release`, and `CHANGELOG.md` is a legacy copy for older installs: never edit or regenerate any of them; an agent's only changelog output is `changelog/unreleased.md`.
 - Enforce security and correctness in core/runtime logic, not only UI visibility or prompts.
 - Keep entrypoints and bridges thin; place domain logic in focused owning modules.
 - Update owning documentation when module ownership, contracts, or invariants change.
@@ -101,7 +101,7 @@ process violation.
 | Settings UI, settings dialogs, configuration surfaces, or settings search | `settings-ui-patterns` |
 | Sortable or drag-to-reorder behavior, especially `@dnd-kit` and touch/wrapping layouts | `drag-to-reorder` |
 | iOS Simulator build, launch, preview, gestures, or `serve-sim` control | `serve-sim` |
-| The maintainer explicitly asks to update the changelog (main app or VS Code extension) — the only time either CHANGELOG is edited | `changelog-authoring` |
+| The maintainer explicitly asks to update the changelog (main app or VS Code extension) — the only time `changelog/unreleased.md` is edited | `update-changelog` |
 | Creating or editing skills, `AGENTS.md`, or docs reached through agent instructions/context pointers | `writing-for-agents` |
 | Reviewing a single pull request or drafting a PR verdict/close/review comment | `pr-review` |
 | Triaging, cleaning up, or batch-processing the open PR queue | `triage-prs` |
@@ -146,117 +146,3 @@ Before creating or updating a pull request, read `CONTRIBUTING.md` and
 current evidence for the final PR HEAD; do not make the reviewer reconstruct
 intent, affected surfaces, applicable guidance, validation, visual behavior,
 or failure and rollback considerations from the diff alone.
-
-<!-- ===== Fork-specific sections (openchamber-ru) ===== -->
-
-## Tool timeout policy
-
-- `git rebase` / `git filter-branch` with >20 commits: **timeout 300000ms** (prefer `git reset --hard upstream/main` + `git rm` over filter-branch — tree-filter runs a shell per commit and times out on 80+ commits)
-- `bun run build` / `bun run build:web`: **timeout 300000ms** (normal build takes 2–3min)
-- Before any git operation, check `.git/index.lock` exists; if so, check for stale git process and kill before proceeding
-- `systemctl --user <action> <unit>`: always run `daemon-reload` first if the unit file was changed
-
-## Fork sync & deployment
-
-### Fork update strategy (merge)
-
-Обновление форка из upstream — **merge**, не reset --hard. Подход сохранён в памяти агента (`project.sync/openchamber`):
-
-```bash
-# 1. Забрать upstream
-git fetch upstream main
-
-# 2. Merge
-git merge upstream/main
-
-# 3. Разрешить конфликты: retain fork patches + merge upstream changes
-#    - fork URLs (electron) → retain ours (gest0r1/openchamber-ru)
-#    - workflows, удалённые форком → keep deleted (нет workflow scope)
-#    - новые i18n ключи → enDict fallback или перевод
-#    - AGENTS.md → merge both
-
-# 4. Валидация: bun run type-check, bun run lint, i18n parity test, web build (~3 мин)
-
-# 5. Commit merge. Push — только после отдельного подтверждения.
-```
-
-**Никогда:** force push, reset --hard, auto-fix на упавших тестах.
-
-**Workflow файлы (situational):** если upstream добавил workflow файлы, которых нет в origin — push упадёт (токен без workflow scope). Решение: `git rm` новых файлов или восстановить версию из origin (`git checkout origin/main -- <file>`). Каждый случай согласовывать.
-
-### systemd service
-
-```bash
-# После изменения юнит-файла (например, WorkingDirectory):
-systemctl --user daemon-reload       # обязательно!
-systemctl --user restart openchamber.service
-systemctl --user status openchamber.service  # проверить, нет ли Error: ENOENT
-```
-
-Автостарт уже включён (`preset: enabled`), переключать не нужно.
-
-Порт: `4099`, хост: `10.0.10.66`.
-
-### Build
-
-```bash
-# Если не хватает зависимостей (cron-parser и т.п.):
-~/.bun/bin/bun add <package>
-
-# Сборка web
-~/.bun/bin/bun run --cwd packages/web build
-# timeout ~300s, нормально 2–3 минуты
-```
-
-## Fork configuration diff
-
-Список всех изменений в форке относительно upstream (`upstream/main..origin/main`).
-
-Актуальный sync: **upstream v1.22.0 (merge 2026-09-03)**. После sync форк находится на 20 собственных коммитов впереди upstream tag; дельта проверяется через `git diff v1.22.0..main`/GitHub compare, а не по строке версии пакета.
-
-### Конфигурация
-
-| Файл | Изменение | Причина |
-|---|---|---|
-| `package.json` | `cron-parser ^5.6.1` | Зависимость scheduled-tasks |
-| `bun.lock` | `cron-parser`, `luxon`, `adm-zip` (GHSA-xcpc-8h2w-3j85) | Security-фикс + lockfile |
-| `.github/workflows/label-merge-conflict.yml`, `opencode-smoke.yml` | Удалены | Нет `workflow` scope у GitHub-токена |
-| `.github/workflows/release-desktop-win.yml` | Добавлен (форк) | Windows x64 release: build web assets, prepare/verify bundled OpenCode CLI, package NSIS, verify packaged CLI, publish release |
-| `packages/electron/package.json` | `build.publish` → `gest0r1/openchamber-ru`; NSIS `oneClick: false` + ярлыки | electron-updater на форк; Windows-инсталлер |
-| `packages/electron/main.mjs` | URL (CHANGELOG, bug/feature report) → `gest0r1/openchamber-ru` | runtime auto-updater feed на форк |
-| `packages/electron/updater-feed.mjs` | `owner: gest0r1`, `repo: openchamber-ru` | PRODUCTION_UPDATER_FEED на форк |
-
-### Русская локаль
-
-- `packages/ui/src/lib/i18n/messages/ru.ts` — полный перевод UI (новые ключи апстрима покрыты `...enDict` fallback)
-- `packages/ui/src/lib/i18n/messages/ru.settings.ts` — перевод Settings
-- `packages/ui/src/lib/i18n/bootstrap.ts` — русские bootstrap-сообщения
-- `packages/ui/src/lib/i18n/runtime.ts` — добавлен `ru` в `Locale`, `LOCALES`, `LOCALE_LABEL_KEYS`, `normalizeLocale`
-- `packages/ui/src/lib/i18n/intl.ts` — `ru`→`ru-RU`
-- `packages/ui/src/lib/i18n/store.ts` — динамический import русского словаря
-- `packages/ui/src/lib/i18n/messages/en.ts` и остальные upstream-словари — добавлен `common.language.russian` для выбора русского языка
-
-### OpenCode agent/runtime fixes
-
-| Файл | Изменение |
-|---|---|
-| `packages/web/server/lib/opencode/agents.js`, `shared.js` | Fork-specific reconciliation/agent runtime fixes retained after upstream v1.22.0 sync |
-| `packages/ui/src/stores/useAgentsStore.ts`, `messageQueueStore.test.ts` | UI/store compatibility for fork agent behavior |
-
-### PWA/Mobile
-
-| Файл | Изменение |
-|---|---|
-| `MobileApp.tsx` | Добавлены скрытые страницы Settings: `snippets`, `projects`, `remote-instances`, `agents`, `commands`, `plugins`, `skills.installed`, `skills.catalog`, `tunnel` |
-
-### Документация
-
-| Файл | Изменение |
-|---|---|
-| `AGENTS.md` | Tool timeout policy, fork sync & deployment guide, systemd service, build notes, fork configuration diff |
-
-## Documentation rules
-
-1. **После каждого изменения в fork — вносить изменения в документацию.** Обновить AGENTS.md или профильный .md файл.
-2. **Перед каждым изменением — проверять непротиворечивость.** Прочитать существующую документацию, проверить, не противоречит ли новое изменение существующим записям.
-3. **Документация должна отражать текущее состояние форка.** Все конфигурационные отличия от upstream должны быть описаны.

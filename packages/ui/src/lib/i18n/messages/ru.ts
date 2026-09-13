@@ -1,7 +1,7 @@
 import { dict as enDict, type I18nKey } from './en';
 import { settingsDict } from './ru.settings';
 
-export const dict: Record<I18nKey, string> = {
+export const dict: Record<I18nKey, string> & Record<string, string> = {
   ...enDict,
   ...settingsDict,
   "common.loading": "Загрузка...",

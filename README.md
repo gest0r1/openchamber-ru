@@ -7,9 +7,9 @@
 
 ## Run agent work. Keep control. Ship from anywhere.
 
-**OpenChamber is an open-source workspace for running, supervising, and reviewing AI coding work across desktop, browser, editor, and mobile.**
+**OpenChamber is an open-source workspace for running and reviewing AI coding work on desktop, web, VS Code, and mobile.**
 
-OpenChamber gives you one place to direct agent work, understand the changes, and move them toward release. Your projects stay available when you switch devices or step away.
+Start agent work, see what changed, and take it through review and release. Your projects and sessions remain available when you switch devices or step away.
 
 ![OpenChamber Chat](docs/references/chat_example.png)
 
@@ -29,7 +29,7 @@ OpenChamber gives you one place to direct agent work, understand the changes, an
 
 ### Goals that continue on their own
 
-Give a session a finish line with **Session Goals**. OpenChamber checks the result after every turn and keeps the agent working until the goal is complete, blocked, or reaches the limit you set — even after you close the app.
+Give a session a finish line with **Session Goals**. OpenChamber checks the result after every turn and keeps the agent working until it completes the goal, gets blocked, or reaches the limit you set. It can continue after you close the app.
 
 ### Compare and combine runs
 
@@ -41,7 +41,7 @@ Use **Multi-run** to give the same task to up to five models, each in its own se
 
 ### Inspect a running app
 
-Open your app beside the conversation with **Preview**. Point at an element and send the agent its screenshot, styles, position, and browser errors — all the context behind “this thing here.” Desktop brings the same workflow to any web page through its built-in browser.
+Open your app beside the conversation with **Preview**. Point at an element to send the agent its screenshot, styles, position, and browser errors. No more trying to explain "this thing here." The desktop app can do the same with any web page in its built-in browser.
 
 ### GitHub context from issue to pull request
 
@@ -75,7 +75,7 @@ Run a prompt once, daily, weekly, or on a cron schedule. Scheduled tasks can use
 
 ## Quick start
 
-### Desktop — macOS, Windows, and Linux
+### Desktop for macOS, Windows, and Linux
 
 Download the latest release from [GitHub Releases](https://github.com/openchamber/openchamber/releases/latest). Desktop bundles the matching OpenCode CLI, so no separate OpenCode installation is required.
 
@@ -90,9 +90,9 @@ Linux AppImages require FUSE (`libfuse.so.2`). Without FUSE, run with `APPIMAGE_
 
 ### VS Code
 
-Install [OpenChamber from the Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=fedaykindev.openchamber), or search for “OpenChamber” in Extensions.
+Install [OpenChamber from the Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=fedaykindev.openchamber), or search for "OpenChamber" in Extensions.
 
-### CLI — Web and PWA
+### CLI for Web and PWA
 
 Requires Node.js 22+. CLI/Web and VS Code use your installed [OpenCode CLI](https://opencode.ai).
 
@@ -115,121 +115,6 @@ openchamber update
 
 OpenChamber binds to localhost by default. Use `--lan` only on a trusted network and protect browser access with `--ui-password`.
 
-## gest0r1 fork: установка на сервер и обновление
-
-Для этого fork каноническая схема отличается от upstream: разработка ведётся в `gest0r1/openchamber-ru`, а сервер получает только runtime-сборку. Постоянный git clone на сервере не хранится.
-
-Bootstrap находится в приватном `gest0r1/my-opencode` и устанавливает всю связку:
-
-```bash
-gh api -H "Accept: application/vnd.github.raw" repos/gest0r1/my-opencode/contents/install-openchamber.sh | bash
-```
-
-Схема:
-
-```text
-разработка в gest0r1/openchamber-ru
-        ↓
-git commit / git push
-        ↓
-GitHub main
-        ↓
-install-openchamber.sh
-        ↓
-snapshot → bun install → build:web → npm pack → global runtime install
-```
-
-### Единая конфигурация OpenCode для CLI и OpenChamber
-
-LLM credentials не дублируются в env. OpenCode Go / Zen / OpenAI OAuth настраиваются через:
-
-```bash
-opencode auth login
-opencode auth list
-```
-
-Каноническое хранилище credentials:
-
-```text
-~/.local/share/opencode/auth.json
-```
-
-Общие MCP/интеграционные переменные находятся в одном файле:
-
-```text
-~/.config/opencode.env
-```
-
-Bootstrap настраивает оба способа запуска на один источник:
-
-```text
-~/.local/share/opencode/auth.json
-              │
-      ┌───────┴────────┐
-      │                │
-  opencode CLI     OpenChamber
-      │                │
-      └── ~/.config/opencode.env
-```
-
-Legacy `~/.config/opencode-web.env` больше не используется: bootstrap мигрирует его в `opencode.env` и удаляет старый файл. `OPENAI_API_KEY` и `OPENCODE_API_KEY` при миграции удаляются из env, чтобы не перекрывать `auth.json`.
-
-### Автозагрузка
-
-Наш `/usr/local/bin/openchamber` автоматически добавляет `--no-env-snapshot` к `openchamber startup enable`. Поэтому штатный OpenChamber `startup.env` не становится второй копией общего окружения. Systemd получает `~/.config/opencode.env` через drop-in, создаваемый bootstrap.
-
-Пример безопасного запуска только на Docker bridge:
-
-```bash
-openchamber startup enable \
-  --host <DOCKER_BRIDGE_IP> \
-  --port 3000 \
-  --ui-password '<password>'
-```
-
-Для root-сервиса после reboot:
-
-```bash
-loginctl enable-linger root
-```
-
-### Обновление
-
-После push изменений в `gest0r1/openchamber-ru` на сервере повторно запускается та же команда:
-
-```bash
-gh api -H "Accept: application/vnd.github.raw" repos/gest0r1/my-opencode/contents/install-openchamber.sh | bash
-```
-
-Она скачивает актуальный `main`, пересобирает fork, заменяет установленный runtime-пакет и обновляет launchers/systemd-интеграцию.
-
-> Для fork **не использовать `openchamber update` как основной механизм обновления**. Встроенный updater ориентирован на официальный пакет `@openchamber/web` и upstream. Канонический update fork — повторный запуск `install-openchamber.sh`.
-
-### Порт
-
-CLI по умолчанию использует порт **3000**.
-
-```bash
-openchamber --ui-password '<password>'
-```
-
-Другой порт задаётся параметром `--port` или `-p`:
-
-```bash
-openchamber --port 3001 --ui-password '<password>'
-# или
-openchamber -p 3001 --ui-password '<password>'
-```
-
-`--port` меняет только порт. По умолчанию OpenChamber остаётся привязан к localhost; сетевое опубликование на LAN/внешний интерфейс настраивается отдельно.
-
-Проверка установленной версии:
-
-```bash
-opencode --version
-openchamber --version
-```
-
 ## Guides
 
 Go deeper with the OpenChamber guides:
@@ -251,9 +136,9 @@ For self-hosting details, see the [reverse proxy guide](docs/REVERSE_PROXY.md). 
 
 ## Why OpenCode?
 
-OpenChamber uses [OpenCode](https://opencode.ai) to power its coding agents. We chose it because we believe it provides the best open-source agentic coding experience today: capable, extensible, and open by design.
+OpenChamber uses [OpenCode](https://opencode.ai) to run coding agents. We chose it because it is open source, has a solid API, and is easy to extend.
 
-Around that foundation, OpenChamber brings together the work that happens before, during, and after an agent run — deciding what to try, keeping it on track, reviewing the result, connecting from anywhere, and getting the change shipped.
+OpenChamber handles the rest of the workflow. You can decide what to try, keep the agent on track, review the result, connect from another device, and ship the change.
 
 OpenChamber is an independent project and is not affiliated with the OpenCode team.
 
@@ -265,11 +150,11 @@ See [CONTRIBUTING.md](./CONTRIBUTING.md) for development setup and contribution 
 
 Special thanks to:
 
-- [OpenCode](https://opencode.ai) for its excellent API and extensible open-source architecture
-- [Pierre](https://pierrejs-docs.vercel.app/) for its fast diff viewer and syntax highlighting
-- [Ghostty-web](https://github.com/coder/ghostty-web) for its Ghostty web renderer
+- [OpenCode](https://opencode.ai) for the API and open-source architecture OpenChamber builds on
+- [Pierre](https://pierrejs-docs.vercel.app/) for the diff viewer and syntax highlighting
+- The [T3 Code](https://github.com/pingdotgg/t3code) team for their browser adapter for [libghostty-vt](https://github.com/ghostty-org/ghostty), which our terminal is built on
 - [Yulia Ivashko](https://github.com/yulia-ivashko), who built the firework celebration that plays on every successful push
-- Every contributor who shaped OpenChamber with code, ideas, and attention to detail
+- Everyone who contributed code, reported bugs, or shared ideas
 
 ## License
 

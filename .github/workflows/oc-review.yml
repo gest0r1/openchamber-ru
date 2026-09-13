@@ -4,6 +4,10 @@ on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
 
+permissions:
+  contents: read
+  pull-requests: write
+
 jobs:
   checks:
     runs-on: ubuntu-latest
@@ -32,8 +36,32 @@ jobs:
       - name: Lint
         run: bun run lint
 
+      - name: Changelog outputs match their sources
+        run: bun run changelog:check
+
       - name: Tests
-        run: bun run test
+        id: tests
+        shell: bash
+        run: |
+          set +e
+          bun run test 2>&1 | tee /tmp/openchamber-tests.log
+          status=${PIPESTATUS[0]}
+          exit "$status"
+
+      - name: Report test failure
+        if: failure() && steps.tests.outcome == 'failure'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          {
+            echo 'Tests failed on `${{ github.sha }}`. Last 180 log lines:'
+            echo
+            echo '```text'
+            tail -n 180 /tmp/openchamber-tests.log
+            echo '```'
+          } > /tmp/openchamber-tests-comment.md
+          gh pr comment "${{ github.event.pull_request.number }}" --body-file /tmp/openchamber-tests-comment.md
 
       - name: Electron Linux packaging unit tests
         working-directory: packages/electron

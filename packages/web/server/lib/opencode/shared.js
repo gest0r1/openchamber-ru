@@ -13,7 +13,10 @@ function resolveOpenChamberHome() {
   return process.env.OPENCHAMBER_HOME || os.homedir();
 }
 
-const OPENCODE_CONFIG_DIR = path.join(os.homedir(), '.config', 'opencode');
+const OPENCODE_CONFIG_DIR = path.join(
+  process.env.XDG_CONFIG_HOME?.trim() || path.join(resolveOpenChamberHome(), '.config'),
+  'opencode',
+);
 // Legacy user agent dir — kept as fallback for agents created before the
 // runtime dir existed. New user agents are written to the runtime dir.
 const AGENT_DIR = path.join(OPENCODE_CONFIG_DIR, 'agents');
@@ -45,14 +48,12 @@ const SKILL_SCOPE = {
 // ============== DIRECTORY OPERATIONS ==============
 
 function ensureDirs() {
-  const home = resolveOpenChamberHome();
-  const configDir = path.join(home, '.config', 'opencode');
   const dirs = [
-    configDir,
-    path.join(configDir, 'agents'),
-    path.join(home, '.opencode', 'agent'),
-    path.join(configDir, 'commands'),
-    path.join(configDir, 'skills'),
+    OPENCODE_CONFIG_DIR,
+    AGENT_DIR,
+    RUNTIME_AGENT_DIR,
+    COMMAND_DIR,
+    SKILL_DIR,
   ];
   for (const dir of dirs) {
     if (!fs.existsSync(dir)) {
@@ -67,12 +68,16 @@ function ensureDirs() {
  * same file the OpenCode binary reads is the one we resolve.
  */
 function getAgentDirectoryRoots() {
-  const home = resolveOpenChamberHome();
-  return [
-    path.join(home, '.opencode', 'agent'),
-    path.join(home, '.config', 'opencode', 'agents'),
-    path.join(home, '.config', 'opencode', 'agent'),
+  const configRoots = [
+    AGENT_DIR,
+    path.join(OPENCODE_CONFIG_DIR, 'agent'),
   ];
+
+  // An explicit XDG_CONFIG_HOME requests isolated/config-rooted global CRUD.
+  // Otherwise keep the OpenCode runtime directory as the primary user root.
+  return process.env.XDG_CONFIG_HOME?.trim()
+    ? [...configRoots, RUNTIME_AGENT_DIR]
+    : [RUNTIME_AGENT_DIR, ...configRoots];
 }
 
 // ============== MARKDOWN FILE OPERATIONS ==============
@@ -172,7 +177,7 @@ function getProjectConfigPath(workingDirectory) {
 }
 
 function getConfigPaths(workingDirectory) {
-  const configDir = path.join(resolveOpenChamberHome(), '.config', 'opencode');
+  const configDir = OPENCODE_CONFIG_DIR;
   return {
     userPaths: [
       path.join(configDir, 'config.json'),
@@ -194,7 +199,7 @@ function getPrimaryUserConfigPath(userPaths) {
     }
   }
 
-  return path.join(resolveOpenChamberHome(), '.config', 'opencode', 'config.json');
+  return CONFIG_FILE;
 }
 
 const INVALID_JSONC = 'INVALID_JSONC';
