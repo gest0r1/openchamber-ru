@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import {
   CONFIG_FILE,
+  RUNTIME_AGENT_DIR,
   AGENT_SCOPE,
   ensureDirs,
   getAgentDirectoryRoots,
