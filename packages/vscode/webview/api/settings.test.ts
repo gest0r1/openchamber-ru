@@ -3,6 +3,14 @@ import assert from 'node:assert/strict';
 
 type BridgeRequest = { id: string; type: string };
 
+const nextBridgeRequest = (messages: BridgeRequest[]): BridgeRequest | undefined => {
+  while (messages.length > 0) {
+    const message = messages.shift();
+    if (message?.id) return message;
+  }
+  return undefined;
+};
+
 describe('VS Code webview settings API', () => {
   test('propagates a failed bridge read and retries successfully', async () => {
     const originalWindow = globalThis.window;
@@ -31,7 +39,7 @@ describe('VS Code webview settings API', () => {
       const api = createVSCodeSettingsAPI();
 
       const failedLoad = api.load();
-      const failedRequest = messages.shift();
+      const failedRequest = nextBridgeRequest(messages);
       assert.ok(failedRequest);
       testWindow.dispatchEvent(new MessageEvent('message', {
         data: {
@@ -44,7 +52,7 @@ describe('VS Code webview settings API', () => {
       await assert.rejects(failedLoad, /settings unavailable/);
 
       const successfulLoad = api.load();
-      const successfulRequest = messages.shift();
+      const successfulRequest = nextBridgeRequest(messages);
       assert.ok(successfulRequest);
       testWindow.dispatchEvent(new MessageEvent('message', {
         data: {
