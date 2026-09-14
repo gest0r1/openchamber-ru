@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Install the latest signed Windows installer published by this fork.
-# Usage: curl -fsSL https://raw.githubusercontent.com/gest0r1/openchamber-ru/main/scripts/install.sh | bash
+# Usage: curl -fsSL https://raw.githubusercontent.com/gest0r1/openchamber-ru/main/scripts/install_win.sh | bash
 
 set -euo pipefail
 
