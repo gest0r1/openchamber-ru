@@ -51,7 +51,7 @@ jobs:
           cp -a packages/web/package.json packages/web/server packages/web/bin packages/web/public packages/web/dist bundle/package/
           (
             cd bundle/package
-            npm install --omit=dev --package-lock=false
+            bun install --production
           )
           tar -C bundle -czf "$ASSET" package
           sha256sum "$ASSET" | awk '{print $1}' > "$ASSET.sha256"
