@@ -87,7 +87,7 @@
   }
 
   .wide-chat-layout .chat-column {
-    width: min(100%, 64rem);
+    width: min(100%, 80rem);
   }
 
   .chat-input-column {
@@ -97,7 +97,7 @@
   }
 
   .wide-chat-layout .chat-input-column {
-    width: min(100%, 64rem);
+    width: min(100%, 80rem);
   }
 
   .chat-message-column {
@@ -107,7 +107,7 @@
   }
 
   .wide-chat-layout .chat-message-column {
-    width: min(100%, 64rem);
+    width: min(100%, 80rem);
   }
 
   @media (min-width: 1024px) {
@@ -227,5 +227,5 @@
 }
 
 .wide-chat-layout .chat-message-column {
-  width: min(100%, 64rem);
+  width: min(100%, 80rem);
 }
