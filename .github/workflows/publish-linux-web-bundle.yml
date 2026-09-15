@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - 'packages/web/**'
+      - 'packages/ui/**'
       - 'package.json'
       - 'bun.lock'
       - '.github/workflows/publish-linux-web-bundle.yml'

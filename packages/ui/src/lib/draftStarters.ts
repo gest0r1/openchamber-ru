@@ -38,10 +38,17 @@ const BUILTIN_BY_NAME = new Map<string, BuiltInStarter>(BUILTIN_STARTERS.map((s)
 export const getBuiltInStarter = (name: string): BuiltInStarter | undefined => BUILTIN_BY_NAME.get(name);
 
 // Default global starter set (used until the user customizes the global list).
-export const DEFAULT_GLOBAL_STARTERS: readonly DraftStarterRef[] = BUILTIN_STARTERS.map((s) => ({
-    type: 'command' as const,
-    name: s.name,
-}));
+// `pipeline` is deliberately not a built-in Magic Prompt: it resolves only when
+// the installed OpenCode distribution actually exposes the /pipeline command.
+// That keeps stock OpenChamber behavior unchanged while making the pipeline a
+// one-click entry point for my-opencode installations.
+export const DEFAULT_GLOBAL_STARTERS: readonly DraftStarterRef[] = [
+    { type: 'command', name: 'pipeline' },
+    ...BUILTIN_STARTERS.map((s) => ({
+        type: 'command' as const,
+        name: s.name,
+    })),
+];
 
 // Fallback icons for user-defined starters, matching the Settings sections.
 export const COMMAND_FALLBACK_ICON: IconName = 'terminal-box';
