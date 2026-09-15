@@ -64,15 +64,16 @@ jobs:
         run: |
           node - <<'NODE'
           const fs = require('node:fs');
-          const value = {
+          const asset = process.env.ASSET;
+          const manifest = {
             schema_version: 1,
             platform: 'linux-x64',
             source_sha: process.env.SOURCE_SHA,
             repository: process.env.REPOSITORY,
-            asset: process.env.ASSET,
-            sha256: fs.readFileSync(`${process.env.ASSET}.sha256`, 'utf8').trim(),
+            asset,
+            sha256: fs.readFileSync(`${asset}.sha256`, 'utf8').trim(),
           };
-          fs.writeFileSync(process.env.MANIFEST, `${JSON.stringify(value, null, 2)}\n`);
+          fs.writeFileSync(process.env.MANIFEST, `${JSON.stringify(manifest, null, 2)}\n`);
           NODE
 
       - name: Publish bundle to the fork release channel
