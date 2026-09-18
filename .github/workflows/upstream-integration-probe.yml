@@ -1,0 +1,71 @@
+name: Upstream integration preflight
+
+on:
+  push:
+    branches:
+      - integration/upstream-2026-09-18
+    paths:
+      - .github/workflows/upstream-integration-probe.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 90
+    env:
+      UPSTREAM_SHA: 01af9bb1bf99eb7647c5366d7675195f319f81c8
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Probe upstream merge without updating repository
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          git config user.name 'Upstream Integration Probe'
+          git config user.email 'integration-probe@users.noreply.github.com'
+          printf 'Fork SHA: %s\nUpstream SHA: %s\n' "$(git rev-parse HEAD)" "$UPSTREAM_SHA" > upstream-probe.txt
+          git fetch --no-tags https://github.com/openchamber/openchamber.git "$UPSTREAM_SHA"
+          if git merge --no-commit --no-ff FETCH_HEAD >>upstream-probe.txt 2>&1; then
+            echo 'MERGE: CLEAN (NOT COMMITTED)' | tee -a upstream-probe.txt
+            git diff --cached --stat >>upstream-probe.txt
+          else
+            echo 'MERGE: CONFLICT — repository has NOT been updated' | tee -a upstream-probe.txt
+            git diff --name-only --diff-filter=U | tee -a upstream-probe.txt
+            exit 1
+          fi
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: '1.4.2'
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: '22'
+      - name: Install merged workspace with frozen lockfile
+        run: bun install --frozen-lockfile
+      - name: Build merged web and SDK
+        run: |
+          set -Eeuo pipefail
+          bun run --cwd packages/sdk build
+          bun run extensions:build
+          bun run build:web
+      - name: Run agent-tool regression and SDK tests
+        run: |
+          set -Eeuo pipefail
+          bun run --cwd packages/sdk test
+          bunx vitest run packages/web/server/lib/agent-tool/runtime.test.js
+      - name: Report preflight outcome
+        if: always()
+        run: |
+          echo 'This workflow probes a disposable checkout only. No branch is merged or pushed and no distributable is published.' >> "$GITHUB_STEP_SUMMARY"
+          if test -f upstream-probe.txt; then cat upstream-probe.txt >> "$GITHUB_STEP_SUMMARY"; fi
+      - name: Upload merge diagnostics
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: upstream-integration-probe
+          path: upstream-probe.txt
+          if-no-files-found: warn
