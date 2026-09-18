@@ -4,8 +4,6 @@ on:
   push:
     branches:
       - integration/upstream-2026-09-18
-    paths:
-      - .github/workflows/upstream-integration-probe.yml
   workflow_dispatch:
 
 permissions:
@@ -56,7 +54,8 @@ jobs:
         run: |
           set -Eeuo pipefail
           bun run --cwd packages/sdk test
-          bunx vitest run packages/web/server/lib/agent-tool/runtime.test.js
+          cd packages/web
+          bunx vitest run server/lib/agent-tool/runtime.test.js
       - name: Report preflight outcome
         if: always()
         run: |
