@@ -34,15 +34,21 @@ jobs:
           bun install --frozen-lockfile --ignore-scripts
           bun run --cwd packages/sdk build
           bun run build:web
-      - name: Package workspace production dependencies, SDK and exact OpenCode
+      - name: Verify SDK version contract before packing
         shell: bash
         run: |
           set -Eeuo pipefail
-          ASSET="openchamber-integration-linux-x64-${GITHUB_SHA}.tar.gz"
-          MANIFEST="openchamber-integration-linux-x64-${GITHUB_SHA}.json"
-          VERSION="$(node -p "require('./package.json').dependencies['@opencode-ai/sdk']")"
-          WEB_VERSION="$(node -p "require('./packages/web/package.json').dependencies['@opencode-ai/sdk']")"
-          [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ && "$VERSION" == "$WEB_VERSION" ]]
+          root="$(node -p 'require("./package.json").dependencies["@opencode-ai/sdk"]')"
+          web="$(node -p 'require("./packages/web/package.json").dependencies["@opencode-ai/sdk"]')"
+          if [[ ! "$root" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ || "$root" != "$web" ]]; then
+            echo "::error::OpenCode SDK mismatch: root=$root web=$web"
+            exit 1
+          fi
+          echo "OPENCODE_VERSION=$root" >> "$GITHUB_ENV"
+      - name: Stage workspace manifests and built assets
+        shell: bash
+        run: |
+          set -Eeuo pipefail
           stage=bundle/package
           mkdir -p "$stage/packages/web" "$stage/packages/sdk" "$stage/opencode-cli"
           cp package.json bun.lock "$stage/"
@@ -54,27 +60,45 @@ jobs:
           done
           cp -a packages/web/server packages/web/bin packages/web/public packages/web/dist "$stage/packages/web/"
           cp -a packages/sdk/dist "$stage/packages/sdk/"
-          (
-            cd "$stage"
-            bun install --production --frozen-lockfile --ignore-scripts
-          )
-          npm install --prefix "$stage/opencode-cli" --no-save --omit=dev --no-audit --no-fund "opencode-ai@${VERSION}"
-          [[ "$("$stage/opencode-cli/node_modules/.bin/opencode" --version)" == "$VERSION" ]]
-          (
-            cd "$stage"
-            node --input-type=module -e "import('@openchamber/sdk').then(() => console.log('SDK import OK'))"
-            node packages/web/bin/cli.js --version
-          )
-          tar -C bundle -czf "$ASSET" package
-          SHA256="$(sha256sum "$ASSET" | cut -d ' ' -f1)"
-          SOURCE_SHA="$GITHUB_SHA" ASSET="$ASSET" SHA256="$SHA256" OPENCODE_VERSION="$VERSION" MANIFEST="$MANIFEST" node - <<'NODE'
+          test -f "$stage/packages/sdk/dist/index.js" || { echo '::error::Missing built SDK'; exit 1; }
+      - name: Install frozen production dependencies inside staged workspace
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          cd bundle/package
+          bun install --production --frozen-lockfile --ignore-scripts || { echo '::error::Staged workspace production install failed'; exit 1; }
+      - name: Install exact OpenCode CLI into staged distribution
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          stage=bundle/package
+          npm install --prefix "$stage/opencode-cli" --no-save --omit=dev --no-audit --no-fund "opencode-ai@${OPENCODE_VERSION}" || { echo '::error::Pinned OpenCode npm installation failed'; exit 1; }
+          installed="$("$stage/opencode-cli/node_modules/.bin/opencode" --version)"
+          if [[ "$installed" != "$OPENCODE_VERSION" ]]; then
+            echo "::error::OpenCode mismatch: requested=${OPENCODE_VERSION} installed=$installed"
+            exit 1
+          fi
+      - name: Smoke test staged SDK and OpenChamber CLI without source dependencies
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          cd bundle/package
+          node --input-type=module -e "import('@openchamber/sdk').then(() => console.log('SDK import OK'))" || { echo '::error::Staged SDK failed to import'; exit 1; }
+          node packages/web/bin/cli.js --version || { echo '::error::Staged OpenChamber CLI failed'; exit 1; }
+      - name: Archive package and create source SHA / checksum manifest
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          asset="openchamber-integration-linux-x64-${GITHUB_SHA}.tar.gz"
+          manifest="openchamber-integration-linux-x64-${GITHUB_SHA}.json"
+          tar -C bundle -czf "$asset" package
+          sha="$(sha256sum "$asset" | cut -d ' ' -f1)"
+          SOURCE_SHA="$GITHUB_SHA" ASSET="$asset" SHA256="$sha" OPENCODE_VERSION="$OPENCODE_VERSION" MANIFEST="$manifest" node - <<'NODE'
           const fs = require('node:fs');
           const m = {schema_version:2,platform:'linux-x64',source_sha:process.env.SOURCE_SHA,repository:process.env.GITHUB_REPOSITORY,asset:process.env.ASSET,sha256:process.env.SHA256,opencode_version:process.env.OPENCODE_VERSION};
           fs.writeFileSync(process.env.MANIFEST, JSON.stringify(m,null,2)+'\n');
           NODE
           cp scripts/install-linux-integration-bundle.sh install-linux-integration-bundle.sh
-          printf 'asset=%s\n' "$ASSET" >> "$GITHUB_OUTPUT"
-          printf 'manifest=%s\n' "$MANIFEST" >> "$GITHUB_OUTPUT"
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: linux-integration-${{ github.sha }}
