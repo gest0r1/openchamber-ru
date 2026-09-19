@@ -1,0 +1,47 @@
+name: Integration Docker delivery smoke
+
+on:
+  push:
+    branches:
+      - integration/upstream-2026-09-18
+    paths:
+      - Dockerfile
+      - package.json
+      - bun.lock
+      - packages/web/package.json
+      - packages/sdk/package.json
+      - .github/workflows/integration-docker-smoke.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  docker-build-and-verify:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - name: Verify pinned upstream is included
+        run: |
+          set -Eeuo pipefail
+          git merge-base --is-ancestor 01af9bb1bf99eb7647c5366d7675195f319f81c8 HEAD
+      - name: Build image from this exact checkout
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          docker build --tag "openchamber-integration:${GITHUB_SHA}" .
+      - name: Verify CLI, both SDKs, and built server inside delivered image
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          docker run --rm --entrypoint sh "openchamber-integration:${GITHUB_SHA}" -ec '
+            sdk_version=$(node -p "require(\"./package.json\").dependencies[\"@opencode-ai/sdk\"]")
+            web_sdk=$(node -p "require(\"./packages/web/package.json\").dependencies[\"@opencode-ai/sdk\"]")
+            test "$sdk_version" = "$web_sdk"
+            test "$(opencode --version)" = "$sdk_version"
+            node --input-type=module -e "import(\"@openchamber/sdk\").then(() => console.log(\"@openchamber/sdk OK\"))"
+            test -f packages/web/server/index.js
+            test -d packages/web/dist
+            printf "OpenCode %s / SDK %s verified in built Docker image\n" "$sdk_version" "$web_sdk"
+          '
