@@ -82,9 +82,13 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
-          cd bundle/package
-          node --input-type=module -e "import('@openchamber/sdk').then(() => console.log('SDK import OK'))" || { echo '::error::Staged SDK failed to import'; exit 1; }
-          node packages/web/bin/cli.js --version || { echo '::error::Staged OpenChamber CLI failed'; exit 1; }
+          isolated="$RUNNER_TEMP/openchamber-staged-smoke"
+          mv bundle/package "$isolated"
+          cd "$isolated/packages/web"
+          node --input-type=module -e "import('@openchamber/sdk').then(() => console.log('SDK import OK'))" || { echo '::error::Staged SDK failed to import from its web consumer'; exit 1; }
+          node bin/cli.js --version || { echo '::error::Staged OpenChamber CLI failed'; exit 1; }
+          cd "$GITHUB_WORKSPACE"
+          mv "$isolated" bundle/package
       - name: Archive package and create source SHA / checksum manifest
         shell: bash
         run: |
