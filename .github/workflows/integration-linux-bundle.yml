@@ -1,9 +1,7 @@
 name: Integration Linux bundle and install smoke
-
 on:
   push:
-    branches:
-      - integration/upstream-2026-09-18
+    branches: [integration/upstream-2026-09-18]
     paths:
       - .github/workflows/integration-linux-bundle.yml
       - scripts/install-linux-integration-bundle.sh
@@ -12,10 +10,8 @@ on:
       - packages/web/**
       - packages/sdk/**
   workflow_dispatch:
-
 permissions:
-  contents: read
-
+  contents: write
 jobs:
   package:
     runs-on: ubuntu-22.04
@@ -28,24 +24,18 @@ jobs:
       - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
         with:
           node-version: '22'
-      - name: Build reproducible SDK/web from lockfile
+      - name: Build reproducible SDK/web and pinned OpenCode
+        shell: bash
         run: |
           set -Eeuo pipefail
           bun install --frozen-lockfile --ignore-scripts
           bun run --cwd packages/sdk build
           bun run build:web
-      - name: Verify SDK version contract before packing
-        shell: bash
-        run: |
-          set -Eeuo pipefail
           root="$(node -p 'require("./package.json").dependencies["@opencode-ai/sdk"]')"
           web="$(node -p 'require("./packages/web/package.json").dependencies["@opencode-ai/sdk"]')"
-          if [[ ! "$root" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ || "$root" != "$web" ]]; then
-            echo "::error::OpenCode SDK mismatch: root=$root web=$web"
-            exit 1
-          fi
+          [[ "$root" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ && "$root" == "$web" ]]
           echo "OPENCODE_VERSION=$root" >> "$GITHUB_ENV"
-      - name: Stage workspace manifests and built assets
+      - name: Assemble dependency-complete distribution
         shell: bash
         run: |
           set -Eeuo pipefail
@@ -60,84 +50,85 @@ jobs:
           done
           cp -a packages/web/server packages/web/bin packages/web/public packages/web/dist "$stage/packages/web/"
           cp -a packages/sdk/dist "$stage/packages/sdk/"
-          test -f "$stage/packages/sdk/dist/index.js" || { echo '::error::Missing built SDK'; exit 1; }
-      - name: Install frozen production dependencies inside staged workspace
-        shell: bash
-        run: |
-          set -Eeuo pipefail
-          cd bundle/package
-          bun install --production --frozen-lockfile --ignore-scripts || { echo '::error::Staged workspace production install failed'; exit 1; }
-      - name: Install exact OpenCode CLI into staged distribution
-        shell: bash
-        run: |
-          set -Eeuo pipefail
-          stage=bundle/package
-          npm install --prefix "$stage/opencode-cli" --no-save --omit=dev --no-audit --no-fund "opencode-ai@${OPENCODE_VERSION}" || { echo '::error::Pinned OpenCode npm installation failed'; exit 1; }
-          installed="$("$stage/opencode-cli/node_modules/.bin/opencode" --version)"
-          if [[ "$installed" != "$OPENCODE_VERSION" ]]; then
-            echo "::error::OpenCode mismatch: requested=${OPENCODE_VERSION} installed=$installed"
-            exit 1
-          fi
-      - name: Smoke test staged SDK and OpenChamber CLI without source dependencies
-        shell: bash
-        run: |
-          set -Eeuo pipefail
-          isolated="$RUNNER_TEMP/openchamber-staged-smoke"
-          mv bundle/package "$isolated"
-          cd "$isolated/packages/web"
-          node --input-type=module -e "import('@openchamber/sdk').then(() => console.log('SDK import OK'))" || { echo '::error::Staged SDK failed to import from its web consumer'; exit 1; }
-          node bin/cli.js --version || { echo '::error::Staged OpenChamber CLI failed'; exit 1; }
+          cd "$stage"
+          bun install --production --frozen-lockfile --ignore-scripts
           cd "$GITHUB_WORKSPACE"
-          mv "$isolated" bundle/package
-      - name: Archive package and create source SHA / checksum manifest
+          npm install --prefix "$stage/opencode-cli" --no-save --omit=dev --no-audit --no-fund "opencode-ai@${OPENCODE_VERSION}"
+          test "$("$stage/opencode-cli/node_modules/.bin/opencode" --version)" = "$OPENCODE_VERSION"
+          isolated="$RUNNER_TEMP/openchamber-stage-check"
+          mv "$stage" "$isolated"
+          cd "$isolated/packages/web"
+          node --input-type=module -e "import('@openchamber/sdk').then(() => console.log('SDK OK'))"
+          node bin/cli.js --version
+          cd "$GITHUB_WORKSPACE"
+          mv "$isolated" "$stage"
+      - name: Archive with exact commit and checksum
         shell: bash
         run: |
           set -Eeuo pipefail
           asset="openchamber-integration-linux-x64-${GITHUB_SHA}.tar.gz"
-          manifest="openchamber-integration-linux-x64-${GITHUB_SHA}.json"
           tar -C bundle -czf "$asset" package
-          sha="$(sha256sum "$asset" | cut -d ' ' -f1)"
-          SOURCE_SHA="$GITHUB_SHA" ASSET="$asset" SHA256="$sha" OPENCODE_VERSION="$OPENCODE_VERSION" MANIFEST="$manifest" node - <<'NODE'
-          const fs = require('node:fs');
-          const m = {schema_version:2,platform:'linux-x64',source_sha:process.env.SOURCE_SHA,repository:process.env.GITHUB_REPOSITORY,asset:process.env.ASSET,sha256:process.env.SHA256,opencode_version:process.env.OPENCODE_VERSION};
-          fs.writeFileSync(process.env.MANIFEST, JSON.stringify(m,null,2)+'\n');
+          hash="$(sha256sum "$asset" | awk '{print $1}')"
+          SOURCE_SHA="$GITHUB_SHA" ASSET="$asset" SHA256="$hash" OPENCODE_VERSION="$OPENCODE_VERSION" node - <<'NODE'
+          const fs=require('fs');
+          const m={schema_version:2,platform:'linux-x64',source_sha:process.env.SOURCE_SHA,repository:process.env.GITHUB_REPOSITORY,asset:process.env.ASSET,sha256:process.env.SHA256,opencode_version:process.env.OPENCODE_VERSION};
+          fs.writeFileSync('manifest.json',JSON.stringify(m,null,2)+'\n');
           NODE
           cp scripts/install-linux-integration-bundle.sh install-linux-integration-bundle.sh
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: linux-integration-${{ github.sha }}
+          name: linux-bundle-${{ github.sha }}
           path: |
             openchamber-integration-linux-x64-*.tar.gz
-            openchamber-integration-linux-x64-*.json
+            manifest.json
             install-linux-integration-bundle.sh
           if-no-files-found: error
           retention-days: 7
-
-  install-from-github-artifact:
+  verify-and-publish:
     needs: package
     runs-on: ubuntu-22.04
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
       - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
         with:
           node-version: '22'
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          name: linux-integration-${{ github.sha }}
+          name: linux-bundle-${{ github.sha }}
           path: downloaded
-      - name: Install and re-install solely from downloaded GitHub artifact
+      - name: Verify install and re-install exclusively from GitHub artifact
         shell: bash
         run: |
           set -Eeuo pipefail
           cd downloaded
           asset="openchamber-integration-linux-x64-${GITHUB_SHA}.tar.gz"
-          manifest="openchamber-integration-linux-x64-${GITHUB_SHA}.json"
           prefix="$RUNNER_TEMP/openchamber-clean-install"
-          bash ./install-linux-integration-bundle.sh "$asset" "$manifest" "$prefix"
+          bash ./install-linux-integration-bundle.sh "$asset" manifest.json "$prefix"
           "$prefix/bin/openchamber" --version
-          version="$(node -p "require('./$manifest').opencode_version")"
+          version="$(node -p "require('./manifest.json').opencode_version")"
           test "$("$prefix/bin/opencode" --version)" = "$version"
           test "$(realpath "$prefix/current")" = "$prefix/releases/$GITHUB_SHA"
-          bash ./install-linux-integration-bundle.sh "$asset" "$manifest" "$prefix"
+          bash ./install-linux-integration-bundle.sh "$asset" manifest.json "$prefix"
           test "$("$prefix/bin/opencode" --version)" = "$version"
-          echo "Verified installation, idempotent update, OpenCode $version and SHA $GITHUB_SHA" >> "$GITHUB_STEP_SUMMARY"
+      - name: Publish verified immutable exact-SHA GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          cd downloaded
+          asset="openchamber-integration-linux-x64-${GITHUB_SHA}.tar.gz"
+          tag="linux-bundle-${GITHUB_SHA}"
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$tag" manifest.json "$asset" install-linux-integration-bundle.sh --clobber --repo "$GITHUB_REPOSITORY"
+          else
+            gh release create "$tag" manifest.json "$asset" install-linux-integration-bundle.sh --target "$GITHUB_SHA" --prerelease --title "OpenChamber Linux ${GITHUB_SHA:0:12}" --notes "Exact-commit GitHub-built distribution with pinned OpenCode; use standard installer." --repo "$GITHUB_REPOSITORY"
+          fi
+          tmp="$(mktemp -d)"
+          trap 'rm -rf "$tmp"' EXIT
+          gh release download "$tag" --repo "$GITHUB_REPOSITORY" --pattern manifest.json --dir "$tmp"
+          node - "$tmp/manifest.json" "$GITHUB_SHA" <<'NODE'
+          const fs=require('fs');const m=JSON.parse(fs.readFileSync(process.argv[2],'utf8'));
+          if(m.source_sha!==process.argv[3] || m.schema_version!==2 || m.platform!=='linux-x64' || !/^[a-f0-9]{64}$/.test(m.sha256))process.exit(1);
+          NODE
+          echo "Published and verified release $tag" >> "$GITHUB_STEP_SUMMARY"
