@@ -1,7 +1,9 @@
-name: Integration Linux bundle and install smoke
+name: OpenChamber Linux distribution and install verification
 on:
   push:
-    branches: [integration/upstream-2026-09-18]
+    branches:
+      - main
+      - integration/upstream-2026-09-18
     paths:
       - .github/workflows/integration-linux-bundle.yml
       - scripts/install-linux-integration-bundle.sh
