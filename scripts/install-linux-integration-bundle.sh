@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Install or update a GitHub-built Linux integration bundle in an isolated prefix.
+# Install or update a GitHub-built Linux bundle in its managed prefix.
 # Usage: bash install-linux-integration-bundle.sh ARCHIVE MANIFEST PREFIX
-# The caller owns service stop/start; this script never changes system services.
+# The standard installer owns service state; this extracts verified binaries only.
 set -Eeuo pipefail
 
 if [[ $# -ne 3 ]]; then
@@ -13,6 +13,7 @@ manifest=$(realpath -- "$2")
 prefix=$3
 [[ -f "$archive" && -f "$manifest" ]] || { echo 'Bundle or manifest not found' >&2; exit 1; }
 command -v node >/dev/null || { echo 'Node.js >=22 is required' >&2; exit 1; }
+node -e 'if(Number(process.versions.node.split(".")[0])<22) process.exit(1)' || { echo 'Node.js >=22 is required' >&2; exit 1; }
 command -v sha256sum >/dev/null || { echo 'sha256sum is required' >&2; exit 1; }
 
 read_manifest() {
@@ -39,7 +40,6 @@ exec 9>"$prefix/.install.lock"
 flock -x 9
 stage=$(mktemp -d "$prefix/releases/.stage.XXXXXXXX")
 trap 'rm -rf -- "$stage"' EXIT
-# Do not extract an archive containing files outside the package/ directory.
 if tar -tzf "$archive" | grep -Ev '^package(/|$)' | grep -q .; then
   echo 'Archive contains unexpected paths' >&2
   exit 1
