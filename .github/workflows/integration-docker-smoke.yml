@@ -33,17 +33,41 @@ jobs:
         run: |
           set -Eeuo pipefail
           docker build --tag "openchamber-integration:${GITHUB_SHA}" .
-      - name: Verify CLI, both SDKs, and built server inside delivered image
+      - name: Verify delivered image SDK versions
         shell: bash
         run: |
           set -Eeuo pipefail
-          docker run --rm --entrypoint sh "openchamber-integration:${GITHUB_SHA}" -ec '
-            sdk_version=$(node -p "require(\"./package.json\").dependencies[\"@opencode-ai/sdk\"]")
-            web_sdk=$(node -p "require(\"./packages/web/package.json\").dependencies[\"@opencode-ai/sdk\"]")
-            test "$sdk_version" = "$web_sdk"
-            test "$(opencode --version)" = "$sdk_version"
-            node --input-type=module -e "import(\"@openchamber/sdk\").then(() => console.log(\"@openchamber/sdk OK\"))"
-            test -f packages/web/server/index.js
-            test -d packages/web/dist
-            printf "OpenCode %s / SDK %s verified in built Docker image\n" "$sdk_version" "$web_sdk"
-          '
+          root="$(docker run --rm --entrypoint node "openchamber-integration:${GITHUB_SHA}" -p 'require("./package.json").dependencies["@opencode-ai/sdk"]')"
+          web="$(docker run --rm --entrypoint node "openchamber-integration:${GITHUB_SHA}" -p 'require("./packages/web/package.json").dependencies["@opencode-ai/sdk"]')"
+          if [[ "$root" != "$web" || ! "$root" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::SDK mismatch in image: root=$root web=$web"
+            exit 1
+          fi
+          echo "Image SDK version: $root" >> "$GITHUB_STEP_SUMMARY"
+      - name: Verify delivered image OpenCode CLI matches SDK
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          expected="$(node -p 'require("./package.json").dependencies["@opencode-ai/sdk"]')"
+          installed="$(docker run --rm --entrypoint opencode "openchamber-integration:${GITHUB_SHA}" --version)"
+          if [[ "$installed" != "$expected" ]]; then
+            echo "::error::OpenCode mismatch in image: expected=$expected installed=$installed"
+            exit 1
+          fi
+      - name: Verify @openchamber/sdk imports from delivered image
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          if ! docker run --rm --entrypoint node "openchamber-integration:${GITHUB_SHA}" --input-type=module -e 'import("@openchamber/sdk").then(() => console.log("SDK imported"))'; then
+            echo '::error::@openchamber/sdk does not import from shipped Docker image'
+            exit 1
+          fi
+      - name: Verify server and web assets exist in delivered image
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          if ! docker run --rm --entrypoint sh "openchamber-integration:${GITHUB_SHA}" -ec 'test -f packages/web/server/index.js && test -d packages/web/dist'; then
+            echo '::error::Server or web assets missing from Docker image'
+            exit 1
+          fi
+          echo "Docker smoke complete: ${GITHUB_SHA}" >> "$GITHUB_STEP_SUMMARY"
