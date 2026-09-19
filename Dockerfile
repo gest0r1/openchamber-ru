@@ -50,9 +50,12 @@ USER openchamber
 ENV NPM_CONFIG_PREFIX=/home/openchamber/.npm-global
 ENV PATH=${NPM_CONFIG_PREFIX}/bin:${PATH}
 
+# OpenCode and @opencode-ai/sdk must be version-aligned in every delivered image.
+# The final check below also compares the build argument with the locked SDK.
+ARG OPENCODE_VERSION=1.18.31
 RUN npm config set prefix /home/openchamber/.npm-global && mkdir -p /home/openchamber/.npm-global && \
   mkdir -p /home/openchamber/.local /home/openchamber/.config /home/openchamber/.ssh && \
-  npm install -g opencode-ai
+  npm install -g "opencode-ai@${OPENCODE_VERSION}"
 
 # cloudflared 2026.3.0 - update digest explicitly when upgrading
 COPY --from=cloudflare/cloudflared@sha256:6d91c121b803126f7a5344005d17a9324788fc09d305b6e2560ec6040a7ae283 /usr/local/bin/cloudflared /usr/local/bin/cloudflared
@@ -73,6 +76,11 @@ COPY --from=builder /app/packages/sdk/dist ./packages/sdk/dist
 COPY --from=builder /app/packages/web/bin ./packages/web/bin
 COPY --from=builder /app/packages/web/server ./packages/web/server
 COPY --from=builder /app/packages/web/dist ./packages/web/dist
+
+# Fail image creation when the CLI was not installed or differs from the SDK.
+RUN sdk_version="$(node -p "require('./package.json').dependencies['@opencode-ai/sdk']")" && \
+  test "$sdk_version" = "$OPENCODE_VERSION" && \
+  test "$(opencode --version)" = "$sdk_version"
 
 EXPOSE 3000
 
