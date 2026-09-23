@@ -1,6 +1,9 @@
 name: Integration Windows desktop delivery smoke
 
 on:
+  pull_request:
+    branches:
+      - main
   push:
     branches:
       - upgrade/openchamber-1.24.2
