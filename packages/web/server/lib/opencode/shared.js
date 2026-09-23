@@ -6,23 +6,11 @@ import { parse as parseJsonc, printParseErrorCode } from 'jsonc-parser';
 
 // ============== PATH CONSTANTS ==============
 
-// Optional override of the home directory used to resolve config/runtime
-// paths (same pattern as OPENCODE_CONFIG). Used by tests to point at a
-// temporary HOME without touching the real user config.
-function resolveOpenChamberHome() {
-  return process.env.OPENCHAMBER_HOME || os.homedir();
-}
-
 const OPENCODE_CONFIG_DIR = path.join(
-  process.env.XDG_CONFIG_HOME?.trim() || path.join(resolveOpenChamberHome(), '.config'),
+  process.env.XDG_CONFIG_HOME?.trim() || path.join(os.homedir(), '.config'),
   'opencode',
 );
-// Legacy user agent dir — kept as fallback for agents created before the
-// runtime dir existed. New user agents are written to the runtime dir.
 const AGENT_DIR = path.join(OPENCODE_CONFIG_DIR, 'agents');
-// Runtime user agent dir — the OpenCode binary reads agents from here
-// (flat files plus category subfolders: core/, subagents/{category}/).
-const RUNTIME_AGENT_DIR = path.join(os.homedir(), '.opencode', 'agent');
 const COMMAND_DIR = path.join(OPENCODE_CONFIG_DIR, 'commands');
 const SKILL_DIR = path.join(OPENCODE_CONFIG_DIR, 'skills');
 const CONFIG_FILE = path.join(OPENCODE_CONFIG_DIR, 'config.json');
@@ -48,36 +36,18 @@ const SKILL_SCOPE = {
 // ============== DIRECTORY OPERATIONS ==============
 
 function ensureDirs() {
-  const dirs = [
-    OPENCODE_CONFIG_DIR,
-    AGENT_DIR,
-    RUNTIME_AGENT_DIR,
-    COMMAND_DIR,
-    SKILL_DIR,
-  ];
-  for (const dir of dirs) {
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
-    }
+  if (!fs.existsSync(OPENCODE_CONFIG_DIR)) {
+    fs.mkdirSync(OPENCODE_CONFIG_DIR, { recursive: true });
   }
-}
-
-/**
- * User-level agent directory roots, in read priority order.
- * The runtime dir (~/.opencode/agent) wins over the legacy config dirs so the
- * same file the OpenCode binary reads is the one we resolve.
- */
-function getAgentDirectoryRoots() {
-  const configRoots = [
-    AGENT_DIR,
-    path.join(OPENCODE_CONFIG_DIR, 'agent'),
-  ];
-
-  // An explicit XDG_CONFIG_HOME requests isolated/config-rooted global CRUD.
-  // Otherwise keep the OpenCode runtime directory as the primary user root.
-  return process.env.XDG_CONFIG_HOME?.trim()
-    ? [...configRoots, RUNTIME_AGENT_DIR]
-    : [RUNTIME_AGENT_DIR, ...configRoots];
+  if (!fs.existsSync(AGENT_DIR)) {
+    fs.mkdirSync(AGENT_DIR, { recursive: true });
+  }
+  if (!fs.existsSync(COMMAND_DIR)) {
+    fs.mkdirSync(COMMAND_DIR, { recursive: true });
+  }
+  if (!fs.existsSync(SKILL_DIR)) {
+    fs.mkdirSync(SKILL_DIR, { recursive: true });
+  }
 }
 
 // ============== MARKDOWN FILE OPERATIONS ==============
@@ -177,12 +147,11 @@ function getProjectConfigPath(workingDirectory) {
 }
 
 function getConfigPaths(workingDirectory) {
-  const configDir = OPENCODE_CONFIG_DIR;
   return {
     userPaths: [
-      path.join(configDir, 'config.json'),
-      path.join(configDir, 'opencode.json'),
-      path.join(configDir, 'opencode.jsonc'),
+      path.join(OPENCODE_CONFIG_DIR, 'config.json'),
+      path.join(OPENCODE_CONFIG_DIR, 'opencode.json'),
+      path.join(OPENCODE_CONFIG_DIR, 'opencode.jsonc'),
     ],
     projectPath: getProjectConfigPath(workingDirectory),
     // Resolve at call time so OPENCODE_CONFIG changes (and tests) take effect.
@@ -674,7 +643,6 @@ function deleteSkillSupportingFile(skillDir, relativePath) {
 export {
   OPENCODE_CONFIG_DIR,
   AGENT_DIR,
-  RUNTIME_AGENT_DIR,
   COMMAND_DIR,
   SKILL_DIR,
   CONFIG_FILE,
@@ -682,7 +650,6 @@ export {
   COMMAND_SCOPE,
   SKILL_SCOPE,
   ensureDirs,
-  getAgentDirectoryRoots,
   parseMdFile,
   writeMdFile,
   readConfigFile,
