@@ -57,6 +57,13 @@ jobs:
       - name: Build web resources and bundled extensions
         working-directory: packages/electron
         run: bun run build:web-assets
+      - name: Verify fork UI assets are staged for Electron
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          grep -RIl --include='*.css' '80rem' packages/electron/resources/web-dist | grep -q .
+          grep -Fq 'width: min(100%, 80rem);' packages/ui/src/styles/typography.css
+          ! grep -Eq 'width: min\(100%, (48|64)rem\);' packages/ui/src/styles/typography.css
       - name: Download exact OpenCode CLI and verify version
         working-directory: packages/electron
         run: |
