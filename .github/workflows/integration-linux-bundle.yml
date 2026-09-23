@@ -123,7 +123,7 @@ jobs:
           bash ./install-linux-integration-bundle.sh "$asset" manifest.json "$prefix"
           test "$("$prefix/bin/opencode" --version)" = "$version"
       - name: Publish verified immutable exact-SHA GitHub Release
-        if: github.event_name != 'pull_request'
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
