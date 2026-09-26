@@ -273,7 +273,9 @@ describe('i18n dictionaries', () => {
       );
     }
 
-    expect(failures, failures.join('\\n\\n')).toEqual([]);
+    if (failures.length > 0) {
+      throw new Error(failures.join('\\n\\n'));
+    }
   });
 
 });
