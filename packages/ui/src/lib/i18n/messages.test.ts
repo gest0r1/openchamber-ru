@@ -112,7 +112,7 @@ describe('i18n dictionaries', () => {
     }
   });
 
-  test('new English keys have Russian translations or an explicit technical-term allowlist entry', () => {
+  test('every English key has a Russian translation or an explicit technical-term allowlist entry', () => {
     const technicalTermAllowlist = new Set([
       'settings.view.home.cards.mcp.title', 'settings.page.mcp.title', 'settings.page.git.title',
       'settings.snippets.page.field.namePlaceholder', 'settings.snippets.page.field.aliasesPlaceholder',
@@ -141,6 +141,74 @@ describe('i18n dictionaries', () => {
       'settings.extensions.source.zip', 'settings.extensions.source.git', 'chat.chatInput.linked.guest.pr.number',
       'settings.integrations.github.title', 'settings.integrations.linear.title', 'settings.magicPrompts.sidebar.group.linear',
       'contextPanel.mode.linear',
+      // Intentionally empty in both locales: Windows command suffix is not needed here.
+      'onboarding.localSetup.windows.stepInstallWslSuffix',
+      'mobile.menu.mcp',
+      'layout.rightSidebar.git',
+      'sessions.scheduledTasks.dialog.schedule.cron',
+      'sessions.scheduledTasks.dialog.schedule.cronWithTimezone',
+      'sessions.scheduledTasks.dialog.schedule.weekdayShort.unknown',
+      'sessions.scheduledTasks.editor.scheduleType.cron',
+      'sessions.scheduledTasks.editor.time.period.am',
+      'sessions.scheduledTasks.editor.time.period.pm',
+      'sessions.scheduledTasks.editor.cronExpression.placeholder',
+      'multirun.launcher.groupName.placeholder',
+      'multirun.launcher.setupCommands.commandPlaceholder',
+      'sessions.sidebar.sessionDialogs.ok',
+      'gitView.stash.confirmButton',
+      'gitView.stashes.itemNumber',
+      'gitView.sync.syncCounts',
+      'gitView.pr.numberLabel',
+      'planView.file.defaultName',
+      'header.github.connectedWithLogin',
+      'header.github.accountSource.oauth',
+      'header.github.accountSource.cli',
+      'terminalView.quickKeys.escape',
+      'terminalView.quickKeys.tabAria',
+      'terminalView.quickKeys.controlLabel',
+      'terminalView.quickKeys.enterAria',
+      'directoryExplorerDialog.shortcut.enter',
+      'session.newWorktree.branchNamePlaceholder',
+      'session.newWorktree.worktreeDirectoryPlaceholder',
+      'session.newWorktree.issueNumber',
+      'session.newWorktree.prNumber',
+      'session.newWorktree.includeDiffBadge',
+      'session.githubIntegration.selected.issueNumber',
+      'session.githubIntegration.selected.prNumber',
+      'chat.chatInput.linked.pr.number',
+      'chat.modelControls.modality.pdf',
+      'chat.modelControls.topP',
+      'chat.modelControls.bash',
+      'chat.modelControls.webFetch',
+      'chat.modelControls.modeValue.none',
+      'branchPickerDialog.badge.head',
+      'desktopHostSwitcher.field.urlPlaceholder',
+      'onboarding.remoteConnection.field.serverAddressPlaceholder',
+      'directoryTree.field.newDirectoryPlaceholder',
+      'quota.window.api',
+      'settings.view.nav.group.general',
+      'settings.view.nav.group.opencode',
+      'settings.projects.shared.plansDirPlaceholder',
+      'settings.agents.page.permissionsEditor.effectiveHint',
+      'settings.openchamber.keyboardShortcuts.action.switch_session_tab.suffix',
+      'settings.openchamber.keyboardShortcuts.action.switch_context_surface.suffix',
+      'settings.providers.page.custom.field.providerID.placeholder',
+      'settings.providers.page.custom.field.protocol.openaiChat',
+      'settings.providers.page.custom.field.protocol.openaiResponses',
+      'settings.providers.page.custom.field.protocol.anthropicMessages',
+      'settings.providers.page.custom.field.baseURL.placeholder',
+      'settings.providers.page.custom.field.apiKey.placeholder',
+      'settings.providers.page.custom.models.idPlaceholder',
+      'settings.providers.page.custom.models.namePlaceholder',
+      'settings.providers.page.custom.headers.keyPlaceholder',
+      'settings.voice.page.provider.openai',
+      'mobile.connect.url.placeholder',
+      'sessions.sidebar.header.projectSort.aToZ',
+      'sessions.sidebar.header.projectSort.zToA',
+      'terminalView.quickKeys.altLabel',
+      'chat.workStatus.section.mcp',
+      'chat.workStatus.breakdown.mcpCountSingle',
+      'chat.workStatus.breakdown.mcpCountPlural',
     ]);
 
     const moduleDictionaries = [
@@ -163,6 +231,51 @@ describe('i18n dictionaries', () => {
       }
     }
 
+    const missingKeys: string[] = [];
+    const englishFallbackKeys: string[] = [];
+    const placeholderMismatches: string[] = [];
+    const placeholderPattern = /\\{([a-zA-Z0-9_]+)\\}/g;
+
+    for (const key of Object.keys(enDict)) {
+      const englishValue = (enDict as Record<string, string>)[key];
+      const russianValue = (ruDict as Record<string, string>)[key];
+
+      if (russianValue === undefined || (englishValue.trim() !== '' && russianValue.trim() === '')) {
+        missingKeys.push(key);
+        continue;
+      }
+
+      if (!technicalTermAllowlist.has(key) && russianValue === englishValue) {
+        englishFallbackKeys.push(key);
+      }
+
+      const englishPlaceholders = [...englishValue.matchAll(placeholderPattern)].map((match) => match[1]).sort();
+      const russianPlaceholders = [...russianValue.matchAll(placeholderPattern)].map((match) => match[1]).sort();
+      if (englishPlaceholders.join('\\0') !== russianPlaceholders.join('\\0')) {
+        placeholderMismatches.push(
+          `${key}: expected {${englishPlaceholders.join('}, {')}}; got {${russianPlaceholders.join('}, {')}}`,
+        );
+      }
+    }
+
+    const failures: string[] = [];
+    if (missingKeys.length > 0) {
+      failures.push(`Missing Russian values (${missingKeys.length}):\\n${missingKeys.join('\\n')}`);
+    }
+    if (englishFallbackKeys.length > 0) {
+      failures.push(
+        `English fallback remains (${englishFallbackKeys.length}):\\n${englishFallbackKeys.join('\\n')}`,
+      );
+    }
+    if (placeholderMismatches.length > 0) {
+      failures.push(
+        `Placeholder mismatches (${placeholderMismatches.length}):\\n${placeholderMismatches.join('\\n')}`,
+      );
+    }
+
+    if (failures.length > 0) {
+      throw new Error(failures.join('\\n\\n'));
+    }
   });
 
 });
