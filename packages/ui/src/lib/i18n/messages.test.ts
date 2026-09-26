@@ -205,6 +205,7 @@ describe('i18n dictionaries', () => {
       'mobile.connect.url.placeholder',
       'sessions.sidebar.header.projectSort.aToZ',
       'sessions.sidebar.header.projectSort.zToA',
+      'terminalView.quickKeys.altLabel',
     ]);
 
     const moduleDictionaries = [
