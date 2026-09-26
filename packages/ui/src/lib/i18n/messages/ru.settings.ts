@@ -1,5 +1,5 @@
-Warning: truncated output (original token count: 49971)
-Total output lines: 1839
+Warning: truncated output (original token count: 49996)
+Total output lines: 1840
 
 import { extensionsSettingsI18n } from './extensions.settings.i18n';
 import { guestIntegrationsI18n } from './guest-integrations.i18n';
@@ -11,6 +11,7 @@ export const settingsDict = {
   'settings.openchamber.visual.field.alwaysShowScrollbarsHint': 'Полосы прокрутки остаются видимыми, даже когда указатель находится за пределами прокручиваемой области. Действует только на этом устройстве.',
   'settings.providers.page.openCodeGo.title': 'Отслеживание использования OpenCode Go',
   'settings.providers.page.openCodeGo.description': 'Подключите панель OpenCode Go, чтобы видеть скользящие, недельные и месячные квоты.',
+  'settings.providers.page.openCodeGo.workspaceId': 'ID рабочего пространства',
   'chat.message.userText.collapseAria': 'Свернуть сообщение пользователя',
   'settings.appearance.language.label': 'Язык',
   'settings.appearance.language.description': 'Выберите язык интерфейса.',
@@ -757,8 +758,7 @@ export const settingsDict = {
   'settings.skills.catalog.page.mode.external': 'Внешний',
   'settings.skills.catalog.page.title': 'Каталог навыков',
   'settings.skills.catalog.page.section.sourceRepository': 'Исходный репозиторий',
-  'settings.skills.catalog.page.field.selectSourcePlaceholder': 'Выберите источник',
-  'settings.skills.catalog.page.a…9971 tokens truncated…g': 'Загрузка worktrees...',
+  'settings.skills.catalog.page.fi…9996 tokens truncated…g': 'Загрузка worktrees...',
   'settings.openchamber.worktrees.list.empty': 'Worktrees для этого проекта не найдены',
   'settings.openchamber.worktrees.list.detachedHead': 'Отделённый HEAD',
   'settings.openchamber.worktrees.list.deleteWorktreeAria': 'Удалить worktree {name}',
