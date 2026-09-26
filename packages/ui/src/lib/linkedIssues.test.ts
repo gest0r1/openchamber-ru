@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import type { Session } from '@opencode-ai/sdk/v2';
-import { buildLinkedGuestIssue, buildLinkedIssue, buildLinkedIssueId, buildLinkedLinearIssue, canOpenLinearIssueInContextPanel, getLinkedIssues, withLinkedIssue, type LinkedIssue } from './linkedIssues';
+import { buildLinkedGitHubIssueRefsContext, buildLinkedGuestIssue, buildLinkedIssue, buildLinkedIssueId, buildLinkedLinearIssue, canOpenLinearIssueInContextPanel, getLinkedIssues, withLinkedIssue, type LinkedIssue } from './linkedIssues';
 
 type LinkedGitHubIssue = Extract<LinkedIssue, { kind: 'issue' | 'pull' }>;
 
@@ -279,5 +279,37 @@ describe('canOpenLinearIssueInContextPanel', () => {
       inDedicatedMobileShell: false,
       directory: '  ',
     })).toBe(false);
+  });
+});
+
+
+describe('buildLinkedGitHubIssueRefsContext', () => {
+  test('returns null when the session has no GitHub issues', () => {
+    expect(buildLinkedGitHubIssueRefsContext(undefined)).toBe(null);
+  });
+
+  test('includes all linked GitHub issues but not PR or Linear refs', () => {
+    const first = issue();
+    const second = issue({ id: 'owner/repo#47', number: 47, url: 'https://github.com/owner/repo/issues/47' });
+    const pull = issue({ id: 'owner/repo#7', number: 7, url: 'https://github.com/owner/repo/pull/7', kind: 'pull' });
+    const linear = buildLinkedLinearIssue({
+      identifier: 'ENG-1',
+      title: 'Other',
+      url: 'https://linear.app/x/ENG-1',
+      linkedAt: 2,
+    });
+    expect(buildLinkedGitHubIssueRefsContext(sessionWith([first, second, pull, linear]))).toBe(
+      'Linked GitHub issues for this session:\n- owner/repo#12\n- owner/repo#47',
+    );
+  });
+
+  test('unions the currently attached issue and deduplicates an existing ref', () => {
+    const current = { number: 51, title: 'Current', url: 'https://github.com/owner/repo/issues/51' };
+    expect(buildLinkedGitHubIssueRefsContext(sessionWith([issue()]), current)).toBe(
+      'Linked GitHub issues for this session:\n- owner/repo#12\n- owner/repo#51',
+    );
+    expect(buildLinkedGitHubIssueRefsContext(sessionWith([
+      issue({ id: 'owner/repo#51', number: 51, url: current.url }),
+    ]), current)).toBe('Linked GitHub issues for this session:\n- owner/repo#51');
   });
 });

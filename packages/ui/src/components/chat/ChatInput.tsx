@@ -20,7 +20,7 @@ import * as sessionActions from '@/sync/session-actions';
 // Guest surfaces load on demand: VS Code and mobile never mount them, and the
 // composer must not pay for the guest bridge before an extension is installed.
 const GuestAttachDialog = React.lazy(() => import('@/components/layout/GuestAttachDialog').then((module) => ({ default: module.GuestAttachDialog })));
-import { buildLinkedGuestIssue, buildLinkedIssue, buildLinkedLinearIssue } from '@/lib/linkedIssues';
+import { buildLinkedGitHubIssueRefsContext, buildLinkedGuestIssue, buildLinkedIssue, buildLinkedLinearIssue } from '@/lib/linkedIssues';
 import type { AttachIssueRequest, JsonValue } from '@openchamber/sdk';
 import { getInlineCommentDraftKey, useInlineCommentDraftStore, type InlineCommentDraft, type InlineCommentDraftTarget } from '@/stores/useInlineCommentDraftStore';
 import { useSnippetsStore } from '@/stores/useSnippetsStore';
@@ -193,7 +193,7 @@ import {
     mapInputHistoryEntriesToValues,
     mergeSessionInputHistory,
 } from './inputHistory';
-import { useUserMessageHistory } from '@/sync/sync-context';
+import { useSession, useUserMessageHistory } from '@/sync/sync-context';
 
 // Lazy like in ChatMessage: a static import would pull the @pierre/diffs and
 // Shiki stacks into the eager startup graph for a dialog opened on demand.
@@ -449,6 +449,10 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({
         ?? fallbackDirectory;
     const currentSessionDirectoryForSync = useSessionUIStore(
         React.useCallback((s) => currentSessionId ? s.getDirectoryForSession(currentSessionId) : null, [currentSessionId]),
+    );
+    const currentSession = useSession(
+        currentSessionId,
+        currentSessionDirectoryForSync ?? currentDirectory ?? undefined,
     );
     // btw mode: the CURRENT session's metadata links an active btw fork and
     // the panel is expanded, so this composer's sends route to the fork
@@ -1757,6 +1761,10 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({
             selectSkillsForDirectory(useSkillsStore.getState(), currentDirectory).map((skill) => skill.name),
         );
 
+        const linkedGitHubIssueRefsContext = !isBtwActive
+            ? buildLinkedGitHubIssueRefsContext(currentSession, linkedIssue)
+            : null;
+
         const outgoing = buildOutgoingMessage({
             queued: queuedMessagesToSend,
             composerText: !queuedOnly && inputSnapshot.hasContent ? inputSnapshot.message : null,
@@ -1764,6 +1772,7 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({
             inlineComments: drafts,
             syntheticTexts: [
                 ...buildBtwSyntheticTexts({ isBtwActive, isPromotedBtwSession }),
+                ...(linkedGitHubIssueRefsContext ? [linkedGitHubIssueRefsContext] : []),
                 ...(syntheticParts?.map((part) => part.text) ?? []),
             ],
             linkedIssue: !isBtwActive && linkedIssue

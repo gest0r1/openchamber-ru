@@ -428,6 +428,14 @@ because every attach flow has the URL and only some carry the repo separately.
 Issues and pull requests share one id shape, since they share a numbering space
 per repository.
 
+Every normal outgoing message also receives one compact synthetic block containing
+all GitHub **Issue** refs linked to that session (`owner/repo#N`). The Issue
+currently attached in the composer is unioned before send because session metadata
+is persisted only after a successful send. PRs, body, comments and state are not
+copied into this block. This lets downstream commands resolve authoritative Issue
+data themselves without making OpenChamber own GitHub staleness or coupling the
+UI to a specific slash command.
+
 ## Loading data the header used to own
 
 Two readouts had no loader of their own and appeared only after the user opened

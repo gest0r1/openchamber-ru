@@ -251,3 +251,32 @@ export const withLinkedIssue = (
     },
   };
 };
+
+
+/**
+ * Compact refs for model context. The session snapshot stays intentionally
+ * shallow: authoritative title/body/comments/state remain on GitHub.
+ * The currently attached Issue is unioned because metadata is written only
+ * after the send succeeds, so the first send must not lose that ref.
+ */
+export const buildLinkedGitHubIssueRefsContext = (
+  session: Session | null | undefined,
+  attachedIssue?: { number: number; title: string; url: string } | null,
+): string | null => {
+  const refs = new Map<string, string>();
+  for (const entry of getLinkedIssues(session)) {
+    if (entry.kind === 'issue') refs.set(entry.id, entry.id);
+  }
+  if (attachedIssue) {
+    const linked = buildLinkedIssue({
+      url: attachedIssue.url,
+      number: attachedIssue.number,
+      title: attachedIssue.title,
+      kind: 'issue',
+      linkedAt: 0,
+    });
+    refs.set(linked.id, linked.id);
+  }
+  if (refs.size === 0) return null;
+  return ['Linked GitHub issues for this session:', ...[...refs.values()].map((ref) => `- ${ref}`)].join('\n');
+};
