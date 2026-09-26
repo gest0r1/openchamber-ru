@@ -1,7 +1,9 @@
 import { extensionsSettingsI18n } from './extensions.settings.i18n';
 import { guestIntegrationsI18n } from './guest-integrations.i18n';
+import { linearIntegrationI18n } from './linear-integration.i18n';
 
 export const settingsDict = {
+  ...linearIntegrationI18n.ru,
   ...guestIntegrationsI18n.ru,
   ...extensionsSettingsI18n.ru,
   'settings.openchamber.visual.field.alwaysShowScrollbars': 'Всегда показывать полосы прокрутки',
