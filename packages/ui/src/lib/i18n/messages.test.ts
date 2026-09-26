@@ -14,7 +14,7 @@ import { dict as zhTwDict } from './messages/zh-TW';
 import { dict as trDict } from './messages/tr';
 import { dict as ruDict } from './messages/ru';
 import { settingsDict as ruSettingsDict } from './messages/ru.settings';
-import { dict as enSettingsDict } from './messages/en.settings';
+import { settingsDict as enSettingsDict } from './messages/en.settings';
 import { extensionsSettingsI18n } from './messages/extensions.settings.i18n';
 import { guestIntegrationsI18n } from './messages/guest-integrations.i18n';
 import { pluginPanelI18n } from './messages/plugin-panel.i18n';
@@ -160,8 +160,8 @@ describe('i18n dictionaries', () => {
         if (technicalTermAllowlist.has(key)) continue;
         const englishValue = (english as Record<string, string>)[key];
         const russianValue = (russian as Record<string, string>)[key];
-        expect(russianValue, `Missing Russian translation for ${key}`).toBeTruthy();
-        expect(russianValue, `English fallback remains for ${key}`).not.toBe(englishValue);
+        expect(russianValue).toBeTruthy();
+        expect(russianValue).not.toBe(englishValue);
       }
     }
 
@@ -169,8 +169,8 @@ describe('i18n dictionaries', () => {
       if (technicalTermAllowlist.has(key)) continue;
       const englishValue = (enSettingsDict as Record<string, string>)[key];
       const russianValue = (ruSettingsDict as Record<string, string>)[key];
-      expect(russianValue, `Missing Russian settings translation for ${key}`).toBeTruthy();
-      expect(russianValue, `English settings fallback remains for ${key}`).not.toBe(englishValue);
+      expect(russianValue).toBeTruthy();
+      expect(russianValue).not.toBe(englishValue);
     }
   });
 
