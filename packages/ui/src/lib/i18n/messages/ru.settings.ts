@@ -1,5 +1,5 @@
-Warning: truncated output (original token count: 49810)
-Total output lines: 1836
+Warning: truncated output (original token count: 49893)
+Total output lines: 1837
 
 import { extensionsSettingsI18n } from './extensions.settings.i18n';
 import { guestIntegrationsI18n } from './guest-integrations.i18n';
@@ -8,6 +8,7 @@ export const settingsDict = {
   ...guestIntegrationsI18n.ru,
   ...extensionsSettingsI18n.ru,
   'settings.openchamber.visual.field.alwaysShowScrollbars': 'Всегда показывать полосы прокрутки',
+  'settings.openchamber.visual.field.alwaysShowScrollbarsHint': 'Полосы прокрутки остаются видимыми, даже когда указатель находится за пределами прокручиваемой области. Действует только на этом устройстве.',
   'chat.message.userText.collapseAria': 'Свернуть сообщение пользователя',
   'settings.appearance.language.label': 'Язык',
   'settings.appearance.language.description': 'Выберите язык интерфейса.',
@@ -758,11 +759,7 @@ export const settingsDict = {
   'settings.skills.catalog.page.actions.refreshTitle': 'Обновить',
   'settings.skills.catalog.page.actions.removeCatalogTitle': 'Удалить каталог',
   'settings.skills.catalog.page.actions.addCatalog': 'Добавить каталог',
-  'settings.skills.catalog.page.actions.removeCatalog': 'Удалить каталог',
-  'settings.skills.catalog.page.actions.loadMoreSkills': 'Загрузить ещё навыки',
-  'settings.skills.catalog.page.loading.catalog': 'Загрузка...',
-  'settings.skills.catalog.page.loading.skills': 'Загрузка навыков...',
-  'settings.skills.catalog.page.loading.more': 'Загрузка...',…9810 tokens truncated…g': 'Загрузка worktrees...',
+  'settings.skills.catalog.page.actions.removeCatalog': 'Удалить каталог',…9893 tokens truncated…g': 'Загрузка worktrees...',
   'settings.openchamber.worktrees.list.empty': 'Worktrees для этого проекта не найдены',
   'settings.openchamber.worktrees.list.detachedHead': 'Отделённый HEAD',
   'settings.openchamber.worktrees.list.deleteWorktreeAria': 'Удалить worktree {name}',
