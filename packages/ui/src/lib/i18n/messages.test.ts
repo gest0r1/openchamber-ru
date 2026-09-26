@@ -186,6 +186,8 @@ describe('i18n dictionaries', () => {
       'onboarding.remoteConnection.field.serverAddressPlaceholder',
       'directoryTree.field.newDirectoryPlaceholder',
       'quota.window.api',
+      'settings.view.nav.group.general',
+      'settings.view.nav.group.opencode',
     ]);
 
     const moduleDictionaries = [
