@@ -203,6 +203,8 @@ describe('i18n dictionaries', () => {
       'settings.providers.page.custom.headers.keyPlaceholder',
       'settings.voice.page.provider.openai',
       'mobile.connect.url.placeholder',
+      'sessions.sidebar.header.projectSort.aToZ',
+      'sessions.sidebar.header.projectSort.zToA',
     ]);
 
     const moduleDictionaries = [
