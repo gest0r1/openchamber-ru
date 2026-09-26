@@ -192,6 +192,15 @@ describe('i18n dictionaries', () => {
       'settings.agents.page.permissionsEditor.effectiveHint',
       'settings.openchamber.keyboardShortcuts.action.switch_session_tab.suffix',
       'settings.openchamber.keyboardShortcuts.action.switch_context_surface.suffix',
+      'settings.providers.page.custom.field.providerID.placeholder',
+      'settings.providers.page.custom.field.protocol.openaiChat',
+      'settings.providers.page.custom.field.protocol.openaiResponses',
+      'settings.providers.page.custom.field.protocol.anthropicMessages',
+      'settings.providers.page.custom.field.baseURL.placeholder',
+      'settings.providers.page.custom.field.apiKey.placeholder',
+      'settings.providers.page.custom.models.idPlaceholder',
+      'settings.providers.page.custom.models.namePlaceholder',
+      'settings.providers.page.custom.headers.keyPlaceholder',
     ]);
 
     const moduleDictionaries = [
