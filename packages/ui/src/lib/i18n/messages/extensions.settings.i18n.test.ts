@@ -120,6 +120,8 @@ const requiredKeys = [
 const allowEnglishLoanword = new Set([
   'settings.page.extensions.title',
   'settings.extensions.source.path',
+  'settings.extensions.source.zip',
+  'settings.extensions.source.git',
   'settings.extensions.add.placeholder',
 ]);
 
