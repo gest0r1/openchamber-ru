@@ -141,6 +141,8 @@ describe('i18n dictionaries', () => {
       'settings.extensions.source.zip', 'settings.extensions.source.git', 'chat.chatInput.linked.guest.pr.number',
       'settings.integrations.github.title', 'settings.integrations.linear.title', 'settings.magicPrompts.sidebar.group.linear',
       'contextPanel.mode.linear',
+      // Intentionally empty in both locales: Windows command suffix is not needed here.
+      'onboarding.localSetup.windows.stepInstallWslSuffix',
     ]);
 
     const moduleDictionaries = [
@@ -172,7 +174,7 @@ describe('i18n dictionaries', () => {
       const englishValue = (enDict as Record<string, string>)[key];
       const russianValue = (ruDict as Record<string, string>)[key];
 
-      if (!russianValue?.trim()) {
+      if (russianValue === undefined || (englishValue.trim() !== '' && russianValue.trim() === '')) {
         missingKeys.push(key);
         continue;
       }
