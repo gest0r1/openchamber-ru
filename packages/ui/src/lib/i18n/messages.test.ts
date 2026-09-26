@@ -13,6 +13,13 @@ import { dict as zhCnDict } from './messages/zh-CN';
 import { dict as zhTwDict } from './messages/zh-TW';
 import { dict as trDict } from './messages/tr';
 import { dict as ruDict } from './messages/ru';
+import { extensionsSettingsI18n } from './messages/extensions.settings.i18n';
+import { guestIntegrationsI18n } from './messages/guest-integrations.i18n';
+import { pluginPanelI18n } from './messages/plugin-panel.i18n';
+import { routingI18n } from './messages/routing.i18n';
+import { linearIntegrationI18n } from './messages/linear-integration.i18n';
+import { linearIssuePickerI18n } from './messages/linear-issue-picker.i18n';
+import { linearPanelI18n } from './messages/linear-panel.i18n';
 
 const localeDictionaries = {
   en: enDict,
@@ -103,6 +110,59 @@ describe('i18n dictionaries', () => {
       expect(ruDict[key]).toBeTruthy();
       expect(ruDict[key]).not.toBe(enDict[key]);
     }
+  });
+
+  test('new English keys have Russian translations or an explicit technical-term allowlist entry', () => {
+    const technicalTermAllowlist = new Set([
+      'settings.view.home.cards.mcp.title', 'settings.page.mcp.title', 'settings.page.git.title',
+      'settings.snippets.page.field.namePlaceholder', 'settings.snippets.page.field.aliasesPlaceholder',
+      'settings.openchamber.tunnel.badge.quick', 'settings.openchamber.tunnel.badge.remote', 'settings.openchamber.tunnel.badge.local',
+      'settings.magicPrompts.sidebar.group.git', 'settings.magicPrompts.sidebar.group.github', 'settings.magicPrompts.sidebar.item.sessionFusion',
+      'settings.remoteInstances.direct.field.urlPlaceholder', 'settings.remoteInstances.direct.import.placeholder',
+      'settings.remoteInstances.page.field.localHostPlaceholder', 'settings.remoteInstances.page.field.remoteHostPlaceholder',
+      'settings.agents.page.field.agentNamePlaceholder', 'settings.agents.page.field.topP', 'settings.commands.page.field.commandNamePlaceholder',
+      'settings.gitIdentities.editor.field.sshKeyPathPlaceholder', 'settings.gitIdentities.editor.field.signingKeyPlaceholder',
+      'settings.gitIdentities.editor.field.hostPlaceholder', 'settings.skills.sidebar.badge.claude', 'settings.skills.sidebar.badge.agents',
+      'settings.skills.sidebar.badge.opencode', 'settings.skills.page.field.skillNamePlaceholder',
+      'settings.skills.catalog.conflicts.source.opencode', 'settings.skills.catalog.conflicts.source.agents',
+      'settings.skills.catalog.add.descriptionSuffix', 'settings.openchamber.passkeys.title', 'settings.openchamber.opencodeCli.title',
+      'settings.openchamber.opencodeCli.field.binaryPathPlaceholder', 'settings.plugins.registry.badge.update.label',
+      'settings.plugins.registry.banner.updateAvailable.description', 'settings.projects.page.section.worktree',
+      'settings.remoteInstances.page.field.sshCommandPlaceholder', 'settings.remoteInstances.page.patternDialog.destinationPlaceholder',
+      'settings.providers.page.auth.apiKeyPlaceholder', 'settings.mcp.page.server.namePlaceholder',
+      'settings.mcp.page.connection.serverUrlPlaceholder', 'settings.mcp.page.advanced.oauthClientIdPlaceholder',
+      'settings.mcp.page.advanced.oauthClientSecretPlaceholder', 'settings.mcp.page.advanced.oauthRedirectUriPlaceholder',
+      'settings.mcp.page.env.keyPlaceholder', 'settings.github.page.accountSource.oauth', 'settings.github.page.accountSource.cli',
+      'settings.notifications.page.template.defaults.error.message', 'settings.notifications.page.template.defaults.question.message',
+      'settings.voice.page.provider.say', 'settings.openchamber.visual.option.fileEditorKeymap.vim', 'settings.openchamber.visual.field.bash',
+      'settings.openchamber.visual.option.mermaidRendering.svg.label', 'settings.openchamber.visual.option.mermaidRendering.ascii.label',
+      'settings.openchamber.visual.option.userMessageRendering.markdown.label', 'settings.openchamber.visual.option.messageTransport.ws.label',
+      'settings.openchamber.visual.option.messageTransport.sse.label', 'settings.magicPrompts.page.group.sessionFusion.title',
+      'settings.extensions.source.zip', 'settings.extensions.source.git', 'chat.chatInput.linked.guest.pr.number',
+      'settings.integrations.github.title', 'settings.integrations.linear.title', 'settings.magicPrompts.sidebar.group.linear',
+      'contextPanel.mode.linear',
+    ]);
+
+    const moduleDictionaries = [
+      [extensionsSettingsI18n.en, extensionsSettingsI18n.ru],
+      [guestIntegrationsI18n.en, guestIntegrationsI18n.ru],
+      [pluginPanelI18n.en, pluginPanelI18n.ru],
+      [routingI18n.en, routingI18n.ru],
+      [linearIntegrationI18n.en, linearIntegrationI18n.ru],
+      [linearIssuePickerI18n.en, linearIssuePickerI18n.ru],
+      [linearPanelI18n.en, linearPanelI18n.ru],
+    ] as const;
+
+    for (const [english, russian] of moduleDictionaries) {
+      for (const key of Object.keys(english)) {
+        if (technicalTermAllowlist.has(key)) continue;
+        const englishValue = (english as Record<string, string>)[key];
+        const russianValue = (russian as Record<string, string>)[key];
+        expect(russianValue).toBeTruthy();
+        expect(russianValue).not.toBe(englishValue);
+      }
+    }
+
   });
 
 });

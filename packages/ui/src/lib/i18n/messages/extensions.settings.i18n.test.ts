@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test';
 
 import { extensionsSettingsI18n } from './extensions.settings.i18n';
 
-const locales = ['en', 'de', 'fr', 'es', 'ja', 'pt-BR', 'uk', 'ko', 'pl', 'zh-CN', 'zh-TW', 'tr'] as const;
+const locales = ['en', 'de', 'fr', 'es', 'ja', 'pt-BR', 'uk', 'ko', 'pl', 'zh-CN', 'zh-TW', 'tr', 'ru'] as const;
 
 const requiredKeys = [
   'settings.extensions.builtIn.info',
@@ -120,6 +120,8 @@ const requiredKeys = [
 const allowEnglishLoanword = new Set([
   'settings.page.extensions.title',
   'settings.extensions.source.path',
+  'settings.extensions.source.zip',
+  'settings.extensions.source.git',
   'settings.extensions.add.placeholder',
 ]);
 

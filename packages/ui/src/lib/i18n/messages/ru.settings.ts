@@ -1,4 +1,14 @@
+import { extensionsSettingsI18n } from './extensions.settings.i18n';
+import { guestIntegrationsI18n } from './guest-integrations.i18n';
+
 export const settingsDict = {
+  ...guestIntegrationsI18n.ru,
+  ...extensionsSettingsI18n.ru,
+  'settings.openchamber.visual.field.alwaysShowScrollbars': 'Всегда показывать полосы прокрутки',
+  'settings.openchamber.visual.field.alwaysShowScrollbarsHint': 'Полосы прокрутки остаются видимыми, даже когда указатель находится за пределами прокручиваемой области. Действует только на этом устройстве.',
+  'settings.providers.page.openCodeGo.title': 'Отслеживание использования OpenCode Go',
+  'settings.providers.page.openCodeGo.description': 'Подключите панель OpenCode Go, чтобы видеть скользящие, недельные и месячные квоты.',
+  'settings.providers.page.openCodeGo.workspaceId': 'ID рабочего пространства',
   'chat.message.userText.collapseAria': 'Свернуть сообщение пользователя',
   'settings.appearance.language.label': 'Язык',
   'settings.appearance.language.description': 'Выберите язык интерфейса.',
