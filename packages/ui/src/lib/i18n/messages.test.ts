@@ -190,6 +190,8 @@ describe('i18n dictionaries', () => {
       'settings.view.nav.group.opencode',
       'settings.projects.shared.plansDirPlaceholder',
       'settings.agents.page.permissionsEditor.effectiveHint',
+      'settings.openchamber.keyboardShortcuts.action.switch_session_tab.suffix',
+      'settings.openchamber.keyboardShortcuts.action.switch_context_surface.suffix',
     ]);
 
     const moduleDictionaries = [
