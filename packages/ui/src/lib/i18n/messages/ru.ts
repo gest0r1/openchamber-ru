@@ -4,6 +4,7 @@ import { linearIssuePickerI18n } from './linear-issue-picker.i18n';
 import { linearPanelI18n } from './linear-panel.i18n';
 import { routingI18n } from './routing.i18n';
 import { pluginPanelI18n } from './plugin-panel.i18n';
+import { fullRussianOverrides } from './ru.full-overrides';
 
 export const dict: Record<I18nKey, string> & Record<string, string> = {
   ...enDict,
@@ -12,6 +13,7 @@ export const dict: Record<I18nKey, string> & Record<string, string> = {
   ...linearPanelI18n.ru,
   ...routingI18n.ru,
   ...pluginPanelI18n.ru,
+  ...fullRussianOverrides,
   "common.loading": "Загрузка...",
   "common.unavailable": "Недоступно",
   "common.language.english": "Английский",
