@@ -188,6 +188,8 @@ describe('i18n dictionaries', () => {
       'quota.window.api',
       'settings.view.nav.group.general',
       'settings.view.nav.group.opencode',
+      'settings.projects.shared.plansDirPlaceholder',
+      'settings.agents.page.permissionsEditor.effectiveHint',
     ]);
 
     const moduleDictionaries = [
