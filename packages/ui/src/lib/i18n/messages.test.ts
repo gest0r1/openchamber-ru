@@ -206,6 +206,9 @@ describe('i18n dictionaries', () => {
       'sessions.sidebar.header.projectSort.aToZ',
       'sessions.sidebar.header.projectSort.zToA',
       'terminalView.quickKeys.altLabel',
+      'chat.workStatus.section.mcp',
+      'chat.workStatus.breakdown.mcpCountSingle',
+      'chat.workStatus.breakdown.mcpCountPlural',
     ]);
 
     const moduleDictionaries = [
