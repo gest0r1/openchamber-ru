@@ -27,7 +27,6 @@ const localeDictionaries = {
   'zh-CN': zhCnDict,
   'zh-TW': zhTwDict,
   tr: trDict,
-  ru: ruDict,
 } as const;
 
 describe('i18n dictionaries', () => {
