@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       tag_name:
-        description: 'Release tag (e.g. v1.24.2). Leave empty to read from package.json.'
+        description: 'Release tag (e.g. v1.24.2.2). Leave empty to read from package.json.'
         required: false
         type: string
       retention_days:
