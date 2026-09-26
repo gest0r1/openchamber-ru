@@ -1,4 +1,9 @@
+import { extensionsSettingsI18n } from './extensions.settings.i18n';
+import { guestIntegrationsI18n } from './guest-integrations.i18n';
+
 export const settingsDict = {
+  ...guestIntegrationsI18n.ru,
+  ...extensionsSettingsI18n.ru,
   'chat.message.userText.collapseAria': 'Свернуть сообщение пользователя',
   'settings.appearance.language.label': 'Язык',
   'settings.appearance.language.description': 'Выберите язык интерфейса.',
