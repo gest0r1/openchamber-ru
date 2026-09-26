@@ -202,6 +202,7 @@ describe('i18n dictionaries', () => {
       'settings.providers.page.custom.models.namePlaceholder',
       'settings.providers.page.custom.headers.keyPlaceholder',
       'settings.voice.page.provider.openai',
+      'mobile.connect.url.placeholder',
     ]);
 
     const moduleDictionaries = [
