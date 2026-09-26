@@ -55,7 +55,13 @@ jobs:
           WEB_OPENCODE=$(node -p "require('./packages/web/package.json').dependencies['@opencode-ai/sdk']")
           test "$OPENCODE" = "$WEB_OPENCODE"
           TAG="${{ inputs.tag_name }}"
-          if [ -z "$TAG" ]; then TAG="v${VERSION}"; fi
+          if [ -z "$TAG" ]; then
+            if [[ "$GITHUB_REF_NAME" == release/windows-* ]]; then
+              TAG="v${GITHUB_REF_NAME#release/windows-}"
+            else
+              TAG="v${VERSION}"
+            fi
+          fi
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "opencode=$OPENCODE" >> "$GITHUB_OUTPUT"
