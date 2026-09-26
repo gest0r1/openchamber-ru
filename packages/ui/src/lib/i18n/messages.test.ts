@@ -12,6 +12,7 @@ import { dict as ukDict } from './messages/uk';
 import { dict as zhCnDict } from './messages/zh-CN';
 import { dict as zhTwDict } from './messages/zh-TW';
 import { dict as trDict } from './messages/tr';
+import { dict as ruDict } from './messages/ru';
 
 const localeDictionaries = {
   en: enDict,
@@ -67,4 +68,41 @@ describe('i18n dictionaries', () => {
       }
     }
   });
+  test('Russian dictionary translates newly added 1.24.2.1 settings keys', () => {
+    const newlyAdded = [
+      'settings.themeImport.selectAll',
+      'settings.themeImport.deselectAll',
+      'settings.themeImport.complete',
+      'settings.themeImport.catalogTitle',
+      'settings.themeImport.catalogHint',
+      'settings.themeImport.search',
+      'settings.themeImport.catalogError',
+      'settings.themeImport.empty',
+      'settings.themeImport.back',
+      'settings.themeImport.chooseFile',
+      'settings.themeImport.importSelected',
+      'settings.themeImport.installed',
+      'settings.themeImport.partialError',
+      'settings.themeImport.delete',
+      'settings.themeImport.deleteError',
+      'settings.themeImport.action',
+      'settings.themeImport.busy',
+      'settings.themeImport.hint',
+      'settings.themeImport.success',
+      'settings.themeImport.error.invalid',
+      'settings.themeImport.error.include',
+      'settings.themeImport.error.size',
+      'settings.themeImport.error.background',
+      'settings.themeImport.error.save',
+      'settings.themeImport.error.connection',
+      'settings.themeImport.error.unsupported',
+      'settings.themeImport.error.conflict',
+      'settings.projects.page.field.projectAgent',
+    ] as const;
+    for (const key of newlyAdded) {
+      expect(ruDict[key]).toBeTruthy();
+      expect(ruDict[key]).not.toBe(enDict[key]);
+    }
+  });
+
 });
