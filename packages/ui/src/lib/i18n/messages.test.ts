@@ -112,7 +112,7 @@ describe('i18n dictionaries', () => {
     }
   });
 
-  test('new English keys have Russian translations or an explicit technical-term allowlist entry', () => {
+  test('every English key has a Russian translation or an explicit technical-term allowlist entry', () => {
     const technicalTermAllowlist = new Set([
       'settings.view.home.cards.mcp.title', 'settings.page.mcp.title', 'settings.page.git.title',
       'settings.snippets.page.field.namePlaceholder', 'settings.snippets.page.field.aliasesPlaceholder',
@@ -163,6 +163,49 @@ describe('i18n dictionaries', () => {
       }
     }
 
+    const missingKeys: string[] = [];
+    const englishFallbackKeys: string[] = [];
+    const placeholderMismatches: string[] = [];
+    const placeholderPattern = /\\{([a-zA-Z0-9_]+)\\}/g;
+
+    for (const key of Object.keys(enDict)) {
+      const englishValue = (enDict as Record<string, string>)[key];
+      const russianValue = (ruDict as Record<string, string>)[key];
+
+      if (!russianValue?.trim()) {
+        missingKeys.push(key);
+        continue;
+      }
+
+      if (!technicalTermAllowlist.has(key) && russianValue === englishValue) {
+        englishFallbackKeys.push(key);
+      }
+
+      const englishPlaceholders = [...englishValue.matchAll(placeholderPattern)].map((match) => match[1]).sort();
+      const russianPlaceholders = [...russianValue.matchAll(placeholderPattern)].map((match) => match[1]).sort();
+      if (englishPlaceholders.join('\\0') !== russianPlaceholders.join('\\0')) {
+        placeholderMismatches.push(
+          `${key}: expected {${englishPlaceholders.join('}, {')}}; got {${russianPlaceholders.join('}, {')}}`,
+        );
+      }
+    }
+
+    const failures: string[] = [];
+    if (missingKeys.length > 0) {
+      failures.push(`Missing Russian values (${missingKeys.length}):\\n${missingKeys.join('\\n')}`);
+    }
+    if (englishFallbackKeys.length > 0) {
+      failures.push(
+        `English fallback remains (${englishFallbackKeys.length}):\\n${englishFallbackKeys.join('\\n')}`,
+      );
+    }
+    if (placeholderMismatches.length > 0) {
+      failures.push(
+        `Placeholder mismatches (${placeholderMismatches.length}):\\n${placeholderMismatches.join('\\n')}`,
+      );
+    }
+
+    expect(failures, failures.join('\\n\\n')).toEqual([]);
   });
 
 });
