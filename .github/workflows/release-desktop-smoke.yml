@@ -31,7 +31,7 @@ on:
       retention_days:
         description: Artifact retention days
         required: false
-        default: "7"
+        default: "1"
         type: choice
         options:
           - "1"
@@ -46,14 +46,11 @@ jobs:
   build-macos-electron:
     if: ${{ inputs.build_macos }}
     name: Build macOS Electron (${{ matrix.arch }})
-    runs-on: macos-26
+    runs-on: macos-15-intel
     strategy:
       fail-fast: false
       matrix:
         include:
-          - target: aarch64-apple-darwin
-            arch: arm64
-            platform: darwin-aarch64
           - target: x86_64-apple-darwin
             arch: x64
             platform: darwin-x86_64
@@ -135,8 +132,6 @@ jobs:
           set -euo pipefail
 
           APP_DIR="packages/electron/dist/mac"
-          [ -d "packages/electron/dist/mac-arm64" ] && APP_DIR="packages/electron/dist/mac-arm64"
-
           APP_PATH=$(find "$APP_DIR" -maxdepth 2 -name "*.app" -print -quit)
           if [ -z "$APP_PATH" ]; then
             echo "Error: .app not found under packages/electron/dist/mac*"
@@ -198,9 +193,6 @@ jobs:
           - arch: x64
             target: x86_64-pc-windows-msvc
             platform: win32-x64
-          - arch: arm64
-            target: aarch64-pc-windows-msvc
-            platform: win32-arm64
     steps:
       - name: Checkout selected ref
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
@@ -253,7 +245,6 @@ jobs:
         working-directory: packages/electron
         shell: bash
         env:
-          # Cross-compile for ARM64 target from x64 runner.
           ELECTRON_BUILDER_ARCH: ${{ matrix.arch }}
         # npmRebuild=false in package.json, so electron-builder won't
         # recompile native deps on its own. Rebuild against the target
@@ -290,11 +281,6 @@ jobs:
             host_arch: x86_64
             artifact_arch: x86_64
             manifest: latest-linux.yml
-          - runner: ubuntu-24.04-arm
-            arch: arm64
-            host_arch: aarch64
-            artifact_arch: arm64
-            manifest: latest-linux-arm64.yml
     runs-on: ${{ matrix.runner }}
     steps:
       - name: Checkout selected ref
