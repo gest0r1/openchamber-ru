@@ -27,9 +27,17 @@ process.stdout.write(value);
 NODE
 }
 sha=$(read_manifest source_sha)
+bundle_sha=$(node - "$manifest" <<'NODE'
+const fs = require('node:fs');
+const m = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+const value = m.bundle_source_sha || m.source_sha;
+if (typeof value !== 'string' || !value) process.exit(1);
+process.stdout.write(value);
+NODE
+)
 expected=$(read_manifest sha256)
 asset=$(read_manifest asset)
-[[ "$sha" =~ ^[0-9a-f]{40}$ && "$expected" =~ ^[0-9a-f]{64}$ ]] || { echo 'Invalid manifest SHA' >&2; exit 1; }
+[[ "$sha" =~ ^[0-9a-f]{40}$ && "$bundle_sha" =~ ^[0-9a-f]{40}$ && "$expected" =~ ^[0-9a-f]{64}$ ]] || { echo 'Invalid manifest SHA' >&2; exit 1; }
 [[ "$(basename "$archive")" == "$asset" ]] || { echo 'Archive name does not match manifest' >&2; exit 1; }
 actual=$(sha256sum -- "$archive" | cut -d ' ' -f 1)
 [[ "$actual" == "$expected" ]] || { echo 'Archive checksum mismatch; install aborted' >&2; exit 1; }
@@ -54,7 +62,7 @@ web_sdk=$(node -p "require(process.argv[1]).dependencies['@opencode-ai/sdk']" "$
 [[ "$sdk" == "$web_sdk" && "$($cli --version)" == "$sdk" ]] || { echo 'OpenCode CLI / SDK version mismatch' >&2; exit 1; }
 node --input-type=module -e 'import(process.argv[1])' "file://$root/packages/sdk/dist/index.js" >/dev/null
 
-release="$prefix/releases/$sha"
+release="$prefix/releases/$bundle_sha"
 if [[ ! -e "$release" ]]; then
   mv -- "$root" "$release"
 else
@@ -71,9 +79,9 @@ exec node "$base/current/packages/web/bin/cli.js" "$@"
 LAUNCHER
 chmod 755 "$prefix/bin/.openchamber.$$"
 mv -f -- "$prefix/bin/.openchamber.$$" "$prefix/bin/openchamber"
-ln -s "releases/$sha" "$prefix/.current.$$"
+ln -s "releases/$bundle_sha" "$prefix/.current.$$"
 mv -Tf -- "$prefix/.current.$$" "$prefix/current"
 ln -sfn "../current/opencode-cli/node_modules/.bin/opencode" "$prefix/bin/.opencode.$$"
 mv -Tf -- "$prefix/bin/.opencode.$$" "$prefix/bin/opencode"
-echo "Installed OpenChamber SHA $sha with OpenCode $sdk to $prefix"
+echo "Installed OpenChamber source $sha from bundle $bundle_sha with OpenCode $sdk to $prefix"
 echo "Executable: $prefix/bin/openchamber"
