@@ -22,6 +22,7 @@ on:
 
 permissions:
   contents: write
+  actions: write
 
 jobs:
   build-win:
@@ -114,7 +115,7 @@ jobs:
             packages/electron/dist/*.blockmap
             packages/electron/dist/latest.yml
           if-no-files-found: error
-          retention-days: ${{ fromJSON(inputs.retention_days || '7') }}
+          retention-days: 1
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
@@ -142,3 +143,22 @@ jobs:
             - Bundled OpenCode CLI is pinned and verified during packaging.
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+
+      - name: Delete all Actions artifacts
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api --paginate \
+            -H "Accept: application/vnd.github+json" \
+            "/repos/$GH_REPO/actions/artifacts?per_page=100" \
+            --jq '.artifacts[].id' |
+          while read -r artifact_id; do
+            [ -n "$artifact_id" ] || continue
+            gh api --method DELETE \
+              -H "Accept: application/vnd.github+json" \
+              "/repos/$GH_REPO/actions/artifacts/$artifact_id"
+          done
