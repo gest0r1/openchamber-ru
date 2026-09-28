@@ -22,6 +22,7 @@ env:
 
 permissions:
   contents: write
+  actions: write
 
 jobs:
   create-release:
@@ -600,6 +601,23 @@ jobs:
           draft: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Delete all Actions artifacts
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          gh api --paginate \
+            -H "Accept: application/vnd.github+json" \
+            "/repos/$GH_REPO/actions/artifacts?per_page=100" \
+            --jq '.artifacts[].id' |
+          while read -r artifact_id; do
+            [ -n "$artifact_id" ] || continue
+            gh api --method DELETE \
+              -H "Accept: application/vnd.github+json" \
+              "/repos/$GH_REPO/actions/artifacts/$artifact_id"
+          done
 
       - name: Send release to Discord
         if: ${{ env.DISCORD_WEBHOOK_URL != '' }}
