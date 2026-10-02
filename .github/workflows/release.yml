@@ -163,7 +163,6 @@ jobs:
         working-directory: packages/electron
         shell: bash
         env:
-          # Cross-compile for ARM64 target from x64 runner.
           ELECTRON_BUILDER_ARCH: ${{ matrix.arch }}
         # npmRebuild=false in package.json, so electron-builder won't
         # recompile native deps on its own — we must rebuild against the
