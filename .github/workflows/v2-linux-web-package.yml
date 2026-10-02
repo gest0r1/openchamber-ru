@@ -217,9 +217,11 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
-          tar -tzf "artifacts/$ASSET" | grep -Fxq 'package/bin/cli.js'
-          tar -tzf "artifacts/$ASSET" | grep -q '^package/dist/'
-          tar -tzf "artifacts/$ASSET" | grep -q '^package/server/'
+          package_list="$RUNNER_TEMP/openchamber-package-files.txt"
+          tar -tzf "artifacts/$ASSET" > "$package_list"
+          grep -Fxq 'package/bin/cli.js' "$package_list"
+          grep -q '^package/dist/' "$package_list"
+          grep -q '^package/server/' "$package_list"
           test_root="$RUNNER_TEMP/openchamber-global"
           mkdir -p "$test_root"
           BUN_INSTALL="$test_root" bun add -g "$GITHUB_WORKSPACE/artifacts/$ASSET"
