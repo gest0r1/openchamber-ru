@@ -1,0 +1,104 @@
+name: OpenChamber V2 platform artifacts
+
+on:
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: Artifact to build without creating a GitHub Release
+        required: true
+        default: windows
+        type: choice
+        options:
+          - windows
+          - android-debug
+          - both
+
+permissions:
+  contents: read
+
+concurrency:
+  group: v2-platform-artifacts-${{ github.ref }}-${{ inputs.platform }}
+  cancel-in-progress: false
+
+jobs:
+  windows:
+    if: inputs.platform == 'windows' || inputs.platform == 'both'
+    runs-on: windows-2022
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: '1.4.2'
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: '22'
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Build Windows x64 installer
+        working-directory: packages/electron
+        shell: bash
+        env:
+          ELECTRON_BUILDER_ARCH: x64
+        run: |
+          set -Eeuo pipefail
+          bun run build:web-assets
+          bun run prepare:opencode-cli
+          bun run verify:opencode-cli
+          bun run bundle:main
+          node ./scripts/rebuild-native.mjs
+          node ./scripts/package.mjs --win --x64 --publish=never
+          bun run verify:opencode-cli:packaged
+          shopt -s nullglob
+          installers=(dist/*.exe)
+          shopt -u nullglob
+          test "${#installers[@]}" -ge 1
+
+      - name: Upload Windows installer
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: openchamber-v2-windows-x64-${{ github.sha }}
+          path: |
+            packages/electron/dist/*.exe
+            packages/electron/dist/*.blockmap
+            packages/electron/dist/latest.yml
+          if-no-files-found: error
+          retention-days: 1
+
+  android-debug:
+    if: inputs.platform == 'android-debug' || inputs.platform == 'both'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: '1.4.2'
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: '22'
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Build installable Android debug APK
+        run: bun run mobile:build:android:debug
+
+      - name: Upload Android APK
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: openchamber-v2-android-debug-${{ github.sha }}
+          path: packages/mobile/android/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+          retention-days: 1
