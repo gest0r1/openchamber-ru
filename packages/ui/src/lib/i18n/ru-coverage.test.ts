@@ -122,7 +122,7 @@ describe('Russian i18n coverage', () => {
       }
 
       if (!technicalTermAllowlist.has(key) && russianValue === englishValue) {
-        englishFallbackKeys.push(key);
+        englishFallbackKeys.push(`${key}\t${JSON.stringify(englishValue)}`);
       }
 
       const englishPlaceholders = [...englishValue.matchAll(placeholderPattern)].map((match) => match[1]).sort();
