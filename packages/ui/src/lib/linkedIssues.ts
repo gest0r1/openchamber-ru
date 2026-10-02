@@ -303,34 +303,3 @@ export const withLinkedIssue = (
     },
   };
 };
-
-
-/**
- * Compact GitHub Issue refs for model context.
- *
- * Only stable refs are injected. GitHub remains authoritative for title/body/
- * comments/state, which downstream pipeline commands resolve themselves.
- * The currently attached issue is unioned because session metadata is persisted
- * only after a successful send.
- */
-export const buildLinkedGitHubIssueRefsContext = (
-  session: Session | null | undefined,
-  attachedIssue?: { number: number; title: string; url: string } | null,
-): string | null => {
-  const refs = new Map<string, string>();
-  for (const entry of getLinkedIssues(session)) {
-    if (entry.kind === 'issue') refs.set(entry.id, entry.id);
-  }
-  if (attachedIssue) {
-    const linked = buildLinkedIssue({
-      url: attachedIssue.url,
-      number: attachedIssue.number,
-      title: attachedIssue.title,
-      kind: 'issue',
-      linkedAt: 0,
-    });
-    refs.set(linked.id, linked.id);
-  }
-  if (refs.size === 0) return null;
-  return ['Linked GitHub issues for this session:', ...[...refs.values()].map((ref) => `- ${ref}`)].join('\n');
-};
