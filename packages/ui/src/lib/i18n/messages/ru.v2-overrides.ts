@@ -180,7 +180,7 @@ export const v2RussianOverrides = {
   "settings.integrations.thirdParty.opencodeClaude.name": "Claude Code",
   "settings.integrations.thirdParty.opencodeClaude.description": "Используйте тариф Claude Pro/Max через CLI Claude Code — без API-ключей.",
   "settings.integrations.extensionCatalog.title": "Расширения OpenChamber",
-  "settings.integrations.extensionCatalog.info": "Дополнительные возможности от команды OpenChamber. Установите расширение здесь — оно появится там, где используется. Установленные расширения также доступны в Настройки → Расширения.",
+  "settings.integrations.extensionCatalog.info": "Дополнительные расширения для OpenChamber. Установите расширение здесь — оно появится там, где используется. Установленные расширения также доступны в Настройки → Расширения.",
   "settings.integrations.extensionCatalog.excalidraw.name": "Excalidraw",
   "settings.integrations.extensionCatalog.excalidraw.description": "Рисуйте в файлах .excalidraw и рисунках Obsidian прямо в разделе «Файлы».",
   "settings.integrations.extensionCatalog.status.paused": "Выключено",
