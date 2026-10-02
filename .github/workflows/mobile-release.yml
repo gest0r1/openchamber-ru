@@ -178,11 +178,11 @@ jobs:
           mkdir -p release-assets
           cp app/build/outputs/bundle/release/*.aab "release-assets/OpenChamber-${VERSION_NAME}-${BUILD_NUMBER}-android.aab"
           cp app/build/outputs/apk/release/*.apk "release-assets/OpenChamber-${VERSION_NAME}-${BUILD_NUMBER}-android.apk"
-          files=(
-            app/build/outputs/bundle/release/*.aab
-            app/build/outputs/apk/release/*.apk
-            release-assets/*
-          )
+          files=(release-assets/*)
+          [[ "${#files[@]}" -eq 2 ]] || {
+            echo "Expected normalized APK + AAB release assets" >&2
+            exit 1
+          }
           gh release upload "$RELEASE_TAG" "${files[@]}" --clobber --repo "${{ github.repository }}"
         working-directory: ${{ env.ANDROID_PROJECT_DIR }}
 
