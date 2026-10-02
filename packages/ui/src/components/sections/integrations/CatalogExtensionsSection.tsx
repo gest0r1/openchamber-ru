@@ -228,7 +228,7 @@ export const CatalogExtensionsSection: React.FC<CatalogExtensionsSectionProps> =
             <DialogTitle>{t('settings.integrations.extensionCatalog.dialog.remove.title')}</DialogTitle>
             <DialogDescription>
               {t('settings.integrations.extensionCatalog.dialog.remove.description', {
-                name: removeTarget ? t(removeTarget.nameKey) : '',
+                name: removeTarget?.name ?? '',
               })}
             </DialogDescription>
           </DialogHeader>
