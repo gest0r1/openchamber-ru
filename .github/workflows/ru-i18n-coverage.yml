@@ -54,4 +54,16 @@ jobs:
 
       - name: Check Russian dictionary integration and full coverage
         run: |
-          bun test             packages/ui/src/lib/i18n/messages.test.ts             packages/ui/src/lib/i18n/ru-coverage.test.ts
+          bun test \
+            packages/ui/src/lib/i18n/messages.test.ts \
+            packages/ui/src/lib/i18n/ru-coverage.test.ts
+
+      - name: Check linked GitHub Issue prompt context
+        run: bun test packages/ui/src/lib/linkedIssues.test.ts
+
+      - name: Check fork updater and release manifest contracts
+        run: |
+          node --test \
+            packages/electron/updater-feed.test.mjs \
+            packages/electron/scripts/finalize-latest-yml.test.mjs
+          node scripts/check-fork-release-policy.mjs
