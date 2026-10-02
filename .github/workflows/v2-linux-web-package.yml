@@ -1,0 +1,291 @@
+name: OpenChamber V2 Linux web package
+
+on:
+  push:
+    branches:
+      - main
+      - upgrade/openchamber-2.1.0
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: v2-web-package-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  SOURCE_SHA: ${{ github.sha }}
+
+jobs:
+  resolve-build-publish:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: '22'
+
+      - name: Resolve reusable verified web package
+        id: resolve
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          fingerprint="$(node scripts/web-package-fingerprint.mjs)"
+          current_tag="v2-web-package-${SOURCE_SHA}"
+          {
+            echo "fingerprint=$fingerprint"
+            echo "current_tag=$current_tag"
+            echo "current_release=false"
+            echo "reuse=false"
+          } >> "$GITHUB_OUTPUT"
+
+          validate_manifest() {
+            node - "$1" "$2" "$3" <<'NODE'
+          const fs = require('node:fs');
+          const [file, expectedSource, expectedFingerprint] = process.argv.slice(2);
+          const m = JSON.parse(fs.readFileSync(file, 'utf8'));
+          if (m.schema_version !== 1 ||
+              m.platform !== 'linux-x64' ||
+              m.source_sha !== expectedSource ||
+              !/^[a-f0-9]{40}$/.test(String(m.package_source_sha || '')) ||
+              m.package_tag !== `v2-web-package-${m.package_source_sha}` ||
+              m.asset !== `openchamber-web-${m.package_source_sha}.tgz` ||
+              !/^[a-f0-9]{64}$/.test(String(m.sha256 || '')) ||
+              !/^\d+\.\d+\.\d+$/.test(String(m.openchamber_version || '')) ||
+              m.runtime_fingerprint !== expectedFingerprint) {
+            process.exit(1);
+          }
+          process.stdout.write([
+            m.package_tag,
+            m.package_source_sha,
+            m.asset,
+            m.sha256,
+            m.openchamber_version,
+          ].join('\t'));
+          NODE
+          }
+
+          asset_exists() {
+            local release_tag="$1" asset_name="$2"
+            gh release view "$release_tag" --repo "$GITHUB_REPOSITORY" --json assets               --jq '.assets[].name' | grep -Fxq "$asset_name"
+          }
+
+          if gh release view "$current_tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            tmp="$(mktemp -d)"
+            gh release download "$current_tag" --repo "$GITHUB_REPOSITORY" --pattern manifest.json --dir "$tmp"
+            metadata="$(validate_manifest "$tmp/manifest.json" "$SOURCE_SHA" "$fingerprint" 2>/dev/null || true)"
+            rm -rf "$tmp"
+            [[ -n "$metadata" ]] || {
+              echo "Existing exact-SHA release $current_tag is invalid; refusing to overwrite immutable release" >&2
+              exit 1
+            }
+            IFS=$'\t' read -r package_tag _ asset _ _ <<< "$metadata"
+            asset_exists "$package_tag" "$asset" || {
+              echo "Existing exact-SHA manifest references missing asset $package_tag/$asset" >&2
+              exit 1
+            }
+            echo "current_release=true" >> "$GITHUB_OUTPUT"
+            echo "Exact-SHA web package manifest already exists: $current_tag"
+            exit 0
+          fi
+
+          declare -A releases=()
+          while IFS= read -r tag; do
+            [[ -n "$tag" ]] && releases["$tag"]=1
+          done < <(
+            gh release list --repo "$GITHUB_REPOSITORY" --limit 100 --json tagName               --jq '.[].tagName | select(startswith("v2-web-package-"))'
+          )
+
+          while IFS= read -r candidate; do
+            tag="v2-web-package-$candidate"
+            [[ -n "${releases[$tag]:-}" ]] || continue
+
+            candidate_fingerprint="$(node scripts/web-package-fingerprint.mjs --ref "$candidate" 2>/dev/null || true)"
+            [[ "$candidate_fingerprint" == "$fingerprint" ]] || continue
+
+            tmp="$(mktemp -d)"
+            if ! gh release download "$tag" --repo "$GITHUB_REPOSITORY" --pattern manifest.json --dir "$tmp" >/dev/null 2>&1; then
+              rm -rf "$tmp"
+              continue
+            fi
+            metadata="$(validate_manifest "$tmp/manifest.json" "$candidate" "$candidate_fingerprint" 2>/dev/null || true)"
+            rm -rf "$tmp"
+            [[ -n "$metadata" ]] || continue
+
+            IFS=$'\t' read -r package_tag package_source asset sha256 version <<< "$metadata"
+            asset_exists "$package_tag" "$asset" || continue
+
+            {
+              echo "reuse=true"
+              echo "package_tag=$package_tag"
+              echo "package_source_sha=$package_source"
+              echo "asset=$asset"
+              echo "sha256=$sha256"
+              echo "version=$version"
+            } >> "$GITHUB_OUTPUT"
+            echo "Reusing verified web package $package_tag for $SOURCE_SHA"
+            exit 0
+          done < <(git rev-list --max-count=100 "${SOURCE_SHA}^")
+
+          echo "No reusable verified web package matches fingerprint $fingerprint; full web build required"
+
+      - name: Write exact-SHA reference manifest
+        if: steps.resolve.outputs.current_release != 'true' && steps.resolve.outputs.reuse == 'true'
+        env:
+          RUNTIME_FINGERPRINT: ${{ steps.resolve.outputs.fingerprint }}
+          PACKAGE_TAG: ${{ steps.resolve.outputs.package_tag }}
+          PACKAGE_SOURCE_SHA: ${{ steps.resolve.outputs.package_source_sha }}
+          ASSET: ${{ steps.resolve.outputs.asset }}
+          SHA256: ${{ steps.resolve.outputs.sha256 }}
+          OPENCHAMBER_VERSION: ${{ steps.resolve.outputs.version }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const m = {
+            schema_version: 1,
+            platform: 'linux-x64',
+            source_sha: process.env.SOURCE_SHA,
+            repository: process.env.GITHUB_REPOSITORY,
+            package_source_sha: process.env.PACKAGE_SOURCE_SHA,
+            package_tag: process.env.PACKAGE_TAG,
+            asset: process.env.ASSET,
+            sha256: process.env.SHA256,
+            openchamber_version: process.env.OPENCHAMBER_VERSION,
+            runtime_fingerprint: process.env.RUNTIME_FINGERPRINT,
+          };
+          fs.writeFileSync('manifest.json', JSON.stringify(m, null, 2) + '\n');
+          NODE
+
+      - name: Publish exact-SHA reference release
+        if: github.event_name != 'pull_request' && steps.resolve.outputs.current_release != 'true' && steps.resolve.outputs.reuse == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          tag="v2-web-package-${SOURCE_SHA}"
+          gh release create "$tag" manifest.json             --target "$SOURCE_SHA"             --prerelease             --title "OpenChamber V2 web ${SOURCE_SHA:0:12}"             --notes "Exact-SHA manifest reusing verified web package ${{ steps.resolve.outputs.package_tag }}."             --repo "$GITHUB_REPOSITORY"
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        if: steps.resolve.outputs.current_release != 'true' && steps.resolve.outputs.reuse != 'true'
+        with:
+          bun-version: '1.4.2'
+
+      - name: Install build dependencies
+        if: steps.resolve.outputs.current_release != 'true' && steps.resolve.outputs.reuse != 'true'
+        run: bun install --frozen-lockfile
+
+      - name: Build and pack web runtime
+        if: steps.resolve.outputs.current_release != 'true' && steps.resolve.outputs.reuse != 'true'
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          version="$(node -p 'require("./packages/web/package.json").version')"
+          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          bun run --cwd packages/web build
+          mkdir -p artifacts
+          (
+            cd packages/web
+            bun pm pack --destination "$GITHUB_WORKSPACE/artifacts"
+          )
+          shopt -s nullglob
+          packages=(artifacts/*.tgz)
+          shopt -u nullglob
+          [[ "${#packages[@]}" -eq 1 ]] || {
+            echo "Expected exactly one packed web package" >&2
+            exit 1
+          }
+          asset="openchamber-web-${SOURCE_SHA}.tgz"
+          mv "${packages[0]}" "artifacts/$asset"
+          echo "OPENCHAMBER_VERSION=$version" >> "$GITHUB_ENV"
+          echo "ASSET=$asset" >> "$GITHUB_ENV"
+
+      - name: Verify packed web runtime
+        if: steps.resolve.outputs.current_release != 'true' && steps.resolve.outputs.reuse != 'true'
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          tar -tzf "artifacts/$ASSET" | grep -Fxq 'package/bin/cli.js'
+          tar -tzf "artifacts/$ASSET" | grep -q '^package/dist/'
+          tar -tzf "artifacts/$ASSET" | grep -q '^package/server/'
+          test_root="$RUNNER_TEMP/openchamber-global"
+          mkdir -p "$test_root"
+          BUN_INSTALL="$test_root" bun add -g "$GITHUB_WORKSPACE/artifacts/$ASSET"
+          actual="$("$test_root/bin/openchamber" --version | sed -E 's/^OpenChamber[[:space:]]+v?//; s/^v//')"
+          test "$actual" = "$OPENCHAMBER_VERSION"
+
+      - name: Write package manifest
+        if: steps.resolve.outputs.current_release != 'true' && steps.resolve.outputs.reuse != 'true'
+        env:
+          RUNTIME_FINGERPRINT: ${{ steps.resolve.outputs.fingerprint }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          hash="$(sha256sum "artifacts/$ASSET" | awk '{print $1}')"
+          SHA256="$hash" node - <<'NODE'
+          const fs = require('node:fs');
+          const tag = `v2-web-package-${process.env.SOURCE_SHA}`;
+          const m = {
+            schema_version: 1,
+            platform: 'linux-x64',
+            source_sha: process.env.SOURCE_SHA,
+            repository: process.env.GITHUB_REPOSITORY,
+            package_source_sha: process.env.SOURCE_SHA,
+            package_tag: tag,
+            asset: process.env.ASSET,
+            sha256: process.env.SHA256,
+            openchamber_version: process.env.OPENCHAMBER_VERSION,
+            runtime_fingerprint: process.env.RUNTIME_FINGERPRINT,
+          };
+          fs.writeFileSync('manifest.json', JSON.stringify(m, null, 2) + '\n');
+          NODE
+
+      - name: Publish verified immutable web package
+        if: github.event_name != 'pull_request' && steps.resolve.outputs.current_release != 'true' && steps.resolve.outputs.reuse != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          tag="v2-web-package-${SOURCE_SHA}"
+          gh release create "$tag" manifest.json "artifacts/$ASSET"             --target "$SOURCE_SHA"             --prerelease             --title "OpenChamber V2 web ${SOURCE_SHA:0:12}"             --notes "Verified immutable Linux x64 web runtime package."             --repo "$GITHUB_REPOSITORY"
+
+      - name: Verify published exact-SHA manifest
+        if: github.event_name != 'pull_request' && steps.resolve.outputs.current_release != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUNTIME_FINGERPRINT: ${{ steps.resolve.outputs.fingerprint }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          tmp="$(mktemp -d)"
+          trap 'rm -rf "$tmp"' EXIT
+          tag="v2-web-package-${SOURCE_SHA}"
+          gh release download "$tag" --repo "$GITHUB_REPOSITORY" --pattern manifest.json --dir "$tmp"
+          node - "$tmp/manifest.json" "$SOURCE_SHA" "$RUNTIME_FINGERPRINT" <<'NODE'
+          const fs = require('node:fs');
+          const [file, expectedSource, expectedFingerprint] = process.argv.slice(2);
+          const m = JSON.parse(fs.readFileSync(file, 'utf8'));
+          if (m.schema_version !== 1 ||
+              m.platform !== 'linux-x64' ||
+              m.source_sha !== expectedSource ||
+              !/^[a-f0-9]{40}$/.test(String(m.package_source_sha || '')) ||
+              m.package_tag !== `v2-web-package-${m.package_source_sha}` ||
+              m.asset !== `openchamber-web-${m.package_source_sha}.tgz` ||
+              !/^[a-f0-9]{64}$/.test(String(m.sha256 || '')) ||
+              m.runtime_fingerprint !== expectedFingerprint) {
+            process.exit(1);
+          }
+          NODE
