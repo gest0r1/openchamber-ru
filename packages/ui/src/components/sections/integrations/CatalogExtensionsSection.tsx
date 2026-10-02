@@ -41,7 +41,7 @@ interface CatalogExtensionsSectionProps {
 }
 
 /**
- * OpenChamber extensions the team publishes (Excalidraw today), offered with a
+ * Curated OpenChamber extensions, including upstream and third-party packages, offered with a
  * one-click Git install. The installed extension is an ordinary entry in
  * Settings → Extensions; these cards read the same catalog. Hidden where the
  * runtime loads no extensions (VS Code, mobile).
@@ -86,7 +86,7 @@ export const CatalogExtensionsSection: React.FC<CatalogExtensionsSectionProps> =
         : t(errorToastKey(result.code)));
       return;
     }
-    toast.success(t('settings.integrations.thirdParty.toast.installed', { name: t(definition.nameKey) }));
+    toast.success(t('settings.integrations.thirdParty.toast.installed', { name: definition.name }));
     // The approval dialog lives in Settings → Extensions.
     if (guestNeedsApproval(result.guest)) openExtensionsPage();
   });
@@ -100,17 +100,17 @@ export const CatalogExtensionsSection: React.FC<CatalogExtensionsSectionProps> =
       return;
     }
     closeGuestTabsById(definition.guestId);
-    toast.success(t('settings.integrations.thirdParty.toast.updated', { name: t(definition.nameKey) }));
+    toast.success(t('settings.integrations.thirdParty.toast.updated', { name: definition.name }));
     if (guestNeedsApproval(result.guest)) openExtensionsPage();
   });
 
   const enable = (definition: CatalogExtensionDefinition) => run(definition, 'enable', async () => {
     const ok = await setGuestEnabled(definition.guestId, true);
     if (!ok) {
-      toast.error(t('settings.integrations.extensionCatalog.toast.enableFailed', { name: t(definition.nameKey) }));
+      toast.error(t('settings.integrations.extensionCatalog.toast.enableFailed', { name: definition.name }));
       return;
     }
-    toast.success(t('settings.integrations.extensionCatalog.toast.enabled', { name: t(definition.nameKey) }));
+    toast.success(t('settings.integrations.extensionCatalog.toast.enabled', { name: definition.name }));
   });
 
   const remove = async () => {
@@ -124,7 +124,7 @@ export const CatalogExtensionsSection: React.FC<CatalogExtensionsSectionProps> =
         return;
       }
       closeGuestTabsById(definition.guestId);
-      toast.success(t('settings.integrations.thirdParty.toast.removed', { name: t(definition.nameKey) }));
+      toast.success(t('settings.integrations.thirdParty.toast.removed', { name: definition.name }));
     });
   };
 
@@ -174,7 +174,7 @@ export const CatalogExtensionsSection: React.FC<CatalogExtensionsSectionProps> =
         key={definition.guestId}
         settingsItem={`integrations.extensions.${definition.guestId}`}
         logo={<FileTypeIcon filePath={definition.logoFileName} className="size-5" />}
-        name={t(definition.nameKey)}
+        name={definition.name}
         description={t(definition.descriptionKey)}
         status={status}
         statusTone={tone}
