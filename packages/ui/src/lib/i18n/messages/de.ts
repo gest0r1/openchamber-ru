@@ -83,6 +83,7 @@ export const dict = {
   'common.language.japanese': 'Japanisch',
   'common.language.turkish': 'Türkisch',
   'common.language.dutch': 'Niederländisch',
+  "common.language.russian": "Russisch",
   'common.revealPath.finder': 'Im Finder anzeigen',
   'common.revealPath.fileExplorer': 'In Datei-Explorer öffnen',
   'common.revealPath.fileManager': 'In Dateimanager öffnen',
