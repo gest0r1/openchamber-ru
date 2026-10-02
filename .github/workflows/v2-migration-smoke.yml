@@ -1,0 +1,61 @@
+name: OpenChamber 2.x migration smoke
+
+on:
+  push:
+    branches:
+      - 'upgrade/openchamber-2.1.0'
+    paths:
+      - 'packages/ui/**'
+      - 'packages/web/**'
+      - 'packages/electron/**'
+      - '.github/workflows/release.yml'
+      - '.github/workflows/release-desktop-smoke.yml'
+      - '.github/workflows/mobile-release.yml'
+      - 'scripts/check-fork-release-policy.mjs'
+      - '.github/workflows/v2-migration-smoke.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: openchamber-v2-migration-smoke-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  migration-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: 1.4.2
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: '22'
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Validate fork release policy
+        run: node scripts/check-fork-release-policy.mjs
+
+      - name: Type-check UI and web
+        run: |
+          bun run type-check:ui
+          bun run type-check:web
+
+      - name: Run focused migration tests
+        run: |
+          bun test             packages/ui/src/lib/i18n/messages.test.ts             packages/ui/src/lib/i18n/ru-coverage.test.ts             packages/ui/src/components/sections/integrations/catalogExtensions.test.ts
+          node --test             packages/electron/updater-feed.test.mjs             packages/electron/scripts/finalize-latest-yml.test.mjs
+
+      - name: Build server web package
+        run: |
+          bun run build:web
+          mkdir -p /tmp/openchamber-pack
+          bun pm pack --cwd packages/web --destination /tmp/openchamber-pack
+          test -n "$(find /tmp/openchamber-pack -maxdepth 1 -name '*.tgz' -print -quit)"
