@@ -77,6 +77,9 @@ async function startupCommand(options, action = 'status', dependencies = {}) {
   }
   if (normalized === 'enable') {
     logStatus('info', 'service command', 'openchamber serve --foreground');
+    if (result.startDeferred === true) {
+      logStatus('warning', 'service restart deferred', 'unit installed/enabled without interrupting the current session');
+    }
   }
   if (result.platform === 'linux') {
     if (result.lingerEnabled === true) {
