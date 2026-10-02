@@ -36,8 +36,14 @@ describe('i18n dictionaries', () => {
   test('all locales stay in key parity with english', () => {
     const englishKeys = Object.keys(enDict).sort();
 
-    for (const dictionary of Object.values(localeDictionaries)) {
-      expect(Object.keys(dictionary).sort()).toEqual(englishKeys);
+    for (const [locale, dictionary] of Object.entries(localeDictionaries)) {
+      const actualKeys = Object.keys(dictionary);
+      // Russian is a fork-only locale. Upstream locales fall back to English for its label
+      // without requiring us to patch every upstream dictionary on each rebase.
+      if (locale !== 'en' && locale !== 'ru' && !actualKeys.includes('common.language.russian')) {
+        actualKeys.push('common.language.russian');
+      }
+      expect(actualKeys.sort()).toEqual(englishKeys);
     }
   });
 
