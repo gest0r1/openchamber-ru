@@ -1,4 +1,8 @@
-// Fork-only Russian translations carried from the 1.24.x modules.\n// Kept separate so upstream i18n modules remain untouched during 2.x rebases.\nexport const legacyRussianModuleOverrides = {\n  // extensions.settings.i18n.ts\n
+// Fork-only Russian translations carried from the 1.24.x modules.
+// Kept separate so upstream i18n modules remain untouched during 2.x rebases.
+export const legacyRussianModuleOverrides = {
+  // extensions.settings.i18n.ts
+
     'settings.extensions.actions.openSource': 'Открыть исходный код',
     'settings.extensions.builtIn.info': 'Поставляется вместе с OpenChamber и обновляется вместе с приложением. Заявленные разрешения выдаются автоматически. При отключении данные и подключённые аккаунты сохраняются.',
     'settings.extensions.toast.reservedId': 'Этот ID расширения зарезервирован для встроенного расширения.',
@@ -114,7 +118,9 @@
     'settings.extensions.toast.updateFailed': 'Не удалось обновить {name}.',
     'settings.extensions.toast.notGit': 'Обновлять можно только расширения, установленные из Git URL.',
     'settings.extensions.toast.swapFailed': 'Не удалось заменить установленные файлы. Предыдущая версия сохранена.',
-  \n  // guest-integrations.i18n.ts\n
+  
+  // guest-integrations.i18n.ts
+
     'settings.integrations.guests.title': 'Учётные записи расширений',
     'settings.integrations.guests.info': 'Подключайте учётные записи расширений, установленных в разделе «Настройки → Расширения». Токены хранятся на этом компьютере.',
     'settings.integrations.guests.status.connected': 'Подключено',
@@ -141,7 +147,9 @@
     'settings.integrations.guests.toast.clientRequired': 'Сначала сохраните ID клиента.',
     'settings.integrations.guests.toast.tokenRequired': 'Сначала вставьте API-токен.',
     'settings.integrations.guests.toast.tokenInvalid': 'Проверка токена расширением не пройдена. Проверьте права токена и URL проверки расширения.',
-  \n  // linear-integration.i18n.ts\n
+  
+  // linear-integration.i18n.ts
+
     'settings.integrations.github.title': 'GitHub',
     'settings.integrations.github.description': 'Подключите аккаунт GitHub для pull request и задач.',
     'settings.integrations.github.status.notConnected': 'Не подключено',
@@ -190,7 +198,9 @@
     'settings.magicPrompts.sidebar.item.linearIssueReview': 'Обзор задачи',
     'settings.magicPrompts.page.group.linearIssueReview.title': 'Обзор задачи',
     'settings.magicPrompts.page.group.linearIssueReview.description': 'Промпты при запуске сессии из задачи Linear: видимое сообщение пользователя и скрытые инструкции.',
-  \n  // linear-issue-picker.i18n.ts\n
+  
+  // linear-issue-picker.i18n.ts
+
     'chat.chatInput.actions.linkLinearIssue': 'Связать с задачей Linear',
     'chat.chatInput.linked.linearIssue.openInBrowserAria': 'Открыть задачу в Linear',
     'chat.chatInput.linked.linearIssue.removeAria': 'Удалить связанную задачу Linear',
@@ -228,7 +238,9 @@
     'session.newWorktree.actions.startFromLinearIssue': 'Начать с задачи Linear',
     'session.newWorktree.fromLinearIssue': 'Из {identifier}: {title}',
     'session.newWorktree.error.sendLinearContextFailed': 'Не удалось отправить контекст Linear',
-  \n  // linear-panel.i18n.ts\n
+  
+  // linear-panel.i18n.ts
+
     'contextPanel.mode.linear': 'Linear',
     'contextRail.surface.linear.description': 'Просматривайте задачи Linear, меняйте статус и запускайте сессии',
     'contextPanel.linear.actions.backToList': 'Назад к задачам',
@@ -279,7 +291,9 @@
     'contextPanel.linear.toast.workspaceSwitched': 'Рабочее пространство Linear изменено',
     'contextPanel.linear.toast.workspaceSwitchFailed': 'Не удалось сменить рабочее пространство Linear',
     'contextPanel.linear.error.noCompletedState': 'У этой команды нет статуса «Готово»',
-  \n  // routing.i18n.ts\n
+  
+  // routing.i18n.ts
+
     'chat.modelControls.autoModel': 'Авто',
     'chat.permissionCard.heldBySafetyNet': 'Защитный контур приостановил действие для вашего решения',
     'routing.safetyKind.readOnly': 'только чтение',
@@ -342,7 +356,9 @@
     'settings.routing.thinking.default': 'По умолчанию',
     'settings.routing.model.placeholder': 'Выберите модель',
     'settings.routing.model.useFallback': 'Резервная модель',
-  \n  // plugin-panel.i18n.ts\n
+  
+  // plugin-panel.i18n.ts
+
     'chat.chatInput.toast.guestHasNoPanel': 'Это расширение работает без панели.',
     'header.mainSurface.backToChat': 'Вернуться в чат',
     'sessions.sidebar.header.actions.extensionPages': 'Страницы расширений',
@@ -383,4 +399,5 @@
     'chat.chatInput.toast.guestCommandFailed': 'Команда /{command} завершилась с ошибкой: {reason}',
     'chat.chatInput.toast.guestCommandUnavailable': '{name} не ответило.',
     'chat.chatInput.toast.guestUnavailableHere': 'Это расширение недоступно здесь. Откройте его в OpenChamber Web или Desktop.',
-  \n} as const;\n
+  
+} as const;
