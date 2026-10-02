@@ -8,7 +8,6 @@ const ref = refIndex >= 0 ? args[refIndex + 1] : 'HEAD';
 if (refIndex >= 0 && !ref) throw new Error('--ref requires a git ref');
 
 const exact = new Set([
-  '.github/workflows/v2-linux-web-package.yml',
   'package.json',
   'bun.lock',
   'tsconfig.json',
