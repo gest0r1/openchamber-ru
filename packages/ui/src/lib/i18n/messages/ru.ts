@@ -4,12 +4,10 @@ import { fullRussianOverrides } from './ru.full-overrides';
 import { legacyRussianModuleOverrides } from './ru.legacy-modules';
 import { v2RussianOverrides } from './ru.v2-overrides';
 
-export const dict: Record<I18nKey, string> & Record<string, string> = {
-  ...enDict,
+const legacyDict: Record<string, string> = {
   ...settingsDict,
   ...legacyRussianModuleOverrides,
   ...fullRussianOverrides,
-  ...v2RussianOverrides,
   "common.loading": "Загрузка...",
   "common.unavailable": "Недоступно",
   "common.language.english": "Английский",
@@ -2601,3 +2599,13 @@ export const dict: Record<I18nKey, string> & Record<string, string> = {
   "chat.workStatus.sections.position": "{label}, позиция {position} из {count}.",
   "chat.workStatus.sections.dragCancelled": "Изменение порядка отменено.",
 };
+
+const mergedRussian: Record<string, string> = {
+  ...enDict,
+  ...legacyDict,
+  ...v2RussianOverrides,
+};
+
+export const dict = Object.fromEntries(
+  Object.entries(enDict).map(([key, english]) => [key, mergedRussian[key] ?? english]),
+) as Record<I18nKey, string>;
