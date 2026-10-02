@@ -85,11 +85,9 @@ function collectStartupEnv(options = {}) {
       .map(([key, value]) => [key, String(value)])
   );
 
-  if (options.envSnapshot !== false) {
-    const opencodeBinary = process.env.OPENCODE_BINARY || searchPathFor('opencode');
-    if (typeof opencodeBinary === 'string' && opencodeBinary.trim().length > 0) {
-      env.OPENCODE_BINARY = opencodeBinary.trim();
-    }
+  const opencodeBinary = process.env.OPENCODE_BINARY || searchPathFor('opencode');
+  if (typeof opencodeBinary === 'string' && opencodeBinary.trim().length > 0) {
+    env.OPENCODE_BINARY = opencodeBinary.trim();
   }
   const uiPassword = hasUiPasswordConfigured(options.uiPassword) ? options.uiPassword : undefined;
   if (uiPassword) {
@@ -385,8 +383,12 @@ function enableStartupService(options = {}) {
     fs.mkdirSync(path.dirname(paths.servicePath), { recursive: true, mode: 0o700 });
     fs.writeFileSync(paths.servicePath, buildSystemdUserService(options), { mode: 0o600 });
     runStartupCommand('systemctl', ['--user', 'daemon-reload']);
+    if (options.startService === false) {
+      runStartupCommand('systemctl', ['--user', 'enable', 'openchamber.service']);
+      return { ...getStartupStatus(), startDeferred: true };
+    }
     runStartupCommand('systemctl', ['--user', 'enable', '--now', 'openchamber.service']);
-    return getStartupStatus();
+    return { ...getStartupStatus(), startDeferred: false };
   }
 
   writeStartupEnvFile(options);
