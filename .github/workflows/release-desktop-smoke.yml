@@ -6,12 +6,12 @@ on:
       repository:
         description: Repository to checkout, for example openchamber/openchamber or daveotero/openchamber
         required: false
-        default: openchamber/openchamber
+        default: gest0r1/openchamber-ru
         type: string
       ref:
         description: Git ref to build (branch, tag, or sha)
         required: true
-        default: feat/windows-desktop-app
+        default: main
         type: string
       build_windows:
         description: Build Windows Electron installer artifacts
