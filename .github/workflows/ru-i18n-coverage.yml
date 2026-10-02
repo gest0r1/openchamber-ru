@@ -7,10 +7,32 @@ on:
       - 'upgrade/openchamber-2.1.0'
     paths:
       - 'packages/ui/src/lib/i18n/**'
+      - 'packages/ui/src/lib/linkedIssues.ts'
+      - 'packages/ui/src/lib/linkedIssues.test.ts'
+      - 'packages/ui/src/components/chat/ChatInput.tsx'
+      - 'packages/electron/updater-feed.mjs'
+      - 'packages/electron/updater-feed.test.mjs'
+      - 'packages/electron/scripts/finalize-latest-yml.mjs'
+      - 'packages/electron/scripts/finalize-latest-yml.test.mjs'
+      - '.github/workflows/release.yml'
+      - '.github/workflows/release-desktop-smoke.yml'
+      - '.github/workflows/mobile-release.yml'
+      - 'scripts/check-fork-release-policy.mjs'
       - '.github/workflows/ru-i18n-coverage.yml'
   pull_request:
     paths:
       - 'packages/ui/src/lib/i18n/**'
+      - 'packages/ui/src/lib/linkedIssues.ts'
+      - 'packages/ui/src/lib/linkedIssues.test.ts'
+      - 'packages/ui/src/components/chat/ChatInput.tsx'
+      - 'packages/electron/updater-feed.mjs'
+      - 'packages/electron/updater-feed.test.mjs'
+      - 'packages/electron/scripts/finalize-latest-yml.mjs'
+      - 'packages/electron/scripts/finalize-latest-yml.test.mjs'
+      - '.github/workflows/release.yml'
+      - '.github/workflows/release-desktop-smoke.yml'
+      - '.github/workflows/mobile-release.yml'
+      - 'scripts/check-fork-release-policy.mjs'
       - '.github/workflows/ru-i18n-coverage.yml'
   workflow_dispatch:
 
