@@ -27,7 +27,7 @@ export const EXCALIDRAW_EXTENSION: CatalogExtensionDefinition = {
 
 export const SERVER_BROWSER_EXTENSION: CatalogExtensionDefinition = {
   guestId: 'server-browser',
-  gitUrl: 'https://github.com/JosueGalRe/openchamber-server-browser',
+  gitUrl: 'https://github.com/JosueGalRe/openchamber-server-browser#v0.7.0',
   homepage: 'https://github.com/JosueGalRe/openchamber-server-browser',
   name: 'Server Browser',
   descriptionKey: 'settings.openchamber.tools.browserProvider.info',
