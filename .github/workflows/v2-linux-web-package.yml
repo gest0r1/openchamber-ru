@@ -133,7 +133,7 @@ jobs:
           while IFS= read -r tag; do
             [[ -n "$tag" ]] && releases["$tag"]=1
           done < <(
-            gh release list --repo "$GITHUB_REPOSITORY" --limit 100 --json tagName               --jq '.[].tagName | select(startswith("v2-web-package-"))'
+            gh release list --repo "$GITHUB_REPOSITORY" --limit 1000 --json tagName               --jq '.[].tagName | select(startswith("v2-web-package-"))'
           )
 
           while IFS= read -r candidate; do
