@@ -99,6 +99,17 @@ const technicalTermAllowlist = new Set([
   'chat.workStatus.section.mcp',
   'chat.workStatus.breakdown.mcpCountSingle',
   'chat.workStatus.breakdown.mcpCountPlural',
+  // Product names, protocol tokens, code-like placeholders, and locale-neutral value templates.
+  'settings.openchamber.tools.browserProvider.option.builtin',
+  'settings.providers.page.custom.models.variantsPlaceholder',
+  'settings.integrations.thirdParty.opencodeClaude.name',
+  'settings.integrations.extensionCatalog.excalidraw.name',
+  'settings.mcp.page.advanced.codemode',
+  'settings.mcp.page.advanced.protocolOption.revision20260728',
+  'settings.mcp.page.advanced.oauth',
+  'settings.mcp.page.advanced.oauthMetadataUrlPlaceholder',
+  'usageStats.tokens.legendValue',
+  'multirun.overview.card.diff',
 ]);
 
 describe('Russian i18n coverage', () => {
