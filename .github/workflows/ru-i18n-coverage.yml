@@ -1,0 +1,35 @@
+name: Russian i18n coverage
+
+on:
+  push:
+    branches:
+      - main
+      - 'upgrade/openchamber-2.1.0'
+    paths:
+      - 'packages/ui/src/lib/i18n/**'
+      - '.github/workflows/ru-i18n-coverage.yml'
+  pull_request:
+    paths:
+      - 'packages/ui/src/lib/i18n/**'
+      - '.github/workflows/ru-i18n-coverage.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  russian-i18n-coverage:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.2
+
+      - name: Check Russian dictionary integration and full coverage
+        run: |
+          bun test             packages/ui/src/lib/i18n/messages.test.ts             packages/ui/src/lib/i18n/ru-coverage.test.ts
