@@ -1,0 +1,60 @@
+name: OpenChamber 2.x upgrade contract
+
+on:
+  push:
+    branches:
+      - 'upgrade/openchamber-2.1.0'
+    paths:
+      - 'packages/ui/**'
+      - 'packages/web/**'
+      - 'packages/electron/**'
+      - 'scripts/check-fork-release-policy.mjs'
+      - '.github/workflows/release.yml'
+      - '.github/workflows/release-desktop-smoke.yml'
+      - '.github/workflows/mobile-release.yml'
+      - '.github/workflows/upgrade-v2-contract.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: openchamber-v2-upgrade-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: 1.4.2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: '22'
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Verify fork release and updater policy
+        run: node scripts/check-fork-release-policy.mjs
+
+      - name: Verify updater and extension catalog
+        run: |
+          node --test             packages/electron/updater-feed.test.mjs             packages/electron/scripts/finalize-latest-yml.test.mjs
+          bun test packages/ui/src/components/sections/integrations/catalogExtensions.test.ts
+
+      - name: Type-check migrated UI and web server
+        run: |
+          bun run type-check:ui
+          bun run type-check:web
+
+      - name: Build web server package
+        run: bun run build:web
