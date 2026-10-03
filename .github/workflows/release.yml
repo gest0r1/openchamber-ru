@@ -344,7 +344,7 @@ jobs:
 
   finalize-release:
     needs: [create-release, build-desktop-electron-windows, build-desktop-electron-linux, package-web, mobile-release]
-    if: ${{ !cancelled() && !failure() }}
+    if: ${{ !cancelled() && !failure() && needs.create-release.result == 'success' && github.event.inputs.dry_run != 'true' }}
     runs-on: ubuntu-latest
     steps:
       - name: Verify final cross-platform release asset inventory

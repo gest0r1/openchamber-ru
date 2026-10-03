@@ -323,3 +323,4 @@ export const readStoredLocaleForBootstrap = (): Locale => {
     return 'en';
   }
 };
+

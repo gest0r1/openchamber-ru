@@ -17,6 +17,7 @@ export const DEFAULT_LANGUAGE = 'en';
 // which every model handles more reliably than a switch mid-sentence.
 const LANGUAGE_NAMES = {
   en: 'English',
+  ru: 'Russian',
   de: 'German',
   fr: 'French',
   nl: 'Dutch',
@@ -66,3 +67,4 @@ export function languageName(language) {
 // that file, because a locale added on one side only fails silently: the picker
 // offers the language and the walkthrough comes back in English.
 export const __testing = { LANGUAGE_NAMES };
+

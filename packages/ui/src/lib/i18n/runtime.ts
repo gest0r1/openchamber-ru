@@ -21,6 +21,23 @@ export const LOCALE_LABEL_KEYS: Record<Locale, 'common.language.english' | 'comm
   ru: 'common.language.russian',
 };
 
+export const RUSSIAN_LOCALE_LABELS: Record<Locale, string> = {
+  nl: 'Russisch',
+  en: 'Russian',
+  de: 'Russisch',
+  fr: 'Russe',
+  'zh-CN': '俄语',
+  'zh-TW': '俄語',
+  uk: 'Російська',
+  es: 'Ruso',
+  'pt-BR': 'Russo',
+  ko: '러시아어',
+  pl: 'Rosyjski',
+  ja: 'ロシア語',
+  tr: 'Rusça',
+  ru: 'Русский',
+};
+
 export const LOCALE_STORAGE_KEY = 'openchamber.i18n.v1';
 
 type StoredLocale = {
@@ -130,3 +147,4 @@ export function detectInitialLocale(): Locale {
 
   return DEFAULT_LOCALE;
 }
+

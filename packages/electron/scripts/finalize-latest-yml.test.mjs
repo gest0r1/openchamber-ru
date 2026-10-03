@@ -59,3 +59,4 @@ test('fails instead of publishing without the x64 Windows manifest', (context) =
   assert.notEqual(result.status, 0);
   assert.match(result.stderr, /x64 Windows update manifest is required/);
 });
+
