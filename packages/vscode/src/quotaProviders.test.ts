@@ -165,17 +165,17 @@ describe('OpenRouter quota provider (VS Code parity)', () => {
   });
 
   const withStubbedConfigFile = async (configJson: string, run: () => Promise<void>): Promise<void> => {
-    // SAFETY: the reassignment widens the bound readFileSync to the text-only
-    // signature the config reader actually calls.
-    const configurableFs = fs as { readFileSync: (filePath: fs.PathOrFileDescriptor, options?: BufferEncoding) => string };
-    const realRead = configurableFs.readFileSync;
-    configurableFs.readFileSync = (filePath: fs.PathOrFileDescriptor, options?: BufferEncoding): string => (
-      String(filePath).includes('opencode.json') ? configJson : realRead(filePath, options)
-    );
+    const previousConfig = process.env.OPENCODE_CONFIG;
+    const configDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'openchamber-openrouter-config-'));
+    const configPath = path.join(configDirectory, 'opencode.json');
+    fs.writeFileSync(configPath, configJson, 'utf8');
+    process.env.OPENCODE_CONFIG = configPath;
     try {
       await run();
     } finally {
-      configurableFs.readFileSync = realRead;
+      if (previousConfig === undefined) delete process.env.OPENCODE_CONFIG;
+      else process.env.OPENCODE_CONFIG = previousConfig;
+      fs.rmSync(configDirectory, { recursive: true, force: true });
     }
   };
 
