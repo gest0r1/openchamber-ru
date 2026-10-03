@@ -439,6 +439,9 @@ function parseArgs(argv = process.argv.slice(2)) {
       case 'no-env-snapshot':
         options.envSnapshot = false;
         break;
+      case 'no-start':
+        options.startService = false;
+        break;
       case 'lines': {
         const { value, nextIndex } = consumeValue(i, inlineValue);
         i = nextIndex;
@@ -681,6 +684,7 @@ OPTIONS:
   --ui-password           Protect browser UI with single password
   --api-only              Start API routes only, without serving browser UI assets
   --no-env-snapshot       Do not save current environment for startup service
+  --no-start              Install/enable Linux unit without starting or restarting it
   --json                  Output machine-readable JSON
   -q, --quiet             Suppress non-essential output
 

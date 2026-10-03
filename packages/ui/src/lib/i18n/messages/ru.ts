@@ -1,18 +1,12 @@
 import { dict as enDict, type I18nKey } from './en';
 import { settingsDict } from './ru.settings';
-import { linearIssuePickerI18n } from './linear-issue-picker.i18n';
-import { linearPanelI18n } from './linear-panel.i18n';
-import { routingI18n } from './routing.i18n';
-import { pluginPanelI18n } from './plugin-panel.i18n';
 import { fullRussianOverrides } from './ru.full-overrides';
+import { legacyRussianModuleOverrides } from './ru.legacy-modules';
+import { v2RussianOverrides } from './ru.v2-overrides';
 
-export const dict: Record<I18nKey, string> & Record<string, string> = {
-  ...enDict,
+const legacyDict: Record<string, string> = {
   ...settingsDict,
-  ...linearIssuePickerI18n.ru,
-  ...linearPanelI18n.ru,
-  ...routingI18n.ru,
-  ...pluginPanelI18n.ru,
+  ...legacyRussianModuleOverrides,
   ...fullRussianOverrides,
   "common.loading": "Загрузка...",
   "common.unavailable": "Недоступно",
@@ -2605,3 +2599,14 @@ export const dict: Record<I18nKey, string> & Record<string, string> = {
   "chat.workStatus.sections.position": "{label}, позиция {position} из {count}.",
   "chat.workStatus.sections.dragCancelled": "Изменение порядка отменено.",
 };
+
+const mergedRussian: Record<string, string> = {
+  ...enDict,
+  ...legacyDict,
+  ...v2RussianOverrides,
+};
+
+export const dict = Object.fromEntries(
+  Object.entries(enDict).map(([key, english]) => [key, mergedRussian[key] ?? english]),
+) as Record<I18nKey, string>;
+

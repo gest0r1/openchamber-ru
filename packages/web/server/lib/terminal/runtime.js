@@ -10,7 +10,7 @@ import {
 import { sanitizeTerminalHistoryChunk } from './history.js';
 import { consumeTerminalThemeQueries, terminalThemeModeReport } from './theme-response.js';
 import { buildTerminalShellLaunch, createTerminalShellResolver, normalizeTerminalShell } from './shells.js';
-import { stripAppImageArgv0Leak, resolvePosixPtyLaunch } from '../inherited-env.js';
+import { stripAppImageArgv0Leak, stripAppImageLauncherEnv, resolvePosixPtyLaunch } from '../inherited-env.js';
 import { shutdownTerminalProcesses } from './shutdown.js';
 
 const MAX_SESSIONS = 20;
@@ -124,13 +124,25 @@ export function createTerminalRuntime({
     let lastError = null;
     for (const executable of resolvedShell.executables) {
       try {
-        const env = { ...process.env, PATH: buildAugmentedPath(), TERM: 'xterm-256color', COLORTERM: 'truecolor', COLORFGBG: themeMode === 'light' ? '0;15' : '15;0' };
+        const env = {
+          ...process.env,
+          PATH: buildAugmentedPath(),
+          TERM: 'xterm-256color',
+          COLORTERM: 'truecolor',
+          COLORFGBG: themeMode === 'light' ? '0;15' : '15;0',
+          OPENCHAMBER_EMBEDDED_TERMINAL: '1',
+        };
         // The daemon's IPC fd is closed inside the PTY; an inherited NODE_CHANNEL_FD
         // (even an empty one) makes Node CLIs warn about an unparsable IPC channel.
         delete env.NODE_CHANNEL_FD;
         delete env.BASH_XTRACEFD; delete env.BASH_ENV; delete env.ENV; delete env.ELECTRON_RUN_AS_NODE;
         // AppImage exports ARGV0; zsh would otherwise rewrite argv[0] for every command (#2588).
         stripAppImageArgv0Leak(env);
+        // The AppImage launcher also prepends its own directories to PATH, LD_LIBRARY_PATH,
+        // GSETTINGS_SCHEMA_DIR and XDG_DATA_DIRS (#4177). Only the desktop app runs from an
+        // AppImage, and it spawns through node-pty, which uses this env as given, so these
+        // need no `env -u` below.
+        stripAppImageLauncherEnv(env);
         const shellLaunch = buildTerminalShellLaunch(executable, { mode, command, loginShell });
         // bun-pty merges the native OS environ back in, so the POSIX launch is
         // wrapped with `env -u` for the variables deleted above.

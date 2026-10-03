@@ -85,11 +85,9 @@ function collectStartupEnv(options = {}) {
       .map(([key, value]) => [key, String(value)])
   );
 
-  if (options.envSnapshot !== false) {
-    const opencodeBinary = process.env.OPENCODE_BINARY || searchPathFor('opencode');
-    if (typeof opencodeBinary === 'string' && opencodeBinary.trim().length > 0) {
-      env.OPENCODE_BINARY = opencodeBinary.trim();
-    }
+  const opencodeBinary = process.env.OPENCODE_BINARY || searchPathFor('opencode');
+  if (typeof opencodeBinary === 'string' && opencodeBinary.trim().length > 0) {
+    env.OPENCODE_BINARY = opencodeBinary.trim();
   }
   const uiPassword = hasUiPasswordConfigured(options.uiPassword) ? options.uiPassword : undefined;
   if (uiPassword) {
@@ -171,8 +169,8 @@ function resolveCliEntrypoint() {
   }
 }
 
-function buildStartupArgs(options = {}) {
-  const args = [resolveCliEntrypoint(), 'serve', '--foreground', '--port', String(options.port || DEFAULT_PORT)];
+function buildStartupArgs(options = {}, entrypoint = resolveCliEntrypoint()) {
+  const args = [entrypoint, 'serve', '--foreground', '--port', String(options.port || DEFAULT_PORT)];
   if (typeof options.host === 'string' && options.host.length > 0) {
     args.push('--host', options.host);
   }
@@ -248,7 +246,10 @@ ${envXml}  <key>ProcessType</key>
 }
 
 function buildSystemdUserService(options = {}) {
-  const args = buildStartupArgs(options).map((arg) => `"${systemdEscapeArg(arg)}"`).join(' ');
+  const launcher = process.env.OPENCHAMBER_STARTUP_LAUNCHER;
+  if (launcher && (!path.isAbsolute(launcher) || /[\r\n%]/.test(launcher))) throw new TunnelCliError('Invalid startup launcher', EXIT_CODE.USAGE_ERROR);
+  if (launcher) fs.accessSync(launcher, fs.constants.X_OK);
+  const args = (launcher ? buildStartupArgs(options, launcher).slice(1) : buildStartupArgs(options)).map((arg) => `"${systemdEscapeArg(arg)}"`).join(' ');
   const envFilePath = getStartupEnvFilePath();
   return `[Unit]
 Description=OpenChamber web server
@@ -257,7 +258,7 @@ After=network-online.target
 [Service]
 Type=simple
 EnvironmentFile=-${systemdEscapeArg(envFilePath)}
-ExecStart="${systemdEscapeArg(process.execPath)}" ${args}
+ExecStart="${systemdEscapeArg(launcher || process.execPath)}" ${args}
 WorkingDirectory=${systemdUnitPath(os.homedir())}
 Restart=always
 RestartSec=5
@@ -381,12 +382,26 @@ function enableStartupService(options = {}) {
   }
 
   if (paths.platform === 'linux') {
+    const service = buildSystemdUserService(options);
+    // Only migrate known my-opencode overrides; preserve all user drop-ins.
+    if (process.env.OPENCHAMBER_MIGRATE_MANAGED_STARTUP === '1') {
+      const drops = `${paths.servicePath}.d`;
+      for (const name of ['95-my-opencode-env.conf', '90-openchamber-runtime.conf', '90-integration-bundle.conf']) {
+        const file = path.join(drops, name);
+        if (fs.existsSync(file) && /managed-by:\s*(my-opencode|openchamber|integration-bundle)/i.test(fs.readFileSync(file, 'utf8'))) fs.unlinkSync(file);
+      }
+    }
     writeStartupEnvFile(options, { quoteValue: systemdEnvFileQuote });
     fs.mkdirSync(path.dirname(paths.servicePath), { recursive: true, mode: 0o700 });
-    fs.writeFileSync(paths.servicePath, buildSystemdUserService(options), { mode: 0o600 });
+    fs.writeFileSync(paths.servicePath, service, { mode: 0o600 });
     runStartupCommand('systemctl', ['--user', 'daemon-reload']);
-    runStartupCommand('systemctl', ['--user', 'enable', '--now', 'openchamber.service']);
-    return getStartupStatus();
+    if (options.startService === false) {
+      runStartupCommand('systemctl', ['--user', 'enable', 'openchamber.service']);
+      return { ...getStartupStatus(), startDeferred: true };
+    }
+    runStartupCommand('systemctl', ['--user', 'enable', 'openchamber.service']);
+    runStartupCommand('systemctl', ['--user', 'restart', 'openchamber.service']);
+    return { ...getStartupStatus(), startDeferred: false };
   }
 
   writeStartupEnvFile(options);

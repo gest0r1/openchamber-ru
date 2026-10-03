@@ -54,7 +54,7 @@ Command modules implement user-facing commands and preserve output contracts acr
   - Finds or starts a local instance and prints the browser/connect URL according to the selected output mode.
   - Emits a **pairing v2** link (`openchamber://connect?v=2&p=<base64url>`): it creates a one-time pairing session in the shared store (`client-pairing-sessions.json`) and encodes the pairing id + secret + transport candidates. The client redeems the secret over whichever candidate connects first (`/api/client-auth/pairing/redeem`). No standalone token is embedded — the QR itself is the single-use credential.
   - The default form advertises the resolved server URL as a direct (lan/tunnel) candidate and folds in a relay candidate when the host relay is enabled, so one link works on-LAN and off-network.
-  - `--relay` builds a relay-only pairing link (the sole candidate is the relay transport), for sharing with a device that is not on the host's network — no server URL, no auto-start. The relay endpoint follows `OPENCHAMBER_RELAY_URL` / the stored setting / the default, matching the running host; the host must be running with the relay enabled to serve the redeem over the tunnel.
+  - `--relay` builds a relay-only pairing link (the sole candidate is the relay transport), for sharing with a device that is not on the host's network — no server URL, no auto-start. The relay endpoint follows the administrator's pin (`pinnedRelayUrl`: policy file, then `OPENCHAMBER_RELAY_URL`) / the stored setting / the default, matching the running host; the host must be running with the relay enabled to serve the redeem over the tunnel.
 
 - `commands-update.js`
   - Implements `openchamber update`.
@@ -124,6 +124,9 @@ These modules hold reusable, non-presentational logic for commands.
 
 - `cli-startup.js`
   - Native startup service detection, install/uninstall/status helpers, and platform-specific startup command execution.
+  - On Linux, `OPENCHAMBER_STARTUP_LAUNCHER` selects an existing absolute executable as the stable service entrypoint. Reject newlines and systemd specifiers before modifying startup state. Without it, retain the ordinary Node/CLI entrypoint.
+  - Native `startup enable` owns unit/env writes, daemon reload, enable and restart. `--no-start` enables without starting or restarting.
+  - `OPENCHAMBER_MIGRATE_MANAGED_STARTUP=1` removes only known drop-ins carrying a recognized ownership marker; other user drop-ins remain intact. External installers switch binaries and call native startup, without editing/restoring unit/env files.
 
 - `cli-tunnel-profiles.js`
   - Tunnel profile normalization, token resolution/redaction, profile storage, migration, file-permission warnings, and managed-remote pair persistence.

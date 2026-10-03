@@ -245,6 +245,15 @@ describe('cli args', () => {
     expect(parsed.options.port).toBe(3002);
   });
 
+  it('parses startup no-start option', () => {
+    const parsed = parseArgs(['startup', 'enable', '--no-start', '--no-env-snapshot']);
+
+    expect(parsed.command).toBe('startup');
+    expect(parsed.startupAction).toBe('enable');
+    expect(parsed.options.startService).toBe(false);
+    expect(parsed.options.envSnapshot).toBe(false);
+  });
+
   it('parses schedule commands and options', () => {
     const parsed = parseArgs([
       'schedule',
@@ -1501,6 +1510,14 @@ describe('startup command lingering output', () => {
   });
 
   const runCommand = (status, options, action) => startupCommand(options, action, dependenciesFor(status));
+
+  it('reports deferred startup activation without treating it as a failure', async () => {
+    const status = { ...linuxStatus(true), active: false, activeState: 'inactive', startDeferred: true };
+    const output = await captureStdout(() => runCommand(status, {}, 'enable'));
+
+    expect(output).toContain('service restart deferred');
+    expect(output).toContain('unit installed/enabled without interrupting the current session');
+  });
 
   it.each([
     ['enable', true, 'ok', undefined],

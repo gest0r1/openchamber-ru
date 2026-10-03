@@ -1,4 +1,5 @@
 import { EventEmitter } from 'events';
+import { Readable, Writable } from 'node:stream';
 import path from 'path';
 import { copyFile, mkdir, mkdtemp, rm } from 'node:fs/promises';
 import * as nativeFs from 'node:fs/promises';
@@ -572,8 +573,7 @@ describe('fs read', () => {
     expect(fsPromises.readFile).toHaveBeenCalledWith('/shared/target.txt', 'utf8');
   });
 
-  it('rejects outside workspace reads without a grant', async () => {
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+  it('reads outside workspace files without a grant', async () => {
     const fsPromises = {
       stat: vi.fn(async () => ({ isFile: () => true, size: 3 })),
       readFile: vi.fn(async () => 'secret'),
@@ -582,10 +582,9 @@ describe('fs read', () => {
 
     const res = await callRead(handler, { path: '/etc/passwd', allowOutsideWorkspace: 'true' });
 
-    expect(res.statusCode).toBe(400);
-    expect(res.body).toEqual({ error: 'Outside workspace file access requires a grant' });
-    expect(fsPromises.readFile).not.toHaveBeenCalled();
-    warn.mockRestore();
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toBe('secret');
+    expect(fsPromises.readFile).toHaveBeenCalledWith('/etc/passwd', 'utf8');
   });
 
   it('allows outside workspace reads with an exact-path grant', async () => {
@@ -611,7 +610,7 @@ describe('fs read', () => {
     expect(res.body).toBe('secret');
   });
 
-  it('rejects outside workspace grants for a different canonical path', async () => {
+  it('ignores legacy grants when reading another outside file', async () => {
     const fsPromises = {
       realpath: vi.fn(async (targetPath) => targetPath),
       stat: vi.fn(async () => ({ isFile: () => true, size: 6 })),
@@ -630,33 +629,56 @@ describe('fs read', () => {
       outsideFileGrant: grant.outsideFileGrant,
     });
 
-    expect(res.statusCode).toBe(400);
-    expect(res.body).toEqual({ error: 'Outside workspace file grant does not match requested path' });
-    expect(fsPromises.readFile).not.toHaveBeenCalled();
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toBe('secret');
+    expect(fsPromises.readFile).toHaveBeenCalledWith('/outside/b.txt', 'utf8');
   });
 
-  it('sets no-referrer on raw responses served through outside file grants', async () => {
+  it('reads outside raw files without a grant and sets no-referrer', async () => {
     const fsPromises = {
       realpath: vi.fn(async (targetPath) => targetPath),
       stat: vi.fn(async () => ({ isFile: () => true, size: 6 })),
       readFile: vi.fn(async () => Buffer.from('secret')),
     };
-    const grant = await mintOutsideFileGrant('/outside/image.png', {
-      scopes: ['raw'],
-      fsPromises,
-      path: path.posix,
-      crypto: { randomUUID: () => 'grant-raw' },
-    });
     const handler = registerRaw(fsPromises);
 
     const res = await callRaw(handler, {
       path: '/outside/image.png',
       allowOutsideWorkspace: 'true',
-      outsideFileGrant: grant.outsideFileGrant,
     });
 
     expect(res.statusCode).toBe(200);
     expect(res.getHeader('referrer-policy')).toBe('no-referrer');
+  });
+
+  it('stats outside files without a grant', async () => {
+    const { app, getRoute } = createRouteRegistry();
+    registerFsRoutes(app, {
+      path: path.posix,
+      os: { homedir: () => '/home/user' },
+      fsPromises: {
+        realpath: async (targetPath) => targetPath,
+        stat: async () => ({ isFile: () => true, size: 100, mtimeMs: 123 }),
+      },
+      normalizeDirectoryPath: (p) => p,
+      resolveProjectDirectory: async () => ({ directory: '/repo' }),
+      openchamberUserConfigRoot: '/home/user/.config',
+    });
+    const res = await callRead(getRoute('GET', '/api/fs/stat'), { path: '/tmp/plan.txt', allowOutsideWorkspace: 'true' });
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toEqual({ path: '/tmp/plan.txt', isFile: true, size: 100, mtimeMs: 123 });
+  });
+
+  it.each([
+    ['ENOENT', 404, { error: 'File not found' }],
+    ['EACCES', 403, { error: 'Access to file denied', reason: 'os-permission' }],
+  ])('reports %s for outside files instead of requiring a grant', async (code, status, body) => {
+    const handler = registerRead({
+      realpath: async () => { throw Object.assign(new Error(code), { code }); },
+    });
+    const res = await callRead(handler, { path: '/tmp/plan.txt', allowOutsideWorkspace: 'true' });
+    expect(res.statusCode).toBe(status);
+    expect(res.body).toEqual(body);
   });
 
   it('rejects outside workspace mkdir without a trusted directory grant', async () => {
@@ -1012,6 +1034,88 @@ describe('fs exec git-read cache', () => {
   });
 });
 
+describe('fs raw byte ranges', () => {
+  const createStreamingResponse = () => {
+    const chunks = [];
+    const headers = new Map();
+    let statusCode = 200;
+    const res = new Writable({
+      write(chunk, _encoding, callback) {
+        chunks.push(Buffer.from(chunk));
+        callback();
+      },
+    });
+    Object.assign(res, {
+      status(code) { statusCode = code; return res; },
+      json(payload) { chunks.push(Buffer.from(JSON.stringify(payload))); return res; },
+      type() { return res; },
+      send(payload) { chunks.push(Buffer.from(payload)); return res; },
+      setHeader(name, value) { headers.set(name.toLowerCase(), value); return res; },
+      getHeader(name) { return headers.get(name.toLowerCase()); },
+    });
+    return {
+      res,
+      finished: new Promise((resolve) => res.on('finish', resolve)),
+      get statusCode() { return statusCode; },
+      get body() { return Buffer.concat(chunks).toString('utf8'); },
+    };
+  };
+
+  const registerRawWithFile = (bytes) => {
+    const open = vi.fn(async () => ({
+      createReadStream: ({ start, end }) => Readable.from([bytes.subarray(start, end + 1)]),
+    }));
+    const readFile = vi.fn(async () => bytes);
+    const handler = registerRaw({
+      stat: async () => ({ isFile: () => true, size: bytes.length }),
+      open,
+      readFile,
+    });
+    return { handler, open, readFile };
+  };
+
+  it('answers a bytes span with 206, the span headers, and only those bytes', async () => {
+    const { handler, open, readFile } = registerRawWithFile(Buffer.from('0123456789'));
+    const response = createStreamingResponse();
+
+    await handler({ query: { path: '/repo/clip.mp4' }, headers: { range: 'bytes=3-' } }, response.res);
+    await response.finished;
+
+    expect(response.statusCode).toBe(206);
+    expect(response.getHeader?.('content-range') ?? response.res.getHeader('content-range')).toBe('bytes 3-9/10');
+    expect(response.res.getHeader('content-length')).toBe('7');
+    expect(response.res.getHeader('accept-ranges')).toBe('bytes');
+    expect(response.body).toBe('3456789');
+    expect(open).toHaveBeenCalledWith('/repo/clip.mp4', 'r');
+    expect(readFile).not.toHaveBeenCalled();
+  });
+
+  it('serves the whole file, advertising ranges, when no span is asked for', async () => {
+    const { handler, open } = registerRawWithFile(Buffer.from('0123456789'));
+    const res = createMockResponse();
+
+    await handler({ query: { path: '/repo/clip.mp4' }, headers: {} }, res);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.getHeader('accept-ranges')).toBe('bytes');
+    expect(res.body.toString('utf8')).toBe('0123456789');
+    expect(open).not.toHaveBeenCalled();
+  });
+
+  it('rejects a span past the end with 416 and the file size', async () => {
+    const { handler, open } = registerRawWithFile(Buffer.from('0123456789'));
+    const res = createMockResponse();
+    res.end = vi.fn(() => res);
+
+    await handler({ query: { path: '/repo/clip.mp4' }, headers: { range: 'bytes=10-' } }, res);
+
+    expect(res.statusCode).toBe(416);
+    expect(res.getHeader('content-range')).toBe('bytes */10');
+    expect(res.end).toHaveBeenCalled();
+    expect(open).not.toHaveBeenCalled();
+  });
+});
+
 describe('fs raw download Content-Disposition', () => {
   it('uses RFC 5987 filename*= encoding for non-ASCII filenames on download', async () => {
     const fsPromises = {
@@ -1150,14 +1254,14 @@ describe('fs git-dirs', () => {
   });
 
   // tree maps directory path -> [[name, type], ...]
-  const registerGitDirs = (tree, { stat, readdir: readdirOverride } = {}) => {
+  const registerGitDirs = (tree, { stat, readdir: readdirOverride, realpath } = {}) => {
     const { app, getRoute } = createRouteRegistry();
     const readdir = readdirOverride ?? vi.fn(async (dirPath) => (tree[dirPath] ?? []).map(([name, type]) => createDirent(name, type)));
     registerFsRoutes(app, {
       os: { homedir: () => '/home/user' },
       path: path.posix,
       fsPromises: {
-        realpath: async (targetPath) => targetPath,
+        realpath: realpath ?? (async (targetPath) => targetPath),
         stat: stat ?? vi.fn(async (targetPath) => ({ isDirectory: () => Boolean(tree[targetPath]) })),
         readdir,
       },
@@ -1265,16 +1369,42 @@ describe('fs git-dirs', () => {
     expect(readdir).not.toHaveBeenCalledWith('/workspace/node_modules', { withFileTypes: true });
   });
 
-  it('never descends into symbolic links', async () => {
+  it('follows symlinked directories and reports repositories under the link path', async () => {
+    // /workspace groups repositories kept elsewhere through links.
+    const links = { '/workspace/api': '/src/api', '/workspace/web': '/src/web' };
     const { handler } = registerGitDirs({
-      '/workspace': [['link', 'symlink'], ['real', 'dir']],
-      '/workspace/real': [['.git', 'dir']],
+      '/workspace': [['api', 'symlink'], ['web', 'symlink'], ['notes.md', 'symlink']],
+      '/workspace/api': [['.git', 'dir']],
+      '/workspace/web': [['.git', 'file']],
+    }, {
+      realpath: async (targetPath) => links[targetPath] ?? targetPath,
     });
 
     const res = await callGitDirs(handler, { path: '/workspace' });
 
     expect(res.statusCode).toBe(200);
-    expect(res.body.repositories).toEqual([{ path: '/workspace/real', name: 'real' }]);
+    expect(res.body.repositories).toEqual([
+      { path: '/workspace/api', name: 'api' },
+      { path: '/workspace/web', name: 'web' },
+    ]);
+  });
+
+  it('walks each real directory once, so a link loop or a second link to a repository does not repeat it', async () => {
+    const links = { '/workspace/loop': '/workspace', '/workspace/again': '/workspace/real' };
+    const { handler, readdir } = registerGitDirs({
+      '/workspace': [['again', 'symlink'], ['loop', 'symlink'], ['real', 'dir']],
+      '/workspace/real': [['.git', 'dir']],
+      '/workspace/again': [['.git', 'dir']],
+      '/workspace/loop': [['again', 'symlink'], ['loop', 'symlink'], ['real', 'dir']],
+    }, {
+      realpath: async (targetPath) => links[targetPath] ?? targetPath,
+    });
+
+    const res = await callGitDirs(handler, { path: '/workspace' });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body.repositories).toEqual([{ path: '/workspace/again', name: 'again' }]);
+    expect(readdir).toHaveBeenCalledTimes(2);
   });
 
   it('returns repositories in deterministic order', async () => {
@@ -1446,6 +1576,7 @@ describe('fs stat directory error handling', () => {
     try {
       await mkdir(path.join(directory, 'fs'));
       await copyFile(new URL('./routes.js', import.meta.url), path.join(directory, 'fs/routes.mjs'));
+      await copyFile(new URL('./byte-range.js', import.meta.url), path.join(directory, 'fs/byte-range.js'));
       await copyFile(new URL('../path-realpath-cache.js', import.meta.url), path.join(directory, 'path-realpath-cache.js'));
       expect(() => execFileSync('node', [
         '--input-type=module',

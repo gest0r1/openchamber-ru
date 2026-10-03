@@ -5,6 +5,7 @@ const INTL_LOCALE_BY_LOCALE: Record<Locale, string> = {
   en: 'en-US',
   de: 'de-DE',
   fr: 'fr-FR',
+  nl: 'nl-NL',
   'zh-CN': 'zh-CN',
   'zh-TW': 'zh-TW',
   uk: 'uk-UA',
@@ -20,3 +21,4 @@ const INTL_LOCALE_BY_LOCALE: Record<Locale, string> = {
 const getIntlLocale = (locale: Locale): string => INTL_LOCALE_BY_LOCALE[locale] ?? 'en-US';
 
 export const getCurrentIntlLocale = (): string => getIntlLocale(useI18nStore.getState().locale);
+

@@ -386,6 +386,7 @@ describe('terminal runtime', () => {
       expect(response.body).toEqual({ sessionId: 'term-1', cols: 120, rows: 40, status: 'running', mode: 'interactive', purpose: { type: 'terminal' } });
       expect(harness.processes[0].options.cwd).toBe('/repo');
       expect(harness.processes[0].options.env.COLORFGBG).toBe('0;15');
+      expect(harness.processes[0].options.env.OPENCHAMBER_EMBEDDED_TERMINAL).toBe('1');
       expect(harness.processes[0].options.env).not.toHaveProperty('NODE_CHANNEL_FD');
       expect(harness.processes[0].options.env).not.toHaveProperty('ARGV0');
       expect(harness.processes[0].options.env).not.toHaveProperty('ELECTRON_RUN_AS_NODE');
@@ -455,6 +456,25 @@ describe('terminal runtime', () => {
     } finally {
       if (previousArgv0 === undefined) delete process.env.ARGV0;
       else process.env.ARGV0 = previousArgv0;
+      await harness.runtime.shutdown();
+    }
+  });
+
+  it('removes the AppImage launcher entries from the PTY environment', async () => {
+    const previous = { APPDIR: process.env.APPDIR, LD_LIBRARY_PATH: process.env.LD_LIBRARY_PATH };
+    process.env.APPDIR = '/tmp/.mount_OpenChAbC123';
+    process.env.LD_LIBRARY_PATH = '/tmp/.mount_OpenChAbC123/usr/lib:/opt/cuda/lib64:';
+    const harness = createHarness();
+    try {
+      const response = createResponse();
+      await harness.routes.post.get('/api/terminal/create')({ body: { sessionId: 'term-ld-path', cwd: '/repo', cols: 80, rows: 24 } }, response);
+      expect(response.statusCode).toBe(200);
+      expect(harness.processes[0].options.env.LD_LIBRARY_PATH).toBe('/opt/cuda/lib64');
+    } finally {
+      for (const [key, value] of Object.entries(previous)) {
+        if (value === undefined) delete process.env[key];
+        else process.env[key] = value;
+      }
       await harness.runtime.shutdown();
     }
   });

@@ -2,12 +2,42 @@ name: Russian i18n coverage
 
 on:
   push:
+    branches:
+      - main
     paths:
       - 'packages/ui/src/lib/i18n/**'
+      - 'packages/ui/src/lib/linkedIssues.ts'
+      - 'packages/ui/src/lib/linkedIssues.test.ts'
+      - 'packages/ui/src/components/chat/ChatInput.tsx'
+      - 'packages/ui/src/components/sections/integrations/catalogExtensions.ts'
+      - 'packages/ui/src/components/sections/integrations/catalogExtensions.test.ts'
+      - 'packages/ui/src/components/sections/integrations/CatalogExtensionsSection.tsx'
+      - 'packages/electron/updater-feed.mjs'
+      - 'packages/electron/updater-feed.test.mjs'
+      - 'packages/electron/scripts/finalize-latest-yml.mjs'
+      - 'packages/electron/scripts/finalize-latest-yml.test.mjs'
+      - '.github/workflows/release.yml'
+      - '.github/workflows/release-desktop-smoke.yml'
+      - '.github/workflows/mobile-release.yml'
+      - 'scripts/check-fork-release-policy.mjs'
       - '.github/workflows/ru-i18n-coverage.yml'
   pull_request:
     paths:
       - 'packages/ui/src/lib/i18n/**'
+      - 'packages/ui/src/lib/linkedIssues.ts'
+      - 'packages/ui/src/lib/linkedIssues.test.ts'
+      - 'packages/ui/src/components/chat/ChatInput.tsx'
+      - 'packages/ui/src/components/sections/integrations/catalogExtensions.ts'
+      - 'packages/ui/src/components/sections/integrations/catalogExtensions.test.ts'
+      - 'packages/ui/src/components/sections/integrations/CatalogExtensionsSection.tsx'
+      - 'packages/electron/updater-feed.mjs'
+      - 'packages/electron/updater-feed.test.mjs'
+      - 'packages/electron/scripts/finalize-latest-yml.mjs'
+      - 'packages/electron/scripts/finalize-latest-yml.test.mjs'
+      - '.github/workflows/release.yml'
+      - '.github/workflows/release-desktop-smoke.yml'
+      - '.github/workflows/mobile-release.yml'
+      - 'scripts/check-fork-release-policy.mjs'
       - '.github/workflows/ru-i18n-coverage.yml'
   workflow_dispatch:
 
@@ -20,12 +50,28 @@ jobs:
     timeout-minutes: 5
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.4.2
 
-      - name: Check complete Russian dictionary coverage
-        run: bun test packages/ui/src/lib/i18n/messages.test.ts
+      - name: Check Russian dictionary integration and full coverage
+        run: |
+          bun test \
+            packages/ui/src/lib/i18n/messages.test.ts \
+            packages/ui/src/lib/i18n/ru-coverage.test.ts
+
+      - name: Check linked GitHub Issue and extension catalog contracts
+        run: |
+          bun test \
+            packages/ui/src/lib/linkedIssues.test.ts \
+            packages/ui/src/components/sections/integrations/catalogExtensions.test.ts
+
+      - name: Check fork updater and release manifest contracts
+        run: |
+          node --test \
+            packages/electron/updater-feed.test.mjs \
+            packages/electron/scripts/finalize-latest-yml.test.mjs
+          node scripts/check-fork-release-policy.mjs

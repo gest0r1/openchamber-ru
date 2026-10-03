@@ -20,6 +20,7 @@ const LANGUAGE_NAMES = {
   ru: 'Russian',
   de: 'German',
   fr: 'French',
+  nl: 'Dutch',
   'zh-CN': 'Simplified Chinese',
   'zh-TW': 'Traditional Chinese',
   uk: 'Ukrainian',
@@ -66,3 +67,4 @@ export function languageName(language) {
 // that file, because a locale added on one side only fails silently: the picker
 // offers the language and the walkthrough comes back in English.
 export const __testing = { LANGUAGE_NAMES };
+

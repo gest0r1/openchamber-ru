@@ -38,7 +38,7 @@ const environment = ({ artifacts, output }) => ({
   OPENCHAMBER_VERSION: '1.2.3',
 });
 
-test('writes the x64 Windows update channel only', (context) => {
+test('writes the x64 Windows update channel', (context) => {
   const fixture = createFixture();
   context.after(() => fs.rmSync(fixture.root, { recursive: true, force: true }));
 
@@ -47,9 +47,10 @@ test('writes the x64 Windows update channel only', (context) => {
   const x64 = fs.readFileSync(path.join(fixture.output, 'latest.yml'), 'utf8');
   assert.match(x64, /win-x64\.exe/);
   assert.equal(fs.existsSync(path.join(fixture.output, 'latest-arm64.yml')), false);
+  assert.equal(fs.existsSync(path.join(fixture.output, 'latest-mac.yml')), false);
 });
 
-test('fails when the required x64 Windows update manifest is missing', (context) => {
+test('fails instead of publishing without the x64 Windows manifest', (context) => {
   const fixture = createFixture({ includeX64: false });
   context.after(() => fs.rmSync(fixture.root, { recursive: true, force: true }));
 
@@ -58,3 +59,4 @@ test('fails when the required x64 Windows update manifest is missing', (context)
   assert.notEqual(result.status, 0);
   assert.match(result.stderr, /x64 Windows update manifest is required/);
 });
+

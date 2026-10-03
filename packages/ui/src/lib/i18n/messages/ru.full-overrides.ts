@@ -1,11 +1,9 @@
-import type { I18nKey } from './en';
-
 /**
  * Russian overrides for English keys that are not yet translated in the
  * historical locale files. Keep this file exhaustive: CI rejects any English
  * fallback that is not explicitly allowlisted as a technical term.
  */
-export const fullRussianOverrides: Partial<Record<I18nKey, string>> = {
+export const fullRussianOverrides: Record<string, string> = {
   "sessions.aiRename.action": "Переименовать с помощью ИИ",
   "sessions.aiRename.generating": "Генерация названия сессии...",
   "sessions.aiRename.checking": "Проверка завершённых ходов...",
@@ -1228,7 +1226,7 @@ export const fullRussianOverrides: Partial<Record<I18nKey, string>> = {
   "chat.workStatus.telemetry.speedDescription": "Токены, сгенерированные на всех шагах, включая рассуждение, делённые на время без выполнения инструментов. Ожидание модели учитывается, поэтому множество коротких вызовов инструментов может снизить показатель.",
   "chat.workStatus.telemetry.llmDuration": "Время модели",
   "chat.workStatus.telemetry.llmDurationDescription": "Время всех шагов модели, включая ожидание ответов. Время выполнения инструментов исключено. Это не только время генерации текста.",
-  "chat.workStatus.telemetry.toolDuration": "Время инструментов",
+  "chat.workStatus.telemetry.toolDuration": "Инструменты",
   "chat.workStatus.telemetry.toolDurationDescription": "Время выполнения инструментов, включая неудачные вызовы. Одновременно выполняющиеся инструменты учитываются один раз, а не суммируются.",
   "chat.workStatus.telemetry.ttft": "Средний TTFT",
   "chat.workStatus.telemetry.ttftDescription": "Среднее ожидание до начала первого текста или рассуждения на каждом шаге модели. Скрывается, если у какого-либо шага нет метки начала, что часто бывает у шагов только с инструментами.",
@@ -1294,3 +1292,4 @@ export const fullRussianOverrides: Partial<Record<I18nKey, string>> = {
   "settings.mcp.page.connection.hintCommand": "Запускается на этой машине. Вставьте полную команду — она будет разделена на аргументы по строкам.",
   "settings.mcp.page.connection.hintLink": "Подключается к серверу, размещённому кем-то другим. Вставьте его https-адрес.",
 };
+

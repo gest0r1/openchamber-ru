@@ -1,11 +1,5 @@
-import { extensionsSettingsI18n } from './extensions.settings.i18n';
-import { guestIntegrationsI18n } from './guest-integrations.i18n';
-import { linearIntegrationI18n } from './linear-integration.i18n';
 
 export const settingsDict = {
-  ...linearIntegrationI18n.ru,
-  ...guestIntegrationsI18n.ru,
-  ...extensionsSettingsI18n.ru,
   'settings.openchamber.visual.field.alwaysShowScrollbars': 'Всегда показывать полосы прокрутки',
   'settings.openchamber.visual.field.alwaysShowScrollbarsHint': 'Полосы прокрутки остаются видимыми, даже когда указатель находится за пределами прокручиваемой области. Действует только на этом устройстве.',
   'settings.providers.page.openCodeGo.title': 'Отслеживание использования OpenCode Go',
@@ -1840,3 +1834,4 @@ export const settingsDict = {
   "settings.themeImport.error.conflict": "Эта импортированная тема была изменена на сервере. Она не перезаписана.",
   "settings.projects.page.field.projectAgent": "Агент проекта",
 };
+

@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
-import type { Session } from '@opencode-ai/sdk/v2';
-import { buildLinkedGitHubIssueRefsContext, buildLinkedGuestIssue, buildLinkedIssue, buildLinkedIssueId, buildLinkedLinearIssue, canOpenLinearIssueInContextPanel, getLinkedIssues, withLinkedIssue, type LinkedIssue } from './linkedIssues';
+import type { Session } from '@/lib/opencode/model';
+import { buildLinkedGitHubIssueRefsContext, buildLinkedGuestIssue, buildLinkedIssue, buildLinkedIssueId, buildLinkedLinearIssue, canOpenLinearIssueInContextPanel, getLinkedGitHubPullRequests, getLinkedIssues, getLinkedSidebarIssues, withLinkedIssue, type LinkedIssue } from './linkedIssues';
 
 type LinkedGitHubIssue = Extract<LinkedIssue, { kind: 'issue' | 'pull' }>;
 
@@ -282,6 +282,43 @@ describe('canOpenLinearIssueInContextPanel', () => {
   });
 });
 
+describe('getLinkedGitHubPullRequests', () => {
+  test('reads the repository of each linked GitHub PR from its id', () => {
+    const session = sessionWith([
+      issue(),
+      issue({ id: 'acme/app#7', number: 7, kind: 'pull', title: 'Fix', url: 'https://github.com/acme/app/pull/7' }),
+      { id: 'linear:ENG-1', identifier: 'ENG-1', title: 'Linear', url: 'https://linear.app/x', kind: 'linear', linkedAt: 1 },
+    ]);
+    expect(getLinkedGitHubPullRequests(session)).toEqual([
+      { owner: 'acme', repo: 'app', number: 7, url: 'https://github.com/acme/app/pull/7', title: 'Fix' },
+    ]);
+  });
+
+  test('skips a PR whose id could not name its repository', () => {
+    const session = sessionWith([
+      issue({ id: 'https://ghe.example/acme/app/pull/7#7', number: 7, kind: 'pull', url: 'https://ghe.example/acme/app/pull/7' }),
+    ]);
+    expect(getLinkedGitHubPullRequests(session)).toEqual([]);
+  });
+});
+
+describe('getLinkedSidebarIssues', () => {
+  test('lists GitHub issues with their repository and trackers by identifier, never pull requests', () => {
+    const session = sessionWith([
+      issue(),
+      issue({ id: 'acme/app#7', number: 7, kind: 'pull', url: 'https://github.com/acme/app/pull/7' }),
+      { id: 'linear:ENG-1', identifier: 'ENG-1', title: 'Linear task', url: 'https://linear.app/x', kind: 'linear', linkedAt: 1 },
+      { id: 'guest:jira:OPS-2', providerId: 'jira', identifier: 'OPS-2', title: 'Ops', url: 'https://jira/x', kind: 'guest', thread: 'issue', linkedAt: 1 },
+      { id: 'guest:gitea:5', providerId: 'gitea', identifier: '5', title: 'Guest PR', url: 'https://gitea/x', kind: 'guest', thread: 'pull', linkedAt: 1 },
+    ]);
+    expect(getLinkedSidebarIssues(session)).toEqual([
+      { source: 'github', key: 'owner/repo#12', owner: 'owner', repo: 'repo', number: 12, url: 'https://github.com/owner/repo/issues/12', title: 'Rail badge count' },
+      { source: 'linear', key: 'linear:ENG-1', identifier: 'ENG-1', url: 'https://linear.app/x', title: 'Linear task' },
+      { source: 'guest', key: 'guest:jira:OPS-2', identifier: 'OPS-2', url: 'https://jira/x', title: 'Ops' },
+    ]);
+  });
+});
+
 
 describe('buildLinkedGitHubIssueRefsContext', () => {
   test('returns null when the session has no GitHub issues', () => {
@@ -313,3 +350,4 @@ describe('buildLinkedGitHubIssueRefsContext', () => {
     ]), current)).toBe('Linked GitHub issues for this session:\n- owner/repo#51');
   });
 });
+

@@ -80,11 +80,6 @@ if (!winX64) {
 }
 output['latest.yml'] = serialize(winX64);
 
-const macX64 = await read('latest-yml-x86_64-apple-darwin', 'latest-mac.yml');
-if (macX64) {
-  output['latest-mac.yml'] = serialize(macX64);
-}
-
 const tag = `v${version}`;
 const tmp = process.env.RUNNER_TEMP || '/tmp';
 for (const [filename, content] of Object.entries(output)) {
@@ -94,3 +89,4 @@ for (const [filename, content] of Object.entries(output)) {
 }
 
 console.log('finalized latest yml files');
+

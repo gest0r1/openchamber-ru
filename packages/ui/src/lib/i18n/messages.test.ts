@@ -4,6 +4,7 @@ import { dict as enDict } from './messages/en';
 import { dict as esDict } from './messages/es';
 import { dict as deDict } from './messages/de';
 import { dict as frDict } from './messages/fr';
+import { dict as nlDict } from './messages/nl';
 import { dict as jaDict } from './messages/ja';
 import { dict as koDict } from './messages/ko';
 import { dict as plDict } from './messages/pl';
@@ -25,6 +26,7 @@ const localeDictionaries = {
   en: enDict,
   de: deDict,
   fr: frDict,
+  nl: nlDict,
   es: esDict,
   ja: jaDict,
   'pt-BR': ptBrDict,
@@ -34,20 +36,28 @@ const localeDictionaries = {
   'zh-CN': zhCnDict,
   'zh-TW': zhTwDict,
   tr: trDict,
+  ru: ruDict,
 } as const;
 
 describe('i18n dictionaries', () => {
   test('all locales stay in key parity with english', () => {
     const englishKeys = Object.keys(enDict).sort();
 
-    for (const dictionary of Object.values(localeDictionaries)) {
-      expect(Object.keys(dictionary).sort()).toEqual(englishKeys);
+    for (const [locale, dictionary] of Object.entries(localeDictionaries)) {
+      const actualKeys = Object.keys(dictionary);
+      // Russian is a fork-only locale. Upstream locales fall back to English for its label
+      // without requiring us to patch every upstream dictionary on each rebase.
+      if (locale !== 'en' && locale !== 'ru' && !actualKeys.includes('common.language.russian')) {
+        actualKeys.push('common.language.russian');
+      }
+      expect(actualKeys.sort()).toEqual(englishKeys);
     }
   });
 
   test('all locales expose language label keys', () => {
     for (const [, dictionary] of Object.entries(localeDictionaries)) {
       expect(dictionary['common.language.german']).toBeTruthy();
+      expect(dictionary['common.language.dutch']).toBeTruthy();
       expect(dictionary['common.language.french']).toBeTruthy();
       expect(dictionary['common.language.japanese']).toBeTruthy();
     }
@@ -211,6 +221,18 @@ describe('i18n dictionaries', () => {
       'chat.workStatus.breakdown.mcpCountPlural',
     ]);
 
+    // V2 product names, protocol identifiers and code templates also verified by ru-coverage.
+    technicalTermAllowlist.add('settings.openchamber.tools.browserProvider.option.builtin');
+    technicalTermAllowlist.add('settings.providers.page.custom.models.variantsPlaceholder');
+    technicalTermAllowlist.add('settings.integrations.thirdParty.opencodeClaude.name');
+    technicalTermAllowlist.add('settings.integrations.extensionCatalog.excalidraw.name');
+    technicalTermAllowlist.add('settings.mcp.page.advanced.codemode');
+    technicalTermAllowlist.add('settings.mcp.page.advanced.protocolOption.revision20260728');
+    technicalTermAllowlist.add('settings.mcp.page.advanced.oauth');
+    technicalTermAllowlist.add('settings.mcp.page.advanced.oauthMetadataUrlPlaceholder');
+    technicalTermAllowlist.add('usageStats.tokens.legendValue');
+    technicalTermAllowlist.add('multirun.overview.card.diff');
+
     const moduleDictionaries = [
       [extensionsSettingsI18n.en, extensionsSettingsI18n.ru],
       [guestIntegrationsI18n.en, guestIntegrationsI18n.ru],
@@ -279,3 +301,4 @@ describe('i18n dictionaries', () => {
   });
 
 });
+
