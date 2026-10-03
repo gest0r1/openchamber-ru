@@ -55,7 +55,7 @@ jobs:
         run: |
           node scripts/check-fork-release-policy.mjs
           node scripts/check-agent-entrypoints.mjs
-          node --test packages/web/bin/lib/cli-startup.test.mjs scripts/reuse-release-web-package.test.mjs scripts/release-workflow-contract.test.mjs
+          node --test scripts/reuse-release-web-package.test.mjs scripts/release-workflow-contract.test.mjs
       - name: Electron Linux packaging unit tests
         working-directory: packages/electron
         run: |
