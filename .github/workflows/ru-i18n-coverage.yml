@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - main
-      - 'upgrade/openchamber-2.1.0'
     paths:
       - 'packages/ui/src/lib/i18n/**'
       - 'packages/ui/src/lib/linkedIssues.ts'

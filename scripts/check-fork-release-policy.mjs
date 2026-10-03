@@ -20,7 +20,7 @@ requireText(release, /target: x86_64-pc-windows-msvc/, 'Windows x64 target');
 requireText(release, /artifact_arch: x86_64/, 'Linux x64 target');
 requireText(release, /build_android: true/, 'Android release enabled');
 requireText(release, /build_ios: false/, 'iOS release disabled');
-requireText(release, /needs: \[create-release, build-desktop-electron-windows, build-desktop-electron-linux, publish-electron-linux, package-web, combine-electron-manifests, mobile-release\]/, 'final release dependency set');
+requireText(release, /needs: \[create-release, build-desktop-electron-windows, build-desktop-electron-linux, package-web, mobile-release\]/, 'final release dependency set');
 
 forbidText(release, /\baarch64\b|\barm64\b/i, 'ARM release target');
 forbidText(release, /macos|latest-mac/i, 'macOS release target');
@@ -41,3 +41,9 @@ if (electronPackage?.build?.publish?.owner !== 'gest0r1' || electronPackage?.bui
 }
 
 console.log('fork release policy: PASS');
+
+forbidText(release, /actions\/(upload|download)-artifact/, 'release transport artifacts');
+requireText(release, /reuse-release-web-package\.mjs/, 'verified web package reuse');
+for (const file of ['v2-platform-build.yml', 'v2-platform-artifacts.yml', 'v2-migration-smoke.yml', 'build-macos-arm64-dmg.yml']) {
+  if (fs.existsSync(`.github/workflows/${file}`)) throw Error(`Retired duplicate workflow: ${file}`);
+}

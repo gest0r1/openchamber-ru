@@ -163,3 +163,14 @@ Special thanks to:
 ## License
 
 MIT
+
+
+## Fork release pipeline
+
+PR checks use GitHub-hosted runners and keep no build artifacts. `v2-linux-web-package.yml` publishes an immutable exact-SHA manifest and verified Linux web package; unchanged runtime fingerprints reuse an ancestor package.
+
+After merging to main, a successful web producer triggers the version requested in `.github/release-request.json`. The release workflow pins every platform to that producer SHA, validates package/version/checksum metadata and reuses its tarball. An existing version is skipped automatically and cannot be overwritten by a manual release.
+
+Windows x64 installer/update manifest, Linux x64 AppImage and signed Android APK/AAB are published directly to the draft Release. Publication requires the complete verified asset inventory. Android signing uses the existing repository keystore secrets. Independent manual desktop/mobile diagnostics remain available; transient diagnostic artifacts expire after one day.
+
+Duplicate V2 platform/migration workflows and the unused macOS ARM build were retired. Fork releases do not send upstream website or Discord notifications. All agent entrypoints use the canonical [AGENTS.md](AGENTS.md).
