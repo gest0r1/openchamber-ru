@@ -73,6 +73,23 @@ jobs:
             echo 'proceed=true' >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Verify Android signing prerequisites
+        if: ${{ steps.identity.outputs.proceed == 'true' && inputs.dry_run != true }}
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          for name in ANDROID_KEYSTORE_BASE64 ANDROID_KEYSTORE_PASSWORD ANDROID_KEY_ALIAS ANDROID_KEY_PASSWORD; do
+            [[ -n "${!name}" ]] || { echo "$name secret is required before platform builds." >&2; exit 1; }
+          done
+          key_file="$RUNNER_TEMP/openchamber-signing-preflight.keystore"
+          trap 'rm -f "$key_file"' EXIT
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$key_file"
+          keytool -list -keystore "$key_file" -storepass:env ANDROID_KEYSTORE_PASSWORD -alias "$ANDROID_KEY_ALIAS" >/dev/null
+
   create-release:
     needs: authorize-release
     if: ${{ needs.authorize-release.outputs.proceed == 'true' }}
