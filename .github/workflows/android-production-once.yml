@@ -13,7 +13,7 @@ permissions:
 jobs:
   android-release:
     name: Android production signed release
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: blacksmith-6vcpu-macos-15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -38,7 +38,12 @@ jobs:
         run: |
           set -euo pipefail
           [[ -n "$ANDROID_KEYSTORE_BASE64" ]] || { echo "ANDROID_KEYSTORE_BASE64 secret is required" >&2; exit 1; }
-          echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/openchamber-release.keystore"
+          python3 - <<'PY'
+          import base64, os
+          p = os.path.join(os.environ['RUNNER_TEMP'], 'openchamber-release.keystore')
+          with open(p, 'wb') as f:
+              f.write(base64.b64decode(os.environ['ANDROID_KEYSTORE_BASE64']))
+          PY
 
       - name: Verify Android signing key
         shell: bash
