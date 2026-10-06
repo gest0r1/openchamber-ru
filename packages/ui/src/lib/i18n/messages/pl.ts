@@ -114,7 +114,6 @@ export const dict: Record<I18nKey, string> = {
   'common.language.japanese': 'Japoński',
   'common.language.turkish': 'Turecki',
   'common.language.dutch': 'Niderlandzki',
-  "common.language.russian": "Rosyjski",
   'common.revealPath.finder': 'Pokaż w Finderze',
   'common.revealPath.fileExplorer': 'Otwórz w Eksploratorze plików',
   'common.revealPath.fileManager': 'Otwórz w Menedżerze plików',

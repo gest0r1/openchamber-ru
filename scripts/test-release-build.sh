@@ -13,8 +13,10 @@
 # Usage:
 #   ./scripts/test-release-build.sh [target] [options]
 #
-# Target:
-#   x86_64   - Build for Intel Mac (x86_64, default)
+# Targets:
+#   aarch64  - Build for Apple Silicon (arm64)
+#   x86_64   - Build for Intel Mac (x86_64)
+#   all      - Build for both architectures (default)
 #
 # Options:
 #   --act            Force using act (Linux containers - limited macOS support)
@@ -43,7 +45,7 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 cd "$REPO_ROOT"
 
 # Default values
-TARGET="x86_64"
+TARGET="all"
 MODE="native"  # native or act
 DRY_RUN=false
 VERBOSE=false
@@ -76,8 +78,10 @@ log_step() {
 usage() {
     echo "Usage: $0 [target] [options]"
     echo ""
-    echo "Target:"
-    echo "  x86_64, intel, x86     Build for Intel Mac (default)"
+    echo "Targets:"
+    echo "  aarch64, arm64, arm    Build for Apple Silicon"
+    echo "  x86_64, intel, x86     Build for Intel Mac"
+    echo "  all, both              Build for both architectures (default)"
     echo ""
     echo "Options:"
     echo "  --act              Run via act (GitHub Actions in Docker - limited macOS)"
@@ -241,8 +245,16 @@ run_native_build() {
 # Parse arguments
 while [[ $# -gt 0 ]]; do
     case "$1" in
+        aarch64|arm64|arm)
+            TARGET="aarch64"
+            shift
+            ;;
         x86_64|intel|x86)
             TARGET="x86_64"
+            shift
+            ;;
+        all|both)
+            TARGET="all"
             shift
             ;;
         --act)
@@ -277,7 +289,17 @@ done
 
 # Determine which targets to build
 declare -a TARGETS
-TARGETS=("x86_64-apple-darwin")
+case "$TARGET" in
+    aarch64)
+        TARGETS=("aarch64-apple-darwin")
+        ;;
+    x86_64)
+        TARGETS=("x86_64-apple-darwin")
+        ;;
+    all)
+        TARGETS=("aarch64-apple-darwin" "x86_64-apple-darwin")
+        ;;
+esac
 
 log_step "Release Build Test Configuration"
 

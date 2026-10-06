@@ -50,9 +50,7 @@ async function loadDictionary(locale: Locale): Promise<I18nDictionary> {
                     ? await import('./messages/ja') as { dict: I18nDictionary }
                     : locale === 'tr'
                       ? await import('./messages/tr') as { dict: I18nDictionary }
-                      : locale === 'ru'
-                        ? await import('./messages/ru') as { dict: I18nDictionary }
-                        : { dict: enDict };
+                      : { dict: enDict };
   dictionaries.set(locale, mod.dict);
   return mod.dict;
 }
@@ -111,4 +109,3 @@ export function formatMessage(dictionary: I18nDictionary, key: I18nKey, params?:
 }
 
 export type { I18nKey, Locale };
-

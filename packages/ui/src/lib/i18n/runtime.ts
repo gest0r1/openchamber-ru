@@ -1,10 +1,10 @@
-export type Locale = 'en' | 'de' | 'fr' | 'nl' | 'zh-CN' | 'zh-TW' | 'uk' | 'es' | 'pt-BR' | 'ko' | 'pl' | 'ja' | 'tr' | 'ru';
+export type Locale = 'en' | 'de' | 'fr' | 'nl' | 'zh-CN' | 'zh-TW' | 'uk' | 'es' | 'pt-BR' | 'ko' | 'pl' | 'ja' | 'tr';
 
-export const LOCALES = ['en', 'de', 'fr', 'nl', 'zh-CN', 'zh-TW', 'uk', 'es', 'pt-BR', 'ko', 'pl', 'ja', 'tr', 'ru'] as const satisfies readonly Locale[];
+export const LOCALES = ['en', 'de', 'fr', 'nl', 'zh-CN', 'zh-TW', 'uk', 'es', 'pt-BR', 'ko', 'pl', 'ja', 'tr'] as const satisfies readonly Locale[];
 
 export const DEFAULT_LOCALE: Locale = 'en';
 
-export const LOCALE_LABEL_KEYS: Record<Locale, 'common.language.english' | 'common.language.french' | 'common.language.dutch' | 'common.language.simplifiedChinese' | 'common.language.traditionalChinese' | 'common.language.ukrainian' | 'common.language.spanish' | 'common.language.brazilianPortuguese' | 'common.language.korean' | 'common.language.polish' | 'common.language.german' | 'common.language.japanese' | 'common.language.turkish' | 'common.language.russian'> = {
+export const LOCALE_LABEL_KEYS: Record<Locale, 'common.language.english' | 'common.language.french' | 'common.language.dutch' | 'common.language.simplifiedChinese' | 'common.language.traditionalChinese' | 'common.language.ukrainian' | 'common.language.spanish' | 'common.language.brazilianPortuguese' | 'common.language.korean' | 'common.language.polish' | 'common.language.german' | 'common.language.japanese' | 'common.language.turkish'> = {
   en: 'common.language.english',
   fr: 'common.language.french',
   nl: 'common.language.dutch',
@@ -18,24 +18,6 @@ export const LOCALE_LABEL_KEYS: Record<Locale, 'common.language.english' | 'comm
   de: 'common.language.german',
   ja: 'common.language.japanese',
   tr: 'common.language.turkish',
-  ru: 'common.language.russian',
-};
-
-export const RUSSIAN_LOCALE_LABELS: Record<Locale, string> = {
-  nl: 'Russisch',
-  en: 'Russian',
-  de: 'Russisch',
-  fr: 'Russe',
-  'zh-CN': '俄语',
-  'zh-TW': '俄語',
-  uk: 'Російська',
-  es: 'Ruso',
-  'pt-BR': 'Russo',
-  ko: '러시아어',
-  pl: 'Rosyjski',
-  ja: 'ロシア語',
-  tr: 'Rusça',
-  ru: 'Русский',
 };
 
 export const LOCALE_STORAGE_KEY = 'openchamber.i18n.v1';
@@ -92,9 +74,6 @@ export function normalizeLocale(value: string | undefined | null): Locale {
   if (normalized === 'tr' || normalized.startsWith('tr-')) {
     return 'tr';
   }
-  if (normalized === 'ru' || normalized.startsWith('ru-')) {
-    return 'ru';
-  }
   return DEFAULT_LOCALE;
 }
 
@@ -147,4 +126,3 @@ export function detectInitialLocale(): Locale {
 
   return DEFAULT_LOCALE;
 }
-

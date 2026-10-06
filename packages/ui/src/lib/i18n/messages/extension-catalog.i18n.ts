@@ -2,7 +2,7 @@
 export const extensionCatalogI18n = {
   en: {
     'settings.integrations.extensionCatalog.title': 'OpenChamber extensions',
-    'settings.integrations.extensionCatalog.info': "Optional extensions for OpenChamber. Install one here and it appears where you use it. Installed extensions are also listed in Settings → Extensions.",
+    'settings.integrations.extensionCatalog.info': 'Optional extras from the OpenChamber team. Install one here and it shows up where you use it. Installed extensions are also listed in Settings → Extensions.',
     'settings.integrations.extensionCatalog.excalidraw.name': 'Excalidraw',
     'settings.integrations.extensionCatalog.excalidraw.description': 'Draw in .excalidraw files and Obsidian drawings right in Files.',
     'settings.integrations.extensionCatalog.status.paused': 'Turned off',
@@ -16,7 +16,7 @@ export const extensionCatalogI18n = {
   },
   nl: {
     'settings.integrations.extensionCatalog.title': 'OpenChamber-extensies',
-    'settings.integrations.extensionCatalog.info': "Optionele extensies voor OpenChamber. Installeer er hier een en hij verschijnt waar je hem gebruikt. Geïnstalleerde extensies staan ook in Instellingen → Extensies.",
+    'settings.integrations.extensionCatalog.info': 'Optionele extra\'s van het OpenChamber-team. Installeer er hier een en hij verschijnt waar je hem gebruikt. Geïnstalleerde extensies staan ook in Instellingen → Extensies.',
     'settings.integrations.extensionCatalog.excalidraw.name': 'Excalidraw',
     'settings.integrations.extensionCatalog.excalidraw.description': 'Teken in .excalidraw-bestanden en Obsidian-tekeningen recht in Bestanden.',
     'settings.integrations.extensionCatalog.status.paused': 'Uitgeschakeld',
@@ -30,7 +30,7 @@ export const extensionCatalogI18n = {
   },
   de: {
     'settings.integrations.extensionCatalog.title': 'OpenChamber-Erweiterungen',
-    'settings.integrations.extensionCatalog.info': "Optionale Erweiterungen für OpenChamber. Installiere eine hier, und sie erscheint dort, wo du sie nutzt. Installierte Erweiterungen findest du auch unter Einstellungen → Erweiterungen.",
+    'settings.integrations.extensionCatalog.info': 'Optionale Extras vom OpenChamber-Team. Installiere eine hier, und sie erscheint dort, wo du sie nutzt. Installierte Erweiterungen findest du auch unter Einstellungen → Erweiterungen.',
     'settings.integrations.extensionCatalog.excalidraw.name': 'Excalidraw',
     'settings.integrations.extensionCatalog.excalidraw.description': 'Zeichne in .excalidraw-Dateien und Obsidian-Zeichnungen direkt in Files.',
     'settings.integrations.extensionCatalog.status.paused': 'Ausgeschaltet',
@@ -44,7 +44,7 @@ export const extensionCatalogI18n = {
   },
   fr: {
     'settings.integrations.extensionCatalog.title': 'Extensions OpenChamber',
-    'settings.integrations.extensionCatalog.info': "Extensions optionnelles pour OpenChamber. Installez-en une ici et elle apparaît là où vous l’utilisez. Les extensions installées figurent aussi dans Paramètres → Extensions.",
+    'settings.integrations.extensionCatalog.info': 'Des extras optionnels de l’équipe OpenChamber. Installez-en un ici et il apparaît là où vous l’utilisez. Les extensions installées figurent aussi dans Paramètres → Extensions.',
     'settings.integrations.extensionCatalog.excalidraw.name': 'Excalidraw',
     'settings.integrations.extensionCatalog.excalidraw.description': 'Dessinez dans les fichiers .excalidraw et les dessins Obsidian directement dans Files.',
     'settings.integrations.extensionCatalog.status.paused': 'Désactivée',
@@ -58,7 +58,7 @@ export const extensionCatalogI18n = {
   },
   es: {
     'settings.integrations.extensionCatalog.title': 'Extensiones de OpenChamber',
-    'settings.integrations.extensionCatalog.info': "Extensiones opcionales para OpenChamber. Instala una aquí y aparecerá donde la uses. Las extensiones instaladas también aparecen en Ajustes → Extensiones.",
+    'settings.integrations.extensionCatalog.info': 'Extras opcionales del equipo de OpenChamber. Instala uno aquí y aparecerá donde lo uses. Las extensiones instaladas también aparecen en Ajustes → Extensiones.',
     'settings.integrations.extensionCatalog.excalidraw.name': 'Excalidraw',
     'settings.integrations.extensionCatalog.excalidraw.description': 'Dibuja en archivos .excalidraw y dibujos de Obsidian directamente en Files.',
     'settings.integrations.extensionCatalog.status.paused': 'Desactivada',
@@ -72,7 +72,7 @@ export const extensionCatalogI18n = {
   },
   ja: {
     'settings.integrations.extensionCatalog.title': 'OpenChamber 拡張機能',
-    'settings.integrations.extensionCatalog.info': "OpenChamber 用のオプション拡張機能です。ここでインストールすると、使う場所に表示されます。インストール済みの拡張機能は 設定 → 拡張機能 にも表示されます。",
+    'settings.integrations.extensionCatalog.info': 'OpenChamber チームによるオプションの追加機能です。ここでインストールすると、使う場所に表示されます。インストール済みの拡張機能は 設定 → 拡張機能 にも表示されます。',
     'settings.integrations.extensionCatalog.excalidraw.name': 'Excalidraw',
     'settings.integrations.extensionCatalog.excalidraw.description': '.excalidraw ファイルと Obsidian の図を Files で直接描けます。',
     'settings.integrations.extensionCatalog.status.paused': 'オフ',
@@ -86,7 +86,7 @@ export const extensionCatalogI18n = {
   },
   'pt-BR': {
     'settings.integrations.extensionCatalog.title': 'Extensões do OpenChamber',
-    'settings.integrations.extensionCatalog.info': "Extensões opcionais para o OpenChamber. Instale uma aqui e ela aparece onde você usa. Extensões instaladas também aparecem em Configurações → Extensões.",
+    'settings.integrations.extensionCatalog.info': 'Extras opcionais da equipe do OpenChamber. Instale um aqui e ele aparece onde você usa. Extensões instaladas também aparecem em Configurações → Extensões.',
     'settings.integrations.extensionCatalog.excalidraw.name': 'Excalidraw',
     'settings.integrations.extensionCatalog.excalidraw.description': 'Desenhe em arquivos .excalidraw e desenhos do Obsidian direto no Files.',
     'settings.integrations.extensionCatalog.status.paused': 'Desligada',
@@ -100,7 +100,7 @@ export const extensionCatalogI18n = {
   },
   uk: {
     'settings.integrations.extensionCatalog.title': 'Розширення OpenChamber',
-    'settings.integrations.extensionCatalog.info': "Додаткові розширення для OpenChamber. Встановіть тут, і розширення з’явиться там, де ви ним користуєтесь. Встановлені розширення також є в Налаштування → Розширення.",
+    'settings.integrations.extensionCatalog.info': 'Додаткові можливості від команди OpenChamber. Встановіть тут, і розширення з’явиться там, де ви ним користуєтесь. Встановлені розширення також є в Налаштування → Розширення.',
     'settings.integrations.extensionCatalog.excalidraw.name': 'Excalidraw',
     'settings.integrations.extensionCatalog.excalidraw.description': 'Малюйте у файлах .excalidraw і малюнках Obsidian просто у Files.',
     'settings.integrations.extensionCatalog.status.paused': 'Вимкнено',
@@ -114,7 +114,7 @@ export const extensionCatalogI18n = {
   },
   ko: {
     'settings.integrations.extensionCatalog.title': 'OpenChamber 확장',
-    'settings.integrations.extensionCatalog.info': "OpenChamber용 선택형 확장입니다. 여기서 설치하면 사용하는 곳에 나타납니다. 설치한 확장은 설정 → 확장에도 표시됩니다.",
+    'settings.integrations.extensionCatalog.info': 'OpenChamber 팀이 만든 선택형 부가 기능입니다. 여기서 설치하면 사용하는 곳에 나타납니다. 설치한 확장은 설정 → 확장에도 표시됩니다.',
     'settings.integrations.extensionCatalog.excalidraw.name': 'Excalidraw',
     'settings.integrations.extensionCatalog.excalidraw.description': '.excalidraw 파일과 Obsidian 그림을 Files에서 바로 그립니다.',
     'settings.integrations.extensionCatalog.status.paused': '꺼짐',
@@ -128,7 +128,7 @@ export const extensionCatalogI18n = {
   },
   pl: {
     'settings.integrations.extensionCatalog.title': 'Rozszerzenia OpenChamber',
-    'settings.integrations.extensionCatalog.info': "Opcjonalne rozszerzenia do OpenChamber. Zainstaluj tutaj, a pojawią się tam, gdzie z nich korzystasz. Zainstalowane rozszerzenia są też w Ustawienia → Rozszerzenia.",
+    'settings.integrations.extensionCatalog.info': 'Opcjonalne dodatki od zespołu OpenChamber. Zainstaluj tutaj, a pojawi się tam, gdzie z niego korzystasz. Zainstalowane rozszerzenia są też w Ustawienia → Rozszerzenia.',
     'settings.integrations.extensionCatalog.excalidraw.name': 'Excalidraw',
     'settings.integrations.extensionCatalog.excalidraw.description': 'Rysuj w plikach .excalidraw i rysunkach Obsidian bezpośrednio w Files.',
     'settings.integrations.extensionCatalog.status.paused': 'Wyłączone',
@@ -142,7 +142,7 @@ export const extensionCatalogI18n = {
   },
   'zh-CN': {
     'settings.integrations.extensionCatalog.title': 'OpenChamber 扩展',
-    'settings.integrations.extensionCatalog.info': "OpenChamber 的可选扩展。在这里安装后，它会出现在你使用的位置。已安装的扩展也会列在 设置 → 扩展 中。",
+    'settings.integrations.extensionCatalog.info': '来自 OpenChamber 团队的可选扩展。在这里安装后，它会出现在你使用的位置。已安装的扩展也会列在 设置 → 扩展 中。',
     'settings.integrations.extensionCatalog.excalidraw.name': 'Excalidraw',
     'settings.integrations.extensionCatalog.excalidraw.description': '直接在 Files 中绘制 .excalidraw 文件和 Obsidian 绘图。',
     'settings.integrations.extensionCatalog.status.paused': '已关闭',
@@ -156,7 +156,7 @@ export const extensionCatalogI18n = {
   },
   'zh-TW': {
     'settings.integrations.extensionCatalog.title': 'OpenChamber 擴充功能',
-    'settings.integrations.extensionCatalog.info': "OpenChamber 的選用擴充功能。在這裡安裝後，它會出現在你使用的位置。已安裝的擴充功能也會列在 設定 → 擴充功能 中。",
+    'settings.integrations.extensionCatalog.info': '來自 OpenChamber 團隊的選用擴充功能。在這裡安裝後，它會出現在你使用的位置。已安裝的擴充功能也會列在 設定 → 擴充功能 中。',
     'settings.integrations.extensionCatalog.excalidraw.name': 'Excalidraw',
     'settings.integrations.extensionCatalog.excalidraw.description': '直接在 Files 中繪製 .excalidraw 檔案和 Obsidian 繪圖。',
     'settings.integrations.extensionCatalog.status.paused': '已關閉',
@@ -170,7 +170,7 @@ export const extensionCatalogI18n = {
   },
   tr: {
     'settings.integrations.extensionCatalog.title': 'OpenChamber uzantıları',
-    'settings.integrations.extensionCatalog.info': "OpenChamber için isteğe bağlı uzantılar. Buradan kurduğunuzda kullandığınız yerde görünür. Kurulu uzantılar Ayarlar → Uzantılar altında da listelenir.",
+    'settings.integrations.extensionCatalog.info': 'OpenChamber ekibinden isteğe bağlı eklentiler. Buradan kurun, kullandığınız yerde görünsün. Kurulu uzantılar Ayarlar → Uzantılar altında da listelenir.',
     'settings.integrations.extensionCatalog.excalidraw.name': 'Excalidraw',
     'settings.integrations.extensionCatalog.excalidraw.description': '.excalidraw dosyalarında ve Obsidian çizimlerinde doğrudan Files içinde çizin.',
     'settings.integrations.extensionCatalog.status.paused': 'Kapalı',

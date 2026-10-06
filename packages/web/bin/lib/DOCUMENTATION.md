@@ -124,9 +124,6 @@ These modules hold reusable, non-presentational logic for commands.
 
 - `cli-startup.js`
   - Native startup service detection, install/uninstall/status helpers, and platform-specific startup command execution.
-  - On Linux, `OPENCHAMBER_STARTUP_LAUNCHER` selects an existing absolute executable as the stable service entrypoint. Reject newlines and systemd specifiers before modifying startup state. Without it, retain the ordinary Node/CLI entrypoint.
-  - Native `startup enable` owns unit/env writes, daemon reload, enable and restart. `--no-start` enables without starting or restarting.
-  - `OPENCHAMBER_MIGRATE_MANAGED_STARTUP=1` removes only known drop-ins carrying a recognized ownership marker; other user drop-ins remain intact. External installers switch binaries and call native startup, without editing/restoring unit/env files.
 
 - `cli-tunnel-profiles.js`
   - Tunnel profile normalization, token resolution/redaction, profile storage, migration, file-permission warnings, and managed-remote pair persistence.

@@ -13,14 +13,6 @@ import { dict as ukDict } from './messages/uk';
 import { dict as zhCnDict } from './messages/zh-CN';
 import { dict as zhTwDict } from './messages/zh-TW';
 import { dict as trDict } from './messages/tr';
-import { dict as ruDict } from './messages/ru';
-import { extensionsSettingsI18n } from './messages/extensions.settings.i18n';
-import { guestIntegrationsI18n } from './messages/guest-integrations.i18n';
-import { pluginPanelI18n } from './messages/plugin-panel.i18n';
-import { routingI18n } from './messages/routing.i18n';
-import { linearIntegrationI18n } from './messages/linear-integration.i18n';
-import { linearIssuePickerI18n } from './messages/linear-issue-picker.i18n';
-import { linearPanelI18n } from './messages/linear-panel.i18n';
 
 const localeDictionaries = {
   en: enDict,
@@ -36,21 +28,14 @@ const localeDictionaries = {
   'zh-CN': zhCnDict,
   'zh-TW': zhTwDict,
   tr: trDict,
-  ru: ruDict,
 } as const;
 
 describe('i18n dictionaries', () => {
   test('all locales stay in key parity with english', () => {
     const englishKeys = Object.keys(enDict).sort();
 
-    for (const [locale, dictionary] of Object.entries(localeDictionaries)) {
-      const actualKeys = Object.keys(dictionary);
-      // Russian is a fork-only locale. Upstream locales fall back to English for its label
-      // without requiring us to patch every upstream dictionary on each rebase.
-      if (locale !== 'en' && locale !== 'ru' && !actualKeys.includes('common.language.russian')) {
-        actualKeys.push('common.language.russian');
-      }
-      expect(actualKeys.sort()).toEqual(englishKeys);
+    for (const dictionary of Object.values(localeDictionaries)) {
+      expect(Object.keys(dictionary).sort()).toEqual(englishKeys);
     }
   });
 
@@ -85,220 +70,4 @@ describe('i18n dictionaries', () => {
       }
     }
   });
-  test('Russian dictionary translates newly added 1.24.2.1 settings keys', () => {
-    const newlyAdded = [
-      'settings.themeImport.selectAll',
-      'settings.themeImport.deselectAll',
-      'settings.themeImport.complete',
-      'settings.themeImport.catalogTitle',
-      'settings.themeImport.catalogHint',
-      'settings.themeImport.search',
-      'settings.themeImport.catalogError',
-      'settings.themeImport.empty',
-      'settings.themeImport.back',
-      'settings.themeImport.chooseFile',
-      'settings.themeImport.importSelected',
-      'settings.themeImport.installed',
-      'settings.themeImport.partialError',
-      'settings.themeImport.delete',
-      'settings.themeImport.deleteError',
-      'settings.themeImport.action',
-      'settings.themeImport.busy',
-      'settings.themeImport.hint',
-      'settings.themeImport.success',
-      'settings.themeImport.error.invalid',
-      'settings.themeImport.error.include',
-      'settings.themeImport.error.size',
-      'settings.themeImport.error.background',
-      'settings.themeImport.error.save',
-      'settings.themeImport.error.connection',
-      'settings.themeImport.error.unsupported',
-      'settings.themeImport.error.conflict',
-      'settings.projects.page.field.projectAgent',
-    ] as const;
-    for (const key of newlyAdded) {
-      expect(ruDict[key]).toBeTruthy();
-      expect(ruDict[key]).not.toBe(enDict[key]);
-    }
-  });
-
-  test('every English key has a Russian translation or an explicit technical-term allowlist entry', () => {
-    const technicalTermAllowlist = new Set([
-      'settings.view.home.cards.mcp.title', 'settings.page.mcp.title', 'settings.page.git.title',
-      'settings.snippets.page.field.namePlaceholder', 'settings.snippets.page.field.aliasesPlaceholder',
-      'settings.openchamber.tunnel.badge.quick', 'settings.openchamber.tunnel.badge.remote', 'settings.openchamber.tunnel.badge.local',
-      'settings.magicPrompts.sidebar.group.git', 'settings.magicPrompts.sidebar.group.github', 'settings.magicPrompts.sidebar.item.sessionFusion',
-      'settings.remoteInstances.direct.field.urlPlaceholder', 'settings.remoteInstances.direct.import.placeholder',
-      'settings.remoteInstances.page.field.localHostPlaceholder', 'settings.remoteInstances.page.field.remoteHostPlaceholder',
-      'settings.agents.page.field.agentNamePlaceholder', 'settings.agents.page.field.topP', 'settings.commands.page.field.commandNamePlaceholder',
-      'settings.gitIdentities.editor.field.sshKeyPathPlaceholder', 'settings.gitIdentities.editor.field.signingKeyPlaceholder',
-      'settings.gitIdentities.editor.field.hostPlaceholder', 'settings.skills.sidebar.badge.claude', 'settings.skills.sidebar.badge.agents',
-      'settings.skills.sidebar.badge.opencode', 'settings.skills.page.field.skillNamePlaceholder',
-      'settings.skills.catalog.conflicts.source.opencode', 'settings.skills.catalog.conflicts.source.agents',
-      'settings.skills.catalog.add.descriptionSuffix', 'settings.openchamber.passkeys.title', 'settings.openchamber.opencodeCli.title',
-      'settings.openchamber.opencodeCli.field.binaryPathPlaceholder', 'settings.plugins.registry.badge.update.label',
-      'settings.plugins.registry.banner.updateAvailable.description', 'settings.projects.page.section.worktree',
-      'settings.remoteInstances.page.field.sshCommandPlaceholder', 'settings.remoteInstances.page.patternDialog.destinationPlaceholder',
-      'settings.providers.page.auth.apiKeyPlaceholder', 'settings.mcp.page.server.namePlaceholder',
-      'settings.mcp.page.connection.serverUrlPlaceholder', 'settings.mcp.page.advanced.oauthClientIdPlaceholder',
-      'settings.mcp.page.advanced.oauthClientSecretPlaceholder', 'settings.mcp.page.advanced.oauthRedirectUriPlaceholder',
-      'settings.mcp.page.env.keyPlaceholder', 'settings.github.page.accountSource.oauth', 'settings.github.page.accountSource.cli',
-      'settings.notifications.page.template.defaults.error.message', 'settings.notifications.page.template.defaults.question.message',
-      'settings.voice.page.provider.say', 'settings.openchamber.visual.option.fileEditorKeymap.vim', 'settings.openchamber.visual.field.bash',
-      'settings.openchamber.visual.option.mermaidRendering.svg.label', 'settings.openchamber.visual.option.mermaidRendering.ascii.label',
-      'settings.openchamber.visual.option.userMessageRendering.markdown.label', 'settings.openchamber.visual.option.messageTransport.ws.label',
-      'settings.openchamber.visual.option.messageTransport.sse.label', 'settings.magicPrompts.page.group.sessionFusion.title',
-      'settings.extensions.source.zip', 'settings.extensions.source.git', 'chat.chatInput.linked.guest.pr.number',
-      'settings.integrations.github.title', 'settings.integrations.linear.title', 'settings.magicPrompts.sidebar.group.linear',
-      'contextPanel.mode.linear',
-      // Intentionally empty in both locales: Windows command suffix is not needed here.
-      'onboarding.localSetup.windows.stepInstallWslSuffix',
-      'mobile.menu.mcp',
-      'layout.rightSidebar.git',
-      'sessions.scheduledTasks.dialog.schedule.cron',
-      'sessions.scheduledTasks.dialog.schedule.cronWithTimezone',
-      'sessions.scheduledTasks.dialog.schedule.weekdayShort.unknown',
-      'sessions.scheduledTasks.editor.scheduleType.cron',
-      'sessions.scheduledTasks.editor.time.period.am',
-      'sessions.scheduledTasks.editor.time.period.pm',
-      'sessions.scheduledTasks.editor.cronExpression.placeholder',
-      'multirun.launcher.groupName.placeholder',
-      'multirun.launcher.setupCommands.commandPlaceholder',
-      'sessions.sidebar.sessionDialogs.ok',
-      'gitView.stash.confirmButton',
-      'gitView.stashes.itemNumber',
-      'gitView.sync.syncCounts',
-      'gitView.pr.numberLabel',
-      'planView.file.defaultName',
-      'header.github.connectedWithLogin',
-      'header.github.accountSource.oauth',
-      'header.github.accountSource.cli',
-      'terminalView.quickKeys.escape',
-      'terminalView.quickKeys.tabAria',
-      'terminalView.quickKeys.controlLabel',
-      'terminalView.quickKeys.enterAria',
-      'directoryExplorerDialog.shortcut.enter',
-      'session.newWorktree.branchNamePlaceholder',
-      'session.newWorktree.worktreeDirectoryPlaceholder',
-      'session.newWorktree.issueNumber',
-      'session.newWorktree.prNumber',
-      'session.newWorktree.includeDiffBadge',
-      'session.githubIntegration.selected.issueNumber',
-      'session.githubIntegration.selected.prNumber',
-      'chat.chatInput.linked.pr.number',
-      'chat.modelControls.modality.pdf',
-      'chat.modelControls.topP',
-      'chat.modelControls.bash',
-      'chat.modelControls.webFetch',
-      'chat.modelControls.modeValue.none',
-      'branchPickerDialog.badge.head',
-      'desktopHostSwitcher.field.urlPlaceholder',
-      'onboarding.remoteConnection.field.serverAddressPlaceholder',
-      'directoryTree.field.newDirectoryPlaceholder',
-      'quota.window.api',
-      'settings.view.nav.group.general',
-      'settings.view.nav.group.opencode',
-      'settings.projects.shared.plansDirPlaceholder',
-      'settings.agents.page.permissionsEditor.effectiveHint',
-      'settings.openchamber.keyboardShortcuts.action.switch_session_tab.suffix',
-      'settings.openchamber.keyboardShortcuts.action.switch_context_surface.suffix',
-      'settings.providers.page.custom.field.providerID.placeholder',
-      'settings.providers.page.custom.field.protocol.openaiChat',
-      'settings.providers.page.custom.field.protocol.openaiResponses',
-      'settings.providers.page.custom.field.protocol.anthropicMessages',
-      'settings.providers.page.custom.field.baseURL.placeholder',
-      'settings.providers.page.custom.field.apiKey.placeholder',
-      'settings.providers.page.custom.models.idPlaceholder',
-      'settings.providers.page.custom.models.namePlaceholder',
-      'settings.providers.page.custom.headers.keyPlaceholder',
-      'settings.voice.page.provider.openai',
-      'mobile.connect.url.placeholder',
-      'sessions.sidebar.header.projectSort.aToZ',
-      'sessions.sidebar.header.projectSort.zToA',
-      'terminalView.quickKeys.altLabel',
-      'chat.workStatus.section.mcp',
-      'chat.workStatus.breakdown.mcpCountSingle',
-      'chat.workStatus.breakdown.mcpCountPlural',
-    ]);
-
-    // V2 product names, protocol identifiers and code templates also verified by ru-coverage.
-    technicalTermAllowlist.add('settings.openchamber.tools.browserProvider.option.builtin');
-    technicalTermAllowlist.add('settings.providers.page.custom.models.variantsPlaceholder');
-    technicalTermAllowlist.add('settings.integrations.thirdParty.opencodeClaude.name');
-    technicalTermAllowlist.add('settings.integrations.extensionCatalog.excalidraw.name');
-    technicalTermAllowlist.add('settings.mcp.page.advanced.codemode');
-    technicalTermAllowlist.add('settings.mcp.page.advanced.protocolOption.revision20260728');
-    technicalTermAllowlist.add('settings.mcp.page.advanced.oauth');
-    technicalTermAllowlist.add('settings.mcp.page.advanced.oauthMetadataUrlPlaceholder');
-    technicalTermAllowlist.add('usageStats.tokens.legendValue');
-    technicalTermAllowlist.add('multirun.overview.card.diff');
-
-    const moduleDictionaries = [
-      [extensionsSettingsI18n.en, extensionsSettingsI18n.ru],
-      [guestIntegrationsI18n.en, guestIntegrationsI18n.ru],
-      [pluginPanelI18n.en, pluginPanelI18n.ru],
-      [routingI18n.en, routingI18n.ru],
-      [linearIntegrationI18n.en, linearIntegrationI18n.ru],
-      [linearIssuePickerI18n.en, linearIssuePickerI18n.ru],
-      [linearPanelI18n.en, linearPanelI18n.ru],
-    ] as const;
-
-    for (const [english, russian] of moduleDictionaries) {
-      for (const key of Object.keys(english)) {
-        if (technicalTermAllowlist.has(key)) continue;
-        const englishValue = (english as Record<string, string>)[key];
-        const russianValue = (russian as Record<string, string>)[key];
-        expect(russianValue).toBeTruthy();
-        expect(russianValue).not.toBe(englishValue);
-      }
-    }
-
-    const missingKeys: string[] = [];
-    const englishFallbackKeys: string[] = [];
-    const placeholderMismatches: string[] = [];
-    const placeholderPattern = /\\{([a-zA-Z0-9_]+)\\}/g;
-
-    for (const key of Object.keys(enDict)) {
-      const englishValue = (enDict as Record<string, string>)[key];
-      const russianValue = (ruDict as Record<string, string>)[key];
-
-      if (russianValue === undefined || (englishValue.trim() !== '' && russianValue.trim() === '')) {
-        missingKeys.push(key);
-        continue;
-      }
-
-      if (!technicalTermAllowlist.has(key) && russianValue === englishValue) {
-        englishFallbackKeys.push(key);
-      }
-
-      const englishPlaceholders = [...englishValue.matchAll(placeholderPattern)].map((match) => match[1]).sort();
-      const russianPlaceholders = [...russianValue.matchAll(placeholderPattern)].map((match) => match[1]).sort();
-      if (englishPlaceholders.join('\\0') !== russianPlaceholders.join('\\0')) {
-        placeholderMismatches.push(
-          `${key}: expected {${englishPlaceholders.join('}, {')}}; got {${russianPlaceholders.join('}, {')}}`,
-        );
-      }
-    }
-
-    const failures: string[] = [];
-    if (missingKeys.length > 0) {
-      failures.push(`Missing Russian values (${missingKeys.length}):\\n${missingKeys.join('\\n')}`);
-    }
-    if (englishFallbackKeys.length > 0) {
-      failures.push(
-        `English fallback remains (${englishFallbackKeys.length}):\\n${englishFallbackKeys.join('\\n')}`,
-      );
-    }
-    if (placeholderMismatches.length > 0) {
-      failures.push(
-        `Placeholder mismatches (${placeholderMismatches.length}):\\n${placeholderMismatches.join('\\n')}`,
-      );
-    }
-
-    if (failures.length > 0) {
-      throw new Error(failures.join('\\n\\n'));
-    }
-  });
-
 });
-

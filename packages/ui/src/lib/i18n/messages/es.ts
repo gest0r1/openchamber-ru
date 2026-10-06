@@ -113,7 +113,6 @@ export const dict: Record<I18nKey, string> = {
   "common.language.japanese": "Japonés",
   "common.language.turkish": "Turco",
   "common.language.dutch": "Neerlandés",
-  "common.language.russian": "Ruso",
   "common.revealPath.finder": "Mostrar en Finder",
   "common.revealPath.fileExplorer": "Abrir en File Explorer",
   "common.revealPath.fileManager": "Abrir en gestor de archivos",

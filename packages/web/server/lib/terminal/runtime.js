@@ -124,14 +124,7 @@ export function createTerminalRuntime({
     let lastError = null;
     for (const executable of resolvedShell.executables) {
       try {
-        const env = {
-          ...process.env,
-          PATH: buildAugmentedPath(),
-          TERM: 'xterm-256color',
-          COLORTERM: 'truecolor',
-          COLORFGBG: themeMode === 'light' ? '0;15' : '15;0',
-          OPENCHAMBER_EMBEDDED_TERMINAL: '1',
-        };
+        const env = { ...process.env, PATH: buildAugmentedPath(), TERM: 'xterm-256color', COLORTERM: 'truecolor', COLORFGBG: themeMode === 'light' ? '0;15' : '15;0' };
         // The daemon's IPC fd is closed inside the PTY; an inherited NODE_CHANNEL_FD
         // (even an empty one) makes Node CLIs warn about an unparsable IPC channel.
         delete env.NODE_CHANNEL_FD;

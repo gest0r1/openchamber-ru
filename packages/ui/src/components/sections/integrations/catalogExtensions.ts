@@ -9,8 +9,7 @@ export interface CatalogExtensionDefinition {
   /** Installed through the same Git install as Settings → Extensions. */
   gitUrl: string;
   homepage: string;
-  /** Stable upstream product name; not translated. */
-  name: string;
+  nameKey: I18nKey;
   descriptionKey: I18nKey;
   /** A file name whose file-type icon is the card's logo. */
   logoFileName: string;
@@ -20,24 +19,12 @@ export const EXCALIDRAW_EXTENSION: CatalogExtensionDefinition = {
   guestId: 'excalidraw',
   gitUrl: 'https://github.com/openchamber/openchamber-excalidraw',
   homepage: 'https://github.com/openchamber/openchamber-excalidraw',
-  name: 'Excalidraw',
+  nameKey: 'settings.integrations.extensionCatalog.excalidraw.name',
   descriptionKey: 'settings.integrations.extensionCatalog.excalidraw.description',
   logoFileName: 'drawing.excalidraw',
 };
 
-export const SERVER_BROWSER_EXTENSION: CatalogExtensionDefinition = {
-  guestId: 'server-browser',
-  gitUrl: 'https://github.com/JosueGalRe/openchamber-server-browser#v0.7.0',
-  homepage: 'https://github.com/JosueGalRe/openchamber-server-browser',
-  name: 'Server Browser',
-  descriptionKey: 'settings.openchamber.tools.browserProvider.info',
-  logoFileName: 'browser.html',
-};
-
-export const CATALOG_EXTENSIONS: readonly CatalogExtensionDefinition[] = [
-  EXCALIDRAW_EXTENSION,
-  SERVER_BROWSER_EXTENSION,
-];
+export const CATALOG_EXTENSIONS: readonly CatalogExtensionDefinition[] = [EXCALIDRAW_EXTENSION];
 
 export type CatalogExtensionState =
   | { kind: 'not-installed' }

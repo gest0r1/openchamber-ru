@@ -386,7 +386,6 @@ describe('terminal runtime', () => {
       expect(response.body).toEqual({ sessionId: 'term-1', cols: 120, rows: 40, status: 'running', mode: 'interactive', purpose: { type: 'terminal' } });
       expect(harness.processes[0].options.cwd).toBe('/repo');
       expect(harness.processes[0].options.env.COLORFGBG).toBe('0;15');
-      expect(harness.processes[0].options.env.OPENCHAMBER_EMBEDDED_TERMINAL).toBe('1');
       expect(harness.processes[0].options.env).not.toHaveProperty('NODE_CHANNEL_FD');
       expect(harness.processes[0].options.env).not.toHaveProperty('ARGV0');
       expect(harness.processes[0].options.env).not.toHaveProperty('ELECTRON_RUN_AS_NODE');

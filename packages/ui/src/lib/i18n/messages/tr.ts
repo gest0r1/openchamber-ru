@@ -98,7 +98,6 @@ export const dict = {
   'common.language.japanese': 'Japonca',
   'common.language.turkish': 'Türkçe',
   'common.language.dutch': 'Felemenkçe',
-  "common.language.russian": "Rusça",
   'common.revealPath.finder': 'Finder\'da göster',
   'common.revealPath.fileExplorer': 'Dosya Gezgini\'nde aç',
   'common.revealPath.fileManager': 'Dosya Yöneticisi\'nde aç',
