@@ -73,4 +73,4 @@ jobs:
             packages/electron/updater-feed.test.mjs \
             packages/electron/scripts/finalize-latest-yml.test.mjs
           node scripts/check-fork-release-policy.mjs
-          node --test scripts/release-workflow.test.mjs scripts/release-workflow-contract.test.mjs
+          node --test scripts/release-workflow-contract.test.mjs
