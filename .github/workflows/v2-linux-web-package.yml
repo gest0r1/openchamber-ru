@@ -191,6 +191,13 @@ jobs:
         if: steps.resolve.outputs.current_release != 'true' && steps.resolve.outputs.reuse != 'true'
         run: bun install --frozen-lockfile
 
+      - name: Validate merged source before packaging
+        if: steps.resolve.outputs.current_release != 'true' && steps.resolve.outputs.reuse != 'true'
+        run: |
+          bun run type-check
+          bun run lint
+          bun run test
+
       - name: Build and pack web runtime
         if: steps.resolve.outputs.current_release != 'true' && steps.resolve.outputs.reuse != 'true'
         shell: bash
