@@ -180,7 +180,13 @@ jobs:
             exit 1
           fi
           printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/openchamber-release.keystore"
-          keytool -list -keystore "$RUNNER_TEMP/openchamber-release.keystore" -storepass:env ANDROID_KEYSTORE_PASSWORD -alias "$ANDROID_KEY_ALIAS" >/dev/null
+          if ! output="$(keytool -list \
+            -keystore "$RUNNER_TEMP/openchamber-release.keystore" \
+            -storepass:env ANDROID_KEYSTORE_PASSWORD \
+            -alias "$ANDROID_KEY_ALIAS" 2>&1)"; then
+            printf '%s\n' "$output"
+            exit 1
+          fi
 
       - name: Install dependencies
         run: bun install --frozen-lockfile
