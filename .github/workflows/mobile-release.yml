@@ -17,13 +17,13 @@ on:
         required: false
         type: string
       release_tag:
-        description: Existing GitHub Release tag for Android artifact upload, for example v1.14.1.
+        description: Existing GitHub Release tag for Android artifact upload, for example v2.1.1.
         required: false
         type: string
       upload_github_release:
         description: Upload Android artifacts to GitHub Release. Requires release_tag when called by the release workflow.
         required: false
-        default: false
+        default: true
         type: boolean
       build_android:
         description: Build Android signed APK/AAB artifacts.
@@ -57,7 +57,7 @@ on:
       upload_github_release:
         description: Upload Android artifacts to the matching GitHub Release.
         required: false
-        default: false
+        default: true
         type: boolean
       build_android:
         description: Build Android signed APK/AAB artifacts.
@@ -95,6 +95,7 @@ jobs:
       - name: Resolve version values
         id: version
         env:
+          GH_TOKEN: ${{ github.token }}
           INPUT_VERSION: ${{ inputs.version_name }}
           INPUT_BUILD: ${{ inputs.build_number }}
           INPUT_RELEASE_TAG: ${{ inputs.release_tag }}
@@ -115,11 +116,21 @@ jobs:
           fi
 
           version_name="${input_version:-$package_version}"
-          build_number="${input_build:-${{ github.run_number }}}"
+          # Minutes since 2020 keep versionCode increasing across both workflows.
+          build_number="${input_build:-$(( ($(date +%s) - 1577836800) / 60 ))}"
           release_tag="$input_release_tag"
+          if [[ -z "$release_tag" && '${{ inputs.upload_github_release }}' == true ]]; then
+            release_tag="v$version_name"
+          fi
           [[ "$version_name" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
           [[ "$build_number" =~ ^[1-9][0-9]*$ ]]
           [[ -z "$release_tag" || "$release_tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          if [[ '${{ inputs.upload_github_release }}' == true ]]; then
+            [[ "$release_tag" == "v$version_name" ]] || { echo 'Release tag must match the mobile version' >&2; exit 1; }
+            [[ "$(gh release view "$release_tag" --repo "$GITHUB_REPOSITORY" --json isDraft --jq '.isDraft')" == true ]] || {
+              echo 'Android uploads require an existing draft release' >&2; exit 1;
+            }
+          fi
 
           {
             echo "version_name=$version_name"
@@ -233,6 +244,12 @@ jobs:
             exit 1
           }
           gh release upload "$RELEASE_TAG" "${files[@]}" --clobber --repo "${{ github.repository }}"
+          # Keep exactly the newly uploaded APK/AAB pair when resuming a draft.
+          while IFS= read -r name; do
+            if [[ "$name" == "OpenChamber-${VERSION_NAME}-"*"-android.apk" || "$name" == "OpenChamber-${VERSION_NAME}-"*"-android.aab" ]]; then
+              [[ -f "release-assets/$name" ]] || gh release delete-asset "$RELEASE_TAG" "$name" --yes --repo "${{ github.repository }}"
+            fi
+          done < <(gh release view "$RELEASE_TAG" --repo "${{ github.repository }}" --json assets --jq '.assets[].name')
         working-directory: ${{ env.ANDROID_PROJECT_DIR }}
 
   ios-testflight:

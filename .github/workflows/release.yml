@@ -20,7 +20,12 @@ on:
         default: false
         type: boolean
 
+concurrency:
+  group: release-publication
+  cancel-in-progress: false
+
 env:
+  NODE_OPTIONS: --max-old-space-size=6144
   CARGO_INCREMENTAL: 0
   RUST_BACKTRACE: short
 
@@ -64,13 +69,20 @@ jobs:
           NODE
           echo "source_sha=$SOURCE_SHA" >> "$GITHUB_OUTPUT"
           echo "version=$version" >> "$GITHUB_OUTPUT"
-          if gh release view "v$version" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            if [[ "$EVENT_NAME" != workflow_run ]]; then
-              echo 'Release already exists; refusing to overwrite it' >&2; exit 1
+          if release="$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/v$version" 2>release-error.log)"; then
+            if [[ "$(printf '%s' "$release" | node -e 'let s="";process.stdin.on("data",c=>s+=c).on("end",()=>console.log(JSON.parse(s).draft))')" == true ]]; then
+              echo 'Resuming draft release with all platforms rebuilt from the requested source.'
+              echo 'proceed=true' >> "$GITHUB_OUTPUT"
+            elif [[ "$EVENT_NAME" == workflow_run ]]; then
+              echo 'Published version already exists; skipping.'
+              echo 'proceed=false' >> "$GITHUB_OUTPUT"
+            else
+              echo 'Published release already exists; refusing to overwrite it' >&2; exit 1
             fi
-            echo 'proceed=false' >> "$GITHUB_OUTPUT"
-          else
+          elif grep -q 'HTTP 404' release-error.log; then
             echo 'proceed=true' >> "$GITHUB_OUTPUT"
+          else
+            cat release-error.log >&2; exit 1
           fi
 
 
@@ -101,6 +113,20 @@ jobs:
         run: |
           title=$(node scripts/changelog/release-notes.mjs "$VERSION" artifacts/release-notes.md)
           echo "name=OpenChamber v$VERSION: $title" >> "$GITHUB_OUTPUT"
+
+      - name: Point unpublished release tag at the requested source
+        if: ${{ github.event.inputs.dry_run != 'true' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_SHA: ${{ needs.authorize-release.outputs.source_sha }}
+          VERSION: ${{ steps.get_version.outputs.version }}
+        run: |
+          set -euo pipefail
+          if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/v$VERSION" >/dev/null 2>tag-error.log; then
+            gh api --method PATCH "repos/$GITHUB_REPOSITORY/git/refs/tags/v$VERSION" -f sha="$SOURCE_SHA" -F force=true >/dev/null
+          elif ! grep -q 'HTTP 404' tag-error.log; then
+            cat tag-error.log >&2; exit 1
+          fi
 
       - name: Create GitHub Release
         if: ${{ github.event.inputs.dry_run != 'true' }}
@@ -343,7 +369,6 @@ jobs:
     with:
       source_ref: ${{ needs.create-release.outputs.source_sha }}
       version_name: ${{ needs.create-release.outputs.version }}
-      build_number: ${{ github.run_number }}
       release_tag: v${{ needs.create-release.outputs.version }}
       upload_github_release: true
       build_android: true
@@ -409,6 +434,7 @@ jobs:
         with:
           tag_name: v${{ needs.create-release.outputs.version }}
           draft: false
+          make_latest: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

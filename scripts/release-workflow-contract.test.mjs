@@ -6,7 +6,7 @@ const root = new URL('../', import.meta.url);
 const read = (relative) => readFileSync(new URL(relative, root), 'utf8');
 
 test('V2 release uses x64 targets, direct uploads and guarded publication', () => {
-  for (const name of ['release.yml', 'release-desktop-smoke.yml']) {
+  for (const name of ['release.yml']) {
     const source = read('.github/workflows/' + name);
     assert.doesNotMatch(source, /arm64|aarch64/i);
     if (name === 'release.yml') assert.doesNotMatch(source, /actions\/(?:upload|download)-artifact/);

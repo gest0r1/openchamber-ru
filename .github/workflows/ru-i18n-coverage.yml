@@ -17,7 +17,6 @@ on:
       - 'packages/electron/scripts/finalize-latest-yml.mjs'
       - 'packages/electron/scripts/finalize-latest-yml.test.mjs'
       - '.github/workflows/release.yml'
-      - '.github/workflows/release-desktop-smoke.yml'
       - '.github/workflows/mobile-release.yml'
       - 'scripts/check-fork-release-policy.mjs'
       - '.github/workflows/ru-i18n-coverage.yml'
@@ -35,7 +34,6 @@ on:
       - 'packages/electron/scripts/finalize-latest-yml.mjs'
       - 'packages/electron/scripts/finalize-latest-yml.test.mjs'
       - '.github/workflows/release.yml'
-      - '.github/workflows/release-desktop-smoke.yml'
       - '.github/workflows/mobile-release.yml'
       - 'scripts/check-fork-release-policy.mjs'
       - '.github/workflows/ru-i18n-coverage.yml'
@@ -75,3 +73,4 @@ jobs:
             packages/electron/updater-feed.test.mjs \
             packages/electron/scripts/finalize-latest-yml.test.mjs
           node scripts/check-fork-release-policy.mjs
+          node --test scripts/release-workflow.test.mjs scripts/release-workflow-contract.test.mjs

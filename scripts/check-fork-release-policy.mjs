@@ -3,7 +3,6 @@ import fs from 'node:fs';
 
 const read = (path) => fs.readFileSync(path, 'utf8');
 const release = read('.github/workflows/release.yml');
-const smoke = read('.github/workflows/release-desktop-smoke.yml');
 const mobile = read('.github/workflows/mobile-release.yml');
 const updater = read('packages/electron/updater-feed.mjs');
 const electronPackage = JSON.parse(read('packages/electron/package.json'));
@@ -26,11 +25,6 @@ forbidText(release, /\baarch64\b|\barm64\b/i, 'ARM release target');
 forbidText(release, /macos|latest-mac/i, 'macOS release target');
 forbidText(release, /bun publish|NPM_TOKEN|publish-npm/, 'npm publication');
 forbidText(release, /blacksmith/i, 'external release runner');
-forbidText(smoke, /\baarch64\b|\barm64\b|build_macos|build-macos|blacksmith/i, 'unsupported desktop smoke target');
-requireText(smoke, /target: x86_64-pc-windows-msvc/, 'Windows smoke x64');
-requireText(smoke, /artifact_arch: x86_64/, 'Linux smoke x64');
-requireText(smoke, /default: gest0r1\/openchamber-ru/, 'desktop smoke defaults to fork repository');
-requireText(smoke, /default: main/, 'desktop smoke defaults to main ref');
 requireText(mobile, /android-release:[\s\S]*?runs-on: ubuntu-24\.04/, 'Android GitHub-hosted runner');
 requireText(mobile, /build_ios:[\s\S]*?default: false/, 'iOS disabled by default');
 
@@ -44,6 +38,6 @@ console.log('fork release policy: PASS');
 
 forbidText(release, /actions\/(upload|download)-artifact/, 'release transport artifacts');
 requireText(release, /reuse-release-web-package\.mjs/, 'verified web package reuse');
-for (const file of ['v2-platform-build.yml', 'v2-platform-artifacts.yml', 'v2-migration-smoke.yml', 'build-macos-arm64-dmg.yml']) {
+for (const file of ['release-desktop-smoke.yml', 'mobile-ci.yml', 'opencode-smoke.yml', 'vscode-extension.yml', 'sdk-preview.yml', 'v2-platform-build.yml', 'v2-platform-artifacts.yml', 'v2-migration-smoke.yml', 'build-macos-arm64-dmg.yml']) {
   if (fs.existsSync(`.github/workflows/${file}`)) throw Error(`Retired duplicate workflow: ${file}`);
 }
