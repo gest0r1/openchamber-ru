@@ -116,7 +116,11 @@ tag and the newest tag is classified.
 
 ## Bumping the pinned OpenCode
 
-Move every pin to the same tag and check out that tag in the reference
+Move every pin to the same tag. For this fork, also update the companion
+`gest0r1/my-opencode` distribution using its `project/opencode-updates.md`.
+Run `bun run opencode:pins` here and its cross-repository pin check before
+publishing; installer defaults, the plugin manifest and its lockfile must use
+the same version as this checkout. Then check out that tag in the reference
 checkout (`git checkout vX.Y.Z` in `~/projects/opencode`), `bun install`, then `tsc` in `packages/ui`,
 `packages/web`, `packages/vscode`; the isolated ui suites; web vitest; vscode
 tests. A new message `type` or event needs a case in `model.ts` and
