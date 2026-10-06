@@ -145,6 +145,8 @@ describe('i18n dictionaries', () => {
 
   test('every English key has a Russian translation or an explicit technical-term allowlist entry', () => {
     const technicalTermAllowlist = new Set([
+      'settings.gitlab.title', 'settings.gitlab.cli.label', 'settings.gitIdentities.editor.auth.ssh',
+      'gitView.hydration.kind.lfs', 'gitView.mr.walkthroughScope', 'header.gitlab.connectedWithLogin',
       'settings.view.home.cards.mcp.title', 'settings.page.mcp.title', 'settings.page.git.title',
       'settings.snippets.page.field.namePlaceholder', 'settings.snippets.page.field.aliasesPlaceholder',
       'settings.openchamber.tunnel.badge.quick', 'settings.openchamber.tunnel.badge.remote', 'settings.openchamber.tunnel.badge.local',
@@ -322,4 +324,5 @@ describe('i18n dictionaries', () => {
   });
 
 });
+
 
