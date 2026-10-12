@@ -26,7 +26,6 @@ const SETTINGS_TRIGGER_WIDTH_CLASS = 'w-full min-w-[16ch] max-w-[28ch]';
 
 /** Settings select trigger: full column width in stacked cells; capped in field rows via parent. */
 export const SETTINGS_SELECT_TRIGGER_CLASS = SETTINGS_TRIGGER_WIDTH_CLASS;
-export const SETTINGS_SELECT_SIZE = 'settings' as const;
 
 /** Fixed-width select used inside full-width SettingsFieldRow control columns. */
 export const SETTINGS_SELECT_ROW_TRIGGER_CLASS = SETTINGS_TRIGGER_WIDTH_CLASS;
@@ -83,8 +82,6 @@ export const SETTINGS_PAGE_TITLE_CLASS =
 /** L2 — section title inside a settings page. */
 export const SETTINGS_SECTION_TITLE_CLASS =
   'typography-settings-section-title text-foreground';
-/** Split-pane sidebar panel title — same level as section titles. */
-export const SETTINGS_PANEL_TITLE_CLASS = SETTINGS_SECTION_TITLE_CLASS;
 /** L3 — control-group heading inside a section. */
 const SETTINGS_GROUP_TITLE_CLASS =
   'typography-settings-group-title text-foreground';

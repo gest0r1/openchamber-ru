@@ -45,5 +45,5 @@ test('Android signing blockers leave independent builds runnable and uploads rem
   assert.equal(uploads.length, 3);
   for (const block of uploads) assert.match(block, /draft: true/);
   assert.match(release, /needs: \[create-release, build-desktop-electron-windows, build-desktop-electron-linux, package-web, mobile-release\]/);
-  assert.match(release, /draft: false/);
+  assert.match(release, /-F draft=false/);
 });

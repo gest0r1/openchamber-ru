@@ -69,7 +69,6 @@ export type Project = {
 export type ConfigDocument = Extract<ConfigEntry, { type: "document" }>
 /** One merged configuration document (lowest to highest priority entries folded). */
 export type Config = ConfigDocument["info"]
-export type ConfigSource = ConfigEntry
 export type { JsonValue, ModelRef, PermissionRuleset, TokenUsageInfo }
 
 /**
@@ -172,6 +171,12 @@ export type AssistantMessage = MessageBase & {
   variant?: string
   finish?: AssistantFinish
   error?: StructuredError
+  /**
+   * Set when the client closed this message itself because OpenCode reported
+   * the turn stopped or failed before finalizing it (`interruptedTurnToolParts`
+   * in sync). A completion from the server replaces such a close.
+   */
+  closedLocally?: true
   cost?: number
   tokens?: TokenUsageInfo
   snapshot?: { start?: string; end?: string; files?: string[] }
@@ -187,14 +192,14 @@ export type SyntheticMessage = MessageBase & {
 }
 
 /** Text OpenCode itself added (instruction updates, notices). */
-export type SystemMessage = MessageBase & {
+type SystemMessage = MessageBase & {
   role: "system"
   time: { created: number }
   text: string
   description?: string
 }
 
-export type SkillMessage = MessageBase & {
+type SkillMessage = MessageBase & {
   role: "skill"
   time: { created: number }
   skill: string
@@ -202,7 +207,7 @@ export type SkillMessage = MessageBase & {
   text: string
 }
 
-export type ShellMessage = MessageBase & {
+type ShellMessage = MessageBase & {
   role: "shell"
   time: { created: number; completed?: number }
   shellID: string
@@ -225,32 +230,36 @@ export type CompactionMessage = MessageBase & {
   tokens?: TokenUsageInfo
 }
 
-export type AgentSwitchedMessage = MessageBase & {
+type AgentSwitchedMessage = MessageBase & {
   role: "agent-switched"
   time: { created: number }
   agent: string
   previous?: string
 }
 
-export type ModelSwitchedMessage = MessageBase & {
+type ModelSwitchedMessage = MessageBase & {
   role: "model-switched"
   time: { created: number }
   model: ModelRef
   previous?: ModelRef
 }
 
-export type LocationSwitchedMessage = MessageBase & {
+type LocationSwitchedMessage = MessageBase & {
   role: "location-switched"
   time: { created: number }
   directory: string
   previous?: string
 }
 
-/** v2.0.3: the turn ended; `outcome` says how. Carries nothing to render. */
-export type IdleMessage = MessageBase & {
+/**
+ * v2.0.3: the turn ended; `outcome` says how. Since 2.0.27 a `failed` record
+ * also keeps the error OpenCode reported live with `session.execution.failed`.
+ */
+type IdleMessage = MessageBase & {
   role: "idle"
   time: { created: number }
   outcome: SessionOutcome
+  error?: StructuredError
 }
 
 export type Message =
@@ -266,7 +275,7 @@ export type Message =
   | LocationSwitchedMessage
   | IdleMessage
 
-export type MessageRole = Message["role"]
+type MessageRole = Message["role"]
 
 // ---------------------------------------------------------------------------
 // Parts
@@ -299,7 +308,7 @@ export type FilePart = PartBase & {
   url: string
 }
 
-export type AgentPart = PartBase & {
+type AgentPart = PartBase & {
   type: "agent"
   name: string
 }
@@ -307,14 +316,14 @@ export type AgentPart = PartBase & {
 /** Tool arguments as the model produced them. */
 export type ToolInput = Record<string, JsonValue>
 
-export type ToolStatePending = {
+type ToolStatePending = {
   status: "pending"
   input: ToolInput
   /** Raw streamed argument JSON while the model is still emitting the call. */
   raw: string
 }
 
-export type ToolStateRunning = {
+type ToolStateRunning = {
   status: "running"
   input: ToolInput
   metadata?: Metadata
@@ -331,7 +340,7 @@ export type ToolStateCompleted = {
   attachments?: FilePart[]
 }
 
-export type ToolStateError = {
+type ToolStateError = {
   status: "error"
   input: ToolInput
   error: string
@@ -386,9 +395,6 @@ export const partIds = {
   userFile: (messageID: string, index: number) => `${messageID}:file:${index}`,
   userAgent: (messageID: string, index: number) => `${messageID}:agent:${index}`,
 } as const
-
-export const FINAL_TOOL_STATUSES: ReadonlySet<ToolState["status"]> = new Set(["completed", "error"])
-export const ACTIVE_TOOL_STATUSES: ReadonlySet<ToolState["status"]> = new Set(["pending", "running"])
 
 export const isFinalToolStatus = (status: string): boolean => status === "completed" || status === "error"
 

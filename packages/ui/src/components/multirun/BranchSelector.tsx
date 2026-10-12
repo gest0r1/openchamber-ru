@@ -16,7 +16,7 @@ import { getRootBranch } from '@/lib/worktrees/worktreeStatus';
 import { resolveDefaultSourceBranch } from '@/lib/worktrees/worktreeSourceBranchPreference';
 import { useI18n } from '@/lib/i18n';
 
-export interface BranchSelectorProps {
+interface BranchSelectorProps {
   /** Current directory to check for git repository */
   directory: string | null;
   /** Currently selected branch */
@@ -155,7 +155,6 @@ export const BranchSelector: React.FC<BranchSelectorProps> = ({
       >
         <SelectTrigger
           id={id}
-          size="lg"
           className={cn('min-w-0 max-w-full *:data-[slot=select-value]:truncate', className ?? 'w-fit')}
         >
           <SelectValue placeholder={isLoading ? t('multiRun.branchSelector.status.loadingBranches') : t('multiRun.branchSelector.placeholder.selectSourceBranch')} />

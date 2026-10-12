@@ -75,10 +75,14 @@ export const isExecuteTool = is(OPENCODE_TOOLS.execute)
 export const isSubagentTool = is(OPENCODE_TOOLS.subagent)
 export const isQuestionTool = is(OPENCODE_TOOLS.question)
 export const isSkillTool = is(OPENCODE_TOOLS.skill)
-export const isReadTool = is(OPENCODE_TOOLS.read)
 export const isEditTool = is(OPENCODE_TOOLS.edit)
 export const isWriteTool = is(OPENCODE_TOOLS.write)
 export const isPatchTool = is(OPENCODE_TOOLS.patch)
+
+// Tools whose transcript row opens the read file or skill in the app and never
+// shows the call's result.
+const NAVIGATION_TOOLS = new Set<string>([OPENCODE_TOOLS.read, OPENCODE_TOOLS.skill])
+export const isNavigationTool = (toolName: ToolName): boolean => NAVIGATION_TOOLS.has(normalizeToolName(toolName))
 
 const FILE_CHANGE_TOOLS = new Set<string>([OPENCODE_TOOLS.edit, OPENCODE_TOOLS.write, OPENCODE_TOOLS.patch])
 const EXPLORATION_TOOLS = new Set<string>([
@@ -101,12 +105,6 @@ export const carriesFileDiffs = (toolName: ToolName): boolean => {
 export const isExplorationTool = (toolName: ToolName): boolean => EXPLORATION_TOOLS.has(normalizeToolName(toolName))
 export const isWebTool = (toolName: ToolName): boolean => WEB_TOOLS.has(normalizeToolName(toolName))
 export const isWebSearchTool = (toolName: ToolName): boolean => normalizeToolName(toolName) === OPENCODE_TOOLS.websearch
-
-/**
- * Tools that block the turn on a form the user must answer. Only `question`
- * does this today; the form itself renders as its own card.
- */
-export const blocksOnForm = isQuestionTool
 
 // ---------------------------------------------------------------------------
 // Input and metadata accessors
@@ -280,6 +278,16 @@ export function executeOutputTruncation(metadata: Metadata | undefined): { outpu
 /** The script an `execute` call ran (`input.code`). */
 export function executeScript(input: ToolInput | undefined): string | undefined {
   return readInput(input).code
+}
+
+/** The agent a `subagent` call runs (`input.agent`). */
+export function subagentAgent(input: ToolInput | undefined): string | undefined {
+  return readInput(input).agent
+}
+
+/** The short label a `subagent` call gives its task (`input.description`). */
+export function subagentDescription(input: ToolInput | undefined): string | undefined {
+  return readInput(input).description
 }
 
 /** The child session a `subagent` call runs in (`metadata.sessionID`). */

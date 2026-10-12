@@ -1,6 +1,8 @@
 import { isCompleteIdentity } from '@/lib/api/git-identity';
 import React from 'react';
 import { Icon } from '@/components/icon/Icon';
+import { useIsContributorWorktree } from '@/hooks/useIsContributorWorktree';
+import { WhitespaceToggleIcon } from '@/components/views/WhitespaceToggleIcon';
 
 import { toast } from '@/components/ui';
 import { Button } from '@/components/ui/button';
@@ -36,6 +38,7 @@ import { hasUncommittedTrackedChanges, isConflictedStatusFile } from '@/componen
 import { PierreDiffViewer, type ContextExpansionRequest } from '@/components/views/PierreDiffViewer';
 import { useRuntimeAPIs } from '@/hooks/useRuntimeAPIs';
 import { useRepositoryBinding } from '@/lib/source-control/repository-binding';
+import { hasConfigChangedGrant } from '@/lib/source-control/types';
 import { useEffectiveDirectory } from '@/hooks/useEffectiveDirectory';
 import { useNestedGitDirectory } from '@/hooks/useNestedGitDirectory';
 import { useBranchComparisonBase } from '@/hooks/useBranchComparisonBase';
@@ -44,6 +47,8 @@ import { usePullRequestComparison } from '@/hooks/usePullRequestComparison';
 import { PullRequestComparisonSelector } from '@/components/views/git/PullRequestComparisonSelector';
 import { useGitComparison, type GitComparisonFile, type GitComparisonSource } from '@/hooks/useGitComparison';
 import { useGitBaseBranchStore } from '@/stores/useGitBaseBranchStore';
+import { useUIStore } from '@/stores/useUIStore';
+import { cn } from '@/lib/utils';
 import { FileTypeIcon } from '@/components/icons/FileTypeIcon';
 import { fileDiffFromPatch, isBinaryPatch } from '@/lib/diff/patchFileDiff';
 import { parseDiffFromFile, type FileDiffMetadata } from '@pierre/diffs';
@@ -136,7 +141,7 @@ type MobileChangesSurfaceProps = {
 
 export const MobileChangesSurface: React.FC<MobileChangesSurfaceProps> = (props) => {
   const rootDirectory = normalizePath(useEffectiveDirectory() ?? null) ?? '';
-  const repository = useNestedGitDirectory(rootDirectory || null, { enabled: props.visible ?? true });
+  const repository = useNestedGitDirectory(rootDirectory || null, { enabled: props.visible ?? true, recheckOnOpen: true });
   return <MobileChangesPane {...props} rootDirectory={rootDirectory} repository={repository} />;
 };
 
@@ -154,6 +159,7 @@ export const MobileChangesPane: React.FC<MobileChangesPaneProps> = ({ rootDirect
   const { rootIsGitRepo, gitDirectory, nestedRepos } = repository;
   const currentDirectory = gitDirectory ?? rootDirectory;
   const status = useGitStatus(currentDirectory || null);
+  const choosesPushDestination = useIsContributorWorktree(currentDirectory);
   const branches = useGitBranches(currentDirectory || null);
   const currentIdentity = useGitIdentity(currentDirectory || null);
   const [isRepositoryConfigurationOpen, setRepositoryConfigurationOpen] = React.useState(false);
@@ -271,15 +277,23 @@ export const MobileChangesPane: React.FC<MobileChangesPaneProps> = ({ rootDirect
   }, []);
 
   const currentBranch = status?.current ?? null;
-  const trackingRemote = status?.tracking?.trim().split('/')[0];
-  const defaultBranch = (trackingRemote && branches?.defaultBranches?.[trackingRemote]) ?? branches?.defaultBranches?.origin ?? null;
-  const showBranchOption = isBranchScopeAvailable(currentBranch, defaultBranch);
-  const branchUnavailable = isGitRepo === false || isBranchScopeDefinitelyUnavailable(currentBranch, defaultBranch, status !== null, branches !== null);
   const setBaseOverride = useGitBaseBranchStore((state) => state.setOverride);
-  const branchComparison = useBranchComparisonBase(currentDirectory || null, currentBranch, visible && mode === 'branch' && showBranchOption);
+  const clearBaseOverride = useGitBaseBranchStore((state) => state.clearOverride);
   const commitComparison = useCommitComparison(currentDirectory || null, currentBranch, visible && mode === 'commit' && isGitRepo === true);
   const selectedCommitHash = commitComparison.selectedCommit?.hash ?? null;
   const binding = useRepositoryBinding(currentDirectory || null, sourceControl);
+  const remoteNames = React.useMemo(
+    () => new Set(binding.read?.repository.remotes.map((remote) => remote.name) ?? []),
+    [binding.read],
+  );
+  // Resolved in every mode: whether a base exists decides whether the Branch
+  // mode is offered at all.
+  const branchComparison = useBranchComparisonBase(currentDirectory || null, currentBranch, visible && isGitRepo === true, {
+    branches, remoteNames, primaryRemote: binding.contexts[0]?.primaryRemote, readContext: binding.contexts[0] ?? null,
+  });
+  const showBranchOption = isBranchScopeAvailable(currentBranch, branchComparison.base);
+  const branchUnavailable = isGitRepo === false
+    || isBranchScopeDefinitelyUnavailable(currentBranch, branchComparison.base, status !== null, branchComparison.resolved);
   // The remote an identity is judged against and applied to: the bound
   // primary remote, resolved the way the desktop Git view resolves it.
   const bindingRemoteName = binding.read?.binding?.remotes[0]?.name
@@ -296,11 +310,12 @@ export const MobileChangesPane: React.FC<MobileChangesPaneProps> = ({ rootDirect
     [boundAccountId, currentIdentity, gitIdentityProfiles, globalGitIdentity],
   );
   // The same answer the desktop chip gives: a binding that stopped matching
-  // its repository, most often a remote added after the identity was applied.
+  // its repository, most often a bound remote repointed after the identity
+  // was applied.
   const identityAttention = React.useMemo(() => {
     const read = binding.read;
     if (!read?.binding || binding.status !== 'ready' || read.binding.state === 'bound') return null;
-    return read.binding.configRevision !== read.repository.configRevision
+    return hasConfigChangedGrant(read.binding)
       ? t('gitView.identity.configChanged')
       : t('gitView.context.needsAttention');
   }, [binding.read, binding.status, t]);
@@ -909,7 +924,7 @@ export const MobileChangesPane: React.FC<MobileChangesPaneProps> = ({ rootDirect
         {onClose ? (
           <button
             type="button"
-            className="-ml-1 flex size-10 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-interactive-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="-ms-1 flex size-10 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-interactive-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             aria-label={t('mobile.surface.closeAria')}
             onClick={onClose}
             style={{ touchAction: 'manipulation' }}
@@ -948,6 +963,7 @@ export const MobileChangesPane: React.FC<MobileChangesPaneProps> = ({ rootDirect
   if (rootIsGitRepo === false && isGitRepo !== true) {
     return renderListState(
       <NestedRepoResolutionStates
+        root={rootDirectory}
         rootIsGitRepo={rootIsGitRepo}
         resolvedIsGitRepo={isGitRepo}
         nestedRepos={nestedRepos}
@@ -1048,7 +1064,7 @@ export const MobileChangesPane: React.FC<MobileChangesPaneProps> = ({ rootDirect
         {onClose ? (
           <button
             type="button"
-            className="-ml-1 flex size-10 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-interactive-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="-ms-1 flex size-10 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-interactive-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             aria-label={t('mobile.surface.closeAria')}
             onClick={onClose}
             style={{ touchAction: 'manipulation' }}
@@ -1058,7 +1074,7 @@ export const MobileChangesPane: React.FC<MobileChangesPaneProps> = ({ rootDirect
         ) : null}
         <DropdownMenu open={modeMenuOpen} onOpenChange={setModeMenuOpen}>
           <DropdownMenuTrigger asChild>
-            <Button variant="outline" className={dropdownTriggerVariants({ size: 'default' })} data-mobile-comparison-trigger aria-label={t('diffView.scope.selectorAria')}>
+            <Button variant="outline" className={dropdownTriggerVariants({ size: 'mobile' })} data-mobile-comparison-trigger aria-label={t('diffView.scope.selectorAria')}>
               <span>{modeLabel}</span>
               <Icon name="arrow-down-s" className="size-4" />
             </Button>
@@ -1077,7 +1093,9 @@ export const MobileChangesPane: React.FC<MobileChangesPaneProps> = ({ rootDirect
         {visible && mode === 'branch' && (
           <BranchComparisonSelector mobile key={JSON.stringify([ownerKey, currentBranch])}
             branches={branches?.all ?? []} currentBranch={currentBranch} base={branchComparison.base}
-            onSelect={(base) => { if (currentBranch) setBaseOverride(currentDirectory, currentBranch, base); }} />
+            automatic={branchComparison.source !== 'chosen'}
+            onSelect={(base) => { if (currentBranch) setBaseOverride(currentDirectory, currentBranch, base); }}
+            onSelectAutomatic={() => { if (currentBranch) clearBaseOverride(currentDirectory, currentBranch); }} />
         )}
         {visible && mode === 'commit' && (
           <CommitComparisonSelector mobile key={JSON.stringify([ownerKey, currentBranch])}
@@ -1143,6 +1161,7 @@ export const MobileChangesPane: React.FC<MobileChangesPaneProps> = ({ rootDirect
             trackingRemoteName={status?.tracking?.split('/')[0]}
             trackingBranch={status?.tracking}
             hasUncommittedChanges={hasUncommittedTrackedChanges(changeEntries)}
+            choosesPushDestination={choosesPushDestination}
           />
         </div>
       )}
@@ -1298,6 +1317,9 @@ const MobileDiffDetail: React.FC<{
 }> = ({ path, subtitle, diff, staged = false, fileExists, unavailableReason = null, error, onBack, onRetry, onExpandContextRequest, pendingContextExpansion, contextLoading }) => {
   const { t } = useI18n();
   const language = React.useMemo(() => getLanguageFromExtension(path) || 'text', [path]);
+  const hideWhitespace = useUIStore((state) => state.diffHideWhitespace);
+  const setHideWhitespace = useUIStore((state) => state.setDiffHideWhitespace);
+  const whitespaceState = hideWhitespace ? t('diffView.whitespace.hidden') : t('diffView.whitespace.shown');
 
   return (
     <div className="flex h-full flex-col overflow-hidden bg-background text-foreground">
@@ -1314,6 +1336,19 @@ const MobileDiffDetail: React.FC<{
           <h2 className="truncate typography-ui-header text-foreground">{path}</h2>
           {subtitle && <p className="truncate typography-meta text-muted-foreground">{subtitle}</p>}
         </div>
+        <button
+          type="button"
+          className={cn(
+            'flex size-9 shrink-0 items-center justify-center rounded-lg hover:bg-interactive-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+            hideWhitespace ? 'text-foreground' : 'text-muted-foreground',
+          )}
+          aria-label={t('diffView.actions.hideWhitespace')}
+          aria-pressed={hideWhitespace}
+          title={whitespaceState}
+          onClick={() => setHideWhitespace(!hideWhitespace)}
+        >
+          <WhitespaceToggleIcon hidden={hideWhitespace} className="size-5" />
+        </button>
       </header>
       <div className="min-h-0 flex-1 overflow-hidden">
         {!fileExists ? (
@@ -1352,6 +1387,7 @@ const MobileDiffDetail: React.FC<{
               fileName={path}
               renderSideBySide={false}
               wrapLines={true}
+              hideWhitespace={hideWhitespace}
               layout="inline"
               onExpandContextRequest={onExpandContextRequest}
               pendingContextExpansion={pendingContextExpansion}
@@ -1377,7 +1413,7 @@ const MobileComparisonFileList: React.FC<{ files: GitComparisonFile[]; onSelect:
           const statusColor = file.status === 'A' ? 'var(--status-success)' : file.status === 'D' ? 'var(--status-error)'
             : file.status === 'R' || file.status === 'C' ? 'var(--status-info)' : 'var(--status-warning)';
           return <li key={file.path}>
-            <Button variant="ghost" size="lg" className="w-full justify-start gap-2.5 text-left normal-case" onClick={() => onSelect(file.path)}>
+            <Button variant="ghost" size="lg" className="w-full justify-start gap-2.5 text-start normal-case" onClick={() => onSelect(file.path)}>
               <span className="w-4 shrink-0 text-center typography-meta font-semibold uppercase" style={{ color: statusColor }} aria-label={statusLabel}>{file.status}</span>
               <FileTypeIcon filePath={file.path} className="size-4 shrink-0" />
               <span className="min-w-0 flex-1 truncate typography-ui-label" title={file.path}>{file.path}</span>

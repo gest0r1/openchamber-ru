@@ -3,6 +3,7 @@ import { settingsDict } from './ru.settings';
 import { fullRussianOverrides } from './ru.full-overrides';
 import { legacyRussianModuleOverrides } from './ru.legacy-modules';
 import { v2RussianOverrides } from './ru.v2-overrides';
+import { v23RussianOverrides } from './ru.v2-3-overrides';
 
 const legacyDict: Record<string, string> = {
   ...settingsDict,
@@ -2604,6 +2605,7 @@ const mergedRussian: Record<string, string> = {
   ...enDict,
   ...legacyDict,
   ...v2RussianOverrides,
+  ...v23RussianOverrides,
 };
 
 export const dict = Object.fromEntries(

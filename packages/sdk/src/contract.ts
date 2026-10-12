@@ -1,6 +1,7 @@
 
 import { OPENCHAMBER_SDK_API_VERSION, OPENCHAMBER_SDK_CHANNEL } from './api-version.ts';
 import type { FileEditorChange, FileEditorDocument, FileSnapshotRequest, FileSnapshotResultPayload } from './file-editor.ts';
+import type { GuestRunningShellsSnapshot, GuestShellOutputRequest, GuestShellOutputResult, GuestShellStopResult, GuestShellsSubscription } from './shells.ts';
 import type { GuestSessionWorktree, GuestStorageRequest, GuestStorageResult, GuestWorkspaceQuery, GuestWorkspaceSnapshot, GuestWorkspaceSubscription, GuestWorkspaceUpdate, GuestWorktree } from './workspace.ts';
 import type { GuestStatusControl, GuestStatusControlEvent } from './status-controls.ts';
 import type { GuestPopoverClosedEvent, GuestPopoverContext, GuestPopoverRequest } from './popover.ts';
@@ -174,6 +175,8 @@ export type GenerateResult = { text: string };
 export type HostResultPayload =
   | GuestStorageResult
   | GuestWorkspaceSnapshot
+  | GuestShellOutputResult
+  | GuestShellStopResult
   | GuestRequestResult
   | StartSessionResult
   | PromptResult
@@ -382,7 +385,8 @@ export const GUEST_SESSION_AGENT_MAX = 80;
 export const GUEST_SETTING_VALUE_MAX = 2_000;
 export const GUEST_REQUEST_PATH_MAX = 2_000;
 export const GUEST_REQUEST_BODY_MAX = 64_000;
-export const GUEST_REQUEST_RESPONSE_MAX = 256_000;
+/** Bytes of a `request` / `serviceRequest` answer; a larger one is `RESPONSE_TOO_LARGE`, never cut off. */
+export const GUEST_REQUEST_RESPONSE_MAX = 8_000_000;
 export const GUEST_REQUEST_TIMEOUT_MS = 20_000;
 /** Guest file path, in characters. */
 export const GUEST_FILE_PATH_MAX = 1_024;
@@ -421,6 +425,8 @@ export const HOST_REQUEST_ERROR_CODES = [
   'NO_INTEGRATION',
   'NO_SERVICE',
   'SERVICE_FAILED',
+  'REQUEST_FAILED',
+  'RESPONSE_TOO_LARGE',
   'NO_SESSION',
   'SESSION_BUSY',
   'NOT_GRANTED',
@@ -608,8 +614,11 @@ export type HostResultMessage = Envelope & { type: 'result'; id: string } & (
   | { ok: false; error: string; code: HostRequestErrorCode }
 );
 
+export type HostShellsMessage = Envelope & { type: 'shells'; payload: { subscriptionId: string; snapshot: GuestRunningShellsSnapshot } };
+
 export type HostMessage =
   | (Envelope & { type: 'workspace'; payload: GuestWorkspaceUpdate })
+  | HostShellsMessage
   | HostReadyMessage
   | HostDirectoryMessage
   | HostSessionMessage
@@ -671,10 +680,19 @@ export type GuestFileSaveMessage = Envelope & { type: 'file-save' };
 /** The editor cannot open this file; the host shows its source instead. Fire and forget. */
 export type GuestFileUnsupportedMessage = Envelope & { type: 'file-unsupported' };
 
+export type GuestShellsSubscribeMessage = GuestCall<'shells-subscribe', GuestShellsSubscription>;
+export type GuestShellsUnsubscribeMessage = GuestCall<'shells-unsubscribe', { subscriptionId: string }>;
+export type GuestShellOutputMessage = GuestCall<'shell-output', GuestShellOutputRequest>;
+export type GuestShellStopMessage = GuestCall<'shell-stop', { shellId: string }>;
+
 export type GuestMessage =
   | GuestCall<'workspace-read', GuestWorkspaceQuery>
   | GuestCall<'workspace-subscribe', GuestWorkspaceSubscription>
   | GuestCall<'workspace-unsubscribe', { subscriptionId: string }>
+  | GuestShellsSubscribeMessage
+  | GuestShellsUnsubscribeMessage
+  | GuestShellOutputMessage
+  | GuestShellStopMessage
   | GuestCall<'storage', GuestStorageRequest>
   | GuestCall<'open-session', { sessionId: string }>
   | GuestHelloMessage
@@ -748,6 +766,7 @@ export const isGenerateResult = (
 
 const HOST_PUSH_TYPES: ReadonlySet<string> = new Set([
   'workspace',
+  'shells',
   'ready', 'directory', 'session', 'connection', 'settings', 'session-lifecycle', 'item', 'resolve', 'action',
   'status-control-event', 'popover-closed',
   'file-open', 'file-snapshot', 'file-saved',

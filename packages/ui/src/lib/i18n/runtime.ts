@@ -1,10 +1,36 @@
-export type Locale = 'en' | 'de' | 'fr' | 'nl' | 'zh-CN' | 'zh-TW' | 'uk' | 'es' | 'pt-BR' | 'ko' | 'pl' | 'ja' | 'tr' | 'ru';
+export type Locale = 'en' | 'de' | 'fr' | 'nl' | 'zh-CN' | 'zh-TW' | 'uk' | 'es' | 'pt-BR' | 'ko' | 'pl' | 'ja' | 'tr' | 'ar' | 'he' | 'ru';
 
-export const LOCALES = ['en', 'de', 'fr', 'nl', 'zh-CN', 'zh-TW', 'uk', 'es', 'pt-BR', 'ko', 'pl', 'ja', 'tr', 'ru'] as const satisfies readonly Locale[];
+export const LOCALES = ['en', 'de', 'fr', 'nl', 'zh-CN', 'zh-TW', 'uk', 'es', 'pt-BR', 'ko', 'pl', 'ja', 'tr', 'ar', 'he', 'ru'] as const satisfies readonly Locale[];
 
 export const DEFAULT_LOCALE: Locale = 'en';
 
-export const LOCALE_LABEL_KEYS: Record<Locale, 'common.language.english' | 'common.language.french' | 'common.language.dutch' | 'common.language.simplifiedChinese' | 'common.language.traditionalChinese' | 'common.language.ukrainian' | 'common.language.spanish' | 'common.language.brazilianPortuguese' | 'common.language.korean' | 'common.language.polish' | 'common.language.german' | 'common.language.japanese' | 'common.language.turkish' | 'common.language.russian'> = {
+export type LayoutDirection = 'ltr' | 'rtl';
+
+const RTL_LOCALES: ReadonlySet<Locale> = new Set<Locale>(['ar', 'he']);
+
+/** The one rule for the app's layout direction: right-to-left locales mirror the UI, every other locale stays left to right. */
+export function getLocaleDirection(locale: Locale): LayoutDirection {
+  return RTL_LOCALES.has(locale) ? 'rtl' : 'ltr';
+}
+
+/**
+ * The window edge where a line of the layout starts. OS window controls stay on
+ * their physical edge in every language, so window chrome maps them through this.
+ */
+export function getInlineStartSide(direction: LayoutDirection): 'left' | 'right' {
+  return direction === 'rtl' ? 'right' : 'left';
+}
+
+/**
+ * Whether an element lays out right to left: the nearest explicit `dir`
+ * decides (the document root carries the UI direction). Read from the
+ * attribute because `matches(':dir(rtl)')` throws on WebKit before 16.4.
+ */
+export function isRightToLeft(element: Element): boolean {
+  return element.closest('[dir="rtl"], [dir="ltr"]')?.getAttribute('dir') === 'rtl';
+}
+
+export const LOCALE_LABEL_KEYS: Record<Locale, 'common.language.english' | 'common.language.french' | 'common.language.dutch' | 'common.language.simplifiedChinese' | 'common.language.traditionalChinese' | 'common.language.ukrainian' | 'common.language.spanish' | 'common.language.brazilianPortuguese' | 'common.language.korean' | 'common.language.polish' | 'common.language.german' | 'common.language.japanese' | 'common.language.turkish' | 'common.language.arabic' | 'common.language.hebrew' | 'common.language.russian'> = {
   en: 'common.language.english',
   fr: 'common.language.french',
   nl: 'common.language.dutch',
@@ -18,6 +44,8 @@ export const LOCALE_LABEL_KEYS: Record<Locale, 'common.language.english' | 'comm
   de: 'common.language.german',
   ja: 'common.language.japanese',
   tr: 'common.language.turkish',
+  ar: 'common.language.arabic',
+  he: 'common.language.hebrew',
   ru: 'common.language.russian',
 };
 
@@ -35,6 +63,8 @@ export const RUSSIAN_LOCALE_LABELS: Record<Locale, string> = {
   pl: 'Rosyjski',
   ja: 'ロシア語',
   tr: 'Rusça',
+  ar: 'الروسية',
+  he: 'רוסית',
   ru: 'Русский',
 };
 
@@ -91,6 +121,13 @@ export function normalizeLocale(value: string | undefined | null): Locale {
   }
   if (normalized === 'tr' || normalized.startsWith('tr-')) {
     return 'tr';
+  }
+  if (normalized === 'ar' || normalized.startsWith('ar-')) {
+    return 'ar';
+  }
+  // Java and Android still report Hebrew under its retired code `iw`.
+  if (normalized === 'he' || normalized.startsWith('he-') || normalized === 'iw' || normalized.startsWith('iw-')) {
+    return 'he';
   }
   if (normalized === 'ru' || normalized.startsWith('ru-')) {
     return 'ru';

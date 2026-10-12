@@ -18,7 +18,7 @@ import { getSessionMetadata, type SessionMetadataRecord } from './sessionReviewM
  * free.
  */
 
-export type LinkedRepositoryIssue = {
+type LinkedRepositoryIssue = {
   /**
    * `owner/repo#number` on github.com, `host:owner/repo#number` on any other
    * instance, unique per session and stable across renames. Entries stored
@@ -34,7 +34,7 @@ export type LinkedRepositoryIssue = {
   linkedAt: number;
 };
 
-export type LinkedLinearIssue = {
+type LinkedLinearIssue = {
   /** `linear:{identifier}`, unique per session. */
   id: string;
   identifier: string;
@@ -70,11 +70,11 @@ const isGuestPull = (entry: { thread?: 'issue' | 'pull' }): boolean => (
 
 /**
  * A thread on any other service, linked by an agent through `session.link`
- * (`packages/web/server/lib/github/session-link.js`): a GitLab merge request,
+ * (`packages/web/server/lib/openchamber-sessions/session-link.js`): a GitLab merge request,
  * a Jira ticket. Shown by identifier and opened by URL; a GitLab one gets live
  * state from its instance (`getGitLabThreadRef`), others have none.
  */
-export type LinkedExternalItem = {
+type LinkedExternalItem = {
   /** `link:{url}`, unique per session. */
   id: string;
   kind: 'external';
@@ -275,18 +275,6 @@ export const buildLinkedLinearIssue = (input: {
   linkedAt: input.linkedAt,
 });
 
-export const canOpenLinearIssueInContextPanel = (options: {
-  linearAvailable: boolean;
-  linearConnected: boolean;
-  inDedicatedMobileShell: boolean;
-  directory: string | null | undefined;
-}): boolean => (
-  options.linearAvailable
-  && options.linearConnected
-  && !options.inDedicatedMobileShell
-  && Boolean(options.directory?.trim())
-);
-
 export const getLinkedIssues = (session: Session | null | undefined): LinkedIssue[] => {
   const openchamber = getSessionMetadata(session).openchamber;
   if (!isRecord(openchamber) || !Array.isArray(openchamber.linked_issues)) return [];
@@ -307,7 +295,7 @@ const LINKED_ISSUE_ID_PATTERN = /^([^/\s]+)\/([^/#\s]+)#(\d+)$/;
 const GITHUB_THREAD_URL_PATTERN = /^https?:\/\/(?:www\.)?github\.com\/([^/\s]+)\/([^/\s]+)\/(pull|issues)\/(\d+)(?:[/?#]|$)/i;
 
 /** A linked thread that lives on github.com, wherever the link came from. */
-export type GitHubThreadRef = { key: string; owner: string; repo: string; number: number; thread: 'pull' | 'issue' };
+type GitHubThreadRef = { key: string; owner: string; repo: string; number: number; thread: 'pull' | 'issue' };
 
 /**
  * The GitHub thread behind a link, or null. A GitHub entry carries it in its
@@ -377,13 +365,13 @@ const uniqueGitHubThreads = (session: Session | null | undefined, thread: GitHub
 };
 
 /**
- * The session's links as a list shows them: each GitHub thread once, at its
- * first link, however many times and by whom it was linked.
+ * The session's links as a list shows them: each GitHub or GitLab thread once,
+ * at its first link, however many times and by whom it was linked.
  */
 export const getDistinctLinkedIssues = (session: Session | null | undefined): LinkedIssue[] => {
   const seen = new Set<string>();
   return getLinkedIssues(session).filter((entry) => {
-    const key = getGitHubThreadRef(entry)?.key.toLowerCase();
+    const key = getGitHubThreadRef(entry)?.key.toLowerCase() ?? getGitLabThreadRef(entry)?.key;
     if (!key) return true;
     if (seen.has(key)) return false;
     seen.add(key);

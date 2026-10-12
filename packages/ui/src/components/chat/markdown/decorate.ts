@@ -1,10 +1,11 @@
 import { copyTextToClipboard } from '@/lib/clipboard';
+import { SKILL_CHIP_ICON_HREF } from '@/lib/messages/inlineMessageLinks';
 import { getExternalFaviconUrl, isExternalHttpUrl, isLoopbackHttpUrl } from '@/lib/url';
 import { dropdownMenuItemClass, dropdownMenuPopupClass } from '@/components/ui/dropdown-menu.styles';
 import type { IconName } from '@/components/icon/icons';
 import { MESSAGE_IMAGE_EXPORT_EXCLUDE_ATTRIBUTE } from '../message/imageExport';
 import { getMermaidViewerController } from './mermaidViewer';
-import { getMarkdownCodeText } from './codeText';
+import { emptyTrailingCodeLine } from './openFenceIncremental';
 import { getMarkdownSelectionText, type RenderedCopyFormat } from './selectionMarkdown';
 
 // ---------------------------------------------------------------------------
@@ -41,7 +42,6 @@ export type DecorateContext = {
   labels: DecorateLabels;
   mermaidControls: MermaidControlOptions;
   codeBlockLineWrap: boolean;
-  deferCodeLineNumberSync?: boolean;
   onToggleCodeBlockLineWrap?: () => void;
   // Tables fit the available width and wrap cell text instead of scrolling.
   tableCellWrap: boolean;
@@ -93,6 +93,29 @@ const decorateImageLabels = (root: HTMLElement): void => {
   }
 };
 
+const prependChipIcon = (chip: HTMLElement, href: string): void => {
+  if (chip.querySelector('svg')) return;
+  const svg = chip.ownerDocument.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('class', 'block size-[1.1em] shrink-0');
+  svg.setAttribute('aria-hidden', 'true');
+  svg.setAttribute('focusable', 'false');
+  const use = chip.ownerDocument.createElementNS('http://www.w3.org/2000/svg', 'use');
+  use.setAttribute('href', href);
+  svg.appendChild(use);
+  chip.prepend(svg);
+};
+
+/** Reference chips in user messages: file-type icons on attachment citations, a book on skills. */
+const decorateReferenceChipIcons = (root: HTMLElement): void => {
+  for (const chip of Array.from(root.querySelectorAll<HTMLElement>('[data-attachment-citation]'))) {
+    const iconId = chip.getAttribute('data-attachment-citation') ?? '';
+    if (iconId) prependChipIcon(chip, `#${iconId}`);
+  }
+  for (const chip of Array.from(root.querySelectorAll<HTMLElement>('a[data-skill-name]'))) {
+    prependChipIcon(chip, SKILL_CHIP_ICON_HREF);
+  }
+};
+
 const decorateDisclosures = (root: HTMLElement): void => {
   for (const summary of root.querySelectorAll<HTMLElement>('details[data-md-details] > summary')) {
     if (summary.querySelector('[data-md-disclosure-icon]')) continue;
@@ -132,7 +155,6 @@ const applyCodeBlockWrapState = (wrapper: HTMLElement, enabled: boolean, labels:
   const body = wrapper.querySelector<HTMLElement>('[data-md-code-body]');
   const pre = wrapper.querySelector<HTMLElement>('pre');
   const code = wrapper.querySelector<HTMLElement>('pre code');
-  const lineContents = wrapper.querySelectorAll<HTMLElement>('[data-md-code-line-content]');
   const wrapButton = wrapper.querySelector<HTMLButtonElement>('[data-md-action="toggle-code-wrap"]');
   wrapper.setAttribute('data-code-wrap', enabled ? 'true' : 'false');
   body?.classList.toggle('overflow-x-auto', !enabled);
@@ -149,73 +171,42 @@ const applyCodeBlockWrapState = (wrapper: HTMLElement, enabled: boolean, labels:
     code.style.whiteSpace = enabled ? 'pre-wrap' : 'pre';
     code.style.overflowWrap = enabled ? 'anywhere' : 'normal';
   }
-  for (const lineContent of Array.from(lineContents)) {
-    lineContent.style.whiteSpace = enabled ? 'pre-wrap' : 'pre';
-    lineContent.style.overflowWrap = enabled ? 'anywhere' : 'normal';
-  }
   if (wrapButton) applyWrapButtonState(wrapButton, enabled, labels.enableCodeWrap, labels.disableCodeWrap);
 };
 
-const layoutCodeLines = (pre: HTMLPreElement): void => {
-  const code = pre.querySelector<HTMLElement>(':scope > code');
-  if (!code || code.hasAttribute('data-md-code-lines')) return;
+const CODE_LINES_ATTR = 'data-md-code-lines';
 
-  // The real gutter takes over the reserved footprint.
-  pre.removeAttribute('data-md-gutter-reserved');
-
-  const text = code.textContent ?? '';
-  const hasTrailingNewline = text.endsWith('\n');
-  const lines = hasTrailingNewline ? text.slice(0, -1).split('\n') : text.split('\n');
-  const sourceLines = lines.length > 0 ? lines : [''];
-  const highlightedLines = Array.from(code.children).filter((child) => child.classList.contains('line'));
-  if (
-    hasTrailingNewline
-    && highlightedLines.length === sourceLines.length + 1
-    && highlightedLines.at(-1)?.textContent === ''
-  ) {
-    highlightedLines.pop();
+// Line numbers are a CSS counter over the code's `.line` children (see
+// index.css), so a block needs no element per number. Shiki already emits
+// one `<span class="line">` per source line, separated by line breaks;
+// unhighlighted code gets the same shape here, so the highlighted paint has
+// the geometry of the first one and the open-fence patch keeps working on it.
+const markCodeLines = (pre: HTMLPreElement): void => {
+  // A direct child walk rather than `:scope > code`: happy-dom, which the
+  // decoration tests run on, does not match `:scope`.
+  const code = Array.from(pre.children).find((child) => child.tagName === 'CODE');
+  if (!code || code.hasAttribute(CODE_LINES_ATTR)) return;
+  code.setAttribute(CODE_LINES_ATTR, '');
+  if (Array.from(code.children).some((child) => child.classList.contains('line'))) {
+    emptyTrailingCodeLine(code);
+    return;
   }
-  const preserveHighlighting = highlightedLines.length === sourceLines.length;
-  const fragment = document.createDocumentFragment();
 
-  sourceLines.forEach((sourceLine, index) => {
-    const row = document.createElement('span');
-    row.setAttribute('data-md-code-line', '');
-
-    const number = document.createElement('span');
-    number.setAttribute('data-md-code-line-number', String(index + 1));
-    number.setAttribute('aria-hidden', 'true');
-
-    const content = document.createElement('span');
-    content.setAttribute('data-md-code-line-content', '');
-    if (preserveHighlighting) {
-      const highlightedLine = highlightedLines[index];
-      if (highlightedLine) content.append(...Array.from(highlightedLine.childNodes));
-    } else {
-      content.textContent = sourceLine;
-    }
-    row.append(number, content);
-    fragment.appendChild(row);
-    if (index < sourceLines.length - 1 || hasTrailingNewline) {
-      const lineBreak = document.createElement('span');
-      lineBreak.setAttribute('data-md-code-line-break', '');
-      lineBreak.textContent = '\n';
-      fragment.appendChild(lineBreak);
-    }
+  const doc = code.ownerDocument;
+  const fragment = doc.createDocumentFragment();
+  (code.textContent ?? '').split('\n').forEach((sourceLine, index) => {
+    if (index > 0) fragment.appendChild(doc.createTextNode('\n'));
+    const line = doc.createElement('span');
+    line.className = 'line';
+    if (sourceLine) line.textContent = sourceLine;
+    fragment.appendChild(line);
   });
-
   code.replaceChildren(fragment);
-  code.setAttribute('data-md-code-lines', '');
-  code.toggleAttribute('data-md-code-trailing-newline', hasTrailingNewline);
 };
-
-export { getMarkdownCodeText };
 
 export const applyMarkdownCodeBlockWrapState = (root: HTMLElement, enabled: boolean, labels: DecorateLabels): void => {
   const wrappers = root.querySelectorAll<HTMLElement>('[data-component="markdown-code"]');
   for (const wrapper of Array.from(wrappers)) {
-    const pre = wrapper.querySelector<HTMLPreElement>('pre');
-    if (pre) layoutCodeLines(pre);
     applyCodeBlockWrapState(wrapper, enabled, labels);
   }
 };
@@ -260,7 +251,9 @@ const decorateCodeBlocks = (root: HTMLElement, ctx: DecorateContext): void => {
     // `data-md-lang` is stamped by the async highlight pass; on the synchronous
     // first paint it isn't set yet, so fall back to the `language-*` class marked
     // emits — keeps the card header label stable instead of flashing 'text'.
-    const classLang = pre.querySelector('code')?.className.match(/language-([\w+#.-]+)/)?.[1];
+    // Lowercased like the highlight pass's stamp, so the label does not
+    // change case when highlighting lands.
+    const classLang = pre.querySelector('code')?.className.match(/language-([\w+#.-]+)/)?.[1]?.toLowerCase();
     const language = pre.getAttribute('data-md-lang') ?? classLang ?? 'text';
 
     const wrapper = document.createElement('div');
@@ -292,15 +285,7 @@ const decorateCodeBlocks = (root: HTMLElement, ctx: DecorateContext): void => {
     pre.style.margin = '0';
     pre.style.background = 'transparent';
     pre.classList.add('min-w-0', 'w-full', 'flex-1');
-    if (!ctx.deferCodeLineNumberSync) {
-      layoutCodeLines(pre);
-    } else {
-      // Streaming defers the per-line gutter markup, but the gutter's
-      // horizontal footprint is reserved immediately — otherwise the
-      // end-of-stream decorate pass shifts every code line right by the
-      // gutter column and the finished message visibly jumps.
-      pre.setAttribute('data-md-gutter-reserved', '');
-    }
+    markCodeLines(pre);
     body.appendChild(pre);
     wrapper.appendChild(header);
     wrapper.appendChild(body);
@@ -378,14 +363,14 @@ const tableToMarkdown = ({ headers, rows }: { headers: string[]; rows: string[][
 const buildTableMenu = (action: string, items: Array<{ key: string; label: string }>): HTMLDivElement => {
   const menu = document.createElement('div');
   // Match the app's DropdownMenu look (same class tokens + surface colors).
-  menu.className = `absolute top-full right-0 mt-1 hidden ${dropdownMenuPopupClass}`;
+  menu.className = `absolute top-full inset-e-0 mt-1 hidden ${dropdownMenuPopupClass}`;
   menu.style.backgroundColor = 'var(--surface-elevated)';
   menu.style.color = 'var(--surface-elevated-foreground)';
   menu.setAttribute('data-md-menu', action);
   for (const item of items) {
     const button = document.createElement('button');
     button.type = 'button';
-    button.className = `w-full text-left ${dropdownMenuItemClass}`;
+    button.className = `w-full text-start ${dropdownMenuItemClass}`;
     button.setAttribute('data-md-action', `${action}-${item.key}`);
     button.textContent = item.label;
     menu.appendChild(button);
@@ -396,8 +381,9 @@ const buildTableMenu = (action: string, items: Array<{ key: string; label: strin
 const TABLE_COLUMN_MIN_WIDTH = 120;
 const TABLE_COLUMN_FALLBACK_MAX_WIDTH = 320;
 const TABLE_LAYOUT_ATTR = 'data-md-table-layout';
-// The wrap mode the fixed column widths were computed for.
+// The wrap mode and available width the fixed column widths were computed for.
 const TABLE_WRAP_ATTR = 'data-md-table-wrap';
+const TABLE_WIDTH_ATTR = 'data-md-table-width';
 
 const applyTableWrapState = (wrapper: Element, enabled: boolean, labels: DecorateLabels): void => {
   const button = wrapper.querySelector<HTMLButtonElement>('[data-md-action="toggle-table-wrap"]');
@@ -467,10 +453,10 @@ const decorateTables = (root: HTMLElement, ctx: DecorateContext): void => {
     lastBodyRow?.classList.remove('border-b');
     lastBodyRow?.classList.add('border-0');
     for (const th of Array.from(table.querySelectorAll('th'))) {
-      th.classList.add('min-w-[120px]', 'whitespace-normal', '[overflow-wrap:anywhere]', 'border-r', 'border-border/60', 'px-4', 'py-2.5', 'text-left', 'align-middle', 'font-semibold', 'text-foreground', 'last:border-r-0');
+      th.classList.add('min-w-[120px]', 'whitespace-normal', '[overflow-wrap:anywhere]', 'border-e', 'border-border/60', 'px-4', 'py-2.5', 'text-start', 'align-middle', 'font-semibold', 'text-foreground', 'last:border-e-0');
     }
     for (const td of Array.from(table.querySelectorAll('td'))) {
-      td.classList.add('min-w-[120px]', 'whitespace-normal', '[overflow-wrap:anywhere]', 'border-r', 'border-border/60', 'px-4', 'py-2.5', 'align-middle', 'text-foreground/90', 'last:border-r-0');
+      td.classList.add('min-w-[120px]', 'whitespace-normal', '[overflow-wrap:anywhere]', 'border-e', 'border-border/60', 'px-4', 'py-2.5', 'align-middle', 'text-foreground/90', 'last:border-e-0');
     }
 
     scroll.appendChild(table);
@@ -499,12 +485,31 @@ const fitColumnWidths = (naturalWidths: number[], availableWidth: number): numbe
   return widths;
 };
 
+// The table wrapper hugs its table, so a fixed-width table would report its own
+// width back. Stretching the wrappers for one read gives the width the table
+// may use, which grows and shrinks with the chat.
+const measureAvailableWidths = (tables: HTMLTableElement[]): number[] => {
+  const wrappers = tables.map((table) => table.closest<HTMLElement>('[data-markdown="table-wrapper"]'));
+  for (const wrapper of wrappers) wrapper?.style.setProperty('width', '100%');
+  const widths = tables.map((table) => table.parentElement?.clientWidth ?? 0);
+  for (const wrapper of wrappers) wrapper?.style.removeProperty('width');
+  return widths;
+};
+
 export const stabilizeMarkdownTableWidths = (root: HTMLElement, wrapCells: boolean): void => {
   const wrapMode = String(wrapCells);
-  const tables = Array.from(root.querySelectorAll<HTMLTableElement>(
-    `table[data-markdown="table"]:not([${TABLE_LAYOUT_ATTR}="fixed"][${TABLE_WRAP_ATTR}="${wrapMode}"])`,
-  ));
-  if (tables.length === 0 || !root.isConnected) return;
+  const allTables = Array.from(root.querySelectorAll<HTMLTableElement>('table[data-markdown="table"]'));
+  if (allTables.length === 0 || !root.isConnected) return;
+  const allAvailableWidths = measureAvailableWidths(allTables);
+  const stale = allTables
+    .map((table, index) => ({ table, availableWidth: allAvailableWidths[index] ?? 0 }))
+    .filter(({ table, availableWidth }) => (
+      table.getAttribute(TABLE_LAYOUT_ATTR) !== 'fixed'
+      || table.getAttribute(TABLE_WRAP_ATTR) !== wrapMode
+      || table.getAttribute(TABLE_WIDTH_ATTR) !== String(availableWidth)
+    ));
+  if (stale.length === 0) return;
+  const tables = stale.map(({ table }) => table);
 
   const measurementRoot = root.ownerDocument.createElement('div');
   measurementRoot.setAttribute('aria-hidden', 'true');
@@ -563,8 +568,8 @@ export const stabilizeMarkdownTableWidths = (root: HTMLElement, wrapCells: boole
   });
 
   root.appendChild(measurementRoot);
-  const plans = probes.map(({ table, columnProbes }) => {
-    const availableWidth = table.parentElement?.clientWidth ?? 0;
+  const plans = probes.map(({ table, columnProbes }, index) => {
+    const availableWidth = stale[index]?.availableWidth ?? 0;
     // Without layout (for example, a hidden chat), retain the former limit.
     const maxColumnWidth = Math.max(TABLE_COLUMN_MIN_WIDTH, availableWidth || TABLE_COLUMN_FALLBACK_MAX_WIDTH);
     const naturalWidths = columnProbes.map((probe) => Math.ceil(probe.getBoundingClientRect().width));
@@ -573,13 +578,14 @@ export const stabilizeMarkdownTableWidths = (root: HTMLElement, wrapCells: boole
     const widths = wrapCells && availableWidth > 0 ? fitColumnWidths(cappedWidths, availableWidth) : cappedWidths;
     return {
       table,
+      availableWidth,
       widths,
-      cappedColumns: naturalWidths.map((width, index) => width > (widths[index] ?? 0)),
+      cappedColumns: naturalWidths.map((width, columnIndex) => width > (widths[columnIndex] ?? 0)),
     };
   });
   measurementRoot.remove();
 
-  for (const { table, widths, cappedColumns } of plans) {
+  for (const { table, availableWidth, widths, cappedColumns } of plans) {
     // Identifiers stay on one line only while the column can hold them; in a
     // column capped at the available width they wrap instead of overflowing
     // into the neighbouring cell.
@@ -613,6 +619,7 @@ export const stabilizeMarkdownTableWidths = (root: HTMLElement, wrapCells: boole
     table.style.width = `${widths.reduce((total, width) => total + width, 0)}px`;
     table.setAttribute(TABLE_LAYOUT_ATTR, 'fixed');
     table.setAttribute(TABLE_WRAP_ATTR, wrapMode);
+    table.setAttribute(TABLE_WIDTH_ATTR, String(availableWidth));
   }
 };
 
@@ -631,14 +638,16 @@ const decorateMermaid = (root: HTMLElement, ctx: DecorateContext): void => {
     const block = document.createElement('div');
     block.setAttribute('data-markdown', 'mermaid-block');
     block.setAttribute('data-md-source', source);
-    block.className = 'group relative';
+    block.className = 'relative';
 
     const scroll = document.createElement('div');
     scroll.setAttribute('data-markdown', 'mermaid-scroll');
 
     const toolbar = document.createElement('div');
     toolbar.setAttribute('data-markdown', 'mermaid-toolbar');
-    toolbar.className = 'absolute top-1 right-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity';
+    // Visible on touch screens, so a shared image must drop it explicitly.
+    toolbar.setAttribute(MESSAGE_IMAGE_EXPORT_EXCLUDE_ATTRIBUTE, 'true');
+    toolbar.className = 'absolute top-1 inset-e-2 flex items-center gap-1';
 
     if (rendered.svg) {
       block.setAttribute('data-mermaid-render', 'svg');
@@ -707,7 +716,7 @@ const decorateLinks = (root: HTMLElement, ctx: DecorateContext): void => {
       const favWrap = document.createElement('span');
       favWrap.setAttribute(MESSAGE_IMAGE_EXPORT_EXCLUDE_ATTRIBUTE, 'true');
       favWrap.className =
-        'mr-1 inline-flex size-[18px] items-center justify-center rounded border border-[var(--border)] bg-[var(--interactive-hover)] align-middle';
+        'me-1 inline-flex size-[18px] items-center justify-center rounded border border-[var(--border)] bg-[var(--interactive-hover)] align-middle';
       const img = document.createElement('img');
       img.src = faviconUrl;
       img.alt = '';
@@ -723,7 +732,7 @@ const decorateLinks = (root: HTMLElement, ctx: DecorateContext): void => {
     if (ctx.onPreviewLoopback && isLoopbackHttpUrl(href)) {
       const preview = document.createElement('button');
       preview.type = 'button';
-      preview.className = `ml-1 align-middle ${ICON_BTN_CLASS}`;
+      preview.className = `ms-1 align-middle ${ICON_BTN_CLASS}`;
       preview.setAttribute('data-md-action', 'preview-loopback');
       preview.setAttribute('data-md-url', href);
       preview.setAttribute('title', ctx.labels.previewTitle);
@@ -744,6 +753,7 @@ export const decorateMarkdown = (root: HTMLElement, ctx: DecorateContext): void 
   }
   decorateDisclosures(root);
   decorateImageLabels(root);
+  decorateReferenceChipIcons(root);
   decorateInlineCode(root);
   decorateMermaid(root, ctx);
   decorateCodeBlocks(root, ctx);
@@ -775,14 +785,14 @@ const closeAllMenus = (container: HTMLElement): void => {
 
 const getContainingMarkdownCode = (node: Node): HTMLElement | null => {
   const element = node.nodeType === 1 ? node as Element : node.parentElement;
-  return element?.closest<HTMLElement>('pre code[data-md-code-lines]') ?? null;
+  return element?.closest<HTMLElement>(`pre code[${CODE_LINES_ATTR}]`) ?? null;
 };
 
 const getMarkdownCodeSelectionText = (range: Range): string | null => {
   const code = getContainingMarkdownCode(range.startContainer);
   if (!code || code !== getContainingMarkdownCode(range.endContainer)) return null;
   // Line numbers are CSS-generated, so the DOM range is already the exact
-  // source selection, including boundaries between rows and empty lines.
+  // source selection, including line breaks and empty lines.
   return range.toString();
 };
 
@@ -871,8 +881,7 @@ export const attachMarkdownInteractions = (
 
     // Copy code
     if (action === 'copy-code') {
-      const code = actionEl.closest('[data-component="markdown-code"]')?.querySelector('code');
-      const text = code ? getMarkdownCodeText(code) : '';
+      const text = actionEl.closest('[data-component="markdown-code"]')?.querySelector('code')?.textContent ?? '';
       if (text) {
         actionEl.setAttribute('data-md-copy-pending', '');
         void copyTextToClipboard(text)

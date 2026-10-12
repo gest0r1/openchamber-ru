@@ -26,6 +26,12 @@ import { useI18n } from '@/lib/i18n';
 import { isValidCronExpression, getNextRuns, CRON_EXAMPLES } from '@/lib/cron';
 import { canonicalizeTimezone } from '@/lib/timezones';
 import { listModelVariantIds, type ModelVariantSource } from '@/lib/modelVariants';
+import { useGlobalSessionsStore, refreshGlobalSessions } from '@/stores/useGlobalSessionsStore';
+import { useAllLiveSessions } from '@/sync/sync-context';
+import { useSessionUIStore } from '@/sync/session-ui-store';
+import { useProjectsStore } from '@/stores/useProjectsStore';
+import { CHAT_DRAFT_PROJECT_ID, isChatDirectoryPath } from '@/lib/chatDirectories';
+import { SettingsStackedField } from '@/components/sections/shared/SettingsSection';
 
 const WEEKDAY_INDEXES = [0, 1, 2, 3, 4, 5, 6] as const;
 
@@ -263,7 +269,7 @@ const FieldLabel: React.FC<{
   <div className="flex items-center gap-1.5">
     <label htmlFor={htmlFor} className="typography-meta font-medium text-foreground">
       {children}
-      {required && <span className="ml-0.5 text-destructive">*</span>}
+      {required && <span className="ms-0.5 text-destructive">*</span>}
     </label>
   </div>
 );
@@ -396,8 +402,8 @@ const TimePill: React.FC<TimePillProps> = ({
   return (
     <div
       className={cn(
-        'oc-surface-elevated inline-flex h-9 w-fit items-center gap-1 rounded-md border border-border bg-surface-elevated focus-within:ring-1 focus-within:ring-ring focus-within:border-ring',
-        use24Hour ? 'px-2' : 'pl-2 pr-1',
+        'oc-surface-elevated inline-flex h-8 w-fit items-center gap-1 rounded-md border border-border bg-surface-elevated focus-within:ring-1 focus-within:ring-ring focus-within:border-ring',
+        use24Hour ? 'px-2' : 'ps-2 pe-1',
       )}
     >
       <input
@@ -429,7 +435,7 @@ const TimePill: React.FC<TimePillProps> = ({
         <Select value={parts.meridiem} onValueChange={(next) => setPeriod(next as 'AM' | 'PM')}>
           <SelectTrigger
             aria-label={periodAriaLabel}
-            className="ml-1 h-7 w-fit border-0 bg-transparent pl-2 pr-1 shadow-none hover:bg-interactive-hover focus:ring-0"
+            className="ms-1 h-7 w-fit border-0 bg-transparent ps-2 pe-1 shadow-none hover:bg-interactive-hover focus:ring-0"
           >
             <SelectValue />
           </SelectTrigger>
@@ -458,6 +464,8 @@ const isSameCalendarDay = (a: Date, b: Date) => (
 
 type ScheduledTaskDraft = {
   id?: string;
+  sessionMode: 'new' | 'existing';
+  targetSessionId: string;
   name: string;
   enabled: boolean;
   schedule: {
@@ -475,6 +483,8 @@ type ScheduledTaskDraft = {
     modelID: string;
     variant: string;
     agent: string;
+    /** Model, thinking level and agent follow the session defaults at run time. */
+    useDefaults: boolean;
     goalEnabled: boolean;
     goalTokenBudget: number | null;
     permissionAutoAccept: boolean;
@@ -511,6 +521,8 @@ const toDraft = (
   if (!task) {
     return {
       name: '',
+      sessionMode: 'new',
+      targetSessionId: '',
       enabled: true,
       schedule: {
         kind: 'daily',
@@ -527,6 +539,7 @@ const toDraft = (
         modelID: defaults.modelID,
         variant: defaults.variant,
         agent: defaults.agent,
+        useDefaults: false,
         goalEnabled: false,
         goalTokenBudget: null,
         permissionAutoAccept: false,
@@ -536,6 +549,8 @@ const toDraft = (
 
   return {
     id: task.id,
+    sessionMode: task.targetSessionId ? 'existing' : 'new',
+    targetSessionId: task.targetSessionId || '',
     name: task.name,
     enabled: task.enabled,
     schedule: {
@@ -559,10 +574,13 @@ const toDraft = (
     },
     execution: {
       prompt: task.execution.prompt,
-      providerID: task.execution.providerID,
-      modelID: task.execution.modelID,
+      // A task that followed the defaults may store no model; the picker then
+      // starts from the current defaults if it is pinned again.
+      providerID: task.execution.providerID || defaults.providerID,
+      modelID: task.execution.modelID || defaults.modelID,
       variant: task.execution.variant || '',
       agent: task.execution.agent || '',
+      useDefaults: task.execution.useDefaults === true,
       goalEnabled: task.execution.goalEnabled === true,
       goalTokenBudget: typeof task.execution.goalTokenBudget === 'number' && task.execution.goalTokenBudget > 0
         ? task.execution.goalTokenBudget
@@ -574,13 +592,14 @@ const toDraft = (
 };
 
 const validateDraft = (draft: ScheduledTaskDraft, t: ReturnType<typeof useI18n>['t']): string | null => {
+  if (draft.sessionMode === 'existing' && !draft.targetSessionId) return t('sessions.scheduledTasks.editor.targetRequired');
   if (!draft.name.trim()) {
     return t('sessions.scheduledTasks.editor.validation.taskNameRequired');
   }
   if (!draft.execution.prompt.trim()) {
     return t('sessions.scheduledTasks.editor.validation.promptRequired');
   }
-  if (!draft.execution.providerID.trim() || !draft.execution.modelID.trim()) {
+  if (!draft.execution.useDefaults && (!draft.execution.providerID.trim() || !draft.execution.modelID.trim())) {
     return t('sessions.scheduledTasks.editor.validation.modelRequired');
   }
 
@@ -712,7 +731,7 @@ const CronScheduleSection: React.FC<{
             }));
           }}
         >
-          <SelectTrigger size="lg" className="w-fit max-w-full"><SelectValue /></SelectTrigger>
+          <SelectTrigger className="w-fit max-w-full"><SelectValue /></SelectTrigger>
           <SelectContent>
             {TIMEZONE_OPTIONS.map((timezone) => (
               <SelectItem key={timezone} value={timezone}>{timezone}</SelectItem>
@@ -727,11 +746,29 @@ const CronScheduleSection: React.FC<{
 export function ScheduledTaskEditorDialog(props: {
   open: boolean;
   task: ScheduledTask | null;
+  projectId: string;
   onOpenChange: (open: boolean) => void;
   onSave: (draft: Partial<ScheduledTask>) => Promise<void>;
 }) {
   const { open, task, onOpenChange, onSave } = props;
   const { t, locale } = useI18n();
+  const globalSessions = useGlobalSessionsStore((state) => state.activeSessions);
+  const liveSessions = useAllLiveSessions();
+  const projects = useProjectsStore((state) => state.projects);
+  const worktrees = useSessionUIStore((state) => state.availableWorktreesByProject);
+  const sessions = React.useMemo(() => {
+    const merged = new Map(globalSessions.map((session) => [session.id, session]));
+    for (const session of liveSessions) merged.set(session.id, session);
+    const project = projects.find((entry) => entry.id === props.projectId);
+    const roots = [project?.path, ...(worktrees.get(props.projectId) ?? []).map((tree) => tree.path)].filter((root) => root !== undefined);
+    return [...merged.values()].filter((session) => !session.time?.archived && (
+      props.projectId === CHAT_DRAFT_PROJECT_ID ? isChatDirectoryPath(session.directory)
+        : roots.some((root) => session.directory === root || session.directory.startsWith(`${root}/`))
+    ));
+  }, [globalSessions, liveSessions, projects, worktrees, props.projectId]);
+  React.useEffect(() => {
+    if (open) void refreshGlobalSessions().catch(() => undefined);
+  }, [open]);
   const loadProviders = useConfigStore((state) => state.loadProviders);
   const loadAgents = useConfigStore((state) => state.loadAgents);
   const providers = useConfigStore((state) => state.providers);
@@ -1151,6 +1188,7 @@ export function ScheduledTaskEditorDialog(props: {
     const payload: Partial<ScheduledTask> = {
       ...(draft.id ? { id: draft.id } : {}),
       name: draft.name.trim(),
+      targetSessionId: draft.sessionMode === 'existing' ? draft.targetSessionId : '',
       enabled: draft.enabled,
       schedule: {
         kind: draft.schedule.kind,
@@ -1169,6 +1207,7 @@ export function ScheduledTaskEditorDialog(props: {
       },
       execution: {
         prompt: draft.execution.prompt,
+        ...(draft.execution.useDefaults ? { useDefaults: true } : {}),
         providerID: draft.execution.providerID,
         modelID: draft.execution.modelID,
         ...(draft.execution.variant.trim() ? { variant: draft.execution.variant.trim() } : {}),
@@ -1179,8 +1218,8 @@ export function ScheduledTaskEditorDialog(props: {
           ? { goalTokenBudget: draft.execution.goalTokenBudget }
           : {}),
       },
-      ...(draft.state ? { state: draft.state } : {}),
     };
+    if (draft.state && draft.sessionMode === 'new') payload.state = draft.state;
 
     setSaving(true);
     try {
@@ -1208,6 +1247,29 @@ export function ScheduledTaskEditorDialog(props: {
 
   const formBody = (
     <div className="flex flex-col gap-5">
+      <SettingsStackedField label={t('sessions.scheduledTasks.editor.sessionMode')}>
+        <Select value={draft.sessionMode} onValueChange={(value: 'new' | 'existing') => setDraft((prev) => ({
+          ...prev, sessionMode: value,
+        }))}>
+          <SelectTrigger><SelectValue>{draft.sessionMode === 'existing' ? t('sessions.scheduledTasks.editor.existingSession') : t('sessions.scheduledTasks.editor.newSession')}</SelectValue></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="new">{t('sessions.scheduledTasks.editor.newSession')}</SelectItem>
+            <SelectItem value="existing">{t('sessions.scheduledTasks.editor.existingSession')}</SelectItem>
+          </SelectContent>
+        </Select>
+      </SettingsStackedField>
+      {draft.sessionMode === 'existing' ? (
+        <SettingsStackedField label={t('sessions.scheduledTasks.editor.targetSession')} info={t('sessions.scheduledTasks.editor.targetHint')}>
+          <Select value={draft.targetSessionId} onValueChange={(targetSessionId) => setDraft((prev) => ({ ...prev, targetSessionId }))}>
+            <SelectTrigger><SelectValue placeholder={t('sessions.scheduledTasks.editor.targetSession')}>
+              {sessions.find((session) => session.id === draft.targetSessionId)?.title || draft.targetSessionId || undefined}
+            </SelectValue></SelectTrigger>
+            <SelectContent>
+              {sessions.map((session) => <SelectItem key={session.id} value={session.id}>{session.title || session.id}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </SettingsStackedField>
+      ) : null}
                 <div className="grid grid-cols-1 gap-x-4 gap-y-3 sm:grid-cols-2">
                   <div className="flex flex-col gap-1">
                     <FieldLabel htmlFor="sched-name" required>{t('sessions.scheduledTasks.editor.taskName.label')}</FieldLabel>
@@ -1238,7 +1300,7 @@ export function ScheduledTaskEditorDialog(props: {
                         }));
                       }}
                     >
-                      <SelectTrigger size="lg" className="w-fit max-w-full">
+                      <SelectTrigger className="w-fit max-w-full">
                         <SelectValue>
                           {(value) => value === 'daily'
                             ? t('sessions.scheduledTasks.editor.scheduleType.daily')
@@ -1280,7 +1342,7 @@ export function ScheduledTaskEditorDialog(props: {
                   </button>
 
                   {isDatePickerOpen ? (
-                    <div className="oc-surface-elevated absolute left-0 top-[calc(100%+6px)] z-50 w-[288px] rounded-xl border border-border bg-surface-elevated p-3 shadow-sm">
+                    <div className="oc-surface-elevated absolute inset-s-0 top-[calc(100%+6px)] z-50 w-[288px] rounded-xl border border-border bg-surface-elevated p-3 shadow-sm">
                       <div className="mb-2 flex items-center justify-between">
                         <button
                           type="button"
@@ -1398,7 +1460,7 @@ export function ScheduledTaskEditorDialog(props: {
                       }));
                     }}
                   >
-                    <SelectTrigger size="lg" className="w-fit max-w-full"><SelectValue /></SelectTrigger>
+                    <SelectTrigger className="w-fit max-w-full"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       {TIMEZONE_OPTIONS.map((timezone) => (
                         <SelectItem key={timezone} value={timezone}>{timezone}</SelectItem>
@@ -1470,7 +1532,7 @@ export function ScheduledTaskEditorDialog(props: {
                 </div>
                 <div>
                   <Button type="button" size="sm" variant="outline" onClick={addTime}>
-                    <Icon name="add" className="mr-1 h-4 w-4" /> {t('sessions.scheduledTasks.editor.times.add')}
+                    <Icon name="add" className="me-1 h-4 w-4" /> {t('sessions.scheduledTasks.editor.times.add')}
                   </Button>
                 </div>
               </div>
@@ -1486,7 +1548,7 @@ export function ScheduledTaskEditorDialog(props: {
                     }));
                   }}
                 >
-                  <SelectTrigger size="lg" className="w-fit max-w-full"><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="w-fit max-w-full"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {TIMEZONE_OPTIONS.map((timezone) => (
                       <SelectItem key={timezone} value={timezone}>{timezone}</SelectItem>
@@ -1497,6 +1559,22 @@ export function ScheduledTaskEditorDialog(props: {
             </div>
           )}
 
+          <label className="inline-flex cursor-pointer items-center gap-2">
+            <Checkbox
+              checked={draft.execution.useDefaults}
+              onChange={(useDefaults) => setDraft((prev) => ({
+                ...prev,
+                execution: { ...prev.execution, useDefaults },
+              }))}
+              ariaLabel={t('sessions.scheduledTasks.editor.useDefaults.label')}
+            />
+            <span className="typography-meta">{t('sessions.scheduledTasks.editor.useDefaults.label')}</span>
+          </label>
+
+          {draft.execution.useDefaults ? (
+            <p className="typography-meta text-muted-foreground">{draft.sessionMode === 'existing' ? t('sessions.scheduledTasks.editor.targetHint') : t('sessions.scheduledTasks.editor.useDefaults.hint')}</p>
+          ) : (
+          <>
           <div className="grid grid-cols-1 gap-x-4 gap-y-3 sm:grid-cols-2">
             <div className="flex min-w-0 flex-col gap-1">
               <FieldLabel required>{t('sessions.scheduledTasks.editor.model.label')}</FieldLabel>
@@ -1532,7 +1610,7 @@ export function ScheduledTaskEditorDialog(props: {
                   }));
                 }}
               >
-                <SelectTrigger size="lg" className="w-fit max-w-full">
+                <SelectTrigger className="w-fit max-w-full">
                   <SelectValue>
                     {(value) => value === '__default'
                       ? t('sessions.scheduledTasks.editor.thinkingLevel.default')
@@ -1563,6 +1641,8 @@ export function ScheduledTaskEditorDialog(props: {
               }))}
             />
           </div>
+          </>
+          )}
 
           <div className="flex flex-col gap-1">
             <FieldLabel htmlFor="sched-prompt" required>{t('sessions.scheduledTasks.editor.prompt.label')}</FieldLabel>
@@ -1634,7 +1714,7 @@ export function ScheduledTaskEditorDialog(props: {
             </div>
           </div>
 
-          {draft.execution.goalEnabled ? (
+          {draft.sessionMode === 'new' && draft.execution.goalEnabled ? (
           <div className="flex flex-wrap items-center gap-x-8 gap-y-2">
               <label className="inline-flex cursor-pointer items-center gap-2">
                 <Checkbox
@@ -1680,6 +1760,7 @@ export function ScheduledTaskEditorDialog(props: {
       </label>
 
       <div className="flex items-center gap-2">
+        {draft.sessionMode === 'new' ? <>
         <Tooltip>
           <TooltipTrigger asChild>
             <button
@@ -1722,6 +1803,7 @@ export function ScheduledTaskEditorDialog(props: {
           </TooltipTrigger>
           <TooltipContent side="top" sideOffset={6}>{t('sessions.scheduledTasks.editor.goal.label')}</TooltipContent>
         </Tooltip>
+        </> : null}
         <Button type="button" variant="ghost" size="sm" onClick={() => onOpenChange(false)} disabled={saving}>
           {t('sessions.scheduledTasks.editor.actions.cancel')}
         </Button>

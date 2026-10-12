@@ -88,9 +88,10 @@ These modules hold reusable, non-presentational logic for commands.
     in the running app can observe a torn file), a strict read that throws on
     corrupt/unreadable payloads, and the same `0600` file mode.
   - The strict read gates relay identity regeneration exactly like the server
-    runtime: a swallowed read failure can never mint a replacement signing or
-    encryption keypair, which would change `serverId` and orphan every paired
-    device and push binding.
+    runtime (`server/lib/relay/key-store.js`, which may still find legacy keys
+    in settings.json): a swallowed read failure can never mint a replacement
+    signing or encryption keypair, which would change `serverId` and orphan
+    every paired device and push binding.
 
 - `cli-process.js`
   - PID files, instance registry files, process identity checks, runtime metadata checks, and process termination helpers.
@@ -130,6 +131,8 @@ These modules hold reusable, non-presentational logic for commands.
   - On Linux, `OPENCHAMBER_STARTUP_LAUNCHER` selects an existing absolute executable as the stable service entrypoint. Reject newlines and systemd specifiers before modifying startup state. Without it, retain the ordinary Node/CLI entrypoint.
   - Native `startup enable` owns unit/env writes, daemon reload, enable and restart. `--no-start` enables without starting or restarting.
   - `OPENCHAMBER_MIGRATE_MANAGED_STARTUP=1` removes only known drop-ins carrying a recognized ownership marker; other user drop-ins remain intact. External installers switch binaries and call native startup, without editing/restoring unit/env files.
+  - The macOS LaunchAgent leaves `ProcessType` unset so launchd does not force the managed OpenCode child into background-tier scheduling. Re-running `startup enable` replaces an existing plist.
+  - The environment snapshot drops the variables a running OpenChamber put into the enabling shell, read from the `OPENCHAMBER_INJECTED_ENV` record (`server/lib/injected-env.js`), so a service enabled from the desktop app's terminal or an agent's shell does not inherit that instance's runtime flags, UI password, or managed OpenCode password (#4604). The user's own exports, `OPENCODE_HOST` included, still carry over. `cli-args.js` applies the same record to the `OPENCHAMBER_UI_PASSWORD` default.
 
 - `cli-tunnel-profiles.js`
   - Tunnel profile normalization, token resolution/redaction, profile storage, migration, file-permission warnings, and managed-remote pair persistence.
