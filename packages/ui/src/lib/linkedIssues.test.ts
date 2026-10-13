@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import type { Session } from '@/lib/opencode/model';
 import type { SessionMetadataRecord } from './sessionReviewMetadata';
-import { buildLinkedGuestIssue, buildLinkedIssue, buildLinkedIssueId, buildLinkedLinearIssue, getDistinctLinkedIssues, getGitLabThreadRef, getLinkedGitHubPullRequests, getLinkedGitLabThreads, getLinkedIssues, getLinkedSidebarChanges, getLinkedSidebarIssues, withLinkedIssue, type LinkedIssue } from './linkedIssues';
+import { buildLinkedGitHubIssueRefsContext, buildLinkedGuestIssue, buildLinkedIssue, buildLinkedIssueId, buildLinkedLinearIssue, getDistinctLinkedIssues, getGitLabThreadRef, getLinkedGitHubPullRequests, getLinkedGitLabThreads, getLinkedIssues, getLinkedSidebarChanges, getLinkedSidebarIssues, withLinkedIssue, type LinkedIssue } from './linkedIssues';
 
 type LinkedRepositoryIssue = Extract<LinkedIssue, { kind: 'issue' | 'pull' }>;
 
@@ -419,5 +419,32 @@ describe('GitLab threads', () => {
     expect(getLinkedSidebarIssues(session)).toMatchObject([
       { source: 'gitlab', identifier: '#8', ref: { number: 8, thread: 'issue' } },
     ]);
+  });
+});
+
+describe('buildLinkedGitHubIssueRefsContext', () => {
+  test('returns null when the session has no GitHub issues', () => {
+    expect(buildLinkedGitHubIssueRefsContext(undefined)).toBe(null);
+    expect(buildLinkedGitHubIssueRefsContext(sessionWith([issue({ id: 'owner/repo#7', number: 7, url: 'https://github.com/owner/repo/pull/7', kind: 'pull' })]))).toBe(null);
+  });
+
+  test('lists every linked GitHub issue but no pull request, GitLab or Linear ref', () => {
+    const second = issue({ id: 'owner/repo#47', number: 47, url: 'https://github.com/owner/repo/issues/47' });
+    const pull = issue({ id: 'owner/repo#7', number: 7, url: 'https://github.com/owner/repo/pull/7', kind: 'pull' });
+    const gitlab = issue({ id: 'group/repo#8', number: 8, url: 'https://gitlab.com/group/repo/-/issues/8' });
+    const linear = buildLinkedLinearIssue({ identifier: 'ENG-1', title: 'Other', url: 'https://linear.app/x/ENG-1', linkedAt: 2 });
+    expect(buildLinkedGitHubIssueRefsContext(sessionWith([issue(), second, pull, gitlab, linear]))).toBe(
+      'Linked GitHub issues for this session:\n- owner/repo#12\n- owner/repo#47',
+    );
+  });
+
+  test('unions the issues attached to this send and lists a ref once', () => {
+    const current = buildLinkedIssue({ number: 51, title: 'Current', url: 'https://github.com/owner/repo/issues/51', kind: 'issue', linkedAt: 3 });
+    expect(buildLinkedGitHubIssueRefsContext(sessionWith([issue()]), [current])).toBe(
+      'Linked GitHub issues for this session:\n- owner/repo#12\n- owner/repo#51',
+    );
+    expect(buildLinkedGitHubIssueRefsContext(sessionWith([issue({ id: 'owner/repo#51', number: 51, url: current.url })]), [current])).toBe(
+      'Linked GitHub issues for this session:\n- owner/repo#51',
+    );
   });
 });

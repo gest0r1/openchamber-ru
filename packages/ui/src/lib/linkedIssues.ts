@@ -379,6 +379,27 @@ export const getDistinctLinkedIssues = (session: Session | null | undefined): Li
   });
 };
 
+/**
+ * Compact refs (`owner/repo#N`) of every GitHub issue linked to a session, as
+ * synthetic prompt context, or null when there are none. Only refs: the
+ * authoritative title, body, comments and state stay on GitHub for downstream
+ * commands to read. `attached` holds links about to be recorded with this
+ * send; metadata is written only after the send succeeds, so the first send
+ * must not lose them.
+ */
+export const buildLinkedGitHubIssueRefsContext = (
+  session: Session | null | undefined,
+  attached: readonly LinkedIssue[] = [],
+): string | null => {
+  const refs = new Map<string, string>();
+  for (const entry of [...getLinkedIssues(session), ...attached]) {
+    const ref = getGitHubThreadRef(entry);
+    if (ref?.thread === 'issue' && !refs.has(ref.key.toLowerCase())) refs.set(ref.key.toLowerCase(), ref.key);
+  }
+  if (refs.size === 0) return null;
+  return ['Linked GitHub issues for this session:', ...[...refs.values()].map((ref) => `- ${ref}`)].join('\n');
+};
+
 /** GitHub pull requests linked to a session, with their repository. */
 export const getLinkedGitHubPullRequests = (session: Session | null | undefined): LinkedGitHubPullRequest[] => (
   uniqueGitHubThreads(session, 'pull').map(({ ref, entry }) => (

@@ -126,7 +126,8 @@ import { useI18n } from '@/lib/i18n';
 import { sessionEvents } from '@/lib/sessionEvents';
 import { fetchResponseStyleInstruction } from '@/lib/responseStyle';
 import { wrapSystemReminder } from '@/lib/systemReminder';
-import { getSyncMessages } from '@/sync/sync-refs';
+import { getAllSyncSessionMap, getSyncMessages } from '@/sync/sync-refs';
+import { buildLinkedGitHubIssueRefsContext } from '@/lib/linkedIssues';
 import { useOpenCodeStartupStore } from '@/sync/opencode-startup-gate';
 import { eventMatchesShortcut, getEffectiveShortcutCombo, normalizeCombo } from '@/lib/shortcuts';
 import {
@@ -1979,6 +1980,13 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({
         // below skips, so their own words expand here.
         const expandedDrafts = await expandCommentSnippets(drafts, useSnippetsStore.getState().expandText);
 
+        // Every normal send names the session's GitHub issues, including the
+        // ones attached now, whose link is recorded only after the send.
+        const linkedGitHubIssueRefsContext = isBtwActive ? null : buildLinkedGitHubIssueRefsContext(
+            currentSessionId ? getAllSyncSessionMap().get(currentSessionId) : undefined,
+            linkedReferences.map((reference) => toLinkedIssue(reference, 0)),
+        );
+
         const outgoing = buildOutgoingMessage({
             queued: queuedMessagesToSend,
             composerText: !queuedOnly && inputSnapshot.hasContent ? inputSnapshot.message : null,
@@ -1986,6 +1994,7 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({
             inlineComments: expandedDrafts,
             syntheticTexts: [
                 ...buildBtwSyntheticTexts({ isBtwActive, isPromotedBtwSession }),
+                ...(linkedGitHubIssueRefsContext ? [linkedGitHubIssueRefsContext] : []),
                 ...(syntheticParts?.map((part) => part.text) ?? []),
             ],
             references: isBtwActive ? [] : linkedReferences.map(toContextReference),
