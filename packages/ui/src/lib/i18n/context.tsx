@@ -3,7 +3,7 @@ import { DirectionProvider } from '@base-ui/react/direction-provider';
 
 import { useI18nStore, formatMessage, type I18nKey, type I18nParams } from './store';
 import { I18nContext, type I18nContextValue } from './react-context';
-import { getLocaleDirection, LOCALE_LABEL_KEYS, LOCALES, RUSSIAN_LOCALE_LABELS } from './runtime';
+import { getLocaleDirection, LOCALE_LABEL_KEYS, LOCALES } from './runtime';
 import { invokeDesktop } from '../desktop';
 
 export const I18nProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -33,9 +33,7 @@ export const I18nProvider: React.FC<{ children: React.ReactNode }> = ({ children
       direction,
       locales: LOCALES,
       setLocale,
-      label: (targetLocale) => targetLocale === 'ru'
-        ? RUSSIAN_LOCALE_LABELS[locale]
-        : t(LOCALE_LABEL_KEYS[targetLocale]),
+      label: (targetLocale) => t(LOCALE_LABEL_KEYS[targetLocale]),
       t,
     };
   }, [dictionary, direction, locale, setLocale]);
