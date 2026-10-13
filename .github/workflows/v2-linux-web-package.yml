@@ -196,6 +196,11 @@ jobs:
 
       - name: Validate merged source before packaging
         if: steps.resolve.outputs.current_release != 'true' && steps.resolve.outputs.reuse != 'true'
+        env:
+          # Upstream's markdown performance tests run inside bun's 5 s default and take
+          # 5-9.5 s on a standard 4-vCPU runner (2.3.1 raised only one of them to 30 s).
+          # 20 s still fails a quadratic regression.
+          BUN_OPTIONS: --timeout=20000
         run: |
           bun run opencode:pins
           bun run --sequential --filter '*' type-check
