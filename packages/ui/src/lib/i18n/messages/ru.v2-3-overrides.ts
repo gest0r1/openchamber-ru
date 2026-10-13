@@ -488,4 +488,12 @@ export const v23RussianOverrides: Record<string, string> = {
   'sessions.scheduledTasks.dialog.toast.alreadyRunning': 'У этой задачи уже идёт запуск',
   'sessions.scheduledTasks.dialog.toast.alreadyQueued': 'Задача уже ждёт в очереди и запустится, когда освободится слот',
   'chat.modelControls.agentFavoriteAdd': 'Добавить в избранное. Когда есть избранные, Tab переключает только между ними',
+  // Keys introduced by the upstream OpenChamber 2.3.1 merge.
+  'gitView.header.openRepository': 'Открыть репозиторий на {provider}',
+  'sessions.scheduledTasks.editor.targetLoadFailed': 'Не удалось загрузить сессии этого проекта.',
+  'sessions.scheduledTasks.editor.targetRetry': 'Повторить',
+  'contextRail.configure.reorder': 'Перетащите {label}, чтобы изменить порядок',
+  'contextRail.configure.dragInstructions': 'Нажмите пробел, чтобы взять панель, переместите её стрелками и нажмите пробел, чтобы отпустить. Escape отменяет перемещение.',
+  'contextRail.configure.position': '{label}, позиция {position} из {count}.',
+  'contextRail.configure.dragCancelled': 'Изменение порядка отменено.',
 };
