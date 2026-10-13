@@ -256,7 +256,7 @@ const RU_MESSAGES: BootstrapMessages = {
   disconnected: 'Отключено',
   reconnecting: 'Повторное подключение…',
   initialDataLoadFailed: 'OpenCode подключён, но загрузка начальных данных не удалась.',
-  cliNotFound: 'OpenCode CLI не найден. Спершу встановіть його.',
+  cliNotFound: 'OpenCode CLI не найден. Сначала установите его.',
   providersReady: '✓ Провайдеры',
   providersLoading: '… Провайдеры',
   agentsReady: '✓ Агенты',
