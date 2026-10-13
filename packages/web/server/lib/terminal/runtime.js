@@ -11,6 +11,7 @@ import { sanitizeTerminalHistoryChunk } from './history.js';
 import { consumeTerminalThemeQueries, terminalThemeModeReport } from './theme-response.js';
 import { buildTerminalShellLaunch, createTerminalShellResolver, normalizeTerminalShell } from './shells.js';
 import { stripAppImageArgv0Leak, stripAppImageLauncherEnv, resolvePosixPtyLaunch } from '../inherited-env.js';
+import { assignInjectedEnv } from '../injected-env.js';
 import { shutdownTerminalProcesses } from './shutdown.js';
 import { isOpaqueOriginRequest, isPasswordlessSocketOriginAllowed } from '../security/request-security.js';
 
@@ -224,13 +225,11 @@ export function createTerminalRuntime({
     let lastError = null;
     for (const executable of resolvedShell.executables) {
       try {
-        const env = {
-          ...inheritedEnv,
-          TERM: 'xterm-256color',
-          COLORTERM: 'truecolor',
-          COLORFGBG: themeMode === 'light' ? '0;15' : '15;0',
-          OPENCHAMBER_EMBEDDED_TERMINAL: '1',
-        };
+        const env = { ...inheritedEnv, TERM: 'xterm-256color', COLORTERM: 'truecolor', COLORFGBG: themeMode === 'light' ? '0;15' : '15;0' };
+        // Marks a shell running inside OpenChamber, for tools that must not
+        // restart the server under it. Recorded as injected, so a service
+        // enabled from this shell does not inherit the marker.
+        assignInjectedEnv(env, { OPENCHAMBER_EMBEDDED_TERMINAL: '1' });
         // The daemon's IPC fd is closed inside the PTY; an inherited NODE_CHANNEL_FD
         // (even an empty one) makes Node CLIs warn about an unparsable IPC channel.
         delete env.NODE_CHANNEL_FD;
