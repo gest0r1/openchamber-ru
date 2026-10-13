@@ -12,6 +12,7 @@ import { ThemeSystemContext, type ThemeContextValue } from '@/contexts/theme-sys
 import { getDefaultTheme } from '@/lib/theme/themes';
 import { useGuestsStore } from '@/lib/guests/store';
 import { useDirectoryStore } from '@/stores/useDirectoryStore';
+import { useConfigStore } from '@/stores/useConfigStore';
 import { opencodeClient } from '@/lib/opencode/client';
 import { subagentCancellationNote } from '@/lib/opencode/subagent-run';
 
@@ -260,4 +261,19 @@ test('a background subagent drops the background label once its report arrives',
     expect(container.textContent).not.toContain('in background');
     expect(container.querySelector('button[aria-label="Stop subagent"]')).toBeNull();
   });
+});
+
+test('the agent name on a subagent row takes the colour saved for that agent', async () => {
+  const previousAgents = useConfigStore.getState().agents;
+  useConfigStore.setState({ agents: [{ name: 'explore', mode: 'subagent', color: '#12a4c8' }] as never });
+  try {
+    await withHarness(parent, false, async (store, container) => {
+      await act(async () => store.setState(childActivity('child')));
+      const title = [...container.querySelectorAll('[style]')].find((element) => element.textContent === 'Explore') as HTMLElement | undefined;
+      expect(title).toBeDefined();
+      expect(/#12a4c8|rgb\(18,164,200\)/i.test(title?.style.color.replace(/\s/g, '') ?? '')).toBe(true);
+    });
+  } finally {
+    useConfigStore.setState({ agents: previousAgents });
+  }
 });

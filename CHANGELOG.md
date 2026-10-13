@@ -2,6 +2,12 @@
 
 <!-- Legacy copy for app versions up to 1.22.1, which fetch this file for their update notes. Generated from changelog/*.md while it exists; delete it after 2026-09-19 and nothing will recreate it. -->
 
+## [2.3.1.4] - 2026-10-13
+
+### Improvements
+
+- Chat: the agent name on a subagent row uses the colour saved for that agent, the same colour the agent picker shows.
+
 ## [2.3.1.3] - 2026-10-13
 
 ### Improvements

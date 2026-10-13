@@ -62,6 +62,7 @@ import {
 } from './taskToolModel';
 import { areRenderRelevantPartsEqual } from '../renderCompare';
 import { useI18n } from '@/lib/i18n';
+import { useAgentColors } from '@/hooks/useAgentColors';
 import {
     extractFirstChangedLineFromDiff,
     getApplyPatchFilePath,
@@ -1554,6 +1555,8 @@ ToolExpandedContent.displayName = 'ToolExpandedContent';
 type ToolRowHeader = {
     /** Replaces the tool's generic name, e.g. a subagent row names its agent. */
     title?: string;
+    /** Colour of that title, e.g. the agent's colour; an error keeps the error colour. */
+    titleColor?: string;
     label?: 'background' | 'stopped';
     /** The end of the call is not known yet, so the row shows no duration. */
     durationUnknown?: boolean;
@@ -1865,7 +1868,10 @@ const ToolPartContent: React.FC<ToolPartProps & { header?: ToolRowHeader; subage
     };
 
     const iconStyle = isError ? TOOL_ERROR_ICON_STYLE : TOOL_NORMAL_ICON_STYLE;
-    const titleStyle = isError ? TOOL_ERROR_TITLE_STYLE : TOOL_NORMAL_TITLE_STYLE;
+    const titleStyle = React.useMemo(
+        () => (isError ? TOOL_ERROR_TITLE_STYLE : header?.titleColor ? { ...TOOL_NORMAL_TITLE_STYLE, color: header.titleColor } : TOOL_NORMAL_TITLE_STYLE),
+        [header?.titleColor, isError],
+    );
     const shouldRenderExpandedContent = useDeferredExpandedContent(isExpanded);
     const contentCompletion = useToolContentCompletion(
         part,
@@ -2257,6 +2263,9 @@ const SubagentToolPartContent: React.FC<ToolPartProps> = (props) => {
 
     const isRunning = backgroundPhase ? backgroundPhase.kind === 'running' : status === 'running';
     const description = subagentDescription(props.part.state.input);
+    const agentName = subagentAgent(props.part.state.input);
+    // The colour the composer and message footers give this agent (its configured colour first).
+    const getAgentColor = useAgentColors();
     const stop = React.useCallback(() => {
         if (!childSessionID) return;
         setStopping(true);
@@ -2276,7 +2285,8 @@ const SubagentToolPartContent: React.FC<ToolPartProps> = (props) => {
         : stoppedByUser;
     const header: ToolRowHeader = {
         // Several subagents run side by side; the agent tells their rows apart.
-        title: subagentTitle(subagentAgent(props.part.state.input)),
+        title: subagentTitle(agentName),
+        titleColor: agentName ? getAgentColor(agentName).color : undefined,
         // "in background" describes a call still running; a finished one is just finished.
         label: stopped ? 'stopped' : backgroundPhase?.kind === 'running' ? 'background' : undefined,
         durationUnknown: backgroundPhase?.kind === 'unknown',
