@@ -1834,4 +1834,3 @@ export const settingsDict = {
   "settings.themeImport.error.conflict": "Эта импортированная тема была изменена на сервере. Она не перезаписана.",
   "settings.projects.page.field.projectAgent": "Агент проекта",
 };
-

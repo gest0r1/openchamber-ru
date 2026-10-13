@@ -145,4 +145,3 @@ export const linearIssuePickerI18n = {
     'session.newWorktree.actions.startFromLinearIssue': 'Issue מ-Linear',
   },
 } as const;
-

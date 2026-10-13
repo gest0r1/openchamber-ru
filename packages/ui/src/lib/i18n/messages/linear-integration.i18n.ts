@@ -741,4 +741,3 @@ export const linearIntegrationI18n = {
     'settings.integrations.linear.sessionComments.loadFailed': 'לא ניתן היה לטעון את הגדרות התגובות של Linear.',
   },
 } as const;
-

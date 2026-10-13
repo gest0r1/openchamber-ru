@@ -127,8 +127,6 @@ const requiredKeys = [
 const allowEnglishLoanword = new Set([
   'settings.page.extensions.title',
   'settings.extensions.source.path',
-  'settings.extensions.source.zip',
-  'settings.extensions.source.git',
   'settings.extensions.add.placeholder',
   // "ZIP" is a file format and "Git" a product name; both stay as they are.
   'settings.extensions.source.zip',
@@ -149,4 +147,3 @@ describe('extensions settings translations', () => {
     }
   });
 });
-

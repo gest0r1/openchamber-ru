@@ -479,4 +479,3 @@ jobs:
             --file "$RUNNER_TEMP/OpenChamberExport/App.ipa" \
             --apiKey "$APP_STORE_CONNECT_KEY_ID" \
             --apiIssuer "$APP_STORE_CONNECT_ISSUER_ID"
-

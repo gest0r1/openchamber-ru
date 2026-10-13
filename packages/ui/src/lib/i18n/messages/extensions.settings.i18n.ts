@@ -2114,4 +2114,3 @@ export const extensionsSettingsI18n = {
     'settings.extensions.toast.swapFailed': 'לא ניתן היה להחליף את הקבצים המותקנים. הגרסה הקודמת נשמרה.',
   },
 } as const;
-

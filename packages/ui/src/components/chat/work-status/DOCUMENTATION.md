@@ -593,4 +593,3 @@ animation frame.
 
 - Test/build/dev-server status and LSP diagnostics — a separate track. Note
   that `state.lsp` already exists in the sync state.
-

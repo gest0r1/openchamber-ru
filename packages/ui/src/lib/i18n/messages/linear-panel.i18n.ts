@@ -143,4 +143,3 @@ export const linearPanelI18n = {
     'contextPanel.linear.priority.low': 'נמוכה',
   },
 } as const;
-

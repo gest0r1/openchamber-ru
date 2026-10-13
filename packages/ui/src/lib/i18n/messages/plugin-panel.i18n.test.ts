@@ -72,4 +72,3 @@ describe('plugin panel translations', () => {
     }
   });
 });
-

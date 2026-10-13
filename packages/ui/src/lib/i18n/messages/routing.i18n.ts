@@ -2170,4 +2170,3 @@ export const routingI18n = {
     'settings.sessions.permissions.explain.safetyUnavailable': 'נדרש Jev, שדורש ספק סיווג: מבצע OpenCode Zen החינמי, מפתח API של Zen ב-OpenCode, או מפתח TypeSafe.',
   },
 } as const;
-

@@ -89,4 +89,3 @@ for (const [filename, content] of Object.entries(output)) {
 }
 
 console.log('finalized latest yml files');
-

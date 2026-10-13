@@ -1292,4 +1292,3 @@ export const fullRussianOverrides: Record<string, string> = {
   "settings.mcp.page.connection.hintCommand": "Запускается на этой машине. Вставьте полную команду — она будет разделена на аргументы по строкам.",
   "settings.mcp.page.connection.hintLink": "Подключается к серверу, размещённому кем-то другим. Вставьте его https-адрес.",
 };
-

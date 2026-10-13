@@ -449,4 +449,3 @@ export const guestIntegrationsI18n = {
     'settings.integrations.guests.toast.tokenInvalid': 'בדיקת האסימון של ההרחבה נכשלה. יש לבדוק את ההרשאות של האסימון ואת כתובת האימות של ההרחבה.',
   },
 } as const;
-

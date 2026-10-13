@@ -115,4 +115,3 @@ export function formatMessage(dictionary: I18nDictionary, key: I18nKey, params?:
 }
 
 export type { I18nKey, Locale };
-

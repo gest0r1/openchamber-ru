@@ -25,4 +25,3 @@ describe('linear issue picker translations', () => {
     }
   });
 });
-

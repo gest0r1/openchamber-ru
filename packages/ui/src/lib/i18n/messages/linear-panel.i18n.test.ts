@@ -34,4 +34,3 @@ describe('linear panel translations', () => {
     }
   });
 });
-

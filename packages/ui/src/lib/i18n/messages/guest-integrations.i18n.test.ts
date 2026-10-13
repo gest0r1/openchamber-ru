@@ -49,4 +49,3 @@ describe('guest integrations translations', () => {
     }
   });
 });
-

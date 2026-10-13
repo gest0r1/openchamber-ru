@@ -165,4 +165,3 @@ export function detectInitialLocale(): Locale {
 
   return DEFAULT_LOCALE;
 }
-

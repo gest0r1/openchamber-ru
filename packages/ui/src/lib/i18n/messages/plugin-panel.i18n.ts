@@ -660,4 +660,3 @@ export const pluginPanelI18n = {
     'chat.chatInput.toast.guestUnavailableHere': 'ההרחבה הזו אינה זמינה כאן. אפשר לפתוח אותה ב-OpenChamber בגרסת הרשת או בגרסת שולחן העבודה.',
   },
 } as const;
-

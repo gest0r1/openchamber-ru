@@ -69,4 +69,3 @@ export function languageName(language) {
 // that file, because a locale added on one side only fails silently: the picker
 // offers the language and the walkthrough comes back in English.
 export const __testing = { LANGUAGE_NAMES };
-

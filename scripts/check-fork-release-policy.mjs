@@ -34,10 +34,10 @@ if (electronPackage?.build?.publish?.owner !== 'gest0r1' || electronPackage?.bui
   throw new Error('packaged electron updater metadata must target gest0r1/openchamber-ru');
 }
 
-console.log('fork release policy: PASS');
-
 forbidText(release, /actions\/(upload|download)-artifact/, 'release transport artifacts');
 requireText(release, /reuse-release-web-package\.mjs/, 'verified web package reuse');
 for (const file of ['release-desktop-smoke.yml', 'mobile-ci.yml', 'opencode-smoke.yml', 'vscode-extension.yml', 'sdk-preview.yml', 'v2-platform-build.yml', 'v2-platform-artifacts.yml', 'v2-migration-smoke.yml', 'build-macos-arm64-dmg.yml']) {
   if (fs.existsSync(`.github/workflows/${file}`)) throw Error(`Retired duplicate workflow: ${file}`);
 }
+
+console.log('fork release policy: PASS');

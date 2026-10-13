@@ -64,4 +64,3 @@ describe('linear integration translations', () => {
     }
   });
 });
-
