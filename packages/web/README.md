@@ -11,10 +11,11 @@ Full project overview, screenshots, and all features: [github.com/openchamber/op
 ## Install
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/openchamber/openchamber/main/scripts/install.sh | bash
+version=$(curl -fsSL https://api.github.com/repos/gest0r1/openchamber-ru/releases/latest | sed -nE 's/.*"tag_name": *"v([^"]+)".*/\1/p')
+npm install -g "https://github.com/gest0r1/openchamber-ru/releases/download/v$version/openchamber-web-$version.tgz"
 ```
 
-Or install manually: `bun add -g @openchamber/web` (or npm, pnpm, yarn).
+Each release of this fork attaches the web runtime as `openchamber-web-<version>.tgz`; install that tarball with npm, bun, or pnpm. `@openchamber/web` on npm is the upstream build without the Russian localization.
 
 > **Prerequisites:** [OpenCode CLI](https://opencode.ai) installed, Node.js 24.14+.
 

@@ -18,7 +18,8 @@ Installiere zuerst [OpenCode](https://opencode.ai) — OpenChamber läuft darauf
 ## Web + PWA
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/openchamber/openchamber/main/scripts/install.sh | bash
+version=$(curl -fsSL https://api.github.com/repos/gest0r1/openchamber-ru/releases/latest | sed -nE 's/.*"tag_name": *"v([^"]+)".*/\1/p')
+npm install -g "https://github.com/gest0r1/openchamber-ru/releases/download/v$version/openchamber-web-$version.tgz"
 openchamber --ui-password be-creative-here
 ```
 

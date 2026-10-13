@@ -14,7 +14,7 @@ fail() { printf 'error  %s\n' "$*" >&2; exit 1; }
 case "$(uname -s)" in
   MINGW*|MSYS*|CYGWIN*) ;;
   *)
-    fail "This fork currently publishes a Windows installer only. Do not install @openchamber/web: it is upstream, not this fork."
+    fail "This script installs the Windows desktop app only. On Linux, download the AppImage from https://github.com/${REPOSITORY}/releases/latest; for the CLI and web app, follow the README. Do not install @openchamber/web from npm: it is upstream, not this fork."
     ;;
 esac
 
