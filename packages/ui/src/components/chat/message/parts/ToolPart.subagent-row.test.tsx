@@ -164,6 +164,9 @@ test('a finished subagent is one row with its duration and an open action, never
     await act(async () => store.setState(childActivity('child')));
     expect(container.textContent).toContain('Update files');
     expect(container.textContent).toContain('62.0s');
+    // The row names the agent instead of the generic tool name.
+    expect(container.textContent).toContain('Explore');
+    expect(container.textContent).not.toContain('Agent Task');
     expect(openButton(container)).not.toBeNull();
     expect(container.textContent).not.toContain('child-work.ts');
     expect(container.textContent).not.toContain('Found two files');

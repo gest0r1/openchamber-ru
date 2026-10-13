@@ -1552,6 +1552,8 @@ ToolExpandedContent.displayName = 'ToolExpandedContent';
 
 /** Header extras of a row whose state comes from outside its own part: a label, and a stop action while it runs. */
 type ToolRowHeader = {
+    /** Replaces the tool's generic name, e.g. a subagent row names its agent. */
+    title?: string;
     label?: 'background' | 'stopped';
     /** The end of the call is not known yet, so the row shows no duration. */
     durationUnknown?: boolean;
@@ -1719,7 +1721,7 @@ const ToolPartContent: React.FC<ToolPartProps & { header?: ToolRowHeader; subage
         [input, metadata, presentation, stateOutput],
     );
     const description = guestHeader?.subtitle ?? builtInDescription;
-    const displayName = guestHeader?.title ?? getToolMetadata(normalizedPartTool || part.tool).displayName;
+    const displayName = guestHeader?.title ?? header?.title ?? getToolMetadata(normalizedPartTool || part.tool).displayName;
     
     // Tool title/description — shown inline as context. A subtitle the
     // extension declared replaces it, since both land in the same slot.
@@ -2217,6 +2219,10 @@ const BackgroundShellToolPartContent: React.FC<ToolPartProps & { shellID: string
  * call the user stopped reads as stopped instead of failed. While the child
  * runs the row offers the same stop the background shell rows do.
  */
+// The agent's name, capitalised the way the open-subtask action names it ("Explore").
+const subagentTitle = (agent: string | undefined): string | undefined =>
+    agent ? agent.charAt(0).toUpperCase() + agent.slice(1) : undefined;
+
 const SubagentToolPartContent: React.FC<ToolPartProps> = (props) => {
     const { t } = useI18n();
     const directory = useEffectiveDirectory();
@@ -2269,6 +2275,8 @@ const SubagentToolPartContent: React.FC<ToolPartProps> = (props) => {
         ? backgroundPhase.kind === 'finished' && backgroundPhase.run.state === 'cancelled'
         : stoppedByUser;
     const header: ToolRowHeader = {
+        // Several subagents run side by side; the agent tells their rows apart.
+        title: subagentTitle(subagentAgent(props.part.state.input)),
         // "in background" describes a call still running; a finished one is just finished.
         label: stopped ? 'stopped' : backgroundPhase?.kind === 'running' ? 'background' : undefined,
         durationUnknown: backgroundPhase?.kind === 'unknown',

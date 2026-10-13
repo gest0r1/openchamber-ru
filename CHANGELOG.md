@@ -2,6 +2,12 @@
 
 <!-- Legacy copy for app versions up to 1.22.1, which fetch this file for their update notes. Generated from changelog/*.md while it exists; delete it after 2026-09-19 and nothing will recreate it. -->
 
+## [2.3.1.3] - 2026-10-13
+
+### Improvements
+
+- Chat: a subagent row shows the agent it runs (for example "CoderAgent") instead of the generic "Agent Task", so parallel subagents are easy to tell apart.
+
 ## [2.3.1] - 2026-10-13
 
 ### New

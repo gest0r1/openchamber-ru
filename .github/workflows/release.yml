@@ -40,6 +40,7 @@ jobs:
       proceed: ${{ steps.identity.outputs.proceed }}
       source_sha: ${{ steps.identity.outputs.source_sha }}
       version: ${{ steps.identity.outputs.version }}
+      app_version: ${{ steps.identity.outputs.app_version }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -61,12 +62,16 @@ jobs:
           else
             version="${REF_NAME#v}"
           fi
-          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
-          VERSION="$version" node - <<'NODE'
+          # Fork releases keep the upstream app version and add a fork number: 2.3.1.3 tags
+          # and names the release; packages, artifacts and the updater stay on 2.3.1.
+          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(\.[0-9]+)?$ ]]
+          app_version="$(printf '%s' "$version" | cut -d. -f1-3)"
+          VERSION="$app_version" node - <<'NODE'
           for (const file of ['package.json', 'packages/web/package.json', 'packages/electron/package.json']) {
             if (require('./' + file).version !== process.env.VERSION) throw Error(`Release version mismatch: ${file}`);
           }
           NODE
+          echo "app_version=$app_version" >> "$GITHUB_OUTPUT"
           echo "source_sha=$SOURCE_SHA" >> "$GITHUB_OUTPUT"
           echo "version=$version" >> "$GITHUB_OUTPUT"
           if release="$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/v$version" 2>release-error.log)"; then
@@ -95,6 +100,7 @@ jobs:
       release_id: ${{ steps.create_release.outputs.id }}
       release_upload_url: ${{ steps.create_release.outputs.upload_url }}
       version: ${{ steps.get_version.outputs.version }}
+      app_version: ${{ needs.authorize-release.outputs.app_version }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -154,7 +160,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           SOURCE_SHA: ${{ needs.create-release.outputs.source_sha }}
-          VERSION: ${{ needs.create-release.outputs.version }}
+          VERSION: ${{ needs.create-release.outputs.app_version }}
         run: node scripts/reuse-release-web-package.mjs
 
       - name: Upload npm tarball to release
@@ -248,7 +254,7 @@ jobs:
       - name: Validate Windows update manifest
         shell: bash
         env:
-          VERSION: ${{ needs.create-release.outputs.version }}
+          VERSION: ${{ needs.create-release.outputs.app_version }}
         run: node packages/electron/scripts/verify-update-manifest.mjs packages/electron/dist/latest.yml "packages/electron/dist/OpenChamber-${VERSION}-win-x64.exe" "$VERSION"
 
       - name: Upload installer to release
@@ -342,7 +348,7 @@ jobs:
       - name: Validate Linux update manifest
         working-directory: packages/electron
         env:
-          VERSION: ${{ needs.create-release.outputs.version }}
+          VERSION: ${{ needs.create-release.outputs.app_version }}
           ARTIFACT_ARCH: ${{ matrix.artifact_arch }}
           MANIFEST: ${{ matrix.manifest }}
         run: |
@@ -357,7 +363,7 @@ jobs:
           tag_name: v${{ needs.create-release.outputs.version }}
           draft: true
           files: |
-            packages/electron/dist/OpenChamber-${{ needs.create-release.outputs.version }}-linux-${{ matrix.artifact_arch }}.AppImage
+            packages/electron/dist/OpenChamber-${{ needs.create-release.outputs.app_version }}-linux-${{ matrix.artifact_arch }}.AppImage
             packages/electron/dist/${{ matrix.manifest }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -368,7 +374,7 @@ jobs:
     uses: ./.github/workflows/mobile-release.yml
     with:
       source_ref: ${{ needs.create-release.outputs.source_sha }}
-      version_name: ${{ needs.create-release.outputs.version }}
+      version_name: ${{ needs.create-release.outputs.app_version }}
       release_tag: v${{ needs.create-release.outputs.version }}
       upload_github_release: true
       build_android: true
@@ -386,7 +392,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPOSITORY: ${{ github.repository }}
           RELEASE_ID: ${{ needs.create-release.outputs.release_id }}
-          VERSION: ${{ needs.create-release.outputs.version }}
+          VERSION: ${{ needs.create-release.outputs.app_version }}
         run: |
           node - <<'NODE'
           (async () => {

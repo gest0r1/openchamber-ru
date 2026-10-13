@@ -164,3 +164,16 @@ test('promoteUnreleased dates and titles the release, resets the template, and r
   fs.writeFileSync(path.join(directory, 'unreleased.md'), '## App\n\n### New\n- Untitled.\n');
   assert.throws(() => promoteUnreleased(directory, '2.0.1', '2026-03-02'), /has no title/);
 });
+
+test('a fork release x.y.z.n sorts above its upstream version and below the next one', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'changelog-fork-'));
+  try {
+    const write = (version) => fs.writeFileSync(path.join(dir, `${version}.md`), `---\nversion: ${version}\ndate: 2026-10-13\ntitle: Release ${version}\n---\n\n## App\n\n### Fixes\n- Fix ${version}.\n`);
+    for (const version of ['2.3.1', '2.3.1.3', '2.3.2', '2.3.1.10']) write(version);
+    fs.writeFileSync(path.join(dir, 'unreleased.md'), '---\ntitle:\n---\n\n## App\n');
+    assert.deepEqual(loadReleases(dir).releases.map((entry) => entry.version), ['2.3.2', '2.3.1.10', '2.3.1.3', '2.3.1']);
+    assert.throws(() => parseRelease('---\nversion: 2.3\ndate: 2026-10-13\ntitle: x\n---\n', 'bad.md'), /x\.y\.z/);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});

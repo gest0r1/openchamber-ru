@@ -59,3 +59,31 @@ esac
     }
   });
 }
+
+test('a fork release x.y.z.n keeps packages on the upstream version and tags the fork number', () => {
+  for (const [request, packages, ok] of [['2.3.1.3', '2.3.1', true], ['2.3.1.3', '2.3.2', false], ['2.3.1', '2.3.1', true]]) {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'release-fork-'));
+    try {
+      for (const file of ['package.json', 'packages/web/package.json', 'packages/electron/package.json']) {
+        fs.mkdirSync(path.dirname(path.join(dir, file)), { recursive: true });
+        fs.writeFileSync(path.join(dir, file), JSON.stringify({ version: packages }));
+      }
+      fs.mkdirSync(path.join(dir, '.github'), { recursive: true });
+      fs.writeFileSync(path.join(dir, '.github/release-request.json'), JSON.stringify({ version: request }));
+      fs.writeFileSync(path.join(dir, 'gh'), "#!/bin/bash\necho 'gh: Not Found (HTTP 404)' >&2; exit 1\n", { mode: 0o755 });
+      const output = path.join(dir, 'outputs');
+      const result = spawnSync('bash', ['-c', identityStep.run], {
+        cwd: dir, encoding: 'utf8', env: { ...process.env, PATH: `${dir}:${process.env.PATH}`, EVENT_NAME: 'workflow_run',
+          SOURCE_SHA: 'a'.repeat(40), INPUT_VERSION: '', REF_NAME: 'main', GITHUB_OUTPUT: output, GITHUB_REPOSITORY: 'owner/repo' },
+      });
+      assert.equal(result.status === 0, ok, result.stderr);
+      if (ok) {
+        const outputs = fs.readFileSync(output, 'utf8');
+        assert.match(outputs, new RegExp(`^version=${request.replaceAll('.', '\\.')}$`, 'm'));
+        assert.match(outputs, new RegExp(`^app_version=${packages.replaceAll('.', '\\.')}$`, 'm'));
+      }
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  }
+});

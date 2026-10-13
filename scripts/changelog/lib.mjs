@@ -17,7 +17,8 @@ export const GROUPS = ['New', 'Improvements', 'Fixes', 'SDK', 'Misc'];
 const LEGACY_BANNER = '<!-- Legacy copy for app versions up to 1.22.1, which fetch this file for their update notes. Generated from changelog/*.md while it exists; delete it after 2026-09-19 and nothing will recreate it. -->';
 export const SURFACES = ['App', 'VS Code'];
 
-const VERSION_PATTERN = /^\d+\.\d+\.\d+$/;
+// x.y.z is an upstream version; x.y.z.n is fork release n on top of it.
+const VERSION_PATTERN = /^\d+\.\d+\.\d+(?:\.\d+)?$/;
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
 /**
@@ -72,7 +73,7 @@ export const parseRelease = (text, file) => {
     vscode: null,
     file,
   };
-  if (release.version !== null && !VERSION_PATTERN.test(release.version)) fail(file, 1, `version ${JSON.stringify(release.version)} is not x.y.z`);
+  if (release.version !== null && !VERSION_PATTERN.test(release.version)) fail(file, 1, `version ${JSON.stringify(release.version)} is not x.y.z or x.y.z.n`);
   if (release.date !== null && !DATE_PATTERN.test(release.date)) fail(file, 1, `date ${JSON.stringify(release.date)} is not YYYY-MM-DD`);
 
   let surface = null; // 'app' | 'vscode'
@@ -119,8 +120,10 @@ export const parseRelease = (text, file) => {
 const compareVersionsDesc = (a, b) => {
   const pa = a.split('.').map(Number);
   const pb = b.split('.').map(Number);
-  for (let index = 0; index < 3; index += 1) {
-    if (pa[index] !== pb[index]) return pb[index] - pa[index];
+  for (let index = 0; index < 4; index += 1) {
+    const left = pa[index] ?? 0;
+    const right = pb[index] ?? 0;
+    if (left !== right) return right - left;
   }
   return 0;
 };
