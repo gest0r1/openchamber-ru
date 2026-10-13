@@ -180,4 +180,16 @@ export const pluginsGridI18n = {
     'settings.plugins.grid.scope.project': 'פרויקט',
     'settings.plugins.page.back': 'כל התוספים',
   },
+  ru: {
+    'settings.plugins.grid.actionsAria': 'Действия для {name}',
+    'settings.common.sidebar.searchPlaceholder': 'Поиск',
+    'settings.common.sidebar.noMatches': 'Ничего не найдено по запросу «{query}».',
+    'settings.plugins.grid.description': 'Плагины OpenCode из npm, локальных путей и файлов плагинов. Откройте плагин, чтобы изменить его.',
+    'settings.plugins.grid.searchPlaceholder': 'Поиск плагинов',
+    'settings.plugins.grid.addHint': 'npm-пакет или локальный путь',
+    'settings.plugins.grid.noMatches': 'Нет плагинов по запросу «{query}».',
+    'settings.plugins.grid.empty': 'Плагинов пока нет.',
+    'settings.plugins.grid.scope.project': 'Проект',
+    'settings.plugins.page.back': 'Все плагины',
+  },
 } as const;

@@ -59,7 +59,8 @@ jobs:
         run: |
           bun test \
             packages/ui/src/lib/i18n/messages.test.ts \
-            packages/ui/src/lib/i18n/ru-coverage.test.ts
+            packages/ui/src/lib/i18n/ru-coverage.test.ts \
+            packages/ui/src/lib/i18n/messages/
 
       - name: Check linked GitHub Issue and extension catalog contracts
         run: |

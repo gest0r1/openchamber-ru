@@ -137,10 +137,6 @@ export const linearIntegrationI18n = {
     'settings.integrations.linear.sessionComments.info': 'Добавляет комментарий к задаче при запуске, завершении или ошибке сессии. Комментарии публикуются только если у сервера есть публичный адрес, чтобы ссылка открывала сессию для всех участников задачи.',
     'settings.integrations.linear.sessionComments.aria': 'Публиковать статусы сессии в Linear',
     'settings.integrations.linear.sessionComments.loadFailed': 'Не удалось загрузить настройки комментариев Linear.',
-    'settings.magicPrompts.sidebar.group.linear': 'Linear',
-    'settings.magicPrompts.sidebar.item.linearIssueReview': 'Обзор задачи',
-    'settings.magicPrompts.page.group.linearIssueReview.title': 'Обзор задачи',
-    'settings.magicPrompts.page.group.linearIssueReview.description': 'Промпты при запуске сессии из задачи Linear: видимое сообщение пользователя и скрытые инструкции.',
   },
   de: {
     'settings.integrations.github.title': 'GitHub',

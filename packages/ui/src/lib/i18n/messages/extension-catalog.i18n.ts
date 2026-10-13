@@ -210,4 +210,18 @@ export const extensionCatalogI18n = {
     'settings.integrations.extensionCatalog.toast.enabled': '{name} הופעלה',
     'settings.integrations.extensionCatalog.toast.enableFailed': 'לא ניתן היה להפעיל את {name}',
   },
+  ru: {
+    'settings.integrations.extensionCatalog.title': 'Расширения OpenChamber',
+    'settings.integrations.extensionCatalog.info': 'Дополнительные расширения для OpenChamber. Установите расширение здесь — оно появится там, где используется. Установленные расширения также доступны в Настройки → Расширения.',
+    'settings.integrations.extensionCatalog.excalidraw.name': 'Excalidraw',
+    'settings.integrations.extensionCatalog.excalidraw.description': 'Рисуйте в файлах .excalidraw и рисунках Obsidian прямо в разделе «Файлы».',
+    'settings.integrations.extensionCatalog.status.paused': 'Выключено',
+    'settings.integrations.extensionCatalog.status.needsApproval': 'Требуется подтверждение',
+    'settings.integrations.extensionCatalog.actions.enable': 'Включить',
+    'settings.integrations.extensionCatalog.actions.manage': 'Открыть расширения',
+    'settings.integrations.extensionCatalog.dialog.remove.title': 'Удалить расширение',
+    'settings.integrations.extensionCatalog.dialog.remove.description': 'Удалить {name} из этого OpenChamber? Ваши файлы останутся без изменений.',
+    'settings.integrations.extensionCatalog.toast.enabled': '{name} включено',
+    'settings.integrations.extensionCatalog.toast.enableFailed': 'Не удалось включить {name}',
+  },
 } as const;

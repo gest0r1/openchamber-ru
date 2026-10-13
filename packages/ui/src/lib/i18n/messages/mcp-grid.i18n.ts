@@ -195,4 +195,17 @@ export const mcpGridI18n = {
     'settings.mcp.grid.scope.project': 'פרויקט',
     'settings.mcp.page.back': 'כל השרתים',
   },
+  ru: {
+    'settings.mcp.grid.actionsAria': 'Действия для {name}',
+    'settings.mcp.grid.description': 'Серверы инструментов, которые могут вызывать агенты. Откройте сервер, чтобы посмотреть его состояние и настройки.',
+    'settings.mcp.grid.searchPlaceholder': 'Поиск серверов',
+    'settings.mcp.grid.addHint': 'Локальная команда или удалённый URL',
+    'settings.mcp.grid.noMatches': 'Нет серверов по запросу «{query}».',
+    'settings.mcp.grid.empty': 'MCP-серверов пока нет.',
+    'settings.mcp.grid.status.disabled': 'Отключён',
+    'settings.mcp.grid.status.pending': 'Подключение',
+    'settings.mcp.grid.status.blockedByPolicy': 'Заблокирован политикой',
+    'settings.mcp.grid.scope.project': 'Проект',
+    'settings.mcp.page.back': 'Все серверы',
+  },
 } as const;

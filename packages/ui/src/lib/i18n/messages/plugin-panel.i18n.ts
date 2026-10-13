@@ -83,8 +83,7 @@ export const pluginPanelI18n = {
     'chat.chatInput.toast.guestUnavailableHere': 'Deze extensie is hier niet beschikbaar. Open hem in OpenChamber web of desktop.',
   },
   ru: {
-    "chat.workStatus.sections.extensionBadge": "Расширение",
-
+    'chat.workStatus.sections.extensionBadge': 'Расширение',
     'chat.chatInput.toast.guestHasNoPanel': 'Это расширение работает без панели.',
     'header.mainSurface.backToChat': 'Вернуться в чат',
     'sessions.sidebar.header.actions.extensionPages': 'Страницы расширений',
@@ -114,8 +113,6 @@ export const pluginPanelI18n = {
     'chat.chatInput.linked.guest.pr.number': 'PR {id}',
     'chat.workStatus.linkedIssues.openGuest': 'Открыть {id}',
     'session.newWorktree.actions.startFromGuest': 'Начать с {name}',
-    'session.newWorktree.fromGuest': 'Из {id}: {title}',
-    'session.newWorktree.error.sendGuestContextFailed': 'Не удалось отправить связанный элемент.',
     'contextPanel.plugin.actionDialog.description': 'Расширение работает с выбранным сообщением или сессией.',
     'contextRail.surface.plugin.badgeAriaSingle': '{label}, {count} элемент',
     'contextRail.surface.plugin.badgeAriaPlural': '{label}, элементов: {count}',

@@ -12,6 +12,7 @@ import { dict as pl } from './pl';
 import { dict as zhCN } from './zh-CN';
 import { dict as zhTW } from './zh-TW';
 import { dict as tr } from './tr';
+import { dict as ru } from './ru';
 
 const keys = [
   'sessions.scheduledTasks.dialog.description',
@@ -31,7 +32,7 @@ const keys = [
 ] as const;
 
 test('scheduled task session choices and outcomes are translated in every catalog', () => {
-  for (const catalog of [de, fr, nl, es, ja, ptBR, uk, ko, pl, zhCN, zhTW, tr]) {
+  for (const catalog of [de, fr, nl, es, ja, ptBR, uk, ko, pl, zhCN, zhTW, tr, ru]) {
     for (const key of keys) {
       expect(catalog[key]).toBeTruthy();
       expect(catalog[key]).not.toBe(en[key]);
@@ -41,7 +42,7 @@ test('scheduled task session choices and outcomes are translated in every catalo
 
 test('scheduled queue outcomes sit beside the legacy status keys', () => {
   const statuses = ['success', 'error', 'running', 'idle', 'queued', 'sent', 'skipped', 'cancelled'];
-  for (const catalog of [en, de, fr, nl, es, ja, ptBR, uk, ko, pl, zhCN, zhTW, tr]) {
+  for (const catalog of [en, de, fr, nl, es, ja, ptBR, uk, ko, pl, zhCN, zhTW, tr, ru]) {
     const catalogKeys = Object.keys(catalog);
     const start = catalogKeys.indexOf('sessions.scheduledTasks.dialog.status.success');
     expect(catalogKeys.slice(start, start + statuses.length)).toEqual(statuses.map((status) => `sessions.scheduledTasks.dialog.status.${status}`));
