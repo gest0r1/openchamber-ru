@@ -72,7 +72,7 @@ describe('full session export', () => {
 
     expect(result.root.children.map((item) => item.session.id)).toEqual(['child']);
     expect(result.root.children[0]?.children.map((item) => item.session.id)).toEqual(['grandchild']);
-    expect(calls).toContainEqual({ parentID: 'root', cursor: 'page-2' });
+    expect(calls.some((call) => call.parentID === 'root' && call.cursor === 'page-2')).toBe(true);
   });
 
   test('keeps healthy branches when one child history cannot be read', async () => {
