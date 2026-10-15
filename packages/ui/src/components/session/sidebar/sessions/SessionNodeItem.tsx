@@ -27,6 +27,7 @@ import { isSessionPinned, useSessionPinnedStore } from '@/stores/useSessionPinne
 import { Icon } from "@/components/icon/Icon";
 import { buildExportFilename, downloadAsMarkdown, formatSessionAsMarkdown, getExportRevealLabelKey, revealExportedMarkdown, saveAsMarkdownDesktop } from '@/lib/exportSession';
 import type { ChildSessionExport } from '@/lib/exportSession';
+import { collectFullSessionExport, formatFullSessionAsMarkdown } from '@/lib/fullSessionExport';
 import { GuestIcon } from '@/components/layout/GuestRailIcon';
 import { useGuestActions } from '@/hooks/useGuestSurfaces';
 import { guestSessionActions, type GuestActionEntry } from '@/lib/guests/actions';
@@ -797,6 +798,56 @@ function SessionNodeItemComponent(props: SessionNodeItemProps): React.ReactNode 
     await doExportSession(false);
   }, [doExportSession, node.children.length]);
 
+  const handleFullMarkdownExport = React.useCallback(async () => {
+    if (!sessionDirectory) {
+      toast.error(t('sessions.sidebar.session.export.nothingToExport'));
+      return;
+    }
+
+    const records = await loadExportRecords({ directory: sessionDirectory, sessionID: session.id }).catch(() => null);
+    if (!records) {
+      toast.error(t('sessions.sidebar.session.export.failedLoadHistory'));
+      return;
+    }
+    if (records.length === 0) {
+      toast.error(t('sessions.sidebar.session.export.nothingToExport'));
+      return;
+    }
+
+    const fullExport = await collectFullSessionExport(
+      resolvedSession,
+      records,
+      async (childSession) => {
+        const childDirectory = normalizePath(childSession.directory);
+        if (!childDirectory) throw new Error('Session directory is required for export');
+        return loadExportRecords({ directory: childDirectory, sessionID: childSession.id });
+      },
+    );
+    const markdown = formatFullSessionAsMarkdown(fullExport);
+    const filename = buildExportFilename(`${resolvedSession.title || 'session'}-full`);
+    const savedPath = await saveAsMarkdownDesktop(markdown, filename);
+
+    if (savedPath) {
+      toast.success(t('sessions.sidebar.session.export.success'), {
+        action: {
+          label: t(getExportRevealLabelKey()),
+          onClick: () => {
+            void revealExportedMarkdown(savedPath).then((revealed) => {
+              if (!revealed) toast.error(t('sessions.sidebar.session.export.failedRevealPath'));
+            });
+          },
+        },
+      });
+    } else {
+      downloadAsMarkdown(markdown, filename);
+      toast.success(t('sessions.sidebar.session.export.success'));
+    }
+
+    if (fullExport.incompleteCount > 0) {
+      console.warn(`[session-export] full Markdown export contains ${fullExport.incompleteCount} incomplete branch(es)`);
+    }
+  }, [loadExportRecords, resolvedSession, session.id, sessionDirectory, t]);
+
   const handleOpenMiniChatWindow = React.useCallback(() => {
     if (!sessionDirectory) return;
     void invokeDesktop('desktop_open_session_mini_chat_window', {
@@ -1283,6 +1334,12 @@ function SessionNodeItemComponent(props: SessionNodeItemProps): React.ReactNode 
       <Item onClick={() => { void handleExportSession(); }} className="[&>svg]:me-1">
         <Icon name="download" className="me-1 h-4 w-4" />
         {t('sessions.sidebar.session.menu.exportMarkdown')}
+      </Item>
+      </SessionMenuItemHint>
+      <SessionMenuItemHint hint={t('sessions.sidebar.session.menuHint.exportMarkdown')}>
+      <Item onClick={() => { void handleFullMarkdownExport(); }} className="[&>svg]:me-1">
+        <Icon name="download" className="me-1 h-4 w-4" />
+        Full Markdown export
       </Item>
       </SessionMenuItemHint>
       {guestSessionActionEntries.map((entry) => (
