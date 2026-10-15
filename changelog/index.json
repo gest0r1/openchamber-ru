@@ -15,7 +15,7 @@
       ],
       "misc": [
         "Bundled OpenCode updated to 2.0.29.",
-        "Fork changes kept: the Russian interface, subagent rows named after their agent in the agent's colour, and fork releases for Windows x64, Linux x64 and Android."
+        "Fork changes kept: the Russian interface, subagent rows named after their agent in the agent's colour, Full Markdown session export (2.3.1.5), and fork releases for Windows x64, Linux x64 and Android."
       ]
     },
     "vscode": {
@@ -139,6 +139,27 @@
         "Settings: the OpenCode config file and agent and command files are replaced in one step, so OpenCode never reads a half-written file. A symlinked config keeps pointing into your dotfiles, and a read-only config stays untouched (thanks to @Ghilteras).",
         "Settings/Agents: the permissions editor shows outside folders as allowed by default, as OpenCode treats them."
       ],
+      "misc": []
+    }
+  },
+  {
+    "version": "2.3.1.5",
+    "date": "2026-10-15",
+    "title": "Full Markdown session export",
+    "intro": null,
+    "app": {
+      "new": [],
+      "improvements": [
+        "Sessions: added a Full Markdown export that includes the root session, recursively discovered subagent sessions, and tool input, result, and error details.",
+        "Sessions: partial export failures no longer discard healthy sibling branches; incomplete branches are marked in the generated Markdown."
+      ],
+      "fixes": [],
+      "misc": []
+    },
+    "vscode": {
+      "new": [],
+      "improvements": [],
+      "fixes": [],
       "misc": []
     }
   },

@@ -16,7 +16,7 @@
 ### Misc
 
 - Bundled OpenCode updated to 2.0.29.
-- Fork changes kept: the Russian interface, subagent rows named after their agent in the agent's colour, and fork releases for Windows x64, Linux x64 and Android.
+- Fork changes kept: the Russian interface, subagent rows named after their agent in the agent's colour, Full Markdown session export (2.3.1.5), and fork releases for Windows x64, Linux x64 and Android.
 
 ## [2.3.3] - 2026-10-14
 
@@ -103,6 +103,13 @@
 ### Misc
 
 - Bundled OpenCode updated to 2.0.28.
+
+## [2.3.1.5] - 2026-10-15
+
+### Improvements
+
+- Sessions: added a Full Markdown export that includes the root session, recursively discovered subagent sessions, and tool input, result, and error details.
+- Sessions: partial export failures no longer discard healthy sibling branches; incomplete branches are marked in the generated Markdown.
 
 ## [2.3.1.4] - 2026-10-13
 

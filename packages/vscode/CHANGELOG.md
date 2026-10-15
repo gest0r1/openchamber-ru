@@ -29,6 +29,8 @@
 - Settings: the OpenCode config file and agent and command files are replaced in one step, so OpenCode never reads a half-written file. A symlinked config keeps pointing into your dotfiles, and a read-only config stays untouched (thanks to @Ghilteras).
 - Settings/Agents: the permissions editor shows outside folders as allowed by default, as OpenCode treats them.
 
+## [2.3.1.5] - 2026-10-15
+
 ## [2.3.1.4] - 2026-10-13
 
 ## [2.3.1.3] - 2026-10-13

@@ -70,7 +70,8 @@ export function formatMessageRecordText(record: SessionMessageRecord): string {
   return formatMessageText(record.parts, { user: record.info.role === 'user' });
 }
 
-function formatMessageAsMarkdown(record: SessionMessageRecord): string {
+/** A single record exactly as the regular Markdown export renders it. */
+export function formatMessageRecordAsMarkdown(record: SessionMessageRecord): string {
   // Only the conversation roles carry parts. A synthetic message is either
   // context the user attached to the next prompt — exported as Context, the
   // way v1 exported it from inside the user message — or prompt plumbing a
@@ -96,7 +97,7 @@ function formatChildSessionAsMarkdown(child: ChildSessionExport, depth: number):
   const childHeader = `${heading} Sub-agent: ${child.title}${agentLabel}\n\n---\n\n`;
 
   const childBody = child.records
-    .map(formatMessageAsMarkdown)
+    .map(formatMessageRecordAsMarkdown)
     .filter(Boolean)
     .join('\n\n---\n\n');
 
@@ -120,7 +121,7 @@ export function formatSessionAsMarkdown(
   const header = `# ${title}\n\n*Exported on ${date}*\n\n---\n\n`;
 
   const body = messages
-    .map(formatMessageAsMarkdown)
+    .map(formatMessageRecordAsMarkdown)
     .filter(Boolean)
     .join('\n\n---\n\n');
 
