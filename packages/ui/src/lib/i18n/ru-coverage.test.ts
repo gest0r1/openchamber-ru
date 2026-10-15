@@ -36,6 +36,7 @@ const technicalTermAllowlist = new Set([
   // Intentionally empty in both locales: Windows command suffix is not needed here.
   'onboarding.localSetup.windows.stepInstallWslSuffix',
   'mobile.menu.mcp',
+  'mobile.menu.git',
   'layout.rightSidebar.git',
   'sessions.scheduledTasks.dialog.schedule.cron',
   'sessions.scheduledTasks.dialog.schedule.cronWithTimezone',
