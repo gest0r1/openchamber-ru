@@ -1151,6 +1151,7 @@ const messageSearchRuntime = createMessageSearchRuntime({
 
 const telegramSessionDirectories = new Map();
 const telegramActiveShells = new Set();
+const telegramPendingInput = new Map();
 const openCodeWatcherRuntime = createOpenCodeWatcherRuntime({
   waitForOpenCodePort: (...args) => waitForOpenCodePort(...args),
   buildOpenCodeUrl,
@@ -1172,9 +1173,27 @@ const openCodeWatcherRuntime = createOpenCodeWatcherRuntime({
         console.warn('[Telegram] Completion delivery failed');
       });
     }
+    if (sessionId && directory && (payload?.type === 'permission.asked' || payload?.type === 'form.created')) {
+      const existing = telegramPendingInput.get(sessionId);
+      if (existing) clearTimeout(existing);
+      telegramPendingInput.set(sessionId, setTimeout(() => {
+        telegramPendingInput.delete(sessionId);
+        void telegramRuntime.notify({ sessionId, directory, type: 'needs_input' }).catch(() => {
+          console.warn('[Telegram] Input request delivery failed');
+        });
+      }, 750));
+    }
+    if (sessionId && (payload?.type === 'permission.replied' || payload?.type === 'form.replied' || payload?.type === 'session.idle')) {
+      const pending = telegramPendingInput.get(sessionId);
+      if (pending) clearTimeout(pending);
+      telegramPendingInput.delete(sessionId);
+    }
     if (sessionId && payload?.type === 'session.deleted') {
       telegramSessionDirectories.delete(sessionId);
       telegramActiveShells.delete(sessionId);
+      const pending = telegramPendingInput.get(sessionId);
+      if (pending) clearTimeout(pending);
+      telegramPendingInput.delete(sessionId);
     }
     sessionRuntime.processOpenCodeSsePayload(payload);
   },
