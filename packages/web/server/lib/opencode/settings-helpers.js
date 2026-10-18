@@ -197,6 +197,18 @@ export const createSettingsHelpers = (dependencies) => {
     const candidate = payload;
     const result = {};
 
+    if (typeof candidate.telegramEnabled === 'boolean') {
+      result.telegramEnabled = candidate.telegramEnabled;
+    }
+    if (typeof candidate.telegramBotToken === 'string' &&
+        (candidate.telegramBotToken === '' || /^[0-9]+:[A-Za-z0-9_-]+$/.test(candidate.telegramBotToken))) {
+      result.telegramBotToken = candidate.telegramBotToken;
+    }
+    if (typeof candidate.telegramDefaultAlias === 'string' &&
+        /^[\\p{L}\\p{N} _-]{0,80}$/u.test(candidate.telegramDefaultAlias)) {
+      result.telegramDefaultAlias = candidate.telegramDefaultAlias.trim();
+    }
+
     if (typeof candidate.themeId === 'string' && candidate.themeId.length > 0) {
       result.themeId = candidate.themeId;
     }
