@@ -53,6 +53,7 @@ export const registerNotificationRoutes = (app, dependencies) => {
     markUserMessageSent,
     setPushInitialized,
     setAutoAcceptSession,
+    telegramRuntime,
   } = dependencies;
 
   const ensureSessionWatcher = async () => {
@@ -65,6 +66,70 @@ export const registerNotificationRoutes = (app, dependencies) => {
       console.warn('[OpenCodeWatcher] lazy start failed:', error?.message ?? error);
     }
   };
+
+  // Explicit Telegram subscription; the server owns the authoritative store.
+  // UI authentication is required independently of the global API gate.
+  const telegramAuthorized = async (req, res) => {
+    const token = uiAuthController?.ensureSessionToken
+      ? await uiAuthController.ensureSessionToken(req, res)
+      : getUiSessionTokenFromRequest(req);
+    if (!token) {
+      res.status(401).json({ error: 'UI session missing' });
+      return false;
+    }
+    return true;
+  };
+  app.get('/api/notifications/telegram/aliases', async (req, res) => {
+    if (!await telegramAuthorized(req, res)) return;
+    try {
+      res.json({ aliases: await telegramRuntime.listAliases() });
+    } catch {
+      res.status(500).json({ error: 'Telegram configuration unavailable' });
+    }
+  });
+  app.post('/api/notifications/telegram/aliases', async (req, res) => {
+    if (!await telegramAuthorized(req, res)) return;
+    try {
+      await telegramRuntime.configureAlias(req.body?.alias, req.body?.chatId, req.body?.threadId ?? null);
+      res.json({ ok: true });
+    } catch (error) {
+      res.status(error instanceof TypeError ? 400 : 500).json({ error: error instanceof TypeError ? error.message : 'Telegram configuration unavailable' });
+    }
+  });
+  app.post('/api/notifications/telegram/subscribe', async (req, res) => {
+    if (!await telegramAuthorized(req, res)) return;
+    try {
+      await telegramRuntime.subscribe(req.body?.directory, req.body?.sessionId, req.body?.alias);
+      await ensureSessionWatcher();
+      res.json({ ok: true });
+    } catch (error) {
+      const invalid = error instanceof TypeError || error?.message === 'Unknown Telegram alias';
+      res.status(invalid ? 400 : 500).json({ error: invalid ? error.message : 'Telegram subscription unavailable' });
+    }
+  });
+  app.post('/api/notifications/telegram/unsubscribe', async (req, res) => {
+    if (!await telegramAuthorized(req, res)) return;
+    if (typeof req.body?.directory !== 'string' || typeof req.body?.sessionId !== 'string') {
+      return res.status(400).json({ error: 'directory and sessionId required' });
+    }
+    try {
+      await telegramRuntime.unsubscribe(req.body.directory, req.body.sessionId);
+      res.json({ ok: true });
+    } catch {
+      res.status(500).json({ error: 'Telegram subscription unavailable' });
+    }
+  });
+  app.post('/api/notifications/telegram/test', async (req, res) => {
+    if (!await telegramAuthorized(req, res)) return;
+    try {
+      await telegramRuntime.sendText(req.body?.alias, 'OpenChamber Telegram test');
+      res.json({ delivered: true });
+    } catch (error) {
+      res.status(error?.message === 'Unknown Telegram alias' ? 400 : 502).json({
+        error: error?.message === 'Unknown Telegram alias' ? error.message : 'Telegram test delivery failed',
+      });
+    }
+  });
 
   app.get('/api/push/vapid-public-key', async (_req, res) => {
     try {
