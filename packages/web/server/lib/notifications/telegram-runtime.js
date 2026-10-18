@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
-import { readFile, writeFile, mkdir, rename } from 'node:fs/promises';
-import { dirname } from 'node:path';
+import { readFile, writeFile, mkdir, rename, realpath, stat, chmod } from 'node:fs/promises';
+import { dirname, resolve, relative, isAbsolute, basename } from 'node:path';
 
 const keyOf = (directory, sessionId) => createHash('sha256').update(JSON.stringify([directory, sessionId])).digest('hex');
 const safeAlias = (value) => typeof value === 'string' && /^[\p{L}\p{N} _-]{1,80}$/u.test(value.trim());
@@ -15,6 +15,7 @@ const MAX_TEXT = 4000;
 export const createTelegramRuntime = ({
   storePath, getBotToken, getPublicOrigin, activityProbe, fetchImpl = fetch,
   enabled = async () => true,
+  allowedFileRoots = [],
 }) => {
   let queue = Promise.resolve();
   const recentDelivery = new Map();
@@ -36,6 +37,7 @@ export const createTelegramRuntime = ({
       const temporary = `${storePath}.${process.pid}.tmp`;
       await writeFile(temporary, JSON.stringify(data), { mode: 0o600 });
       await rename(temporary, storePath);
+      await chmod(storePath, 0o600);
       return result;
     });
     queue = task;
@@ -95,6 +97,33 @@ export const createTelegramRuntime = ({
       });
     }
   };
+  const sendDocument = async (alias, filePath) => {
+    if (typeof filePath !== 'string' || !isAbsolute(filePath)) throw new TypeError('Absolute file path required');
+    const actual = await realpath(filePath);
+    const allowed = await Promise.all(allowedFileRoots.map(async (root) => realpath(root).catch(() => null)));
+    if (!allowed.some((root) => root && (actual === root || (!relative(root, actual).startsWith('..') && !isAbsolute(relative(root, actual)))))) {
+      throw new TypeError('File path is outside allowed roots');
+    }
+    if (!actual.toLowerCase().endsWith('.md')) throw new TypeError('Only Markdown documents are allowed');
+    const info = await stat(actual);
+    if (!info.isFile() || info.size > 10 * 1024 * 1024) throw new TypeError('Document exceeds 10 MB or is not a file');
+    const data = await load();
+    const target = data.aliases[String(alias).trim().toLowerCase()];
+    if (!target) throw new Error('Unknown Telegram alias');
+    const token = await getBotToken();
+    if (!token || !/^[0-9]+:[A-Za-z0-9_-]+$/.test(token)) throw new Error('Telegram is not configured');
+    const body = new FormData();
+    body.append('chat_id', target.chatId);
+    if (target.threadId) body.append('message_thread_id', String(target.threadId));
+    const contents = await readFile(actual);
+    body.append('document', new Blob([contents], { type: 'text/markdown' }), basename(actual));
+    const response = await fetchImpl(`https://api.telegram.org/bot${token}/sendDocument`, {
+      method: 'POST', body, signal: AbortSignal.timeout(30000),
+    });
+    const result = await response.json().catch(() => null);
+    if (!response.ok || result?.ok !== true) throw new Error(`Telegram document delivery rejected (HTTP ${response.status})`);
+    return true;
+  };
   const hasSubscription = async (directory, sessionId) => {
     const data = await load();
     return Boolean(data.subscriptions[keyOf(directory, sessionId)]);
@@ -124,5 +153,5 @@ export const createTelegramRuntime = ({
     recentDelivery.set(dedupKey, Date.now());
     return true;
   };
-  return { configureAlias, subscribe, unsubscribe, sendText, notify, hasSubscription, listAliases };
+  return { configureAlias, subscribe, unsubscribe, sendText, sendDocument, notify, hasSubscription, listAliases };
 };
