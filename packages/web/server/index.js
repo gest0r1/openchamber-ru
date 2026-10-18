@@ -1149,6 +1149,8 @@ const messageSearchRuntime = createMessageSearchRuntime({
   },
 });
 
+const telegramSessionDirectories = new Map();
+const telegramActiveShells = new Set();
 const openCodeWatcherRuntime = createOpenCodeWatcherRuntime({
   waitForOpenCodePort: (...args) => waitForOpenCodePort(...args),
   buildOpenCodeUrl,
@@ -1160,11 +1162,19 @@ const openCodeWatcherRuntime = createOpenCodeWatcherRuntime({
     void maybeSendPushForTrigger(payload);
     // Telegram is opt-in and independent of UI focus and native push settings.
     const sessionId = payload?.properties?.sessionID ?? payload?.properties?.sessionId ?? payload?.properties?.info?.sessionID;
-    const directory = payload?.properties?.directory ?? payload?.properties?.info?.directory;
-    if (sessionId && directory && payload?.type === 'session.idle' && payload?.properties?.aborted !== true) {
+    const eventDirectory = payload?.properties?.directory ?? payload?.properties?.info?.directory;
+    if (sessionId && eventDirectory) telegramSessionDirectories.set(sessionId, eventDirectory);
+    const directory = eventDirectory || telegramSessionDirectories.get(sessionId);
+    if (sessionId && payload?.type === 'session.shell.started') telegramActiveShells.add(sessionId);
+    if (sessionId && payload?.type === 'session.shell.ended') telegramActiveShells.delete(sessionId);
+    if (sessionId && directory && payload?.type === 'session.idle' && payload?.properties?.aborted !== true && !telegramActiveShells.has(sessionId)) {
       void telegramRuntime.notify({ sessionId, directory, type: 'completed' }).catch(() => {
         console.warn('[Telegram] Completion delivery failed');
       });
+    }
+    if (sessionId && payload?.type === 'session.deleted') {
+      telegramSessionDirectories.delete(sessionId);
+      telegramActiveShells.delete(sessionId);
     }
     sessionRuntime.processOpenCodeSsePayload(payload);
   },
