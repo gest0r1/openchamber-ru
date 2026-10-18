@@ -74,7 +74,7 @@ export const registerNotificationRoutes = (app, dependencies) => {
       ? await uiAuthController.ensureSessionToken(req, res)
       : getUiSessionTokenFromRequest(req);
     if (!token) {
-      res.status(401).json({ error: 'UI session missing' });
+      if (!res.headersSent) res.status(401).json({ error: 'UI session missing' });
       return false;
     }
     return true;
