@@ -64,6 +64,7 @@ export const createBootstrapRuntime = (dependencies) => {
       fetchFreeZenModels,
       getCachedZenModels,
       setAutoAcceptSession,
+      telegramRuntime,
       agentToolRuntime,
       pluginNotificationEmitter,
       desktopUpdater,
