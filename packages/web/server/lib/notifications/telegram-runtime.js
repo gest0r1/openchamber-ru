@@ -17,6 +17,7 @@ export const createTelegramRuntime = ({
   enabled = async () => true,
 }) => {
   let queue = Promise.resolve();
+  const recentDelivery = new Map();
   const empty = () => ({ version: 1, aliases: {}, subscriptions: {} });
   const load = async () => {
     try {
@@ -108,6 +109,8 @@ export const createTelegramRuntime = ({
     const data = await load();
     const subscription = data.subscriptions[keyOf(directory, sessionId)];
     if (!subscription) return false;
+    const dedupKey = `${directory}\u0000${sessionId}\u0000${type}`;
+    if (Date.now() - (recentDelivery.get(dedupKey) ?? 0) < 5000) return false;
     if (type === 'completed') {
       // Unknown activity is not completion. Do not notify prematurely.
       const statuses = await activityProbe.fetchActiveSessionStatuses().catch(() => null);
@@ -118,6 +121,7 @@ export const createTelegramRuntime = ({
     const origin = String(await getPublicOrigin() || '').replace(/\/$/, '');
     const url = /^https:\/\//.test(origin) ? `\n${origin}/?session=${encodeURIComponent(sessionId)}` : '';
     await sendText(subscription.alias, `${type === 'completed' ? 'Agent completed the task' : 'Agent needs your input'}${url}`);
+    recentDelivery.set(dedupKey, Date.now());
     return true;
   };
   return { configureAlias, subscribe, unsubscribe, sendText, notify, hasSubscription, listAliases };
