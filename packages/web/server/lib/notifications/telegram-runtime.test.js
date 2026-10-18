@@ -14,7 +14,7 @@ test('Telegram subscriptions are opt-in, persist and fail closed on unknown acti
     storePath: join(dir, 'telegram.json'),
     getBotToken: async () => '123:example-token',
     getPublicOrigin: async () => 'https://example.test',
-    enterpriseAllowed: () => true,
+    enabled: async () => true,
     activityProbe: {
       fetchActiveSessionStatuses: async () => statuses,
       hasWorkingDescendants: async () => descendants,
@@ -42,8 +42,10 @@ test('Telegram subscriptions are opt-in, persist and fail closed on unknown acti
     assert.match(calls[0].text, /session=s1/);
     assert.equal(await runtime.notify({ directory: '/repo', sessionId: 's1', type: 'error' }), false);
     assert.equal(await runtime.notify({ directory: '/repo', sessionId: 's1', type: 'needs_input' }), true);
+    assert.equal(await runtime.notify({ directory: '/repo', sessionId: 's1', type: 'completed' }), false);
     const restarted = createTelegramRuntime(deps);
-    assert.equal(await restarted.notify({ directory: '/repo', sessionId: 's1', type: 'completed' }), true);
+    assert.equal(await restarted.hasSubscription('/repo', 's1'), true);
+    assert.deepEqual(await restarted.listAliases(), ['мне']);
     await restarted.unsubscribe('/repo', 's1');
     assert.equal(await restarted.notify({ directory: '/repo', sessionId: 's1', type: 'completed' }), false);
   } finally {
