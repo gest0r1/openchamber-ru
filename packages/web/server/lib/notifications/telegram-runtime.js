@@ -4,7 +4,7 @@ import { dirname } from 'node:path';
 
 const keyOf = (directory, sessionId) => createHash('sha256').update(JSON.stringify([directory, sessionId])).digest('hex');
 const safeAlias = (value) => typeof value === 'string' && /^[\p{L}\p{N} _-]{1,80}$/u.test(value.trim());
-const validChat = (value) => /^-?\d+$/.test(String(value));
+const validChat = (value) => /^-?\d+$/.test(String(value)) || /^@[A-Za-z][A-Za-z0-9_]{4,}$/.test(String(value));
 const MAX_TEXT = 4000;
 
 /**
@@ -14,7 +14,7 @@ const MAX_TEXT = 4000;
  */
 export const createTelegramRuntime = ({
   storePath, getBotToken, getPublicOrigin, activityProbe, fetchImpl = fetch,
-  enterpriseAllowed = () => false,
+  enabled = async () => true,
 }) => {
   let queue = Promise.resolve();
   const empty = () => ({ version: 1, aliases: {}, subscriptions: {} });
@@ -60,14 +60,27 @@ export const createTelegramRuntime = ({
   const request = async (method, fields) => {
     const token = await getBotToken();
     if (!token || !/^[0-9]+:[A-Za-z0-9_-]+$/.test(token)) throw new Error('Telegram is not configured');
-    const response = await fetchImpl(`https://api.telegram.org/bot${token}/${method}`, {
-      method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(fields), signal: AbortSignal.timeout(10000),
-    });
-    if (!response.ok) throw new Error(`Telegram delivery failed: HTTP ${response.status}`);
-    const result = await response.json();
-    if (result?.ok !== true) throw new Error('Telegram delivery rejected');
-    return result.result;
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      try {
+        const response = await fetchImpl(`https://api.telegram.org/bot${token}/${method}`, {
+          method: 'POST', headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(fields), signal: AbortSignal.timeout(10000),
+        });
+        const result = await response.json().catch(() => null);
+        if (response.ok && result?.ok === true) return result.result;
+        if (response.status === 429 || response.status >= 500) {
+          if (attempt < 2) {
+            const retryAfter = Number(result?.parameters?.retry_after);
+            await new Promise((resolve) => setTimeout(resolve, Number.isFinite(retryAfter) && retryAfter > 0 ? Math.min(retryAfter * 1000, 10000) : 300 * (2 ** attempt)));
+            continue;
+          }
+        }
+        throw new Error(`Telegram delivery rejected (HTTP ${response.status})`);
+      } catch (error) {
+        if (attempt === 2 || !['TimeoutError', 'TypeError'].includes(error?.name)) throw error;
+        await new Promise((resolve) => setTimeout(resolve, 300 * (2 ** attempt)));
+      }
+    }
   };
   const sendText = async (alias, text) => {
     const data = await load();
@@ -81,9 +94,17 @@ export const createTelegramRuntime = ({
       });
     }
   };
+  const hasSubscription = async (directory, sessionId) => {
+    const data = await load();
+    return Boolean(data.subscriptions[keyOf(directory, sessionId)]);
+  };
+  const listAliases = async () => {
+    const data = await load();
+    return Object.keys(data.aliases);
+  };
   const notify = async ({ directory, sessionId, type, aborted = false }) => {
     if (!directory || !sessionId || aborted || !['completed', 'needs_input'].includes(type)) return false;
-    if (enterpriseAllowed() !== true) return false;
+    if (await enabled() !== true) return false;
     const data = await load();
     const subscription = data.subscriptions[keyOf(directory, sessionId)];
     if (!subscription) return false;
@@ -99,5 +120,5 @@ export const createTelegramRuntime = ({
     await sendText(subscription.alias, `${type === 'completed' ? 'Agent completed the task' : 'Agent needs your input'}${url}`);
     return true;
   };
-  return { configureAlias, subscribe, unsubscribe, sendText, notify };
+  return { configureAlias, subscribe, unsubscribe, sendText, notify, hasSubscription, listAliases };
 };
