@@ -3,8 +3,8 @@ import { readFile, writeFile, mkdir, rename } from 'node:fs/promises';
 import { dirname } from 'node:path';
 
 const keyOf = (directory, sessionId) => createHash('sha256').update(JSON.stringify([directory, sessionId])).digest('hex');
-const safeAlias = (value) => typeof value === 'string' && /^[\\p{L}\\p{N} _-]{1,80}$/u.test(value.trim());
-const validChat = (value) => /^-?\\d+$/.test(String(value));
+const safeAlias = (value) => typeof value === 'string' && /^[\p{L}\p{N} _-]{1,80}$/u.test(value.trim());
+const validChat = (value) => /^-?\d+$/.test(String(value));
 const MAX_TEXT = 4000;
 
 /**
@@ -94,8 +94,8 @@ export const createTelegramRuntime = ({
       const children = await activityProbe.hasWorkingDescendants(sessionId, statuses).catch(() => null);
       if (children !== false) return false;
     }
-    const origin = String(await getPublicOrigin() || '').replace(/\\/$/, '');
-    const url = /^https:\/\//.test(origin) ? `\\n${origin}/?session=${encodeURIComponent(sessionId)}` : '';
+    const origin = String(await getPublicOrigin() || '').replace(/\/$/, '');
+    const url = /^https:\/\//.test(origin) ? `\n${origin}/?session=${encodeURIComponent(sessionId)}` : '';
     await sendText(subscription.alias, `${type === 'completed' ? 'Agent completed the task' : 'Agent needs your input'}${url}`);
     return true;
   };
