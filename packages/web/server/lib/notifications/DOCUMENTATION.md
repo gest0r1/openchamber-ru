@@ -177,3 +177,31 @@ The control stream retains its browser-control capability declaration, runtime
 switch cleanup, stale-source rejection, heartbeat, and reconnect-ready events.
 Electron uses its native notification path; VS Code does not subscribe to this
 server-only stream. Mobile shells retain their existing push behavior.
+
+## Telegram channel (work in progress)
+
+`telegram-runtime.js` is a server-owned, opt-in outbound Telegram Bot API adapter.
+It does not share web-push/APNs visibility gates or send conversation content in
+automatic notifications. Its persistent state is in
+`<OPENCHAMBER_DATA_DIR>/telegram-notifications.json` (0600, atomic replace);
+session subscriptions are keyed by a SHA-256 hash of [directory, sessionId].
+
+The instance setting `telegramEnabled` must be true. The Bot API credential
+comes from `TELEGRAM_BOT_TOKEN` first, then the instance secret
+`telegramBotToken`. An HTTPS `publicOrigin` provides the session deep link.
+No message is sent when the channel is disabled or the session has not opted in.
+A completion requires a readable active-session snapshot, the parent to be
+idle, and `hasWorkingDescendants` to return **false**. Unknown activity
+fails closed. The adapter does not yet establish that detached shell processes
+have terminated.
+
+Authenticated endpoints:
+- `GET /api/notifications/telegram/aliases`: alias names, never chat IDs.
+- `POST /api/notifications/telegram/aliases`: `{alias, chatId, threadId?}`.
+- `POST /api/notifications/telegram/subscribe`: `{directory, sessionId, alias}`.
+- `POST /api/notifications/telegram/unsubscribe`: `{directory, sessionId}`.
+- `POST /api/notifications/telegram/test`: `{alias}`, sends a fixed test message.
+
+The implementation is not yet feature-complete: there is no settings UI,
+agent-tool action, document upload, or pending-question delivery. Do not
+advertise it as a completed integration.
