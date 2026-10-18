@@ -929,6 +929,7 @@ const telegramRuntime = createTelegramRuntime({
   getPublicOrigin: async () => (await readSettingsFromDisk()).publicOrigin,
   enabled: async () => (await readSettingsFromDisk()).telegramEnabled === true,
   activityProbe: createSessionActivityProbe({ buildOpenCodeUrl, getOpenCodeAuthHeaders, timeoutMs: 5000 }),
+  allowedFileRoots: [OPENCHAMBER_CHATS_DIR],
 });
 
 const notificationTriggerRuntime = createNotificationTriggerRuntime({
