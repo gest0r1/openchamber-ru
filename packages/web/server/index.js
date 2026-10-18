@@ -102,6 +102,8 @@ import { runCliEntryIfMain } from './lib/opencode/cli-entry-runtime.js';
 import { registerNotificationRoutes } from './lib/notifications/routes.js';
 import { createNotificationEmitterRuntime } from './lib/notifications/emitter-runtime.js';
 import { createNotificationTriggerRuntime } from './lib/notifications/runtime.js';
+import { createTelegramRuntime } from './lib/notifications/telegram-runtime.js';
+import { createSessionActivityProbe } from './lib/opencode/session-activity.js';
 import { createPushRuntime } from './lib/notifications/push-runtime.js';
 import { createApnsRuntime } from './lib/notifications/apns-runtime.js';
 import { createNotificationTemplateRuntime } from './lib/notifications/template-runtime.js';
@@ -921,6 +923,14 @@ notificationTemplateRuntime = createNotificationTemplateRuntime({
   resolveGitBinaryForSpawn,
 });
 
+const telegramRuntime = createTelegramRuntime({
+  storePath: path.join(OPENCHAMBER_DATA_DIR, 'telegram-notifications.json'),
+  getBotToken: async () => process.env.TELEGRAM_BOT_TOKEN || (await readSettingsFromDisk()).telegramBotToken,
+  getPublicOrigin: async () => (await readSettingsFromDisk()).publicOrigin,
+  enabled: async () => (await readSettingsFromDisk()).telegramEnabled === true,
+  activityProbe: createSessionActivityProbe({ buildOpenCodeUrl, getOpenCodeAuthHeaders, timeoutMs: 5000 }),
+});
+
 const notificationTriggerRuntime = createNotificationTriggerRuntime({
   readSettingsFromDisk,
   prepareNotificationLastMessage,
@@ -1148,6 +1158,14 @@ const openCodeWatcherRuntime = createOpenCodeWatcherRuntime({
   onPayload: (payload) => {
     maybeCacheSessionInfoFromEvent(payload);
     void maybeSendPushForTrigger(payload);
+    // Telegram is opt-in and independent of UI focus and native push settings.
+    const sessionId = payload?.properties?.sessionID ?? payload?.properties?.sessionId ?? payload?.properties?.info?.sessionID;
+    const directory = payload?.properties?.directory ?? payload?.properties?.info?.directory;
+    if (sessionId && directory && payload?.type === 'session.idle' && payload?.properties?.aborted !== true) {
+      void telegramRuntime.notify({ sessionId, directory, type: 'completed' }).catch(() => {
+        console.warn('[Telegram] Completion delivery failed');
+      });
+    }
     sessionRuntime.processOpenCodeSsePayload(payload);
   },
 });
@@ -2361,6 +2379,7 @@ async function main(options = {}) {
     fetchFreeZenModels,
     getCachedZenModels,
     setAutoAcceptSession,
+    telegramRuntime,
     agentToolRuntime,
     desktopUpdater,
     skipBodyParsing: (req) => spacesHost?.skipsBodyParsing(req) === true,
