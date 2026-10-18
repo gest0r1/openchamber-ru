@@ -153,6 +153,7 @@ export const createBootstrapRuntime = (dependencies) => {
       markUserMessageSent: sessionRuntime.markUserMessageSent,
       setPushInitialized,
       setAutoAcceptSession,
+      telegramRuntime,
     });
 
     registerOpenChamberRoutes(app, {
