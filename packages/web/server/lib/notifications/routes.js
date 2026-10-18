@@ -119,6 +119,30 @@ export const registerNotificationRoutes = (app, dependencies) => {
       res.status(500).json({ error: 'Telegram subscription unavailable' });
     }
   });
+  app.post('/api/notifications/telegram/send', async (req, res) => {
+    if (!await telegramAuthorized(req, res)) return;
+    try {
+      if (typeof req.body?.alias !== 'string' || typeof req.body?.text !== 'string' ||
+          req.body.text.length > 100_000) return res.status(400).json({ error: 'Invalid Telegram message' });
+      await telegramRuntime.sendText(req.body.alias, req.body.text);
+      res.json({ delivered: true });
+    } catch (error) {
+      res.status(error?.message === 'Unknown Telegram alias' ? 400 : 502).json({
+        error: error?.message === 'Unknown Telegram alias' ? error.message : 'Telegram delivery failed',
+      });
+    }
+  });
+  app.post('/api/notifications/telegram/document', async (req, res) => {
+    if (!await telegramAuthorized(req, res)) return;
+    try {
+      await telegramRuntime.sendDocument(req.body?.alias, req.body?.filePath);
+      res.json({ delivered: true });
+    } catch (error) {
+      res.status(error instanceof TypeError ? 400 : 502).json({
+        error: error instanceof TypeError ? error.message : 'Telegram document delivery failed',
+      });
+    }
+  });
   app.post('/api/notifications/telegram/test', async (req, res) => {
     if (!await telegramAuthorized(req, res)) return;
     try {
