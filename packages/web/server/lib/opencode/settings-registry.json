@@ -1,6 +1,9 @@
 {
   "version": 1,
   "fields": {
+    "telegramEnabled": { "scope": "instance" },
+    "telegramBotToken": { "scope": "instance", "secret": true },
+    "telegramDefaultAlias": { "scope": "instance" },
     "themeId": {
       "scope": "profile",
       "perSurface": true
