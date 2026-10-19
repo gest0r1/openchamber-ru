@@ -163,7 +163,7 @@ export const TelegramNotificationSettings: React.FC = () => {
             onValueChange={(value) => { void saveConfig({ defaultAlias: value === '_none' ? '' : value }); }}
             disabled={!config || busy}
           >
-            <SelectTrigger size="settings" className={SETTINGS_SELECT_ROW_TRIGGER_CLASS}>
+            <SelectTrigger className={SETTINGS_SELECT_ROW_TRIGGER_CLASS}>
               <SelectValue placeholder={t('settings.notifications.telegram.noAlias')} />
             </SelectTrigger>
             <SelectContent>
@@ -211,7 +211,7 @@ export const TelegramNotificationSettings: React.FC = () => {
             inputMode="numeric"
           />
           <Select value={draft.kind} onValueChange={(kind) => setDraft((old) => ({ ...old, kind: kind as TelegramKind }))}>
-            <SelectTrigger size="settings" className={SETTINGS_SELECT_ROW_TRIGGER_CLASS}>
+            <SelectTrigger className={SETTINGS_SELECT_ROW_TRIGGER_CLASS}>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
