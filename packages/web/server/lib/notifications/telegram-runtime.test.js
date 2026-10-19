@@ -18,6 +18,7 @@ test('Telegram subscriptions are opt-in, persist and fail closed on unknown acti
     activityProbe: {
       fetchActiveSessionStatuses: async () => statuses,
       hasWorkingDescendants: async () => descendants,
+      hasRunningShells: async () => false,
     },
     fetchImpl: async (_url, options) => {
       calls.push(JSON.parse(options.body));
@@ -98,7 +99,7 @@ test('Telegram remains silent when disabled even with an existing subscription',
     getBotToken: async () => '123:example-token',
     getPublicOrigin: async () => '',
     enabled: async () => false,
-    activityProbe: { fetchActiveSessionStatuses: async () => ({}), hasWorkingDescendants: async () => false },
+    activityProbe: { fetchActiveSessionStatuses: async () => ({}), hasWorkingDescendants: async () => false, hasRunningShells: async () => false },
     fetchImpl: async () => { called = true; throw new Error('unexpected request'); },
   });
   try {
@@ -126,6 +127,7 @@ test('Configured aliases support default recipient, opt-in scope, expiry and for
     activityProbe: {
       fetchActiveSessionStatuses: async () => ({}),
       hasWorkingDescendants: async () => false,
+      hasRunningShells: async () => false,
     },
     fetchImpl: async (_url, options) => {
       sent.push(JSON.parse(options.body));
@@ -258,6 +260,8 @@ test('An unsubscribe during live activity probing prevents a stale Telegram aler
           return {};
         },
         hasWorkingDescendants: async () => false,
+      hasRunningShells: async () => false,
+        hasRunningShells: async () => false,
       },
       fetchImpl: async () => {
         sends += 1;
@@ -298,6 +302,8 @@ test('Disabling Telegram during an activity probe prevents a queued notification
           return {};
         },
         hasWorkingDescendants: async () => false,
+      hasRunningShells: async () => false,
+        hasRunningShells: async () => false,
       },
       fetchImpl: async () => {
         sends += 1;
@@ -384,6 +390,42 @@ test('Short Telegram peer IDs are never sent to UI unmasked', async () => {
     assert.equal((await runtime.listAliasDetails())[0].chat_id_masked, '****');
     await runtime.configureAlias('long', '-1002345678');
     assert.ok((await runtime.listAliasDetails()).every((item) => !item.chat_id_masked.includes('-1002345678')));
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test('Completion waits for detached shell jobs after the session itself is idle', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'openchamber-telegram-shell-'));
+  let shellState = true;
+  let delivered = 0;
+  try {
+    const runtime = createTelegramRuntime({
+      storePath: join(dir, 'telegram.json'),
+      getBotToken: async () => '123:test-token',
+      getPublicOrigin: async () => '',
+      enabled: async () => true,
+      activityProbe: {
+        fetchActiveSessionStatuses: async () => ({}),
+        hasWorkingDescendants: async () => false,
+        hasRunningShells: async () => shellState,
+      },
+      fetchImpl: async () => {
+        delivered += 1;
+        return { ok: true, json: async () => ({ ok: true, result: {} }) };
+      },
+    });
+    await runtime.configureAlias('me', '123456');
+    await runtime.subscribe('/repo', 's1', 'me');
+    const event = { directory: '/repo', sessionId: 's1', type: 'completed' };
+    assert.equal(await runtime.notify(event), false);
+    assert.equal(delivered, 0);
+    shellState = null;
+    assert.equal(await runtime.notify(event), false);
+    assert.equal(delivered, 0);
+    shellState = false;
+    assert.equal(await runtime.notify(event), true);
+    assert.equal(delivered, 1);
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
