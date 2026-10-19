@@ -55,22 +55,36 @@ export const createTelegramRuntime = ({
     queue = task;
     return task;
   };
-  const configureAlias = (alias, chatId, threadId = null, kind = 'private') => {
-    if (!safeAlias(alias) || !validChat(chatId) ||
+  const configureAlias = (alias, chatId, threadId = null, kind = 'private', previousName = null) => {
+    if (!safeAlias(alias) || (chatId !== null && chatId !== '' && !validChat(chatId)) ||
       (threadId !== null && (!Number.isSafeInteger(threadId) || threadId < 1)) ||
       !['private', 'group', 'topic'].includes(kind)) {
       throw new TypeError('Invalid Telegram alias or destination');
     }
     const normalized = normalizeAlias(alias);
-    if (!persistAliases) return mutate((data) => {
-      data.aliases[normalized] = { chatId: String(chatId), threadId, kind };
-    });
-    const task = aliasQueue.catch(() => {}).then(async () => {
-      const current = await getConfiguredAliases();
-      const next = (Array.isArray(current) ? current : []).filter((entry) => normalizeAlias(entry.name) !== normalized);
-      next.push({ name: alias.trim(), chat_id: String(chatId), message_thread_id: threadId, kind });
-      await persistAliases(next);
-    });
+    const oldName = previousName ? normalizeAlias(previousName) : normalized;
+    const save = async () => {
+      const current = await configuredAliases();
+      const peer = chatId || current[oldName]?.chatId;
+      if (!validChat(peer)) throw new TypeError('Chat ID is required for a new Telegram alias');
+      if (persistAliases) {
+        const saved = await getConfiguredAliases();
+        const next = (Array.isArray(saved) ? saved : []).filter((entry) => ![normalized, oldName].includes(normalizeAlias(entry.name)));
+        next.push({ name: alias.trim(), chat_id: String(peer), message_thread_id: threadId, kind });
+        await persistAliases(next);
+      } else {
+        await mutate((data) => {
+          delete data.aliases[oldName];
+          data.aliases[normalized] = { chatId: String(peer), threadId, kind };
+        });
+      }
+      if (oldName !== normalized) await mutate((data) => {
+        for (const subscription of Object.values(data.subscriptions)) {
+          if (subscription.alias === oldName) subscription.alias = normalized;
+        }
+      });
+    };
+    const task = aliasQueue.catch(() => {}).then(save);
     aliasQueue = task;
     return task;
   };
