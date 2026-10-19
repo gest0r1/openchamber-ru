@@ -199,7 +199,7 @@ export const createTelegramRuntime = ({
       protectedSpans.push(markup);
       return `\uE000${key}\uE001`;
     };
-    let html = htmlEscape(source);
+    let html = htmlEscape(source.replace(/\r\n?/g, '\n'));
     html = html.replace(/^\`\`\`[^\n]*\n([\s\S]*?)\n\`\`\`[ \t]*$/gm, (_match, code) =>
       protect(`<pre>${code}</pre>`));
     html = html.replace(/\`([^\`\n]+)\`/g, (_match, code) => protect(`<code>${code}</code>`));
@@ -214,6 +214,14 @@ export const createTelegramRuntime = ({
       .replace(/~~([^~\n]+)~~/g, '<s>$1</s>');
     return html.replace(/\uE000(\d+)\uE001/g, (_match, key) => protectedSpans[Number(key)] ?? '');
   };
+  const safeChunkEnd = (value, start, maxLength) => {
+    let end = Math.min(value.length, start + maxLength);
+    // Do not split a Unicode surrogate pair between Telegram messages.
+    if (end > start && end < value.length &&
+      value.charCodeAt(end - 1) >= 0xD800 && value.charCodeAt(end - 1) <= 0xDBFF &&
+      value.charCodeAt(end) >= 0xDC00 && value.charCodeAt(end) <= 0xDFFF) end -= 1;
+    return end;
+  };
   const sendText = async (alias, text, { formatted = false } = {}) => {
     const { target } = await selectAlias(alias);
     if (typeof text !== 'string' || !text.trim()) throw new TypeError('Message is empty');
@@ -222,22 +230,24 @@ export const createTelegramRuntime = ({
       chat_id: target.chatId, ...(target.threadId ? { message_thread_id: target.threadId } : {}),
     };
     if (!formatted) {
-      for (let offset = 0; offset < text.length; offset += MAX_TEXT) {
-        await request('sendMessage', { ...destination, text: text.slice(offset, offset + MAX_TEXT) });
+      for (let offset = 0; offset < text.length;) {
+        const end = safeChunkEnd(text, offset, MAX_TEXT);
+        await request('sendMessage', { ...destination, text: text.slice(offset, end) });
+        offset = end;
       }
       return true;
     }
     let offset = 0;
     while (offset < text.length) {
-      let step = Math.min(MAX_TEXT, text.length - offset);
-      let html = markdownToTelegramHtml(text.slice(offset, offset + step));
-      while (html.length > 4096 && step > 1) {
-        step = Math.floor(step / 2);
-        html = markdownToTelegramHtml(text.slice(offset, offset + step));
+      let end = safeChunkEnd(text, offset, MAX_TEXT);
+      let html = markdownToTelegramHtml(text.slice(offset, end));
+      while (html.length > 4096 && end - offset > 2) {
+        end = safeChunkEnd(text, offset, Math.max(2, Math.floor((end - offset) / 2)));
+        html = markdownToTelegramHtml(text.slice(offset, end));
       }
       if (html.length > 4096) throw new TypeError('Formatted message cannot fit Telegram limit');
       await request('sendMessage', { ...destination, text: html, parse_mode: 'HTML' });
-      offset += step;
+      offset = end;
     }
     return true;
   };
