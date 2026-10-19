@@ -64,6 +64,18 @@ both settings are `false`.
   carried a `url` into "url is required", which reads as a broken tool rather
   than a malformed call.
 
+## Telegram actions
+
+When the managed `openchamber_notify` tool is enabled, its additional actions
+can subscribe the calling session with `notify.telegram_optin` (optional
+alias, scope `session`, `run` or `once`), unsubscribe with
+`notify.telegram_stop`, and explicitly deliver text or Markdown with
+`notify.telegram_send` (`alias`, `text`, `file`, `caption`, `mode`).
+The server determines the calling session ID and directory; the agent cannot
+change the subscription to another session through the action input.
+Explicit sends need no opt-in and accept project files only inside the
+calling session directory. Telegram itself must be enabled for delivery.
+
 ## Runtime flow
 
 1. The OpenChamber HTTP listener binds and publishes its authoritative port.
