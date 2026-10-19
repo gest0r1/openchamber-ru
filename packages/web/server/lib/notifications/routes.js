@@ -91,7 +91,13 @@ export const registerNotificationRoutes = (app, dependencies) => {
   app.post('/api/notifications/telegram/aliases', async (req, res) => {
     if (!await telegramAuthorized(req, res)) return;
     try {
-      await telegramRuntime.configureAlias(req.body?.alias, req.body?.chatId, req.body?.threadId ?? null, req.body?.kind ?? 'private');
+      await telegramRuntime.configureAlias(req.body?.alias, req.body?.chatId, req.body?.threadId ?? null, req.body?.kind ?? 'private', req.body?.previousName ?? null);
+      if (req.body?.previousName && req.body?.previousName !== req.body?.alias) {
+        const settings = await readSettingsFromDiskMigrated();
+        if (settings.telegramDefaultAlias?.toLocaleLowerCase() === req.body.previousName.toLocaleLowerCase()) {
+          await persistSettings({ telegramDefaultAlias: req.body.alias });
+        }
+      }
       res.json({ ok: true });
     } catch (error) {
       res.status(error instanceof TypeError ? 400 : 500).json({ error: error instanceof TypeError ? error.message : 'Telegram configuration unavailable' });
