@@ -55,6 +55,46 @@ const createService = (overrides = {}) => {
 };
 
 describe('OpenChamber control service', () => {
+  it('allows Telegram opt-in, stop and explicit delivery through the managed notification gate', async () => {
+    const telegramRuntime = {
+      subscribe: vi.fn(async () => undefined),
+      unsubscribe: vi.fn(async () => undefined),
+      sendContent: vi.fn(async () => ({ delivered: true })),
+    };
+    const readSettingsFromDiskMigrated = vi.fn(async () => ({
+      agentNotifyToolEnabled: true, telegramEnabled: true,
+    }));
+    const { service } = createService({ telegramRuntime, readSettingsFromDiskMigrated });
+
+    await expect(service.execute('notify.telegram_optin', { alias: 'me', scope: 'session' }, '/repo', {
+      contextSessionId: 'ses_calling',
+    })).resolves.toEqual({ opted_in: true, sessionId: 'ses_calling', scope: 'session' });
+    expect(telegramRuntime.subscribe).toHaveBeenCalledWith(
+      '/repo', 'ses_calling', 'me', { scope: 'session', origin: 'agent' },
+    );
+
+    await expect(service.execute('notify.telegram_send', {
+      alias: 'me', text: 'Finished', mode: 'formatted',
+    }, '/repo', { contextSessionId: 'ses_calling' })).resolves.toEqual({ delivered: true });
+    expect(telegramRuntime.sendContent).toHaveBeenCalledWith({
+      alias: 'me', text: 'Finished', file: undefined, caption: undefined,
+      mode: 'formatted', directory: '/repo',
+    });
+
+    await expect(service.execute('notify.telegram_stop', {}, '/repo', {
+      contextSessionId: 'ses_calling',
+    })).resolves.toEqual({ opted_in: false, sessionId: 'ses_calling' });
+    expect(telegramRuntime.unsubscribe).toHaveBeenCalledWith('/repo', 'ses_calling');
+
+    readSettingsFromDiskMigrated.mockResolvedValue({
+      agentNotifyToolEnabled: false, telegramEnabled: true,
+    });
+    await expect(service.execute('notify.telegram_send', { text: 'Denied' }, '/repo'))
+      .rejects.toThrow('notify tool is turned off');
+    expect(telegramRuntime.sendContent).toHaveBeenCalledTimes(1);
+  });
+
+
   it('creates a target task with inherited selection and accepts retargeting on update', async () => {
     const { service, scheduledTaskService } = createService();
     scheduledTaskService.upsert.mockImplementation(async (_project, task) => ({ task }));
