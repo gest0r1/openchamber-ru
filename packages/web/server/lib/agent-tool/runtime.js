@@ -541,7 +541,12 @@ export const createAgentToolRuntime = (dependencies) => {
     // Knowledge writes are attributed to the calling session, so no payload
     // field may stand in for the session OpenCode reported.
     const knowledgeAction = OPENCHAMBER_KNOWLEDGE_ACTIONS.includes(action);
-    let contextDirectory = knowledgeAction ? undefined : asNonEmptyString(payload.contextDirectory) ?? undefined;
+    // Telegram file delivery and opt-in use the authoritative OpenCode session
+    // directory. The callback payload cannot choose the filesystem trust root.
+    const telegramAction = action.startsWith('notify.telegram_');
+    let contextDirectory = knowledgeAction || telegramAction
+      ? undefined
+      : asNonEmptyString(payload.contextDirectory) ?? undefined;
     const sessionID = asNonEmptyString(payload.sessionID);
     if (!contextDirectory && sessionID && typeof resolveSessionDirectory === 'function') {
       contextDirectory = await Promise.resolve(resolveSessionDirectory(sessionID))
