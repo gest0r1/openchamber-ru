@@ -130,6 +130,10 @@ export const registerNotificationRoutes = (app, dependencies) => {
     if (!await telegramAuthorized(req, res)) return;
     try {
       await telegramRuntime.deleteAlias(req.body?.alias);
+      const settings = await readSettingsFromDiskMigrated();
+      if (settings.telegramDefaultAlias?.toLocaleLowerCase() === String(req.body?.alias).toLocaleLowerCase()) {
+        await persistSettings({ telegramDefaultAlias: '' });
+      }
       res.json({ ok: true });
     } catch (error) {
       res.status(error instanceof TypeError ? 400 : 500).json({
@@ -161,7 +165,14 @@ export const registerNotificationRoutes = (app, dependencies) => {
       if (typeof req.body.defaultAlias !== 'string' || !/^[\p{L}\p{N} _-]{0,80}$/u.test(req.body.defaultAlias)) {
         return res.status(400).json({ error: 'Invalid default alias' });
       }
-      changes.telegramDefaultAlias = req.body.defaultAlias.trim();
+      const selected = req.body.defaultAlias.trim();
+      if (selected) {
+        const aliases = await telegramRuntime.listAliases();
+        if (!aliases.includes(selected.toLocaleLowerCase())) {
+          return res.status(400).json({ error: 'Unknown default Telegram alias' });
+        }
+      }
+      changes.telegramDefaultAlias = selected;
     }
     if (req.body?.botToken !== undefined && req.body.botToken !== '') {
       if (typeof req.body.botToken !== 'string' || !/^[0-9]+:[A-Za-z0-9_-]+$/.test(req.body.botToken)) {
