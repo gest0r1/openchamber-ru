@@ -1809,6 +1809,7 @@ const openChamberControlService = createOpenChamberControlService({
   scheduledTaskService,
   browserControl: browserControlRouter,
   fileOpen: fileOpenRequester,
+  telegramRuntime,
   projectContextRuntime,
   // The resolver session knowledge reads pinned notes and plans through, so
   // what an agent writes is what the next session is given.
