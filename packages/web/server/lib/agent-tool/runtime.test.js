@@ -446,12 +446,32 @@ describe('managed agent tool runtime', () => {
 
     expect(Object.keys(tool)).toEqual(['openchamber', 'openchamber_notify']);
     expect(Object.keys(tool.openchamber_notify.input.properties.parameters.properties).sort())
-      .toEqual(['body', 'showWhenFocused', 'title']);
+      .toEqual(['alias', 'body', 'caption', 'file', 'mode', 'scope', 'showWhenFocused', 'text', 'title']);
     expect(Object.keys(tool.openchamber.input.properties.parameters.properties)).not.toContain('showWhenFocused');
 
     const { runtime: plain, dataDir: plainDir } = await createRuntime();
     await prepareManagedEnv(plain, { includeControl: true, includeWeb: false, includeMemory: false });
     expect(Object.keys(await loadTools(plainDir, 'nonotify'))).toEqual(['openchamber']);
+  });
+
+  it('binds Telegram agent calls to the authoritative calling session', async () => {
+    const { runtime, executeAction } = await createRuntime({
+      resolveSessionDirectory: async (sessionID) => sessionID === 'ses_real' ? '/real' : undefined,
+    });
+    const input = { action: 'notify.telegram_optin', alias: 'me' };
+    await runtime.execute({
+      tool: 'openchamber_notify',
+      input,
+      sessionID: 'ses_real',
+      contextDirectory: '/spoof',
+      contextSessionId: 'spoofed_session',
+    });
+    expect(executeAction).toHaveBeenCalledWith(
+      'notify.telegram_optin',
+      input,
+      '/real',
+      { contextSessionId: 'ses_real' },
+    );
   });
 
   it('exposes render as its own tool carrying only the page and its title', async () => {
