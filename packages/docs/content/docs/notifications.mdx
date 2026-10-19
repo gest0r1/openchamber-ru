@@ -46,7 +46,10 @@ The file must be located in the calling session's working directory and
 must be no larger than 10 MB.
 
 Telegram receives brief event notifications and optional session links.
-The app does not send your chat transcript as part of automatic alerts.
+Completion alerts wait until the session, its subagents, and background shell
+commands have finished. If the server cannot confirm that work has stopped,
+it does not announce completion early. The app does not send your chat
+transcript as part of automatic alerts.
 
 ## Customize the wording
 
