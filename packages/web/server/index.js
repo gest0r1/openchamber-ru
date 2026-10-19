@@ -932,6 +932,7 @@ const telegramRuntime = createTelegramRuntime({
   allowedFileRoots: [OPENCHAMBER_CHATS_DIR],
 });
 
+const telegramSessionDirectories = new Map();
 const notificationTriggerRuntime = createNotificationTriggerRuntime({
   readSettingsFromDisk,
   prepareNotificationLastMessage,
@@ -944,6 +945,8 @@ const notificationTriggerRuntime = createNotificationTriggerRuntime({
   broadcastUiNotification,
   sendPushToAllUiSessions,
   sendApnsToAllUiSessions,
+  telegramRuntime,
+  resolveTelegramDirectory: (sessionId, directory) => directory || telegramSessionDirectories.get(sessionId),
   isAnyInteractiveClientVisible,
   buildOpenCodeUrl,
   getOpenCodeAuthHeaders,
@@ -1150,9 +1153,6 @@ const messageSearchRuntime = createMessageSearchRuntime({
   },
 });
 
-const telegramSessionDirectories = new Map();
-const telegramActiveShells = new Set();
-const telegramPendingInput = new Map();
 const openCodeWatcherRuntime = createOpenCodeWatcherRuntime({
   waitForOpenCodePort: (...args) => waitForOpenCodePort(...args),
   buildOpenCodeUrl,
@@ -1162,40 +1162,10 @@ const openCodeWatcherRuntime = createOpenCodeWatcherRuntime({
   onPayload: (payload) => {
     maybeCacheSessionInfoFromEvent(payload);
     void maybeSendPushForTrigger(payload);
-    // Telegram is opt-in and independent of UI focus and native push settings.
     const sessionId = payload?.properties?.sessionID ?? payload?.properties?.sessionId ?? payload?.properties?.info?.sessionID;
     const eventDirectory = payload?.properties?.directory ?? payload?.properties?.info?.directory;
     if (sessionId && eventDirectory) telegramSessionDirectories.set(sessionId, eventDirectory);
-    const directory = eventDirectory || telegramSessionDirectories.get(sessionId);
-    if (sessionId && payload?.type === 'session.shell.started') telegramActiveShells.add(sessionId);
-    if (sessionId && payload?.type === 'session.shell.ended') telegramActiveShells.delete(sessionId);
-    if (sessionId && directory && payload?.type === 'session.idle' && payload?.properties?.aborted !== true && !telegramActiveShells.has(sessionId)) {
-      void telegramRuntime.notify({ sessionId, directory, type: 'completed' }).catch(() => {
-        console.warn('[Telegram] Completion delivery failed');
-      });
-    }
-    if (sessionId && directory && (payload?.type === 'permission.asked' || payload?.type === 'form.created')) {
-      const existing = telegramPendingInput.get(sessionId);
-      if (existing) clearTimeout(existing);
-      telegramPendingInput.set(sessionId, setTimeout(() => {
-        telegramPendingInput.delete(sessionId);
-        void telegramRuntime.notify({ sessionId, directory, type: 'needs_input' }).catch(() => {
-          console.warn('[Telegram] Input request delivery failed');
-        });
-      }, 750));
-    }
-    if (sessionId && (payload?.type === 'permission.replied' || payload?.type === 'form.replied' || payload?.type === 'session.idle')) {
-      const pending = telegramPendingInput.get(sessionId);
-      if (pending) clearTimeout(pending);
-      telegramPendingInput.delete(sessionId);
-    }
-    if (sessionId && payload?.type === 'session.deleted') {
-      telegramSessionDirectories.delete(sessionId);
-      telegramActiveShells.delete(sessionId);
-      const pending = telegramPendingInput.get(sessionId);
-      if (pending) clearTimeout(pending);
-      telegramPendingInput.delete(sessionId);
-    }
+    if (sessionId && payload?.type === 'session.deleted') telegramSessionDirectories.delete(sessionId);
     sessionRuntime.processOpenCodeSsePayload(payload);
   },
 });
