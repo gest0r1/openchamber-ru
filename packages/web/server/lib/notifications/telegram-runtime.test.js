@@ -260,7 +260,6 @@ test('An unsubscribe during live activity probing prevents a stale Telegram aler
           return {};
         },
         hasWorkingDescendants: async () => false,
-      hasRunningShells: async () => false,
         hasRunningShells: async () => false,
       },
       fetchImpl: async () => {
@@ -302,7 +301,6 @@ test('Disabling Telegram during an activity probe prevents a queued notification
           return {};
         },
         hasWorkingDescendants: async () => false,
-      hasRunningShells: async () => false,
         hasRunningShells: async () => false,
       },
       fetchImpl: async () => {
