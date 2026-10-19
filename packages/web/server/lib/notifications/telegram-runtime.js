@@ -150,11 +150,11 @@ export const createTelegramRuntime = ({
   const htmlEscape = (value) => value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   const markdownToTelegramHtml = (source) => htmlEscape(source)
     .replace(/^#{1,6} +/gm, '')
-    .replace(/\\*\\*([^*\\n]+)\\*\\*/g, '<b>$1</b>')
-    .replace(/__([^_\\n]+)__/g, '<b>$1</b>')
-    .replace(/\\*([^*\\n]+)\\*/g, '<i>$1</i>')
-    .replace(/~~([^~\\n]+)~~/g, '<s>$1</s>')
-    .replace(/`([^`\\n]+)`/g, '<code>$1</code>');
+    .replace(/\*\*([^*\n]+)\*\*/g, '<b>$1</b>')
+    .replace(/__([^_\n]+)__/g, '<b>$1</b>')
+    .replace(/\*([^*\n]+)\*/g, '<i>$1</i>')
+    .replace(/~~([^~\n]+)~~/g, '<s>$1</s>')
+    .replace(/`([^`\n]+)`/g, '<code>$1</code>');
 
   const sendText = async (alias, text, { formatted = false } = {}) => {
     const { target } = await selectAlias(alias);
