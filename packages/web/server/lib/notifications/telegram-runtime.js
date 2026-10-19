@@ -288,16 +288,17 @@ export const createTelegramRuntime = ({
     }
     const origin = String(await getPublicOrigin() || '').replace(/\/$/, '');
     const url = /^https:\/\//.test(origin) ? `\n${origin}/?session=${encodeURIComponent(sessionId)}` : '';
+    if (inflightDelivery.has(dedupKey)) return false;
     inflightDelivery.add(dedupKey);
     try {
       await sendText(subscription.alias, `${type === 'completed' ? 'Agent completed the task' : type === 'error' ? 'Agent encountered an error' : 'Agent needs your input'}${url}`);
       if (subscription.scope === 'once' || (subscription.scope === 'run' && type === 'completed')) {
-      await mutate((latest) => {
-        if (latest.subscriptions[keyOf(directory, sessionId)]?.created_at === subscription.created_at) {
-          delete latest.subscriptions[keyOf(directory, sessionId)];
-        }
-      });
-    }
+        await mutate((latest) => {
+          if (latest.subscriptions[keyOf(directory, sessionId)]?.created_at === subscription.created_at) {
+            delete latest.subscriptions[keyOf(directory, sessionId)];
+          }
+        });
+      }
       recentDelivery.set(dedupKey, Date.now());
       return true;
     } finally {
