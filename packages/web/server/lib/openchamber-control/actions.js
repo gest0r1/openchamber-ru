@@ -104,6 +104,9 @@ export const OPENCHAMBER_KNOWLEDGE_ACTIONS = Object.freeze(
  */
 export const OPENCHAMBER_NOTIFY_ACTION_DEFINITIONS = Object.freeze([
   { action: 'notify.send', title: 'Notify the user', description: 'Send the user a notification; requires title, body is optional. By default it appears only while the user is away from OpenChamber; set showWhenFocused only when it cannot wait' },
+  { action: 'notify.telegram_optin', title: 'Enable Telegram alerts for this session', description: 'Explicitly enable Telegram notifications for this calling session. Optional alias, scope session (default), run, or once. Requires the user to ask for notifications.' },
+  { action: 'notify.telegram_stop', title: 'Stop Telegram alerts for this session', description: 'Disable Telegram notifications for this calling session; no parameters' },
+  { action: 'notify.telegram_send', title: 'Send to Telegram', description: 'Explicitly send text or a Markdown file to a Telegram alias independent of opt-in. Supply alias (optional if default alias configured), text or file, caption (optional), mode document (default) or formatted.' },
 ]);
 
 export const OPENCHAMBER_NOTIFY_ACTIONS = Object.freeze(
