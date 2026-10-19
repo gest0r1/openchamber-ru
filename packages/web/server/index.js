@@ -930,6 +930,9 @@ const telegramRuntime = createTelegramRuntime({
   enabled: async () => (await readSettingsFromDisk()).telegramEnabled === true,
   activityProbe: createSessionActivityProbe({ buildOpenCodeUrl, getOpenCodeAuthHeaders, timeoutMs: 5000 }),
   allowedFileRoots: [OPENCHAMBER_CHATS_DIR],
+  getConfiguredAliases: async () => (await readSettingsFromDisk()).telegramAliases ?? [],
+  persistAliases: async (aliases) => persistSettings({ telegramAliases: aliases }),
+  getDefaultAlias: async () => (await readSettingsFromDisk()).telegramDefaultAlias || '',
 });
 
 const telegramSessionDirectories = new Map();
