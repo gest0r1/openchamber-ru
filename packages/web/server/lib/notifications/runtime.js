@@ -646,21 +646,29 @@ export const createNotificationTriggerRuntime = (deps) => {
       return;
     }
 
-    if (payload.type === 'form.replied' && sessionId) {
+    if (['form.settled', 'form.replied', 'form.cancelled'].includes(payload.type) && sessionId) {
+      // OpenCode v2 uses form.settled for both answered and cancelled forms.
+      // A delayed reply to an earlier form must not cancel a newer question.
+      const settledId = payload.properties?.formID ?? payload.properties?.formId ?? payload.properties?.id;
       const pending = pushQuestionDebounceTimers.get(sessionId);
-      if (pending) clearTimeout(pending);
-      pushQuestionDebounceTimers.delete(sessionId);
+      if (pending && (!settledId || !pending.formId || pending.formId === settledId)) {
+        clearTimeout(pending.timer);
+        pushQuestionDebounceTimers.delete(sessionId);
+      }
       return;
     }
 
     if (payload.type === 'form.created' && sessionId) {
       const existingTimer = pushQuestionDebounceTimers.get(sessionId);
       if (existingTimer) {
-        clearTimeout(existingTimer);
+        clearTimeout(existingTimer.timer);
       }
 
+      const formId = payload.properties?.form?.id;
       const timer = setTimeout(async () => {
-        pushQuestionDebounceTimers.delete(sessionId);
+        if (pushQuestionDebounceTimers.get(sessionId)?.timer === timer) {
+          pushQuestionDebounceTimers.delete(sessionId);
+        }
 
         void maybeSendTelegram(sessionId, notificationDirectory, 'needs_input').catch(() => console.warn('[Telegram] Notification trigger failed'));
         const settings = await readSettingsFromDisk();
@@ -740,7 +748,7 @@ export const createNotificationTriggerRuntime = (deps) => {
         );
       }, PUSH_QUESTION_DEBOUNCE_MS);
 
-      pushQuestionDebounceTimers.set(sessionId, timer);
+      pushQuestionDebounceTimers.set(sessionId, { timer, formId });
       return;
     }
 
