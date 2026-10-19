@@ -496,3 +496,37 @@ test('Russian recipient phrases resolve only to a configured normalized alias', 
     await rm(dir, { recursive: true, force: true });
   }
 });
+
+test('Unicode characters are never split across plain or formatted Telegram chunks', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'openchamber-telegram-unicode-'));
+  const sent = [];
+  try {
+    const runtime = createTelegramRuntime({
+      storePath: join(dir, 'telegram.json'),
+      getBotToken: async () => '123:test-token',
+      getPublicOrigin: async () => '',
+      enabled: async () => true,
+      activityProbe: {},
+      fetchImpl: async (_url, options) => {
+        sent.push(JSON.parse(options.body));
+        return { ok: true, json: async () => ({ ok: true, result: {} }) };
+      },
+    });
+    await runtime.configureAlias('me', '12345');
+    const source = 'x'.repeat(3999) + '😀' + 'y'.repeat(12);
+    await runtime.sendContent({ alias: 'me', text: source });
+    assert.equal(sent.length, 2);
+    assert.equal(sent.map((item) => item.text).join(''), source);
+    sent.length = 0;
+    await runtime.sendContent({ alias: 'me', text: source, mode: 'formatted' });
+    assert.ok(sent.length >= 2);
+    assert.equal(sent.map((item) => item.text).join(''), source);
+    assert.ok(sent.every((item) => item.text.length <= 4096));
+    sent.length = 0;
+    await runtime.sendContent({ alias: 'me', text: '# Heading\r\n\`\`\`js\r\nlet x = 1;\r\n\`\`\`', mode: 'formatted' });
+    assert.match(sent[0].text, /<b>Heading<\/b>/);
+    assert.match(sent[0].text, /<pre>let x = 1;<\/pre>/);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
