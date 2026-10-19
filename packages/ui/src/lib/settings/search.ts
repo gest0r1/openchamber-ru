@@ -1396,6 +1396,13 @@ const SETTINGS_SEARCH_ITEMS: readonly SettingsSearchItem[] = [
     keywords: ['completion', 'subtasks', 'errors', 'questions'],
   },
   {
+    id: 'notifications.telegram',
+    page: 'notifications',
+    titleKey: 'settings.notifications.telegram.title',
+    keywords: ['Telegram', 'bot', 'chat', 'topic', 'alerts'],
+    isAvailable: (ctx) => !ctx.isVSCode,
+  },
+  {
     id: 'notifications.push',
     page: 'notifications',
     titleKey: 'settings.notifications.page.push.title',
