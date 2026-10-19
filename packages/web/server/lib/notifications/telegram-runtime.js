@@ -16,8 +16,20 @@ export const createTelegramRuntime = ({
   storePath, getBotToken, getPublicOrigin, activityProbe, fetchImpl = fetch,
   enabled = async () => true,
   allowedFileRoots = [],
+  getConfiguredAliases = null,
+  persistAliases = null,
+  getDefaultAlias = async () => '',
 }) => {
   let queue = Promise.resolve();
+  let aliasQueue = Promise.resolve();
+  const normalizeAlias = (value) => String(value ?? '').trim().toLocaleLowerCase();
+  const configuredAliases = async () => {
+    if (!getConfiguredAliases) return (await load()).aliases;
+    const aliases = await getConfiguredAliases();
+    return Object.fromEntries((Array.isArray(aliases) ? aliases : []).map((entry) => [normalizeAlias(entry.name), {
+      chatId: String(entry.chat_id), threadId: entry.message_thread_id ?? null, kind: entry.kind ?? 'private',
+    }]));
+  };
   const recentDelivery = new Map();
   const empty = () => ({ version: 1, aliases: {}, subscriptions: {} });
   const load = async () => {
@@ -43,23 +55,73 @@ export const createTelegramRuntime = ({
     queue = task;
     return task;
   };
-  const configureAlias = (alias, chatId, threadId = null) => {
-    if (!safeAlias(alias) || !validChat(chatId) || (threadId !== null && (!Number.isSafeInteger(threadId) || threadId < 1))) {
+  const configureAlias = (alias, chatId, threadId = null, kind = 'private') => {
+    if (!safeAlias(alias) || !validChat(chatId) ||
+      (threadId !== null && (!Number.isSafeInteger(threadId) || threadId < 1)) ||
+      !['private', 'group', 'topic'].includes(kind)) {
       throw new TypeError('Invalid Telegram alias or destination');
     }
-    return mutate((data) => { data.aliases[alias.trim().toLowerCase()] = { chatId: String(chatId), threadId }; });
+    const normalized = normalizeAlias(alias);
+    if (!persistAliases) return mutate((data) => {
+      data.aliases[normalized] = { chatId: String(chatId), threadId, kind };
+    });
+    const task = aliasQueue.catch(() => {}).then(async () => {
+      const current = await getConfiguredAliases();
+      const next = (Array.isArray(current) ? current : []).filter((entry) => normalizeAlias(entry.name) !== normalized);
+      next.push({ name: alias.trim(), chat_id: String(chatId), message_thread_id: threadId, kind });
+      await persistAliases(next);
+    });
+    aliasQueue = task;
+    return task;
   };
-  const subscribe = (directory, sessionId, alias) => {
-    if (!directory || !sessionId || !safeAlias(alias)) throw new TypeError('Invalid subscription');
+  const deleteAlias = (alias) => {
+    if (!safeAlias(alias)) throw new TypeError('Invalid Telegram alias');
+    const normalized = normalizeAlias(alias);
+    if (!persistAliases) return mutate((data) => { delete data.aliases[normalized]; });
+    const task = aliasQueue.catch(() => {}).then(async () => {
+      const current = await getConfiguredAliases();
+      await persistAliases((Array.isArray(current) ? current : []).filter((entry) => normalizeAlias(entry.name) !== normalized));
+    });
+    aliasQueue = task;
+    return task;
+  };
+  const selectAlias = async (alias) => {
+    const name = normalizeAlias(alias || await getDefaultAlias());
+    if (!name) throw new TypeError('Telegram default alias is not configured');
+    const aliases = await configuredAliases();
+    const target = aliases[name];
+    if (!target) throw new TypeError(`Unknown Telegram alias: ${name}`);
+    return { name, target };
+  };
+  const subscribe = async (directory, sessionId, alias, options = {}) => {
+    if (typeof directory !== 'string' || !directory.trim() || typeof sessionId !== 'string' || !sessionId.trim()) {
+      throw new TypeError('Invalid subscription');
+    }
+    const { name } = await selectAlias(alias);
+    const scope = options.scope ?? 'session';
+    if (!['once', 'run', 'session'].includes(scope)) throw new TypeError('Invalid Telegram subscription scope');
+    const expiresAt = options.expiresAt ?? (Date.now() + 7 * 24 * 60 * 60 * 1000);
+    if (!Number.isSafeInteger(expiresAt) || expiresAt <= Date.now()) throw new TypeError('Invalid Telegram expiry');
+    const origin = options.origin === 'agent' ? 'agent' : 'user';
     return mutate((data) => {
-      const name = alias.trim().toLowerCase();
-      if (!data.aliases[name]) throw new Error('Unknown Telegram alias');
-      data.subscriptions[keyOf(directory, sessionId)] = { alias: name, sessionId };
+      data.subscriptions[keyOf(directory, sessionId)] = {
+        opted_in: true, alias: name, scope, created_at: Date.now(), expires_at: expiresAt, origin,
+        sessionId,
+      };
     });
   };
   const unsubscribe = (directory, sessionId) => mutate((data) => {
     delete data.subscriptions[keyOf(directory, sessionId)];
   });
+  const listAliasDetails = async () => {
+    const aliases = await configuredAliases();
+    return Object.entries(aliases).map(([name, value]) => ({
+      name,
+      chat_id_masked: String(value.chatId).replace(/.(?=.{4})/g, '*'),
+      message_thread_id: value.threadId,
+      kind: value.kind,
+    }));
+  };
   const request = async (method, fields) => {
     const token = await getBotToken();
     if (!token || !/^[0-9]+:[A-Za-z0-9_-]+$/.test(token)) throw new Error('Telegram is not configured');
@@ -86,9 +148,7 @@ export const createTelegramRuntime = ({
     }
   };
   const sendText = async (alias, text) => {
-    const data = await load();
-    const target = data.aliases[String(alias).trim().toLowerCase()];
-    if (!target) throw new Error('Unknown Telegram alias');
+    const { target } = await selectAlias(alias);
     if (typeof text !== 'string' || !text.trim()) throw new TypeError('Message is empty');
     for (let offset = 0; offset < text.length; offset += MAX_TEXT) {
       await request('sendMessage', {
@@ -107,9 +167,7 @@ export const createTelegramRuntime = ({
     if (!actual.toLowerCase().endsWith('.md')) throw new TypeError('Only Markdown documents are allowed');
     const info = await stat(actual);
     if (!info.isFile() || info.size > 10 * 1024 * 1024) throw new TypeError('Document exceeds 10 MB or is not a file');
-    const data = await load();
-    const target = data.aliases[String(alias).trim().toLowerCase()];
-    if (!target) throw new Error('Unknown Telegram alias');
+    const { target } = await selectAlias(alias);
     const token = await getBotToken();
     if (!token || !/^[0-9]+:[A-Za-z0-9_-]+$/.test(token)) throw new Error('Telegram is not configured');
     const body = new FormData();
@@ -126,18 +184,18 @@ export const createTelegramRuntime = ({
   };
   const hasSubscription = async (directory, sessionId) => {
     const data = await load();
-    return Boolean(data.subscriptions[keyOf(directory, sessionId)]);
+    const record = data.subscriptions[keyOf(directory, sessionId)];
+    return Boolean(record?.opted_in === true && (!record.expires_at || record.expires_at > Date.now()));
   };
   const listAliases = async () => {
-    const data = await load();
-    return Object.keys(data.aliases);
+    return Object.keys(await configuredAliases());
   };
   const notify = async ({ directory, sessionId, type, aborted = false }) => {
     if (!directory || !sessionId || aborted || !['completed', 'needs_input'].includes(type)) return false;
     if (await enabled() !== true) return false;
     const data = await load();
     const subscription = data.subscriptions[keyOf(directory, sessionId)];
-    if (!subscription) return false;
+    if (!subscription?.opted_in || (subscription.expires_at && subscription.expires_at <= Date.now())) return false;
     const dedupKey = `${directory}\u0000${sessionId}\u0000${type}`;
     if (Date.now() - (recentDelivery.get(dedupKey) ?? 0) < 5000) return false;
     if (type === 'completed') {
@@ -150,8 +208,15 @@ export const createTelegramRuntime = ({
     const origin = String(await getPublicOrigin() || '').replace(/\/$/, '');
     const url = /^https:\/\//.test(origin) ? `\n${origin}/?session=${encodeURIComponent(sessionId)}` : '';
     await sendText(subscription.alias, `${type === 'completed' ? 'Agent completed the task' : 'Agent needs your input'}${url}`);
+    if (subscription.scope === 'once' || (subscription.scope === 'run' && type === 'completed')) {
+      await mutate((latest) => {
+        if (latest.subscriptions[keyOf(directory, sessionId)]?.created_at === subscription.created_at) {
+          delete latest.subscriptions[keyOf(directory, sessionId)];
+        }
+      });
+    }
     recentDelivery.set(dedupKey, Date.now());
     return true;
   };
-  return { configureAlias, subscribe, unsubscribe, sendText, sendDocument, notify, hasSubscription, listAliases };
+  return { configureAlias, deleteAlias, subscribe, unsubscribe, sendText, sendDocument, notify, hasSubscription, listAliases, listAliasDetails };
 };
