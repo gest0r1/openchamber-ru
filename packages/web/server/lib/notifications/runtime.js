@@ -436,7 +436,7 @@ export const createNotificationTriggerRuntime = (deps) => {
         return;
       }
       if (!(await hasActiveSessionGoal(sessionId))) {
-        await maybeSendTelegram(sessionId, notificationDirectory, payload.type === 'session.error' ? 'error' : 'completed');
+        void maybeSendTelegram(sessionId, notificationDirectory, payload.type === 'session.error' ? 'error' : 'completed');
       }
       const error = payload.properties?.error;
       const errorText = typeof error?.message === 'string'
@@ -662,7 +662,7 @@ export const createNotificationTriggerRuntime = (deps) => {
       const timer = setTimeout(async () => {
         pushQuestionDebounceTimers.delete(sessionId);
 
-        await maybeSendTelegram(sessionId, notificationDirectory, 'needs_input');
+        void maybeSendTelegram(sessionId, notificationDirectory, 'needs_input');
         const settings = await readSettingsFromDisk();
         if (settings.notifyOnQuestion === false) {
           return;
@@ -804,7 +804,7 @@ export const createNotificationTriggerRuntime = (deps) => {
           return;
         }
 
-        await maybeSendTelegram(sessionId, notificationDirectory, 'needs_input');
+        void maybeSendTelegram(sessionId, notificationDirectory, 'needs_input');
         const settings = await readSettingsFromDisk();
 
         if (settings.notifyOnQuestion === false) {
@@ -902,7 +902,7 @@ export const createNotificationTriggerRuntime = (deps) => {
       // Session name is presentation sugar for the mobile push — never block on it.
     }
     const type = status === 'complete' ? 'goal_complete' : (status === 'budgetLimited' ? 'goal_budget' : 'goal_blocked');
-    await maybeSendTelegram(sessionId, directory, status === 'complete' ? 'completed' : 'needs_input');
+    void maybeSendTelegram(sessionId, directory, status === 'complete' ? 'completed' : 'needs_input');
     await fanoutPush(
       {
         title,
