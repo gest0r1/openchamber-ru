@@ -1,7 +1,7 @@
 import { test, expect } from 'bun:test';
 import { createNotificationTriggerRuntime } from './runtime.js';
 
-const createHarness = ({ parentID = null, childActive = false, goalActive = false } = {}) => {
+const createHarness = ({ parentID = null, childActive = false, goalActive = false, telegramNotify = null } = {}) => {
   const delivered = [];
   const pushed = [];
   const runtime = createNotificationTriggerRuntime({
@@ -33,7 +33,7 @@ const createHarness = ({ parentID = null, childActive = false, goalActive = fals
       hasWorkingChildren: async () => childActive,
     },
     telegramRuntime: {
-      notify: async (payload) => { delivered.push(payload); return true; },
+      notify: async (payload) => { delivered.push(payload); return telegramNotify ? telegramNotify(payload) : true; },
     },
   });
   const event = (type, data = {}) => ({
@@ -50,6 +50,23 @@ test('Telegram uses the ready trigger independently of UI focus and desktop sett
   await runtime.maybeSendPushForTrigger(event('session.idle'));
   await flushTelegramDelivery();
   expect(delivered).toEqual([{ sessionId: 'session', directory: '/project', type: 'completed' }]);
+});
+
+test('A slow Telegram transport cannot delay notification trigger processing', async () => {
+  let finishSend;
+  const slowSend = new Promise((resolve) => { finishSend = resolve; });
+  const { runtime, delivered, event } = createHarness({ telegramNotify: () => slowSend });
+  try {
+    const triggerFinished = await Promise.race([
+      runtime.maybeSendPushForTrigger(event('session.idle')).then(() => true),
+      new Promise((resolve) => setTimeout(() => resolve(false), 250)),
+    ]);
+    expect(triggerFinished).toBe(true);
+    await flushTelegramDelivery();
+    expect(delivered).toHaveLength(1);
+  } finally {
+    finishSend(true);
+  }
 });
 
 test('Telegram does not send ready when a subagent is active', async () => {
