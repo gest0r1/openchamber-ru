@@ -108,7 +108,7 @@ test('A late form settlement does not cancel a newer form in the same session', 
   await runtime.maybeSendPushForTrigger(event('form.settled', { formID: 'form-a' }));
   await new Promise((resolve) => setTimeout(resolve, 600));
   await flushTelegramDelivery();
-  expect(delivered).toEqual([{ sessionId: 'session', directory: '/project', type: 'needs_input' }]);
+  expect(delivered).toEqual([{ sessionId: 'session', directory: '/project', type: 'needs_input', eventKey: 'form-b' }]);
 });
 
 test('A permission answered during debounce is not sent to Telegram', async () => {
@@ -118,6 +118,20 @@ test('A permission answered during debounce is not sent to Telegram', async () =
   await new Promise((resolve) => setTimeout(resolve, 600));
   await flushTelegramDelivery();
   expect(delivered).toHaveLength(0);
+});
+
+test('Distinct permission requests retain their own Telegram delivery identity', async () => {
+  const { runtime, delivered, event } = createHarness();
+  await runtime.maybeSendPushForTrigger(event('permission.asked', { id: 'permission-a', action: 'read' }));
+  await new Promise((resolve) => setTimeout(resolve, 600));
+  await flushTelegramDelivery();
+  await runtime.maybeSendPushForTrigger(event('permission.asked', { id: 'permission-b', action: 'write' }));
+  await new Promise((resolve) => setTimeout(resolve, 600));
+  await flushTelegramDelivery();
+  expect(delivered).toEqual([
+    { sessionId: 'session', directory: '/project', type: 'needs_input', eventKey: 'session:permission-a' },
+    { sessionId: 'session', directory: '/project', type: 'needs_input', eventKey: 'session:permission-b' },
+  ]);
 });
 
 test('A terminal error notifies an opted-in root', async () => {
