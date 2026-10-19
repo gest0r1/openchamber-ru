@@ -197,6 +197,25 @@ export const createSettingsHelpers = (dependencies) => {
     const candidate = payload;
     const result = {};
 
+    if (Array.isArray(candidate.telegramAliases) && candidate.telegramAliases.length <= 100) {
+      const names = new Set();
+      const aliases = [];
+      for (const entry of candidate.telegramAliases) {
+        const name = typeof entry?.name === 'string' ? entry.name.trim() : '';
+        const peer = String(entry?.chat_id ?? '');
+        const thread = entry?.message_thread_id ?? null;
+        if (!name || !/^[\\p{L}\\p{N} _-]{1,80}$/u.test(name) ||
+            !(/^-?\\d+$/.test(peer) || /^@[A-Za-z][A-Za-z0-9_]{4,}$/.test(peer)) ||
+            (thread !== null && (!Number.isSafeInteger(thread) || thread < 1)) ||
+            !['private', 'group', 'topic'].includes(entry?.kind ?? 'private') ||
+            names.has(name.toLocaleLowerCase())) {
+          return result;
+        }
+        names.add(name.toLocaleLowerCase());
+        aliases.push({ name, chat_id: peer, message_thread_id: thread, kind: entry?.kind ?? 'private' });
+      }
+      result.telegramAliases = aliases;
+    }
     if (typeof candidate.telegramEnabled === 'boolean') {
       result.telegramEnabled = candidate.telegramEnabled;
     }
@@ -205,7 +224,7 @@ export const createSettingsHelpers = (dependencies) => {
       result.telegramBotToken = candidate.telegramBotToken;
     }
     if (typeof candidate.telegramDefaultAlias === 'string' &&
-        /^[\\p{L}\\p{N} _-]{0,80}$/u.test(candidate.telegramDefaultAlias)) {
+        /^[\p{L}\p{N} _-]{0,80}$/u.test(candidate.telegramDefaultAlias)) {
       result.telegramDefaultAlias = candidate.telegramDefaultAlias.trim();
     }
 
@@ -1155,6 +1174,7 @@ export const createSettingsHelpers = (dependencies) => {
 
   const formatSettingsResponse = (settings) => {
     const sanitized = sanitizeSettingsUpdate(settings);
+    const hasTelegramBotToken = typeof settings?.telegramBotToken === 'string' && settings.telegramBotToken.trim().length > 0;
     for (const key of SECRET_SETTINGS_KEYS) {
       delete sanitized[key];
     }
@@ -1171,6 +1191,7 @@ export const createSettingsHelpers = (dependencies) => {
       ...sanitized,
       hasManagedRemoteTunnelToken,
       hasDesktopUiPassword,
+      hasTelegramBotToken,
       // Tells the client whether agent memory exists in this build at all, so
       // its settings row and panel tab can be absent rather than merely off.
       agentMemoryFeatureAvailable: isAgentMemoryFeatureAvailable(),
