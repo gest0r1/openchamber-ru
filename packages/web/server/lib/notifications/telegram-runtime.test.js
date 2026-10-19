@@ -469,3 +469,30 @@ test('Formatted Markdown protects inline code and safely renders common Telegram
     await rm(dir, { recursive: true, force: true });
   }
 });
+
+test('Russian recipient phrases resolve only to a configured normalized alias', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'openchamber-telegram-phrases-'));
+  const messages = [];
+  try {
+    const runtime = createTelegramRuntime({
+      storePath: join(dir, 'telegram.json'),
+      getBotToken: async () => '123:test-token',
+      getPublicOrigin: async () => '',
+      enabled: async () => true,
+      activityProbe: {},
+      fetchImpl: async (_url, options) => {
+        messages.push(JSON.parse(options.body));
+        return { ok: true, json: async () => ({ ok: true, result: {} }) };
+      },
+    });
+    await runtime.configureAlias('Тестирование  Севами', '-100123456789', 25, 'topic');
+    await runtime.sendContent({ alias: 'в тестирование севами', text: 'Done' });
+    assert.equal(messages.length, 1);
+    assert.equal(messages[0].chat_id, '-100123456789');
+    assert.equal(messages[0].message_thread_id, 25);
+    await assert.rejects(runtime.sendContent({ alias: 'в другой топик', text: 'Do not send' }), /Unknown Telegram alias/);
+    assert.equal(messages.length, 1);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
