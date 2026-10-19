@@ -31,6 +31,7 @@ export const createTelegramRuntime = ({
     }]));
   };
   const recentDelivery = new Map();
+  const inflightDelivery = new Set();
   const empty = () => ({ version: 1, aliases: {}, subscriptions: {} });
   const load = async () => {
     try {
@@ -56,7 +57,8 @@ export const createTelegramRuntime = ({
     return task;
   };
   const configureAlias = (alias, chatId, threadId = null, kind = 'private', previousName = null) => {
-    if (!safeAlias(alias) || (chatId !== null && chatId !== '' && !validChat(chatId)) ||
+    if (!safeAlias(alias) || (previousName && !safeAlias(previousName)) ||
+      (chatId !== null && chatId !== '' && !validChat(chatId)) ||
       (threadId !== null && (!Number.isSafeInteger(threadId) || threadId < 1)) ||
       !['private', 'group', 'topic'].includes(kind)) {
       throw new TypeError('Invalid Telegram alias or destination');
@@ -91,10 +93,17 @@ export const createTelegramRuntime = ({
   const deleteAlias = (alias) => {
     if (!safeAlias(alias)) throw new TypeError('Invalid Telegram alias');
     const normalized = normalizeAlias(alias);
-    if (!persistAliases) return mutate((data) => { delete data.aliases[normalized]; });
     const task = aliasQueue.catch(() => {}).then(async () => {
-      const current = await getConfiguredAliases();
-      await persistAliases((Array.isArray(current) ? current : []).filter((entry) => normalizeAlias(entry.name) !== normalized));
+      if (persistAliases) {
+        const current = await getConfiguredAliases();
+        await persistAliases((Array.isArray(current) ? current : []).filter((entry) => normalizeAlias(entry.name) !== normalized));
+      }
+      await mutate((data) => {
+        delete data.aliases[normalized];
+        for (const [key, subscription] of Object.entries(data.subscriptions)) {
+          if (subscription.alias === normalized) delete data.subscriptions[key];
+        }
+      });
     });
     aliasQueue = task;
     return task;
@@ -269,7 +278,7 @@ export const createTelegramRuntime = ({
     const subscription = data.subscriptions[keyOf(directory, sessionId)];
     if (!subscription?.opted_in || (subscription.expires_at && subscription.expires_at <= Date.now())) return false;
     const dedupKey = `${directory}\u0000${sessionId}\u0000${type}`;
-    if (Date.now() - (recentDelivery.get(dedupKey) ?? 0) < 5000) return false;
+    if (inflightDelivery.has(dedupKey) || Date.now() - (recentDelivery.get(dedupKey) ?? 0) < 5000) return false;
     if (type === 'completed') {
       // Unknown activity is not completion. Do not notify prematurely.
       const statuses = await activityProbe.fetchActiveSessionStatuses().catch(() => null);
@@ -279,16 +288,21 @@ export const createTelegramRuntime = ({
     }
     const origin = String(await getPublicOrigin() || '').replace(/\/$/, '');
     const url = /^https:\/\//.test(origin) ? `\n${origin}/?session=${encodeURIComponent(sessionId)}` : '';
-    await sendText(subscription.alias, `${type === 'completed' ? 'Agent completed the task' : type === 'error' ? 'Agent encountered an error' : 'Agent needs your input'}${url}`);
-    if (subscription.scope === 'once' || (subscription.scope === 'run' && type === 'completed')) {
+    inflightDelivery.add(dedupKey);
+    try {
+      await sendText(subscription.alias, `${type === 'completed' ? 'Agent completed the task' : type === 'error' ? 'Agent encountered an error' : 'Agent needs your input'}${url}`);
+      if (subscription.scope === 'once' || (subscription.scope === 'run' && type === 'completed')) {
       await mutate((latest) => {
         if (latest.subscriptions[keyOf(directory, sessionId)]?.created_at === subscription.created_at) {
           delete latest.subscriptions[keyOf(directory, sessionId)];
         }
       });
     }
-    recentDelivery.set(dedupKey, Date.now());
-    return true;
+      recentDelivery.set(dedupKey, Date.now());
+      return true;
+    } finally {
+      inflightDelivery.delete(dedupKey);
+    }
   };
   return { configureAlias, deleteAlias, subscribe, unsubscribe, sendText, sendDocument, sendContent, notify, hasSubscription, listAliases, listAliasDetails, hasBotToken };
 };
