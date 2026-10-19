@@ -402,7 +402,7 @@ export const createNotificationTriggerRuntime = (deps) => {
 
   // Telegram uses the same source triggers and debounce as push but has its own
   // opt-in and never inherits desktop focus, notification mode or APNs gates.
-  const maybeSendTelegram = async (sessionId, directory, type) => {
+  const maybeSendTelegram = async (sessionId, directory, type, eventKey = null) => {
     if (!telegramRuntime || !sessionId || sessionId === LOCATION_SCOPED_FORM_SESSION_ID) return;
     const targetDirectory = resolveTelegramDirectory(sessionId, directory);
     if (!targetDirectory) return;
@@ -410,7 +410,7 @@ export const createNotificationTriggerRuntime = (deps) => {
     // return undefined, which is deliberately not accepted as a root.
     if (await fetchSessionParentId(sessionId, targetDirectory) !== null) return;
     try {
-      await telegramRuntime.notify({ directory: targetDirectory, sessionId, type });
+      await telegramRuntime.notify({ directory: targetDirectory, sessionId, type, ...(eventKey ? { eventKey } : {}) });
     } catch {
       console.warn('[Telegram] Notification delivery failed');
     }
@@ -670,7 +670,7 @@ export const createNotificationTriggerRuntime = (deps) => {
           pushQuestionDebounceTimers.delete(sessionId);
         }
 
-        void maybeSendTelegram(sessionId, notificationDirectory, 'needs_input').catch(() => console.warn('[Telegram] Notification trigger failed'));
+        void maybeSendTelegram(sessionId, notificationDirectory, 'needs_input', payload.properties?.form?.id).catch(() => console.warn('[Telegram] Notification trigger failed'));
         const settings = await readSettingsFromDisk();
         if (settings.notifyOnQuestion === false) {
           return;
@@ -812,7 +812,7 @@ export const createNotificationTriggerRuntime = (deps) => {
           return;
         }
 
-        void maybeSendTelegram(sessionId, notificationDirectory, 'needs_input').catch(() => console.warn('[Telegram] Notification trigger failed'));
+        void maybeSendTelegram(sessionId, notificationDirectory, 'needs_input', requestKey).catch(() => console.warn('[Telegram] Notification trigger failed'));
         const settings = await readSettingsFromDisk();
 
         if (settings.notifyOnQuestion === false) {
