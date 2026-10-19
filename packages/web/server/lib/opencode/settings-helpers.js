@@ -200,6 +200,7 @@ export const createSettingsHelpers = (dependencies) => {
     if (Array.isArray(candidate.telegramAliases) && candidate.telegramAliases.length <= 100) {
       const names = new Set();
       const aliases = [];
+      let validAliases = true;
       for (const entry of candidate.telegramAliases) {
         const name = typeof entry?.name === 'string' ? entry.name.trim() : '';
         const peer = String(entry?.chat_id ?? '');
@@ -209,12 +210,13 @@ export const createSettingsHelpers = (dependencies) => {
             (thread !== null && (!Number.isSafeInteger(thread) || thread < 1)) ||
             !['private', 'group', 'topic'].includes(entry?.kind ?? 'private') ||
             names.has(name.toLocaleLowerCase())) {
-          return result;
+          validAliases = false;
+          break;
         }
         names.add(name.toLocaleLowerCase());
         aliases.push({ name, chat_id: peer, message_thread_id: thread, kind: entry?.kind ?? 'private' });
       }
-      result.telegramAliases = aliases;
+      if (validAliases) result.telegramAliases = aliases;
     }
     if (typeof candidate.telegramEnabled === 'boolean') {
       result.telegramEnabled = candidate.telegramEnabled;
