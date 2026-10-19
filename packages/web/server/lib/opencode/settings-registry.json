@@ -1,10 +1,6 @@
 {
   "version": 1,
   "fields": {
-    "telegramEnabled": { "scope": "instance" },
-    "telegramBotToken": { "scope": "instance", "secret": true },
-    "telegramDefaultAlias": { "scope": "instance" },
-    "telegramAliases": { "scope": "instance", "secret": true },
     "themeId": {
       "scope": "profile",
       "perSurface": true
@@ -165,6 +161,24 @@
     },
     "agentNotifyToolEnabled": {
       "scope": "instance"
+    },
+    "telegramEnabled": {
+      "scope": "instance"
+    },
+    "telegramBotToken": {
+      "scope": "instance",
+      "secret": true
+    },
+    "hasTelegramBotToken": {
+      "scope": "instance",
+      "computed": true
+    },
+    "telegramDefaultAlias": {
+      "scope": "instance"
+    },
+    "telegramAliases": {
+      "scope": "instance",
+      "secret": true
     },
     "agentRenderToolEnabled": {
       "scope": "instance"
