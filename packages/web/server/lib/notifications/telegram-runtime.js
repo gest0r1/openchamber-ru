@@ -264,6 +264,8 @@ export const createTelegramRuntime = ({
   const sendContent = async ({ alias, text, file, caption = '', mode = 'document', directory = null }) => {
     if (!['document', 'formatted'].includes(mode)) throw new TypeError('Invalid Telegram mode');
     if (!text && !file) throw new TypeError('text or file required');
+    // Explicit delivery bypasses the per-session opt-in, not the channel switch.
+    if (await enabled() !== true) return { delivered: false, reason: 'telegram-disabled' };
     rateLimitExplicit();
     if (file && mode === 'document') await sendDocument(alias, file, { directory, caption });
     if (file && mode === 'formatted') {
