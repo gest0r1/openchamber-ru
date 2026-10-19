@@ -1,6 +1,6 @@
 import { test } from 'bun:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, rm, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createTelegramRuntime } from './telegram-runtime.js';
@@ -312,6 +312,28 @@ test('Disabling Telegram during an activity probe prevents a queued notification
     releaseProbe();
     assert.equal(await pending, false);
     assert.equal(sends, 0);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test('Expired session opt-ins are pruned from persistent storage on access', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'openchamber-telegram-ttl-'));
+  const path = join(dir, 'telegram.json');
+  const runtime = createTelegramRuntime({
+    storePath: path,
+    getBotToken: async () => '123:test-token',
+    getPublicOrigin: async () => '',
+    activityProbe: {},
+  });
+  try {
+    await runtime.configureAlias('me', '123456');
+    await runtime.subscribe('/repo', 'session', 'me', { expiresAt: Date.now() + 40 });
+    assert.equal(await runtime.hasSubscription('/repo', 'session'), true);
+    await new Promise((resolve) => setTimeout(resolve, 70));
+    assert.equal(await runtime.hasSubscription('/repo', 'session'), false);
+    const stored = JSON.parse(await readFile(path, 'utf8'));
+    assert.deepEqual(stored.subscriptions, {});
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
