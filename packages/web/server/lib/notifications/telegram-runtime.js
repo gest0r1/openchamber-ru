@@ -147,20 +147,48 @@ export const createTelegramRuntime = ({
       }
     }
   };
-  const sendText = async (alias, text) => {
+  const htmlEscape = (value) => value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const markdownToTelegramHtml = (source) => htmlEscape(source)
+    .replace(/^#{1,6} +/gm, '')
+    .replace(/\\*\\*([^*\\n]+)\\*\\*/g, '<b>$1</b>')
+    .replace(/__([^_\\n]+)__/g, '<b>$1</b>')
+    .replace(/\\*([^*\\n]+)\\*/g, '<i>$1</i>')
+    .replace(/~~([^~\\n]+)~~/g, '<s>$1</s>')
+    .replace(/`([^`\\n]+)`/g, '<code>$1</code>');
+
+  const sendText = async (alias, text, { formatted = false } = {}) => {
     const { target } = await selectAlias(alias);
     if (typeof text !== 'string' || !text.trim()) throw new TypeError('Message is empty');
-    for (let offset = 0; offset < text.length; offset += MAX_TEXT) {
-      await request('sendMessage', {
-        chat_id: target.chatId, ...(target.threadId ? { message_thread_id: target.threadId } : {}),
-        text: text.slice(offset, offset + MAX_TEXT),
-      });
+    if (text.length > 100_000) throw new TypeError('Message exceeds 100000 characters');
+    const destination = {
+      chat_id: target.chatId, ...(target.threadId ? { message_thread_id: target.threadId } : {}),
+    };
+    if (!formatted) {
+      for (let offset = 0; offset < text.length; offset += MAX_TEXT) {
+        await request('sendMessage', { ...destination, text: text.slice(offset, offset + MAX_TEXT) });
+      }
+      return true;
     }
+    let offset = 0;
+    while (offset < text.length) {
+      let step = Math.min(MAX_TEXT, text.length - offset);
+      let html = markdownToTelegramHtml(text.slice(offset, offset + step));
+      while (html.length > 4096 && step > 1) {
+        step = Math.floor(step / 2);
+        html = markdownToTelegramHtml(text.slice(offset, offset + step));
+      }
+      if (html.length > 4096) throw new TypeError('Formatted message cannot fit Telegram limit');
+      await request('sendMessage', { ...destination, text: html, parse_mode: 'HTML' });
+      offset += step;
+    }
+    return true;
   };
-  const sendDocument = async (alias, filePath) => {
-    if (typeof filePath !== 'string' || !isAbsolute(filePath)) throw new TypeError('Absolute file path required');
-    const actual = await realpath(filePath);
-    const allowed = await Promise.all(allowedFileRoots.map(async (root) => realpath(root).catch(() => null)));
+  const sendDocument = async (alias, filePath, { directory = null, caption = '' } = {}) => {
+    if (typeof filePath !== 'string' || !filePath.trim()) throw new TypeError('File path required');
+    if (typeof caption !== 'string' || caption.length > 1024) throw new TypeError('Caption exceeds 1024 characters');
+    const actual = await realpath(isAbsolute(filePath) ? filePath : resolve(directory || '', filePath));
+    const candidateRoots = directory ? [directory] : allowedFileRoots;
+    const allowed = await Promise.all(candidateRoots.map(async (root) => realpath(root).catch(() => null)));
     if (!allowed.some((root) => root && (actual === root || (!relative(root, actual).startsWith('..') && !isAbsolute(relative(root, actual)))))) {
       throw new TypeError('File path is outside allowed roots');
     }
@@ -173,6 +201,7 @@ export const createTelegramRuntime = ({
     const body = new FormData();
     body.append('chat_id', target.chatId);
     if (target.threadId) body.append('message_thread_id', String(target.threadId));
+    if (caption) body.append('caption', caption);
     const contents = await readFile(actual);
     body.append('document', new Blob([contents], { type: 'text/markdown' }), basename(actual));
     const response = await fetchImpl(`https://api.telegram.org/bot${token}/sendDocument`, {
@@ -181,6 +210,36 @@ export const createTelegramRuntime = ({
     const result = await response.json().catch(() => null);
     if (!response.ok || result?.ok !== true) throw new Error(`Telegram document delivery rejected (HTTP ${response.status})`);
     return true;
+  };
+  let rateWindow = 0;
+  let rateCount = 0;
+  const rateLimitExplicit = () => {
+    const now = Date.now();
+    if (now - rateWindow >= 10000) { rateWindow = now; rateCount = 0; }
+    if (rateCount >= 10) {
+      const error = new Error('Too many Telegram sends');
+      error.retryAfter = Math.max(1, Math.ceil((rateWindow + 10000 - now) / 1000));
+      throw error;
+    }
+    rateCount += 1;
+  };
+  const sendContent = async ({ alias, text, file, caption = '', mode = 'document', directory = null }) => {
+    if (!['document', 'formatted'].includes(mode)) throw new TypeError('Invalid Telegram mode');
+    if (!text && !file) throw new TypeError('text or file required');
+    rateLimitExplicit();
+    if (file && mode === 'document') await sendDocument(alias, file, { directory, caption });
+    if (file && mode === 'formatted') {
+      const actual = await realpath(isAbsolute(file) ? file : resolve(directory || '', file));
+      const roots = await Promise.all((directory ? [directory] : allowedFileRoots).map((root) => realpath(root).catch(() => null)));
+      if (!roots.some((root) => root && (actual === root || (!relative(root, actual).startsWith('..') && !isAbsolute(relative(root, actual)))))) {
+        throw new TypeError('File path is outside allowed roots');
+      }
+      const metadata = await stat(actual);
+      if (!actual.endsWith('.md') || !metadata.isFile() || metadata.size > 10 * 1024 * 1024) throw new TypeError('Markdown file required, up to 10 MB');
+      await sendText(alias, await readFile(actual, 'utf8'), { formatted: true });
+    }
+    if (text) await sendText(alias, text, { formatted: mode === 'formatted' });
+    return { delivered: true };
   };
   const hasSubscription = async (directory, sessionId) => {
     const data = await load();
@@ -218,5 +277,5 @@ export const createTelegramRuntime = ({
     recentDelivery.set(dedupKey, Date.now());
     return true;
   };
-  return { configureAlias, deleteAlias, subscribe, unsubscribe, sendText, sendDocument, notify, hasSubscription, listAliases, listAliasDetails };
+  return { configureAlias, deleteAlias, subscribe, unsubscribe, sendText, sendDocument, sendContent, notify, hasSubscription, listAliases, listAliasDetails };
 };
