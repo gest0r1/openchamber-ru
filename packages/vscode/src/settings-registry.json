@@ -162,6 +162,24 @@
     "agentNotifyToolEnabled": {
       "scope": "instance"
     },
+    "telegramEnabled": {
+      "scope": "instance"
+    },
+    "telegramBotToken": {
+      "scope": "instance",
+      "secret": true
+    },
+    "hasTelegramBotToken": {
+      "scope": "instance",
+      "computed": true
+    },
+    "telegramDefaultAlias": {
+      "scope": "instance"
+    },
+    "telegramAliases": {
+      "scope": "instance",
+      "secret": true
+    },
     "agentRenderToolEnabled": {
       "scope": "instance"
     },
