@@ -183,8 +183,12 @@ server-only stream. Mobile shells retain their existing push behavior.
 `telegram-runtime.js` sends opt-in notifications through the Telegram Bot API.
 The trigger runtime owns completion, permission and form debounce handling.
 The Telegram adapter is invoked independently of desktop focus, web push and
-APNs gates. A completion requires a successful active-session read with no
-active descendants. An unknown activity result suppresses delivery.
+APNs gates. A completion requires successful reads of both the active-session index and the
+running shell-service index, with no active descendants or detached shell jobs
+owned by the session or its descendants. Unknown activity, missing shell state,
+or an unreadable shell owner suppresses delivery. The shell list is read from
+`/api/shell?directory=…` because a background tool call may settle while its
+process continues running, without appearing in `/api/session/active`.
 
 Session opt-ins are stored in `<OPENCHAMBER_DATA_DIR>/telegram-notifications.json`
 using an atomic rename and 0600 permissions. The key hashes the directory
