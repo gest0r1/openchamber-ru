@@ -151,6 +151,8 @@ describe('Telegram background shell activity', () => {
 
   it('treats failed shell-list and unreadable ownership as unknown, never idle', async () => {
     expect(await harness({ failShell: true }).probe.hasRunningShells('root', '/repo')).toBeNull();
+    expect(await harness({ shells: [null] }).probe.hasRunningShells('root', '/repo')).toBeNull();
+    expect(await harness({ shells: [{ status: 'running', metadata: { sessionID: 42 } }] }).probe.hasRunningShells('root', '/repo')).toBeNull();
     expect(await harness({ shells: [shell('child')] }).probe.hasRunningShells('root', '/repo')).toBeNull();
     expect(await harness({ shells: [shell('root')] }).probe.hasRunningShells('root', '')).toBeNull();
   });
