@@ -106,6 +106,10 @@ test('Telegram remains silent when disabled even with an existing subscription',
     await runtime.configureAlias('me', '12345');
     await runtime.subscribe('/repo', 's1', 'me');
     assert.equal(await runtime.notify({ directory: '/repo', sessionId: 's1', type: 'completed' }), false);
+    assert.deepEqual(await runtime.sendContent({ alias: 'me', text: 'User requested this explicitly' }), {
+      delivered: false,
+      reason: 'telegram-disabled',
+    });
     assert.equal(called, false);
   } finally {
     await rm(dir, { recursive: true, force: true });
