@@ -114,5 +114,57 @@ export const createSessionActivityProbe = ({ buildOpenCodeUrl, getOpenCodeAuthHe
     return unknown ? null : false;
   };
 
-  return { fetchActiveSessionStatuses, fetchChildSessionIds, hasWorkingChildren, hasWorkingDescendants };
+  /**
+   * The active-session API does not include detached background shell jobs:
+   * a shell tool call can settle while its child process keeps running.
+   * Query the shell service for the directory, then trace any running job's
+   * session owner back to the root. Unknown shell state or lineage is not idle.
+   */
+  const hasRunningShells = async (sessionId, directory) => {
+    if (!sessionId || !directory) return null;
+    const shells = await openCodeGet('/api/shell', { directory }).catch(() => null);
+    if (!Array.isArray(shells)) return null;
+    const owners = new Set();
+    for (const shell of shells) {
+      if (shell?.status !== 'running') continue;
+      const owner = shell.metadata?.sessionID;
+      if (typeof owner === 'string' && owner) owners.add(owner);
+    }
+    if (owners.has(sessionId)) return true;
+
+    const signal = AbortSignal.timeout(timeoutMs);
+    const parents = new Map();
+    let unknown = false;
+    for (const owner of owners) {
+      let current = owner;
+      const visited = new Set();
+      for (let depth = 0; current && depth < MAX_SUBAGENT_DEPTH; depth += 1) {
+        if (signal.aborted || visited.has(current)) {
+          unknown = true;
+          break;
+        }
+        visited.add(current);
+        if (!parents.has(current)) {
+          const body = await openCodeGet(
+            `/api/session/${encodeURIComponent(current)}`, { directory }, signal,
+          ).catch(() => null);
+          const parsed = sessionLineageSchema.safeParse(body);
+          parents.set(current, parsed.success && parsed.data.id === current
+            ? parsed.data.parentID ?? null
+            : undefined);
+        }
+        const parent = parents.get(current);
+        if (parent === undefined) {
+          unknown = true;
+          break;
+        }
+        if (parent === sessionId) return true;
+        current = parent;
+      }
+      if (current && !unknown) unknown = true;
+    }
+    return unknown ? null : false;
+  };
+
+  return { fetchActiveSessionStatuses, fetchChildSessionIds, hasWorkingChildren, hasWorkingDescendants, hasRunningShells };
 };
