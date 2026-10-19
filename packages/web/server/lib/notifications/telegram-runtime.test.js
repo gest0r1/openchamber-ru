@@ -338,3 +338,53 @@ test('Expired session opt-ins are pruned from persistent storage on access', asy
     await rm(dir, { recursive: true, force: true });
   }
 });
+
+test('Different user decisions in one session are not collapsed by the dedup window', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'openchamber-telegram-decisions-'));
+  const messages = [];
+  try {
+    const runtime = createTelegramRuntime({
+      storePath: join(dir, 'telegram.json'),
+      getBotToken: async () => '123:test-token',
+      getPublicOrigin: async () => '',
+      enabled: async () => true,
+      activityProbe: {},
+      fetchImpl: async (_url, options) => {
+        messages.push(JSON.parse(options.body));
+        return { ok: true, json: async () => ({ ok: true, result: {} }) };
+      },
+    });
+    await runtime.configureAlias('me', '12345');
+    await runtime.subscribe('/repo', 'session', 'me');
+    assert.equal(await runtime.notify({
+      directory: '/repo', sessionId: 'session', type: 'needs_input', eventKey: 'form-a',
+    }), true);
+    assert.equal(await runtime.notify({
+      directory: '/repo', sessionId: 'session', type: 'needs_input', eventKey: 'form-a',
+    }), false);
+    assert.equal(await runtime.notify({
+      directory: '/repo', sessionId: 'session', type: 'needs_input', eventKey: 'permission-b',
+    }), true);
+    assert.equal(messages.length, 2);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test('Short Telegram peer IDs are never sent to UI unmasked', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'openchamber-telegram-mask-'));
+  try {
+    const runtime = createTelegramRuntime({
+      storePath: join(dir, 'telegram.json'),
+      getBotToken: async () => '123:test-token',
+      getPublicOrigin: async () => '',
+      activityProbe: {},
+    });
+    await runtime.configureAlias('small', '1234');
+    assert.equal((await runtime.listAliasDetails())[0].chat_id_masked, '****');
+    await runtime.configureAlias('long', '-1002345678');
+    assert.ok((await runtime.listAliasDetails()).every((item) => !item.chat_id_masked.includes('-1002345678')));
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
