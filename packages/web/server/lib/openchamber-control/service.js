@@ -218,6 +218,7 @@ export const createOpenChamberControlService = (dependencies) => {
     browserControl = null,
     fileOpen = null,
     notifyUser = null,
+    telegramRuntime = null,
     agentMemoryActions = null,
     sessionLinks = null,
     projectContextRuntime = null,
@@ -729,6 +730,33 @@ export const createOpenChamberControlService = (dependencies) => {
           throw new OpenChamberControlError('The in-app browser is not available on this server', 503);
         }
         return browserAction(action, input, options.signal, contextDirectory, options.contextSessionId);
+      }
+      if (action.startsWith('notify.telegram_')) {
+        if (!telegramRuntime) throw new OpenChamberControlError('Telegram is unavailable on this server', 503);
+        const settings = await readSettingsFromDiskMigrated();
+        if (settings.agentNotifyToolEnabled !== true) {
+          throw new OpenChamberControlError('The notify tool is turned off in OpenChamber settings', 403);
+        }
+        const sessionId = asNonEmptyString(options.contextSessionId);
+        const directory = asNonEmptyString(contextDirectory);
+        if (action === 'notify.telegram_optin') {
+          if (!sessionId || !directory) throw new OpenChamberControlError('Calling session is required for Telegram opt-in', 400);
+          await telegramRuntime.subscribe(directory, sessionId, input.alias, { scope: input.scope, origin: 'agent' });
+          return { opted_in: true, sessionId, scope: input.scope ?? 'session' };
+        }
+        if (action === 'notify.telegram_stop') {
+          if (!sessionId || !directory) throw new OpenChamberControlError('Calling session is required for Telegram stop', 400);
+          await telegramRuntime.unsubscribe(directory, sessionId);
+          return { opted_in: false, sessionId };
+        }
+        if (action === 'notify.telegram_send') {
+          if (!directory) throw new OpenChamberControlError('Calling session directory is required', 400);
+          if (settings.telegramEnabled !== true) return { delivered: false, reason: 'telegram-disabled' };
+          return await telegramRuntime.sendContent({
+            alias: input.alias, text: input.text, file: input.file, caption: input.caption,
+            mode: input.mode, directory,
+          });
+        }
       }
       if (action === 'notify.send') {
         if (!notifyUser) {
