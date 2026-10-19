@@ -136,14 +136,16 @@ export const createTelegramRuntime = ({
       kind: value.kind,
     }));
   };
-  const request = async (method, fields) => {
+  const request = async (method, fields, { multipart = false } = {}) => {
     const token = await getBotToken();
     if (!token || !/^[0-9]+:[A-Za-z0-9_-]+$/.test(token)) throw new Error('Telegram is not configured');
     for (let attempt = 0; attempt < 3; attempt += 1) {
       try {
         const response = await fetchImpl(`https://api.telegram.org/bot${token}/${method}`, {
-          method: 'POST', headers: { 'content-type': 'application/json' },
-          body: JSON.stringify(fields), signal: AbortSignal.timeout(10000),
+          method: 'POST',
+          ...(multipart ? {} : { headers: { 'content-type': 'application/json' } }),
+          body: multipart ? fields : JSON.stringify(fields),
+          signal: AbortSignal.timeout(multipart ? 30000 : 10000),
         });
         const result = await response.json().catch(() => null);
         if (response.ok && result?.ok === true) return result.result;
@@ -218,11 +220,7 @@ export const createTelegramRuntime = ({
     if (caption) body.append('caption', caption);
     const contents = await readFile(actual);
     body.append('document', new Blob([contents], { type: 'text/markdown' }), basename(actual));
-    const response = await fetchImpl(`https://api.telegram.org/bot${token}/sendDocument`, {
-      method: 'POST', body, signal: AbortSignal.timeout(30000),
-    });
-    const result = await response.json().catch(() => null);
-    if (!response.ok || result?.ok !== true) throw new Error(`Telegram document delivery rejected (HTTP ${response.status})`);
+    await request('sendDocument', body, { multipart: true });
     return true;
   };
   let rateWindow = 0;
