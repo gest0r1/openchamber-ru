@@ -22,7 +22,7 @@ export const createTelegramRuntime = ({
 }) => {
   let queue = Promise.resolve();
   let aliasQueue = Promise.resolve();
-  const normalizeAlias = (value) => String(value ?? '').trim().toLocaleLowerCase();
+  const normalizeAlias = (value) => String(value ?? '').trim().replace(/\s+/g, ' ').toLocaleLowerCase();
   const configuredAliases = async () => {
     if (!getConfiguredAliases) return (await load()).aliases;
     const aliases = await getConfiguredAliases();
@@ -122,8 +122,14 @@ export const createTelegramRuntime = ({
     if (!name) throw new TypeError('Telegram default alias is not configured');
     const aliases = await configuredAliases();
     const target = aliases[name];
-    if (!target) throw new TypeError(`Unknown Telegram alias: ${name}`);
-    return { name, target };
+    if (target) return { name, target };
+    // Natural agent requests may include a Russian destination preposition.
+    // Resolve only an exact known name after removing it; never guess a chat.
+    const withoutPreposition = name.replace(/^(?:в|во|на|для|к)\s+/u, '');
+    if (withoutPreposition !== name && aliases[withoutPreposition]) {
+      return { name: withoutPreposition, target: aliases[withoutPreposition] };
+    }
+    throw new TypeError(`Unknown Telegram alias: ${name}`);
   };
   const subscribe = async (directory, sessionId, alias, options = {}) => {
     if (typeof directory !== 'string' || !directory.trim() || typeof sessionId !== 'string' || !sessionId.trim()) {
@@ -149,7 +155,9 @@ export const createTelegramRuntime = ({
     const aliases = await configuredAliases();
     return Object.entries(aliases).map(([name, value]) => ({
       name,
-      chat_id_masked: String(value.chatId).replace(/.(?=.{4})/g, '*'),
+      chat_id_masked: String(value.chatId).length <= 4
+        ? '*'.repeat(String(value.chatId).length)
+        : '*'.repeat(String(value.chatId).length - 4) + String(value.chatId).slice(-4),
       message_thread_id: value.threadId,
       kind: value.kind,
     }));
