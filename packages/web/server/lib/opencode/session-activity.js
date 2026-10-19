@@ -126,9 +126,13 @@ export const createSessionActivityProbe = ({ buildOpenCodeUrl, getOpenCodeAuthHe
     if (!Array.isArray(shells)) return null;
     const owners = new Set();
     for (const shell of shells) {
-      if (shell?.status !== 'running') continue;
+      if (!shell || typeof shell !== 'object' || typeof shell.status !== 'string') return null;
+      if (shell.status !== 'running') continue;
       const owner = shell.metadata?.sessionID;
-      if (typeof owner === 'string' && owner) owners.add(owner);
+      // A shell without an originating session is an independent terminal.
+      if (owner === undefined) continue;
+      if (typeof owner !== 'string' || !owner) return null;
+      owners.add(owner);
     }
     if (owners.has(sessionId)) return true;
 
