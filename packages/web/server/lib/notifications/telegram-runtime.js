@@ -265,7 +265,7 @@ export const createTelegramRuntime = ({
     return Object.keys(await configuredAliases());
   };
   const notify = async ({ directory, sessionId, type, aborted = false }) => {
-    if (!directory || !sessionId || aborted || !['completed', 'needs_input'].includes(type)) return false;
+    if (!directory || !sessionId || aborted || !['completed', 'needs_input', 'error'].includes(type)) return false;
     if (await enabled() !== true) return false;
     const data = await load();
     const subscription = data.subscriptions[keyOf(directory, sessionId)];
@@ -281,7 +281,7 @@ export const createTelegramRuntime = ({
     }
     const origin = String(await getPublicOrigin() || '').replace(/\/$/, '');
     const url = /^https:\/\//.test(origin) ? `\n${origin}/?session=${encodeURIComponent(sessionId)}` : '';
-    await sendText(subscription.alias, `${type === 'completed' ? 'Agent completed the task' : 'Agent needs your input'}${url}`);
+    await sendText(subscription.alias, `${type === 'completed' ? 'Agent completed the task' : type === 'error' ? 'Agent encountered an error' : 'Agent needs your input'}${url}`);
     if (subscription.scope === 'once' || (subscription.scope === 'run' && type === 'completed')) {
       await mutate((latest) => {
         if (latest.subscriptions[keyOf(directory, sessionId)]?.created_at === subscription.created_at) {
