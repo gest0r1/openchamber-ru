@@ -246,6 +246,7 @@ export const createTelegramRuntime = ({
     const record = data.subscriptions[keyOf(directory, sessionId)];
     return Boolean(record?.opted_in === true && (!record.expires_at || record.expires_at > Date.now()));
   };
+  const hasBotToken = async () => /^[0-9]+:[A-Za-z0-9_-]+$/.test(String(await getBotToken() || ''));
   const listAliases = async () => {
     return Object.keys(await configuredAliases());
   };
@@ -277,5 +278,5 @@ export const createTelegramRuntime = ({
     recentDelivery.set(dedupKey, Date.now());
     return true;
   };
-  return { configureAlias, deleteAlias, subscribe, unsubscribe, sendText, sendDocument, sendContent, notify, hasSubscription, listAliases, listAliasDetails };
+  return { configureAlias, deleteAlias, subscribe, unsubscribe, sendText, sendDocument, sendContent, notify, hasSubscription, listAliases, listAliasDetails, hasBotToken };
 };
