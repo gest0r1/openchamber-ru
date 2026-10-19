@@ -286,6 +286,8 @@ export const createTelegramRuntime = ({
       const children = await activityProbe.hasWorkingDescendants(sessionId, statuses).catch(() => null);
       if (children !== false) return false;
     }
+    const origin = String(await getPublicOrigin() || '').replace(/\/$/, '');
+    const url = /^https:\/\//.test(origin) ? `\n${origin}/?session=${encodeURIComponent(sessionId)}` : '';
     // Live probes and URL resolution can take several seconds. Honor an opt-out,
     // expiry, alias switch, or channel disable that happened while awaiting them.
     const current = (await load()).subscriptions[keyOf(directory, sessionId)];
@@ -295,8 +297,6 @@ export const createTelegramRuntime = ({
       current.expires_at !== subscription.expires_at ||
       (current.expires_at && current.expires_at <= Date.now()) ||
       await enabled() !== true) return false;
-    const origin = String(await getPublicOrigin() || '').replace(/\/$/, '');
-    const url = /^https:\/\//.test(origin) ? `\n${origin}/?session=${encodeURIComponent(sessionId)}` : '';
     if (inflightDelivery.has(dedupKey)) return false;
     inflightDelivery.add(dedupKey);
     try {
