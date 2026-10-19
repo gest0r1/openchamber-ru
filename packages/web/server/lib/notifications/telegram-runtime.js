@@ -190,14 +190,30 @@ export const createTelegramRuntime = ({
     }
   };
   const htmlEscape = (value) => value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-  const markdownToTelegramHtml = (source) => htmlEscape(source)
-    .replace(/^#{1,6} +/gm, '')
-    .replace(/\*\*([^*\n]+)\*\*/g, '<b>$1</b>')
-    .replace(/__([^_\n]+)__/g, '<b>$1</b>')
-    .replace(/\*([^*\n]+)\*/g, '<i>$1</i>')
-    .replace(/~~([^~\n]+)~~/g, '<s>$1</s>')
-    .replace(/`([^`\n]+)`/g, '<code>$1</code>');
-
+  // Telegram HTML is deliberately a small Markdown subset, not arbitrary HTML.
+  // Protect code and links before converting emphasis so user text remains data.
+  const markdownToTelegramHtml = (source) => {
+    const protectedSpans = [];
+    const protect = (markup) => {
+      const key = protectedSpans.length;
+      protectedSpans.push(markup);
+      return `\uE000${key}\uE001`;
+    };
+    let html = htmlEscape(source);
+    html = html.replace(/^\`\`\`[^\n]*\n([\s\S]*?)\n\`\`\`[ \t]*$/gm, (_match, code) =>
+      protect(`<pre>${code}</pre>`));
+    html = html.replace(/\`([^\`\n]+)\`/g, (_match, code) => protect(`<code>${code}</code>`));
+    html = html.replace(/\[([^\]\n]+)\]\((https?:\/\/[^\s)\"'<>]+)\)/gi, (_match, label, url) =>
+      protect(`<a href=\"${url}\">${label}</a>`));
+    html = html
+      .replace(/^#{1,6} +([^\n]+)$/gm, '<b>$1</b>')
+      .replace(/^&gt; ?([^\n]+)$/gm, '<blockquote>$1</blockquote>')
+      .replace(/\*\*([^*\n]+)\*\*/g, '<b>$1</b>')
+      .replace(/__([^_\n]+)__/g, '<b>$1</b>')
+      .replace(/\*([^*\n]+)\*/g, '<i>$1</i>')
+      .replace(/~~([^~\n]+)~~/g, '<s>$1</s>');
+    return html.replace(/\uE000(\d+)\uE001/g, (_match, key) => protectedSpans[Number(key)] ?? '');
+  };
   const sendText = async (alias, text, { formatted = false } = {}) => {
     const { target } = await selectAlias(alias);
     if (typeof text !== 'string' || !text.trim()) throw new TypeError('Message is empty');
