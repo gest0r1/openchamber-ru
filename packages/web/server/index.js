@@ -1167,7 +1167,15 @@ const openCodeWatcherRuntime = createOpenCodeWatcherRuntime({
     void maybeSendPushForTrigger(payload);
     const sessionId = payload?.properties?.sessionID ?? payload?.properties?.sessionId ?? payload?.properties?.info?.sessionID;
     const eventDirectory = payload?.properties?.directory ?? payload?.properties?.info?.directory;
-    if (sessionId && eventDirectory) telegramSessionDirectories.set(sessionId, eventDirectory);
+    if (sessionId && eventDirectory) {
+      // Keep recent sessions from the global event hub only. Completed sessions
+      // without further events no longer need a directory cache entry forever.
+      telegramSessionDirectories.delete(sessionId);
+      telegramSessionDirectories.set(sessionId, eventDirectory);
+      if (telegramSessionDirectories.size > 1000) {
+        telegramSessionDirectories.delete(telegramSessionDirectories.keys().next().value);
+      }
+    }
     if (sessionId && payload?.type === 'session.deleted') telegramSessionDirectories.delete(sessionId);
     sessionRuntime.processOpenCodeSsePayload(payload);
   },
