@@ -40,7 +40,7 @@ test('Telegram subscriptions are opt-in, persist and fail closed on unknown acti
     assert.equal(calls[0].chat_id, '-100123');
     assert.equal(calls[0].message_thread_id, 42);
     assert.match(calls[0].text, /session=s1/);
-    assert.equal(await runtime.notify({ directory: '/repo', sessionId: 's1', type: 'error' }), false);
+    assert.equal(await runtime.notify({ directory: '/repo', sessionId: 's1', type: 'unsupported' }), false);
     assert.equal(await runtime.notify({ directory: '/repo', sessionId: 's1', type: 'needs_input' }), true);
     assert.equal(await runtime.notify({ directory: '/repo', sessionId: 's1', type: 'completed' }), false);
     const restarted = createTelegramRuntime(deps);
