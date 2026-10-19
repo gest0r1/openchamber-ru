@@ -95,3 +95,63 @@ describe('queue descendant activity', () => {
     expect(reads).toEqual(['child']);
   });
 });
+
+describe('Telegram background shell activity', () => {
+  const shell = (sessionID, status = 'running') => ({
+    id: `shell-${sessionID}`,
+    status,
+    metadata: { sessionID },
+  });
+  const harness = ({ shells = [], sessions = {}, failShell = false } = {}) => {
+    const paths = [];
+    const probe = createSessionActivityProbe({
+      buildOpenCodeUrl: (route) => `http://opencode.test${route}`,
+      getOpenCodeAuthHeaders: () => ({}),
+      fetchImpl: async (url) => {
+        const request = new URL(url);
+        paths.push(request.pathname);
+        if (request.pathname === '/api/shell') {
+          if (failShell) return new Response(null, { status: 503 });
+          expect(request.searchParams.get('directory')).toBe('/repo');
+          return Response.json({ data: shells });
+        }
+        const id = decodeURIComponent(request.pathname.split('/').at(-1));
+        return Response.json({ data: sessions[id] ?? null });
+      },
+    });
+    return { probe, paths };
+  };
+
+  it('recognizes a detached background command after the session became idle', async () => {
+    const { probe, paths } = harness({ shells: [shell('root')] });
+    expect(await probe.hasRunningShells('root', '/repo')).toBe(true);
+    expect(paths).toEqual(['/api/shell']);
+  });
+
+  it('recognizes a background command owned by an idle descendant', async () => {
+    const { probe, paths } = harness({
+      shells: [shell('grandchild')],
+      sessions: {
+        grandchild: { id: 'grandchild', parentID: 'child' },
+        child: { id: 'child', parentID: 'root' },
+      },
+    });
+    expect(await probe.hasRunningShells('root', '/repo')).toBe(true);
+    expect(paths).toEqual(['/api/shell', '/api/session/grandchild', '/api/session/child']);
+  });
+
+  it('ignores terminated jobs, unrelated trees and unattributed user terminals', async () => {
+    const { probe } = harness({
+      shells: [shell('root', 'exited'), shell('unrelated'), { status: 'running', metadata: {} }],
+      sessions: { unrelated: { id: 'unrelated', parentID: null } },
+    });
+    expect(await probe.hasRunningShells('root', '/repo')).toBe(false);
+    expect(await harness().probe.hasRunningShells('root', '/repo')).toBe(false);
+  });
+
+  it('treats failed shell-list and unreadable ownership as unknown, never idle', async () => {
+    expect(await harness({ failShell: true }).probe.hasRunningShells('root', '/repo')).toBeNull();
+    expect(await harness({ shells: [shell('child')] }).probe.hasRunningShells('root', '/repo')).toBeNull();
+    expect(await harness({ shells: [shell('root')] }).probe.hasRunningShells('root', '')).toBeNull();
+  });
+});
