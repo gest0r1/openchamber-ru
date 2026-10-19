@@ -432,3 +432,40 @@ test('Completion waits for detached shell jobs after the session itself is idle'
     await rm(dir, { recursive: true, force: true });
   }
 });
+
+test('Formatted Markdown protects inline code and safely renders common Telegram HTML', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'openchamber-telegram-html-'));
+  const messages = [];
+  try {
+    const runtime = createTelegramRuntime({
+      storePath: join(dir, 'telegram.json'),
+      getBotToken: async () => '123:test-token',
+      getPublicOrigin: async () => '',
+      enabled: async () => true,
+      activityProbe: {},
+      fetchImpl: async (_url, options) => {
+        messages.push(JSON.parse(options.body));
+        return { ok: true, json: async () => ({ ok: true, result: {} }) };
+      },
+    });
+    await runtime.configureAlias('me', '12345');
+    const markdown = [
+      '# Report',
+      '**bold** & *italic*',
+      '[Reference](https://example.test/docs?a=1&b=2)',
+      '`**literal**`',
+      '```js',
+      'const x = "<html>";',
+      '```',
+    ].join('\n');
+    await runtime.sendContent({ alias: 'me', mode: 'formatted', text: markdown });
+    assert.equal(messages.length, 1);
+    assert.match(messages[0].text, /<b>Report<\/b>/);
+    assert.match(messages[0].text, /<a href="https:\/\/example\.test\/docs\?a=1&amp;b=2">Reference<\/a>/);
+    assert.match(messages[0].text, /<code>\*\*literal\*\*<\/code>/);
+    assert.match(messages[0].text, /<pre>const x = "&lt;html&gt;";<\/pre>/);
+    assert.equal(messages[0].parse_mode, 'HTML');
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
