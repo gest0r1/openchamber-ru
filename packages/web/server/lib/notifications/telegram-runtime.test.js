@@ -1,4 +1,4 @@
-import test from 'node:test';
+import { test } from 'bun:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -106,6 +106,69 @@ test('Telegram remains silent when disabled even with an existing subscription',
     await runtime.subscribe('/repo', 's1', 'me');
     assert.equal(await runtime.notify({ directory: '/repo', sessionId: 's1', type: 'completed' }), false);
     assert.equal(called, false);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test('Configured aliases support default recipient, opt-in scope, expiry and formatted Markdown', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'openchamber-telegram-scopes-'));
+  let aliases = [];
+  const sent = [];
+  const deps = {
+    storePath: join(dir, 'telegram.json'),
+    getBotToken: async () => '123:example-token',
+    getPublicOrigin: async () => 'https://example.test',
+    getConfiguredAliases: async () => aliases,
+    persistAliases: async (next) => { aliases = next; },
+    getDefaultAlias: async () => 'мне',
+    enabled: async () => true,
+    activityProbe: {
+      fetchActiveSessionStatuses: async () => ({}),
+      hasWorkingDescendants: async () => false,
+    },
+    fetchImpl: async (_url, options) => {
+      sent.push(JSON.parse(options.body));
+      return { ok: true, json: async () => ({ ok: true, result: {} }) };
+    },
+  };
+  try {
+    const runtime = createTelegramRuntime(deps);
+    await runtime.configureAlias('МНЕ', '-100123', 19, 'topic');
+    assert.deepEqual(await runtime.listAliases(), ['мне']);
+    assert.equal((await runtime.listAliasDetails())[0].chat_id_masked.includes('-100123'), false);
+    await runtime.subscribe('/project', 'once', undefined, { scope: 'once' });
+    assert.equal(await runtime.notify({ directory: '/project', sessionId: 'once', type: 'needs_input' }), true);
+    assert.equal(await runtime.hasSubscription('/project', 'once'), false);
+    assert.equal(await runtime.notify({ directory: '/project', sessionId: 'once', type: 'completed' }), false);
+    await runtime.subscribe('/project', 'run', undefined, { scope: 'run' });
+    assert.equal(await runtime.notify({ directory: '/project', sessionId: 'run', type: 'needs_input' }), true);
+    assert.equal(await runtime.hasSubscription('/project', 'run'), true);
+    assert.equal(await runtime.notify({ directory: '/project', sessionId: 'run', type: 'completed' }), true);
+    assert.equal(await runtime.hasSubscription('/project', 'run'), false);
+    await runtime.sendContent({ text: '**bold** & ready', alias: 'мне', mode: 'formatted' });
+    assert.equal(sent.at(-1).parse_mode, 'HTML');
+    assert.equal(sent.at(-1).text, '<b>bold</b> &amp; ready');
+    assert.equal(sent.at(-1).message_thread_id, 19);
+    await assert.rejects(runtime.subscribe('/project', 'bad', 'unknown'), /Unknown Telegram alias/);
+    await assert.rejects(runtime.subscribe('/project', 'bad', undefined, { expiresAt: Date.now() - 1 }), /expiry/);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test('A missing default alias is a configuration error', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'openchamber-telegram-missing-default-'));
+  try {
+    const runtime = createTelegramRuntime({
+      storePath: join(dir, 'telegram.json'),
+      getBotToken: async () => '123:example-token',
+      getPublicOrigin: async () => '',
+      getDefaultAlias: async () => '',
+      activityProbe: {},
+    });
+    await assert.rejects(runtime.subscribe('/project', 'session'), /default alias/);
+    await assert.rejects(runtime.sendContent({ text: 'hello' }), /default alias/);
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
