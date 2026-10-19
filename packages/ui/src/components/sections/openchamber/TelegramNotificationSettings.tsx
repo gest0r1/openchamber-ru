@@ -1,4 +1,5 @@
 import React from 'react';
+import { z } from 'zod';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -16,18 +17,29 @@ type TelegramAlias = {
   message_thread_id: number | null;
   kind: TelegramKind;
 };
-type TelegramConfig = { enabled: boolean; defaultAlias: string; hasBotToken: boolean };
+const telegramConfigSchema = z.object({
+  enabled: z.boolean(), defaultAlias: z.string(), hasBotToken: z.boolean(),
+});
+const telegramAliasesSchema = z.object({
+  aliases: z.array(z.object({
+    name: z.string(),
+    chat_id_masked: z.string(),
+    message_thread_id: z.number().nullable(),
+    kind: z.enum(['private', 'group', 'topic']),
+  })),
+});
+type TelegramConfig = z.infer<typeof telegramConfigSchema>;
 type AliasDraft = { name: string; chatId: string; threadId: string; kind: TelegramKind; previousName: string };
 const blankAlias = (): AliasDraft => ({ name: '', chatId: '', threadId: '', kind: 'private', previousName: '' });
 
-const telegramRequest = async <T,>(path: string, method = 'GET', body?: object): Promise<T> => {
+const telegramRequest = async (path: string, method = 'GET', body?: object): Promise<unknown> => {
   const response = await runtimeFetch(`/api/notifications/telegram/${path}`, {
     method,
     ...(body ? { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : {}),
   });
   const data = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(typeof data.error === 'string' ? data.error : `HTTP ${response.status}`);
-  return data as T;
+  return data;
 };
 
 export const TelegramNotificationSettings: React.FC = () => {
@@ -41,11 +53,11 @@ export const TelegramNotificationSettings: React.FC = () => {
 
   const refresh = React.useCallback(async () => {
     const [settings, recipients] = await Promise.all([
-      telegramRequest<TelegramConfig>('config'),
-      telegramRequest<{ aliases: TelegramAlias[] }>('aliases'),
+      telegramRequest('config'),
+      telegramRequest('aliases'),
     ]);
-    setConfig(settings);
-    setAliases(recipients.aliases);
+    setConfig(telegramConfigSchema.parse(settings));
+    setAliases(telegramAliasesSchema.parse(recipients).aliases);
     setLoadingError('');
   }, []);
 
@@ -54,12 +66,12 @@ export const TelegramNotificationSettings: React.FC = () => {
     const load = async () => {
       try {
         const [settings, recipients] = await Promise.all([
-          telegramRequest<TelegramConfig>('config'),
-          telegramRequest<{ aliases: TelegramAlias[] }>('aliases'),
+          telegramRequest('config'),
+          telegramRequest('aliases'),
         ]);
         if (!disposed) {
-          setConfig(settings);
-          setAliases(recipients.aliases);
+          setConfig(telegramConfigSchema.parse(settings));
+          setAliases(telegramAliasesSchema.parse(recipients).aliases);
         }
       } catch {
         if (!disposed) setLoadingError(t('settings.notifications.telegram.unavailable'));
@@ -119,8 +131,8 @@ export const TelegramNotificationSettings: React.FC = () => {
   const testAlias = async (name: string) => {
     setBusy(true);
     try {
-      const result = await telegramRequest<{ delivered: boolean }>('test', 'POST', { alias: name });
-      setLoadingError(result.delivered
+      const result = await telegramRequest('test', 'POST', { alias: name });
+      setLoadingError(z.object({ delivered: z.boolean() }).parse(result).delivered
         ? t('settings.notifications.telegram.testSent')
         : t('settings.notifications.telegram.disabled'));
     } catch {
@@ -210,7 +222,11 @@ export const TelegramNotificationSettings: React.FC = () => {
             className="h-8"
             inputMode="numeric"
           />
-          <Select value={draft.kind} onValueChange={(kind) => setDraft((old) => ({ ...old, kind: kind as TelegramKind }))}>
+          <Select value={draft.kind} onValueChange={(kind) => {
+            if (kind === 'private' || kind === 'group' || kind === 'topic') {
+              setDraft((old) => ({ ...old, kind }));
+            }
+          }}>
             <SelectTrigger className={SETTINGS_SELECT_ROW_TRIGGER_CLASS}>
               <SelectValue />
             </SelectTrigger>
