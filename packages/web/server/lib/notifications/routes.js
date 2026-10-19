@@ -54,6 +54,7 @@ export const registerNotificationRoutes = (app, dependencies) => {
     setPushInitialized,
     setAutoAcceptSession,
     telegramRuntime,
+    persistSettings,
   } = dependencies;
 
   const ensureSessionWatcher = async () => {
@@ -82,7 +83,7 @@ export const registerNotificationRoutes = (app, dependencies) => {
   app.get('/api/notifications/telegram/aliases', async (req, res) => {
     if (!await telegramAuthorized(req, res)) return;
     try {
-      res.json({ aliases: await telegramRuntime.listAliases() });
+      res.json({ aliases: await telegramRuntime.listAliasDetails() });
     } catch {
       res.status(500).json({ error: 'Telegram configuration unavailable' });
     }
@@ -90,7 +91,7 @@ export const registerNotificationRoutes = (app, dependencies) => {
   app.post('/api/notifications/telegram/aliases', async (req, res) => {
     if (!await telegramAuthorized(req, res)) return;
     try {
-      await telegramRuntime.configureAlias(req.body?.alias, req.body?.chatId, req.body?.threadId ?? null);
+      await telegramRuntime.configureAlias(req.body?.alias, req.body?.chatId, req.body?.threadId ?? null, req.body?.kind ?? 'private');
       res.json({ ok: true });
     } catch (error) {
       res.status(error instanceof TypeError ? 400 : 500).json({ error: error instanceof TypeError ? error.message : 'Telegram configuration unavailable' });
@@ -99,7 +100,7 @@ export const registerNotificationRoutes = (app, dependencies) => {
   app.post('/api/notifications/telegram/subscribe', async (req, res) => {
     if (!await telegramAuthorized(req, res)) return;
     try {
-      await telegramRuntime.subscribe(req.body?.directory, req.body?.sessionId, req.body?.alias);
+      await telegramRuntime.subscribe(req.body?.directory, req.body?.sessionId, req.body?.alias, { scope: req.body?.scope, expiresAt: req.body?.expiresAt, origin: 'user' });
       await ensureSessionWatcher();
       res.json({ ok: true });
     } catch (error) {
@@ -119,40 +120,90 @@ export const registerNotificationRoutes = (app, dependencies) => {
       res.status(500).json({ error: 'Telegram subscription unavailable' });
     }
   });
-  app.post('/api/notifications/telegram/send', async (req, res) => {
+  app.delete('/api/notifications/telegram/aliases', async (req, res) => {
     if (!await telegramAuthorized(req, res)) return;
     try {
-      if (typeof req.body?.alias !== 'string' || typeof req.body?.text !== 'string' ||
-          req.body.text.length > 100_000) return res.status(400).json({ error: 'Invalid Telegram message' });
-      await telegramRuntime.sendText(req.body.alias, req.body.text);
-      res.json({ delivered: true });
+      await telegramRuntime.deleteAlias(req.body?.alias);
+      res.json({ ok: true });
     } catch (error) {
-      res.status(error?.message === 'Unknown Telegram alias' ? 400 : 502).json({
-        error: error?.message === 'Unknown Telegram alias' ? error.message : 'Telegram delivery failed',
+      res.status(error instanceof TypeError ? 400 : 500).json({
+        error: error instanceof TypeError ? error.message : 'Telegram alias removal failed',
       });
     }
+  });
+  app.get('/api/notifications/telegram/config', async (req, res) => {
+    if (!await telegramAuthorized(req, res)) return;
+    try {
+      const settings = await readSettingsFromDiskMigrated();
+      res.json({
+        enabled: settings.telegramEnabled === true,
+        defaultAlias: settings.telegramDefaultAlias || '',
+        hasBotToken: await telegramRuntime.hasBotToken(),
+      });
+    } catch {
+      res.status(500).json({ error: 'Telegram settings unavailable' });
+    }
+  });
+  app.post('/api/notifications/telegram/config', async (req, res) => {
+    if (!await telegramAuthorized(req, res)) return;
+    const changes = {};
+    if (req.body?.enabled !== undefined) {
+      if (typeof req.body.enabled !== 'boolean') return res.status(400).json({ error: 'Invalid enabled value' });
+      changes.telegramEnabled = req.body.enabled;
+    }
+    if (req.body?.defaultAlias !== undefined) {
+      if (typeof req.body.defaultAlias !== 'string' || !/^[\p{L}\p{N} _-]{0,80}$/u.test(req.body.defaultAlias)) {
+        return res.status(400).json({ error: 'Invalid default alias' });
+      }
+      changes.telegramDefaultAlias = req.body.defaultAlias.trim();
+    }
+    if (req.body?.botToken !== undefined && req.body.botToken !== '') {
+      if (typeof req.body.botToken !== 'string' || !/^[0-9]+:[A-Za-z0-9_-]+$/.test(req.body.botToken)) {
+        return res.status(400).json({ error: 'Invalid bot token' });
+      }
+      changes.telegramBotToken = req.body.botToken;
+    }
+    try {
+      await persistSettings(changes);
+      res.json({ ok: true });
+    } catch {
+      res.status(500).json({ error: 'Telegram settings could not be saved' });
+    }
+  });
+  const telegramDeliveryResponse = async (req, res, input) => {
+    try {
+      const settings = await readSettingsFromDiskMigrated();
+      if (settings.telegramEnabled !== true) return res.json({ delivered: false, reason: 'telegram-disabled' });
+      const result = await telegramRuntime.sendContent(input);
+      return res.json(result);
+    } catch (error) {
+      if (error?.retryAfter) {
+        res.setHeader('Retry-After', String(error.retryAfter));
+        return res.status(429).json({ error: 'Too many Telegram sends' });
+      }
+      return res.status(error instanceof TypeError ? 400 : 502).json({
+        error: error instanceof TypeError ? error.message : 'Telegram delivery failed',
+      });
+    }
+  };
+  app.post('/api/notifications/telegram/send', async (req, res) => {
+    if (!await telegramAuthorized(req, res)) return;
+    return telegramDeliveryResponse(req, res, {
+      alias: req.body?.alias, text: req.body?.text, file: req.body?.file,
+      caption: req.body?.caption, mode: req.body?.mode,
+    });
   });
   app.post('/api/notifications/telegram/document', async (req, res) => {
     if (!await telegramAuthorized(req, res)) return;
-    try {
-      await telegramRuntime.sendDocument(req.body?.alias, req.body?.filePath);
-      res.json({ delivered: true });
-    } catch (error) {
-      res.status(error instanceof TypeError ? 400 : 502).json({
-        error: error instanceof TypeError ? error.message : 'Telegram document delivery failed',
-      });
-    }
+    return telegramDeliveryResponse(req, res, {
+      alias: req.body?.alias, file: req.body?.filePath, caption: req.body?.caption, mode: 'document',
+    });
   });
   app.post('/api/notifications/telegram/test', async (req, res) => {
     if (!await telegramAuthorized(req, res)) return;
-    try {
-      await telegramRuntime.sendText(req.body?.alias, 'OpenChamber Telegram test');
-      res.json({ delivered: true });
-    } catch (error) {
-      res.status(error?.message === 'Unknown Telegram alias' ? 400 : 502).json({
-        error: error?.message === 'Unknown Telegram alias' ? error.message : 'Telegram test delivery failed',
-      });
-    }
+    return telegramDeliveryResponse(req, res, {
+      alias: req.body?.alias, text: 'OpenChamber Telegram test',
+    });
   });
 
   app.get('/api/push/vapid-public-key', async (_req, res) => {
