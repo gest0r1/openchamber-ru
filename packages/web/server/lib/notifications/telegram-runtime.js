@@ -293,7 +293,7 @@ export const createTelegramRuntime = ({
   const listAliases = async () => {
     return Object.keys(await configuredAliases());
   };
-  const notify = async ({ directory, sessionId, type, aborted = false }) => {
+  const notify = async ({ directory, sessionId, type, eventKey = null, aborted = false }) => {
     if (!directory || !sessionId || aborted || !['completed', 'needs_input', 'error'].includes(type)) return false;
     if (await enabled() !== true) return false;
     const data = await load();
@@ -306,7 +306,7 @@ export const createTelegramRuntime = ({
       return false;
     }
     if (!subscription?.opted_in) return false;
-    const dedupKey = `${directory}\u0000${sessionId}\u0000${type}`;
+    const dedupKey = `${directory}\u0000${sessionId}\u0000${type}\u0000${eventKey ?? ''}`;
     if (inflightDelivery.has(dedupKey) || Date.now() - (recentDelivery.get(dedupKey) ?? 0) < 5000) return false;
     if (type === 'completed') {
       // Unknown activity is not completion. Do not notify prematurely.
@@ -337,7 +337,11 @@ export const createTelegramRuntime = ({
           }
         });
       }
+      recentDelivery.delete(dedupKey);
       recentDelivery.set(dedupKey, Date.now());
+      while (recentDelivery.size > 1000) {
+        recentDelivery.delete(recentDelivery.keys().next().value);
+      }
       return true;
     } finally {
       inflightDelivery.delete(dedupKey);
