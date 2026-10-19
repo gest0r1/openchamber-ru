@@ -434,8 +434,8 @@ export const createNotificationTriggerRuntime = (deps) => {
       if (payload.type === 'session.idle' && await isPausedForSubagents(sessionId)) {
         return;
       }
-      if (payload.type === 'session.idle' && !(await hasActiveSessionGoal(sessionId))) {
-        await maybeSendTelegram(sessionId, notificationDirectory, 'completed');
+      if (!(await hasActiveSessionGoal(sessionId))) {
+        await maybeSendTelegram(sessionId, notificationDirectory, payload.type === 'session.error' ? 'error' : 'completed');
       }
       const error = payload.properties?.error;
       const errorText = typeof error?.message === 'string'
@@ -901,6 +901,7 @@ export const createNotificationTriggerRuntime = (deps) => {
       // Session name is presentation sugar for the mobile push — never block on it.
     }
     const type = status === 'complete' ? 'goal_complete' : (status === 'budgetLimited' ? 'goal_budget' : 'goal_blocked');
+    await maybeSendTelegram(sessionId, directory, status === 'complete' ? 'completed' : 'needs_input');
     await fanoutPush(
       {
         title,
