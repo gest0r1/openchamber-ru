@@ -178,30 +178,56 @@ switch cleanup, stale-source rejection, heartbeat, and reconnect-ready events.
 Electron uses its native notification path; VS Code does not subscribe to this
 server-only stream. Mobile shells retain their existing push behavior.
 
-## Telegram channel (work in progress)
+## Telegram notifications
 
-`telegram-runtime.js` is a server-owned, opt-in outbound Telegram Bot API adapter.
-It does not share web-push/APNs visibility gates or send conversation content in
-automatic notifications. Its persistent state is in
-`<OPENCHAMBER_DATA_DIR>/telegram-notifications.json` (0600, atomic replace);
-session subscriptions are keyed by a SHA-256 hash of [directory, sessionId].
+`telegram-runtime.js` sends opt-in notifications through the Telegram Bot API.
+The trigger runtime owns completion, permission and form debounce handling.
+The Telegram adapter is invoked independently of desktop focus, web push and
+APNs gates. A completion requires a successful active-session read with no
+active descendants. An unknown activity result suppresses delivery.
 
-The instance setting `telegramEnabled` must be true. The Bot API credential
-comes from `TELEGRAM_BOT_TOKEN` first, then the instance secret
-`telegramBotToken`. An HTTPS `publicOrigin` provides the session deep link.
-No message is sent when the channel is disabled or the session has not opted in.
-A completion requires a readable active-session snapshot, the parent to be
-idle, and `hasWorkingDescendants` to return **false**. Unknown activity
-fails closed. The adapter does not yet establish that detached shell processes
-have terminated.
+Session opt-ins are stored in `<OPENCHAMBER_DATA_DIR>/telegram-notifications.json`
+using an atomic rename and 0600 permissions. The key hashes the directory
+and session ID. A subscription contains its recipient alias, opt-in status,
+scope (`session`, `run`, `once`), creation timestamp, expiry and origin.
+The default scope is `session` with a seven-day expiry. A `once` subscription
+is removed after the first successful notification. A `run` subscription
+is removed when completion is delivered. Manual unsubscribes are immediate.
 
-Authenticated endpoints:
-- `GET /api/notifications/telegram/aliases`: alias names, never chat IDs.
-- `POST /api/notifications/telegram/aliases`: `{alias, chatId, threadId?}`.
-- `POST /api/notifications/telegram/subscribe`: `{directory, sessionId, alias}`.
-- `POST /api/notifications/telegram/unsubscribe`: `{directory, sessionId}`.
-- `POST /api/notifications/telegram/test`: `{alias}`, sends a fixed test message.
+Recipient aliases are instance settings in `telegramAliases`. Each name
+resolves to a Telegram `chat_id`, optional `message_thread_id` and kind.
+`telegramDefaultAlias` must name a configured destination when an explicit
+recipient is omitted. `telegramBotToken` is an instance secret.
+`TELEGRAM_BOT_TOKEN` takes precedence over it, allowing immutable deployment
+credentials. No endpoint returns a full chat ID or token to the UI.
 
-The implementation is not yet feature-complete: there is no settings UI,
-agent-tool action, document upload, or pending-question delivery. Do not
-advertise it as a completed integration.
+Authenticated HTTP endpoints:
+
+- `GET/POST /api/notifications/telegram/config` read/update enabled state,
+  token presence, default alias and optional replacement token.
+- `GET/POST/DELETE /api/notifications/telegram/aliases` list masked destinations,
+  upsert aliases or remove one. Alias renames preserve opt-in recipients.
+- `POST /api/notifications/telegram/subscribe` accepts directory, sessionId,
+  optional alias, scope and expiry.
+- `POST /api/notifications/telegram/unsubscribe` removes one subscription.
+- `POST /api/notifications/telegram/test` tests a configured recipient.
+- `POST /api/notifications/telegram/send` accepts alias, text, file, caption
+  and mode. `/document` provides the document-specific compatibility route.
+
+The managed `openchamber_notify` tool exposes
+`notify.telegram_optin`, `notify.telegram_stop` and
+`notify.telegram_send`. A stale plugin cannot send if the server's
+`agentNotifyToolEnabled` setting is off. Explicit sends do not require a
+session opt-in. Automatic messages contain fixed titles and optional
+HTTPS session links; they never contain chat transcripts.
+
+Telegram `sendMessage` is retried on HTTP 429, server errors and network
+errors. `sendDocument` uses multipart form data. Markdown documents are
+limited to 10 MB, must resolve within the calling managed session directory,
+and may be sent as source files (`document`) or HTML-formatted text
+(`formatted`). Telegram's `parse_mode: HTML` supports only a subset of
+Markdown. Long messages are chunked to the Bot API limit. Explicit sends
+share a limit of ten requests per ten seconds across HTTP and managed agents.
+The automatic channel has separate opt-in and delivery dedup rules.
+
+The module never reads Telegram updates and never accepts incoming commands.
