@@ -19,6 +19,8 @@ export const createNotificationTriggerRuntime = (deps) => {
     broadcastUiNotification,
     sendPushToAllUiSessions,
     sendApnsToAllUiSessions,
+    telegramRuntime = null,
+    resolveTelegramDirectory = (_sessionId, directory) => directory,
     isAnyInteractiveClientVisible,
     buildOpenCodeUrl,
     getOpenCodeAuthHeaders,
@@ -397,6 +399,22 @@ export const createNotificationTriggerRuntime = (deps) => {
     }
   };
 
+  // Telegram uses the same source triggers and debounce as push but has its own
+  // opt-in and never inherits desktop focus, notification mode or APNs gates.
+  const maybeSendTelegram = async (sessionId, directory, type) => {
+    if (!telegramRuntime || !sessionId || sessionId === LOCATION_SCOPED_FORM_SESSION_ID) return;
+    const targetDirectory = resolveTelegramDirectory(sessionId, directory);
+    if (!targetDirectory) return;
+    // Only a root session may raise an automatic alert. Failed lineage lookups
+    // return undefined, which is deliberately not accepted as a root.
+    if (await fetchSessionParentId(sessionId, targetDirectory) !== null) return;
+    try {
+      await telegramRuntime.notify({ directory: targetDirectory, sessionId, type });
+    } catch {
+      console.warn('[Telegram] Notification delivery failed');
+    }
+  };
+
   const maybeSendPushForTrigger = async (payload) => {
     if (!payload || typeof payload !== 'object') {
       return;
@@ -415,6 +433,9 @@ export const createNotificationTriggerRuntime = (deps) => {
     if ((payload.type === 'session.idle' || payload.type === 'session.error') && sessionId) {
       if (payload.type === 'session.idle' && await isPausedForSubagents(sessionId)) {
         return;
+      }
+      if (payload.type === 'session.idle' && !(await hasActiveSessionGoal(sessionId))) {
+        await maybeSendTelegram(sessionId, notificationDirectory, 'completed');
       }
       const error = payload.properties?.error;
       const errorText = typeof error?.message === 'string'
@@ -624,6 +645,13 @@ export const createNotificationTriggerRuntime = (deps) => {
       return;
     }
 
+    if (payload.type === 'form.replied' && sessionId) {
+      const pending = pushQuestionDebounceTimers.get(sessionId);
+      if (pending) clearTimeout(pending);
+      pushQuestionDebounceTimers.delete(sessionId);
+      return;
+    }
+
     if (payload.type === 'form.created' && sessionId) {
       const existingTimer = pushQuestionDebounceTimers.get(sessionId);
       if (existingTimer) {
@@ -633,6 +661,7 @@ export const createNotificationTriggerRuntime = (deps) => {
       const timer = setTimeout(async () => {
         pushQuestionDebounceTimers.delete(sessionId);
 
+        await maybeSendTelegram(sessionId, notificationDirectory, 'needs_input');
         const settings = await readSettingsFromDisk();
         if (settings.notifyOnQuestion === false) {
           return;
@@ -774,6 +803,7 @@ export const createNotificationTriggerRuntime = (deps) => {
           return;
         }
 
+        await maybeSendTelegram(sessionId, notificationDirectory, 'needs_input');
         const settings = await readSettingsFromDisk();
 
         if (settings.notifyOnQuestion === false) {
