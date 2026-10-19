@@ -173,3 +173,68 @@ test('A missing default alias is a configuration error', async () => {
     await rm(dir, { recursive: true, force: true });
   }
 });
+
+test('Formatted messages respect Telegram 4096-character HTML limit', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'openchamber-telegram-chunk-'));
+  const requests = [];
+  try {
+    const runtime = createTelegramRuntime({
+      storePath: join(dir, 'telegram.json'),
+      getBotToken: async () => '123:example-token',
+      getPublicOrigin: async () => '',
+      activityProbe: {},
+      fetchImpl: async (_url, options) => {
+        requests.push(JSON.parse(options.body));
+        return { ok: true, json: async () => ({ ok: true, result: {} }) };
+      },
+    });
+    await runtime.configureAlias('me', '12345');
+    await runtime.sendContent({ alias: 'me', mode: 'formatted', text: '&'.repeat(4400) });
+    assert.ok(requests.length > 1);
+    assert.ok(requests.every((request) => request.text.length <= 4096 && request.parse_mode === 'HTML'));
+    assert.equal(requests.map((request) => request.text.replaceAll('&amp;', '&')).join(''), '&'.repeat(4400));
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test('An alias rename retains existing opt-in subscriptions', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'openchamber-telegram-rename-'));
+  try {
+    const runtime = createTelegramRuntime({
+      storePath: join(dir, 'telegram.json'),
+      getBotToken: async () => '123:example-token',
+      getPublicOrigin: async () => '',
+      activityProbe: {},
+    });
+    await runtime.configureAlias('old', '12345');
+    await runtime.subscribe('/project', 'session', 'old');
+    await runtime.configureAlias('new', null, null, 'private', 'old');
+    assert.deepEqual(await runtime.listAliases(), ['new']);
+    assert.equal(await runtime.hasSubscription('/project', 'session'), true);
+    await runtime.deleteAlias('new');
+    assert.equal(await runtime.hasSubscription('/project', 'session'), false);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test('A configured token is never exposed through alias inspection', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'openchamber-telegram-secret-'));
+  try {
+    const runtime = createTelegramRuntime({
+      storePath: join(dir, 'telegram.json'),
+      getBotToken: async () => '123:ultra-secret-token',
+      getPublicOrigin: async () => '',
+      activityProbe: {},
+    });
+    await runtime.configureAlias('private', '123456789');
+    const serialized = JSON.stringify({
+      aliases: await runtime.listAliasDetails(),
+      hasBotToken: await runtime.hasBotToken(),
+    });
+    assert.doesNotMatch(serialized, /ultra-secret-token|123456789/);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
