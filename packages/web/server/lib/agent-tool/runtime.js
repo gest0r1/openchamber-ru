@@ -159,6 +159,12 @@ const NOTIFY_PARAMETER_PROPERTIES = {
   title: { type: 'string', description: 'Short headline the user reads first, up to 120 characters' },
   body: { type: 'string', description: 'One or two sentences of detail, up to 500 characters' },
   showWhenFocused: { type: 'boolean', description: 'Show it even while the user is looking at OpenChamber. Only for something that cannot wait' },
+  alias: { type: 'string', description: 'Configured Telegram recipient name; omission uses the default alias' },
+  scope: { type: 'string', enum: ['session', 'run', 'once'], description: 'Telegram opt-in lifetime, default session' },
+  text: { type: 'string', description: 'Message text to send to Telegram, up to 100000 characters' },
+  file: { type: 'string', description: 'Path to a Markdown file in the calling session directory to send to Telegram' },
+  caption: { type: 'string', description: 'Document caption, up to 1024 characters' },
+  mode: { type: 'string', enum: ['document', 'formatted'], description: 'Send Markdown as an attached file or formatted Telegram HTML text' },
 };
 
 // Its own names: `title` here names the page.
