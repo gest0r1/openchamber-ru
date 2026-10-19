@@ -221,6 +221,34 @@ describe('settings registry', () => {
     expect(useUIStore.getState().workStatusHiddenSectionsExplicit).toBe(true);
   });
 
+  test('Telegram settings remain instance-scoped and keep chat IDs and token outside the mirror', () => {
+    expect(SETTINGS_REGISTRY.telegramEnabled.scope).toBe('instance');
+    expect(SETTINGS_REGISTRY.telegramBotToken.secret).toBe(true);
+    expect(SETTINGS_REGISTRY.telegramAliases.secret).toBe(true);
+    expect(SETTINGS_REGISTRY.hasTelegramBotToken.computed).toBe(true);
+    expect(MIRRORED_KEYS).toContain('telegramEnabled');
+    expect(MIRRORED_KEYS).not.toContain('telegramBotToken');
+    expect(MIRRORED_KEYS).not.toContain('telegramAliases');
+    expect(MIRRORED_KEYS).not.toContain('hasTelegramBotToken');
+
+    const parsed = parseSettingsDocument({
+      telegramEnabled: true,
+      telegramBotToken: '123:secret-token',
+      telegramDefaultAlias: 'мне',
+      telegramAliases: [{
+        name: 'мне',
+        chat_id: '-100123456789',
+        message_thread_id: 99,
+        kind: 'topic',
+      }],
+    });
+    expect(parsed?.telegramEnabled).toBe(true);
+    expect(parsed?.telegramDefaultAlias).toBe('мне');
+    expect(parsed?.telegramAliases?.[0]?.chat_id).toBe('-100123456789');
+    expect(parsed?.telegramAliases?.[0]?.message_thread_id).toBe(99);
+    expect(parseSettingsDocument({ telegramEnabled: 'true', telegramAliases: 'invalid' })).toEqual({});
+  });
+
   test('the checked-in JSON snapshots match the registry (run `bun run settings-registry:generate`)', () => {
     const rendered = renderSettingsRegistrySnapshot();
     for (const relativePath of SETTINGS_REGISTRY_SNAPSHOT_PATHS) {
