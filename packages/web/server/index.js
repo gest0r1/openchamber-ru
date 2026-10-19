@@ -2360,6 +2360,7 @@ async function main(options = {}) {
     getOrCreateVapidKeys,
     getUiSessionTokenFromRequest,
     writeSettingsToDisk,
+    persistSettings,
     addOrUpdatePushSubscription,
     removePushSubscription,
     addOrUpdateApnsToken,
