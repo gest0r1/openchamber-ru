@@ -238,3 +238,81 @@ test('A configured token is never exposed through alias inspection', async () =>
     await rm(dir, { recursive: true, force: true });
   }
 });
+
+test('An unsubscribe during live activity probing prevents a stale Telegram alert', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'openchamber-telegram-race-'));
+  let releaseProbe;
+  let probeStarted;
+  const started = new Promise((resolve) => { probeStarted = resolve; });
+  const gate = new Promise((resolve) => { releaseProbe = resolve; });
+  let sends = 0;
+  try {
+    const runtime = createTelegramRuntime({
+      storePath: join(dir, 'telegram.json'),
+      getBotToken: async () => '123:test-token',
+      getPublicOrigin: async () => '',
+      activityProbe: {
+        fetchActiveSessionStatuses: async () => {
+          probeStarted();
+          await gate;
+          return {};
+        },
+        hasWorkingDescendants: async () => false,
+      },
+      fetchImpl: async () => {
+        sends += 1;
+        return { ok: true, json: async () => ({ ok: true, result: {} }) };
+      },
+    });
+    await runtime.configureAlias('me', '123456');
+    await runtime.subscribe('/repo', 's1', 'me');
+    const pending = runtime.notify({ directory: '/repo', sessionId: 's1', type: 'completed' });
+    await started;
+    await runtime.unsubscribe('/repo', 's1');
+    releaseProbe();
+    assert.equal(await pending, false);
+    assert.equal(sends, 0);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test('Disabling Telegram during an activity probe prevents a queued notification', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'openchamber-telegram-disable-race-'));
+  let releaseProbe;
+  let probeStarted;
+  const started = new Promise((resolve) => { probeStarted = resolve; });
+  const gate = new Promise((resolve) => { releaseProbe = resolve; });
+  let enabled = true;
+  let sends = 0;
+  try {
+    const runtime = createTelegramRuntime({
+      storePath: join(dir, 'telegram.json'),
+      getBotToken: async () => '123:test-token',
+      getPublicOrigin: async () => '',
+      enabled: async () => enabled,
+      activityProbe: {
+        fetchActiveSessionStatuses: async () => {
+          probeStarted();
+          await gate;
+          return {};
+        },
+        hasWorkingDescendants: async () => false,
+      },
+      fetchImpl: async () => {
+        sends += 1;
+        return { ok: true, json: async () => ({ ok: true, result: {} }) };
+      },
+    });
+    await runtime.configureAlias('me', '123456');
+    await runtime.subscribe('/repo', 's1', 'me');
+    const pending = runtime.notify({ directory: '/repo', sessionId: 's1', type: 'completed' });
+    await started;
+    enabled = false;
+    releaseProbe();
+    assert.equal(await pending, false);
+    assert.equal(sends, 0);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
