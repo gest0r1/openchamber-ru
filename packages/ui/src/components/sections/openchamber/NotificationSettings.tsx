@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { getClientPlatform } from '@/lib/platform';
 import { useI18n } from '@/lib/i18n';
+import { TelegramNotificationSettings } from './TelegramNotificationSettings';
 import {
   SettingsSection,
   SettingsTwoColumn,
@@ -605,6 +606,8 @@ export const NotificationSettings: React.FC = () => {
 
           </>
         )}
+
+        {!isVSCode && <TelegramNotificationSettings />}
 
         {isBrowser && (
           <SettingsSection
