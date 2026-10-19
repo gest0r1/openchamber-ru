@@ -314,6 +314,10 @@ export const createTelegramRuntime = ({
       if (!statuses || statuses[sessionId]) return false;
       const children = await activityProbe.hasWorkingDescendants(sessionId, statuses).catch(() => null);
       if (children !== false) return false;
+      // An idle session can still own a detached shell job. Query OpenCode's
+      // shell service; a failed or unsupported read must not announce completion.
+      const shells = await activityProbe.hasRunningShells?.(sessionId, directory)?.catch(() => null);
+      if (shells !== false) return false;
     }
     const origin = String(await getPublicOrigin() || '').replace(/\/$/, '');
     const url = /^https:\/\//.test(origin) ? `\n${origin}/?session=${encodeURIComponent(sessionId)}` : '';
