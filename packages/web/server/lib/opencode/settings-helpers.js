@@ -204,8 +204,8 @@ export const createSettingsHelpers = (dependencies) => {
         const name = typeof entry?.name === 'string' ? entry.name.trim() : '';
         const peer = String(entry?.chat_id ?? '');
         const thread = entry?.message_thread_id ?? null;
-        if (!name || !/^[\\p{L}\\p{N} _-]{1,80}$/u.test(name) ||
-            !(/^-?\\d+$/.test(peer) || /^@[A-Za-z][A-Za-z0-9_]{4,}$/.test(peer)) ||
+        if (!name || !/^[\p{L}\p{N} _-]{1,80}$/u.test(name) ||
+            !(/^-?\d+$/.test(peer) || /^@[A-Za-z][A-Za-z0-9_]{4,}$/.test(peer)) ||
             (thread !== null && (!Number.isSafeInteger(thread) || thread < 1)) ||
             !['private', 'group', 'topic'].includes(entry?.kind ?? 'private') ||
             names.has(name.toLocaleLowerCase())) {
