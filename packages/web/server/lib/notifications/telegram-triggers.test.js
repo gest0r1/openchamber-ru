@@ -63,6 +63,7 @@ test('A child session cannot raise a Telegram question alert', async () => {
   const { runtime, delivered, event } = createHarness({ parentID: 'root' });
   await runtime.maybeSendPushForTrigger(event('form.created', { form: { title: 'Choose an option' } }));
   await new Promise((resolve) => setTimeout(resolve, 600));
+  await flushTelegramDelivery();
   expect(delivered).toHaveLength(0);
 });
 
@@ -70,6 +71,7 @@ test('A root form question notifies even when other notification settings are of
   const { runtime, delivered, event } = createHarness();
   await runtime.maybeSendPushForTrigger(event('form.created', { form: { title: 'Choose an option' } }));
   await new Promise((resolve) => setTimeout(resolve, 600));
+  await flushTelegramDelivery();
   expect(delivered).toEqual([{ sessionId: 'session', directory: '/project', type: 'needs_input' }]);
 });
 
@@ -78,6 +80,7 @@ test('A permission answered during debounce is not sent to Telegram', async () =
   await runtime.maybeSendPushForTrigger(event('permission.asked', { id: 'permission-1', action: 'read' }));
   await runtime.maybeSendPushForTrigger(event('permission.replied', { requestID: 'permission-1' }));
   await new Promise((resolve) => setTimeout(resolve, 600));
+  await flushTelegramDelivery();
   expect(delivered).toHaveLength(0);
 });
 
