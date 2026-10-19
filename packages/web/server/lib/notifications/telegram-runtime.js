@@ -42,9 +42,18 @@ export const createTelegramRuntime = ({
       throw error;
     }
   };
+  const isExpired = (record, now = Date.now()) =>
+    Number.isFinite(record?.expires_at) && record.expires_at <= now;
+  const expireSubscriptions = (data) => {
+    const now = Date.now();
+    for (const [key, record] of Object.entries(data.subscriptions)) {
+      if (isExpired(record, now)) delete data.subscriptions[key];
+    }
+  };
   const mutate = (fn) => {
     const task = queue.catch(() => {}).then(async () => {
       const data = await load();
+      expireSubscriptions(data);
       const result = fn(data);
       await mkdir(dirname(storePath), { recursive: true });
       const temporary = `${storePath}.${process.pid}.tmp`;
@@ -264,8 +273,13 @@ export const createTelegramRuntime = ({
   };
   const hasSubscription = async (directory, sessionId) => {
     const data = await load();
-    const record = data.subscriptions[keyOf(directory, sessionId)];
-    return Boolean(record?.opted_in === true && (!record.expires_at || record.expires_at > Date.now()));
+    const key = keyOf(directory, sessionId);
+    const record = data.subscriptions[key];
+    if (isExpired(record)) {
+      await mutate((latest) => { if (isExpired(latest.subscriptions[key])) delete latest.subscriptions[key]; });
+      return false;
+    }
+    return record?.opted_in === true;
   };
   const hasBotToken = async () => /^[0-9]+:[A-Za-z0-9_-]+$/.test(String(await getBotToken() || ''));
   const listAliases = async () => {
@@ -276,7 +290,14 @@ export const createTelegramRuntime = ({
     if (await enabled() !== true) return false;
     const data = await load();
     const subscription = data.subscriptions[keyOf(directory, sessionId)];
-    if (!subscription?.opted_in || (subscription.expires_at && subscription.expires_at <= Date.now())) return false;
+    if (isExpired(subscription)) {
+      await mutate((latest) => {
+        const key = keyOf(directory, sessionId);
+        if (isExpired(latest.subscriptions[key])) delete latest.subscriptions[key];
+      });
+      return false;
+    }
+    if (!subscription?.opted_in) return false;
     const dedupKey = `${directory}\u0000${sessionId}\u0000${type}`;
     if (inflightDelivery.has(dedupKey) || Date.now() - (recentDelivery.get(dedupKey) ?? 0) < 5000) return false;
     if (type === 'completed') {
