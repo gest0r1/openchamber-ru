@@ -4,6 +4,7 @@
     "telegramEnabled": { "scope": "instance" },
     "telegramBotToken": { "scope": "instance", "secret": true },
     "telegramDefaultAlias": { "scope": "instance" },
+    "telegramAliases": { "scope": "instance", "secret": true },
     "themeId": {
       "scope": "profile",
       "perSurface": true
