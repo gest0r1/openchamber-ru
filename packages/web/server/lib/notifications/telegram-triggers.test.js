@@ -43,15 +43,19 @@ const createHarness = ({ parentID = null, childActive = false, goalActive = fals
   return { runtime, delivered, pushed, event };
 };
 
+const flushTelegramDelivery = () => new Promise((resolve) => setTimeout(resolve, 20));
+
 test('Telegram uses the ready trigger independently of UI focus and desktop settings', async () => {
   const { runtime, delivered, event } = createHarness();
   await runtime.maybeSendPushForTrigger(event('session.idle'));
+  await flushTelegramDelivery();
   expect(delivered).toEqual([{ sessionId: 'session', directory: '/project', type: 'completed' }]);
 });
 
 test('Telegram does not send ready when a subagent is active', async () => {
   const { runtime, delivered, event } = createHarness({ childActive: true });
   await runtime.maybeSendPushForTrigger(event('session.idle'));
+  await flushTelegramDelivery();
   expect(delivered).toHaveLength(0);
 });
 
@@ -80,11 +84,13 @@ test('A permission answered during debounce is not sent to Telegram', async () =
 test('A terminal error notifies an opted-in root', async () => {
   const { runtime, delivered, event } = createHarness();
   await runtime.maybeSendPushForTrigger(event('session.error', { error: { message: 'Failed' } }));
+  await flushTelegramDelivery();
   expect(delivered).toEqual([{ sessionId: 'session', directory: '/project', type: 'error' }]);
 });
 
 test('A goal completion uses the shared notification trigger', async () => {
   const { runtime, delivered } = createHarness();
   await runtime.sendGoalSettlePush({ sessionId: 'session', directory: '/project', status: 'complete', title: 'Done', body: 'Finished' });
+  await flushTelegramDelivery();
   expect(delivered).toEqual([{ sessionId: 'session', directory: '/project', type: 'completed' }]);
 });
