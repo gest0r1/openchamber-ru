@@ -92,6 +92,25 @@ test('A root form question notifies even when other notification settings are of
   expect(delivered).toEqual([{ sessionId: 'session', directory: '/project', type: 'needs_input' }]);
 });
 
+test('A form settled during debounce does not create a stale Telegram alert', async () => {
+  const { runtime, delivered, event } = createHarness();
+  await runtime.maybeSendPushForTrigger(event('form.created', { form: { id: 'form-a', title: 'Choose an option' } }));
+  await runtime.maybeSendPushForTrigger(event('form.settled', { formID: 'form-a' }));
+  await new Promise((resolve) => setTimeout(resolve, 600));
+  await flushTelegramDelivery();
+  expect(delivered).toHaveLength(0);
+});
+
+test('A late form settlement does not cancel a newer form in the same session', async () => {
+  const { runtime, delivered, event } = createHarness();
+  await runtime.maybeSendPushForTrigger(event('form.created', { form: { id: 'form-a', title: 'First' } }));
+  await runtime.maybeSendPushForTrigger(event('form.created', { form: { id: 'form-b', title: 'Second' } }));
+  await runtime.maybeSendPushForTrigger(event('form.settled', { formID: 'form-a' }));
+  await new Promise((resolve) => setTimeout(resolve, 600));
+  await flushTelegramDelivery();
+  expect(delivered).toEqual([{ sessionId: 'session', directory: '/project', type: 'needs_input' }]);
+});
+
 test('A permission answered during debounce is not sent to Telegram', async () => {
   const { runtime, delivered, event } = createHarness();
   await runtime.maybeSendPushForTrigger(event('permission.asked', { id: 'permission-1', action: 'read' }));
