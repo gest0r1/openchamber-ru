@@ -293,6 +293,21 @@ export const SETTINGS_REGISTRY = {
   // `builtin` or an installed extension id; the server falls back to `builtin` when that extension cannot serve.
   browserProvider: field({ scope: 'instance', parse: parseNonEmptyString, ui: uiStore('browserProvider', (v) => useUIStore.getState().setBrowserProvider(v)) }),
   agentNotifyToolEnabled: field({ scope: 'instance', parse: parseBoolean, ui: uiStore('agentNotifyToolEnabled', (v) => useUIStore.getState().setAgentNotifyToolEnabled(v)) }),
+  // Telegram recipients are instance-only; neither the credential nor chat IDs reach the UI settings mirror.
+  telegramEnabled: field({ scope: 'instance', parse: parseBoolean }),
+  telegramBotToken: field({ scope: 'instance', secret: true, parse: parseTrimmedString }),
+  hasTelegramBotToken: field({ scope: 'instance', computed: true, parse: parseBoolean }),
+  telegramDefaultAlias: field({ scope: 'instance', parse: parseTrimmedString }),
+  telegramAliases: field({
+    scope: 'instance',
+    secret: true,
+    parse: fromSchema(z.array(z.object({
+      name: z.string().min(1).max(80),
+      chat_id: z.string().min(1),
+      message_thread_id: z.number().int().positive().nullable().optional(),
+      kind: z.enum(['private', 'group', 'topic']).optional(),
+    })).max(100)),
+  }),
   agentRenderToolEnabled: field({ scope: 'instance', parse: parseBoolean, ui: uiStore('agentRenderToolEnabled', (v) => useUIStore.getState().setAgentRenderToolEnabled(v)) }),
   agentToolsCodeMode: field({ scope: 'instance', parse: parseBoolean, ui: uiStore('agentToolsCodeMode', (v) => useUIStore.getState().setAgentToolsCodeMode(v)) }),
   agentWorktreeMoveWithoutAsking: field({ scope: 'instance', parse: parseBoolean, ui: uiStore('agentWorktreeMoveWithoutAsking', (v) => useUIStore.getState().setAgentWorktreeMoveWithoutAsking(v)) }),
