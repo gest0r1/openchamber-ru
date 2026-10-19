@@ -26,6 +26,28 @@ Notifications tell you when something needs your attention so you don't have to 
 
 Sessions set to auto-accept won't nag you with permission notifications.
 
+## Telegram
+
+Open **Settings → OpenChamber → Notifications → Telegram** to add your
+Telegram bot token and the chats where OpenChamber should send messages.
+Recipients can be private chats, groups or a specific topic with a thread ID.
+Choose a default recipient and use **Test** to confirm that the bot can
+send to that chat.
+
+Automatic Telegram alerts are off for every session until you explicitly
+enable them. You can ask a managed agent to enable Telegram notifications
+for its current session, or use the session subscription API. An agent can
+also send an explicit message or Markdown file to any configured recipient
+without first subscribing the session.
+
+Markdown files are sent as attachments by default so you receive the
+original `.md` document. The `formatted` mode sends Telegram HTML text.
+The file must be located in the calling session's working directory and
+must be no larger than 10 MB.
+
+Telegram receives brief event notifications and optional session links.
+The app does not send your chat transcript as part of automatic alerts.
+
 ## Customize the wording
 
 Each kind of notification has a title and message template you can edit, using fields like the agent name and model. There's also a limit on how much of the last message is included, so notifications stay short.
