@@ -8,16 +8,22 @@ import { routingI18n } from './routing.i18n';
 import { pluginPanelI18n } from './plugin-panel.i18n';
 import { surfacePanelI18n } from './surface-panel.i18n';
 import { fileArtifactsI18n } from './file-artifacts.i18n';
+import { fileContentSearchI18n } from './file-content-search.i18n';
 import { htmlRenderI18n } from './html-render.i18n';
+import { sessionNoticesI18n } from './session-notices.i18n';
 import { usageStatsI18n } from './usage-stats.i18n';
 import { webSearchI18n } from './websearch.i18n';
+import { sessionWarmingI18n } from './session-warming.i18n';
 import { isolatedSpacesI18n } from './isolated-spaces.i18n';
 import { sourceBoardI18n } from './source-board.i18n';
 import { projectActionsI18n } from './project-actions.i18n';
+import { gitIdentityEditorI18n } from './git-identity-editor.i18n';
 import { environmentI18n } from './environment.i18n';
 import { providersI18n } from './providers.i18n';
 import { mcpGridI18n } from './mcp-grid.i18n';
 import { pluginsGridI18n } from './plugins-grid.i18n';
+import { integrationsCatalogI18n } from './integrations-catalog.i18n';
+import { diffFindI18n } from './diff-find.i18n';
 
 export const dict = {
   'opencodeCompatibility.bundled': 'OpenCode входит в состав OpenChamber. Обновите OpenChamber, чтобы получить OpenCode v2.',
@@ -126,6 +132,47 @@ export const dict = {
   'gitView.publish.stale': 'Ветка или удалённые адреса изменились. Ничего не отправлено; выберите направление снова.',
   'gitView.publish.cancelled': 'Отправка отменена. Ничего не передано.',
   'gitView.publish.succeeded': 'Отправлено',
+  'terminalView.toast.pasteFailedTouch': 'Не удалось прочитать буфер обмена.',
+  'sessions.sidebar.header.listGrouping.label': 'Сессии',
+  'sessions.sidebar.header.listGrouping.project': 'По проекту',
+  'sessions.sidebar.header.listGrouping.time': 'По времени',
+  'sessions.sidebar.activity.projectsTitle': 'Проекты',
+  'sessions.sidebar.session.pin.pinFailed': 'Не удалось закрепить сессию',
+  'sessions.sidebar.session.pin.unpinFailed': 'Не удалось открепить сессию',
+  'sessions.sidebar.group.pr.status.checksRunning': 'Проверки выполняются',
+  'contextPanel.tracker.branchTab': 'Текущая ветка',
+  'contextPanel.tracker.loadFailed': 'Не удалось загрузить этот элемент.',
+  'contextPanel.tracker.unavailable': 'OpenChamber не может прочитать этот элемент здесь.',
+  'walkthrough.toc.jumpAria': 'Перейти к шагу',
+  'walkthrough.options.title': 'Параметры обзора',
+  'walkthrough.options.moreAria': 'Другие параметры обзора',
+  'walkthrough.options.model': 'Модель',
+  'walkthrough.options.language': 'Язык',
+  'filesView.editor.htmlAnnotate.intro': 'Это выделенный фрагмент предпросмотра HTML-файла с комментариями.',
+  'diffView.nestedRepository.description': 'У этой папки собственная история Git. Откройте её как проект, чтобы зафиксировать эти изменения.',
+  'diffView.nestedRepository.openAsProject': 'Открыть как проект',
+  'diffView.nestedRepository.openFailed': 'Не удалось открыть эту папку как проект',
+  'diffView.nestedRepository.loading': 'Чтение изменений репозитория…',
+  'diffView.nestedRepository.loadFailed': 'Не удалось прочитать изменения репозитория',
+  'diffView.nestedRepository.noChanges': 'В этом репозитории нет изменений',
+  'diffView.layout.sideBySide': 'Два столбца',
+  'diffView.actions.wrapLines': 'Переносить строки',
+  'diffView.actions.moreActions': 'Другие действия',
+  'session.newWorktree.toast.startFolderMissing': 'В этом worktree нет папки «{folder}», поэтому OpenCode запущен в корне worktree.',
+  'session.newWorktree.toast.startFolderUnverified': 'Не удалось проверить папку «{folder}», поэтому OpenCode запущен в корне worktree.',
+  'session.newWorktree.toast.startFolderUnknown': 'Не удалось определить, какую папку репозитория открывает этот проект, поэтому OpenCode запущен в корне worktree.',
+  'chat.queuedMessage.goal': 'При отправке начнёт цель',
+  'chat.chatInput.toast.imagesSaving': 'Сохранение {files}…',
+  'chat.chatInput.toast.imagesSavedForTextModel': '{model} не умеет читать изображения. {files} сохранено в {folder}.',
+  'chat.chatInput.toast.imageSaveFailed': 'Не удалось сохранить {files}. Вместо этого вложено.',
+  'chat.chatInput.toast.imagesSaved': '{files} сохранено в {folder}.',
+  'chat.chatInput.toast.imageCopySaveFailed': 'Не удалось сохранить {files}.',
+  'chat.modelControls.inheritedVariantTooltip': 'Мышление: {variant}, по умолчанию для этой модели',
+  'openCodeStatusDialog.actions.download': 'Скачать журнал',
+  'openCodeStatusDialog.toast.collectFailed': 'Не удалось собрать диагностику',
+  'quota.window.keyLimit': 'Лимит ключа',
+  'desktopSafeStart.title': 'OpenChamber продолжал аварийно завершаться',
+  'desktopSafeStart.description': 'Панели закрыты, папки свёрнуты.',
   ...linearIssuePickerI18n.ru,
   ...referencePickerI18n.ru,
   ...sessionMenuHintsI18n.ru,
@@ -135,16 +182,22 @@ export const dict = {
   ...pluginPanelI18n.ru,
   ...surfacePanelI18n.ru,
   ...fileArtifactsI18n.ru,
+  ...fileContentSearchI18n.ru,
   ...htmlRenderI18n.ru,
+  ...sessionNoticesI18n.ru,
   ...usageStatsI18n.ru,
   ...webSearchI18n.ru,
+  ...sessionWarmingI18n.ru,
   ...isolatedSpacesI18n.ru,
   ...sourceBoardI18n.ru,
   ...projectActionsI18n.ru,
+  ...gitIdentityEditorI18n.ru,
   ...environmentI18n.ru,
   ...providersI18n.ru,
   ...mcpGridI18n.ru,
   ...pluginsGridI18n.ru,
+  ...integrationsCatalogI18n.ru,
+  ...diffFindI18n.ru,
   'terminalView.actions.attachSelection': 'Прикрепить выбранный вывод',
   'terminalView.actions.copySelection': 'Копировать выбранный вывод',
   'terminalView.toast.selectionCopied': 'Вывод скопирован',
@@ -1328,7 +1381,6 @@ export const dict = {
   'contextPanel.mode.stagedDiff': 'Индексированный Diff',
   'contextPanel.mode.workingDiff': 'Рабочий Diff',
   'contextPanel.mode.pr': 'Запрос на слияние',
-  'contextPanel.mode.mr': 'Запрос на слияние',
   'gitView.mergeRequest.title': 'Запрос на слияние',
   'gitView.mergeRequest.availableOnFeatureBranches': 'Доступно, когда из текущей ветки можно открыть запрос на слияние.',
   'gitView.mr.openMergeRequest': 'Открыть запрос на слияние',
@@ -1458,7 +1510,6 @@ export const dict = {
   'walkthrough.blocked.contextTooSmall.descriptionUnknownModel': 'Малая модель вмещает около {available} тыс. символов, а этому diff требуется около {required} тыс. Ничего не обрезается — выберите модель с большим контекстом.',
   'walkthrough.blocked.structuredOutput.descriptionUnknownModel': 'Малая модель не поддерживает структурированные ответы, необходимые для обзора.',
   'contextRail.surface.pr.description': 'Создать, проверить и объединить запрос на слияние для текущей ветки',
-  'contextRail.surface.mr.description': 'Создание, ревью и слияние запроса для текущей ветки',
   'contextRail.surface.notes.description': 'Заметки, задачи, планы и память агента для проекта',
   'contextRail.surface.context.description': 'Контекст сессии и использование токенов',
   'contextRail.surface.browser.description': 'Встроенный веб-браузер',

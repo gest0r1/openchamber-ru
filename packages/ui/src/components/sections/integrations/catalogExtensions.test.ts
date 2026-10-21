@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 
 import type { InstalledGuest } from '@/lib/guests/types';
-import { CATALOG_EXTENSIONS, EXCALIDRAW_EXTENSION, SERVER_BROWSER_EXTENSION, getCatalogExtensionState } from './catalogExtensions';
+import { CATALOG_EXTENSIONS, EXCALIDRAW_EXTENSION, RESOURCE_MONITOR_EXTENSION, SERVER_BROWSER_EXTENSION, getCatalogExtensionState } from './catalogExtensions';
 
 const installed = (overrides: Partial<InstalledGuest> = {}): InstalledGuest => ({
   id: 'excalidraw',
@@ -29,17 +29,22 @@ describe('getCatalogExtensionState', () => {
   });
 });
 
+describe('CATALOG_EXTENSIONS', () => {
+  test('every card installs a different extension', () => {
+    const ids = CATALOG_EXTENSIONS.map((definition) => definition.guestId);
+    expect(new Set(ids).size).toBe(ids.length);
+    expect(getCatalogExtensionState([installed({ id: 'resource-monitor' })], RESOURCE_MONITOR_EXTENSION)).toMatchObject({ kind: 'installed' });
+  });
 
-describe('curated extension catalog', () => {
   test('pins the server browser provider to the validated upstream tag', () => {
     expect(SERVER_BROWSER_EXTENSION).toMatchObject({
       guestId: 'server-browser',
       gitUrl: 'https://github.com/JosueGalRe/openchamber-server-browser#v0.7.0',
       homepage: 'https://github.com/JosueGalRe/openchamber-server-browser',
-      name: 'Server Browser',
+      nameKey: 'settings.integrations.extensionCatalog.serverBrowser.name',
       descriptionKey: 'settings.openchamber.tools.browserProvider.info',
     });
-    expect(CATALOG_EXTENSIONS.map((entry) => entry.guestId)).toEqual(['excalidraw', 'server-browser']);
+    expect(CATALOG_EXTENSIONS.map((entry) => entry.guestId)).toEqual(['excalidraw', 'resource-monitor', 'server-browser']);
   });
 
   test('server browser still follows ordinary user-extension approval state', () => {

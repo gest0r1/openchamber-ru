@@ -107,6 +107,8 @@ const technicalTermAllowlist = new Set([
   'settings.providers.page.custom.models.variantsPlaceholder',
   'settings.integrations.thirdParty.opencodeClaude.name',
   'settings.integrations.extensionCatalog.excalidraw.name',
+  'settings.integrations.extensionCatalog.resourceMonitor.name',
+  'settings.integrations.extensionCatalog.serverBrowser.name',
   'settings.mcp.page.advanced.codemode',
   'settings.mcp.page.advanced.protocolOption.revision20260728',
   'settings.mcp.page.advanced.oauth',

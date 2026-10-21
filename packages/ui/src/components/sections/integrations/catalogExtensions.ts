@@ -1,3 +1,4 @@
+import type { IconName } from '@/components/icon/icons';
 import type { I18nKey } from '@/lib/i18n';
 import { guestNeedsApproval } from '@/lib/guests/capabilities';
 import type { InstalledGuest } from '@/lib/guests/types';
@@ -9,33 +10,46 @@ export interface CatalogExtensionDefinition {
   /** Installed through the same Git install as Settings → Extensions. */
   gitUrl: string;
   homepage: string;
-  /** Stable upstream product name; not translated. */
-  name: string;
+  nameKey: I18nKey;
   descriptionKey: I18nKey;
-  /** A file name whose file-type icon is the card's logo. */
-  logoFileName: string;
+  logo: CatalogExtensionLogo;
 }
+
+/** The card's logo: the file-type icon of a file the extension opens, or an app icon. */
+export type CatalogExtensionLogo =
+  | { kind: 'file-type'; fileName: string }
+  | { kind: 'icon'; name: IconName };
 
 export const EXCALIDRAW_EXTENSION: CatalogExtensionDefinition = {
   guestId: 'excalidraw',
   gitUrl: 'https://github.com/openchamber/openchamber-excalidraw',
   homepage: 'https://github.com/openchamber/openchamber-excalidraw',
-  name: 'Excalidraw',
+  nameKey: 'settings.integrations.extensionCatalog.excalidraw.name',
   descriptionKey: 'settings.integrations.extensionCatalog.excalidraw.description',
-  logoFileName: 'drawing.excalidraw',
+  logo: { kind: 'file-type', fileName: 'drawing.excalidraw' },
+};
+
+export const RESOURCE_MONITOR_EXTENSION: CatalogExtensionDefinition = {
+  guestId: 'resource-monitor',
+  gitUrl: 'https://github.com/openchamber/openchamber-resource-monitor',
+  homepage: 'https://github.com/openchamber/openchamber-resource-monitor',
+  nameKey: 'settings.integrations.extensionCatalog.resourceMonitor.name',
+  descriptionKey: 'settings.integrations.extensionCatalog.resourceMonitor.description',
+  logo: { kind: 'icon', name: 'pulse' },
 };
 
 export const SERVER_BROWSER_EXTENSION: CatalogExtensionDefinition = {
   guestId: 'server-browser',
   gitUrl: 'https://github.com/JosueGalRe/openchamber-server-browser#v0.7.0',
   homepage: 'https://github.com/JosueGalRe/openchamber-server-browser',
-  name: 'Server Browser',
+  nameKey: 'settings.integrations.extensionCatalog.serverBrowser.name',
   descriptionKey: 'settings.openchamber.tools.browserProvider.info',
-  logoFileName: 'browser.html',
+  logo: { kind: 'file-type', fileName: 'browser.html' },
 };
 
 export const CATALOG_EXTENSIONS: readonly CatalogExtensionDefinition[] = [
   EXCALIDRAW_EXTENSION,
+  RESOURCE_MONITOR_EXTENSION,
   SERVER_BROWSER_EXTENSION,
 ];
 

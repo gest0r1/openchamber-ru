@@ -86,7 +86,7 @@ export const CatalogExtensionsSection: React.FC<CatalogExtensionsSectionProps> =
         : t(errorToastKey(result.code)));
       return;
     }
-    toast.success(t('settings.integrations.thirdParty.toast.installed', { name: definition.name }));
+    toast.success(t('settings.integrations.thirdParty.toast.installed', { name: t(definition.nameKey) }));
     // The approval dialog lives in Settings → Extensions.
     if (guestNeedsApproval(result.guest)) openExtensionsPage();
   });
@@ -100,17 +100,17 @@ export const CatalogExtensionsSection: React.FC<CatalogExtensionsSectionProps> =
       return;
     }
     closeGuestTabsById(definition.guestId);
-    toast.success(t('settings.integrations.thirdParty.toast.updated', { name: definition.name }));
+    toast.success(t('settings.integrations.thirdParty.toast.updated', { name: t(definition.nameKey) }));
     if (guestNeedsApproval(result.guest)) openExtensionsPage();
   });
 
   const enable = (definition: CatalogExtensionDefinition) => run(definition, 'enable', async () => {
     const ok = await setGuestEnabled(definition.guestId, true);
     if (!ok) {
-      toast.error(t('settings.integrations.extensionCatalog.toast.enableFailed', { name: definition.name }));
+      toast.error(t('settings.integrations.extensionCatalog.toast.enableFailed', { name: t(definition.nameKey) }));
       return;
     }
-    toast.success(t('settings.integrations.extensionCatalog.toast.enabled', { name: definition.name }));
+    toast.success(t('settings.integrations.extensionCatalog.toast.enabled', { name: t(definition.nameKey) }));
   });
 
   const remove = async () => {
@@ -124,7 +124,7 @@ export const CatalogExtensionsSection: React.FC<CatalogExtensionsSectionProps> =
         return;
       }
       closeGuestTabsById(definition.guestId);
-      toast.success(t('settings.integrations.thirdParty.toast.removed', { name: definition.name }));
+      toast.success(t('settings.integrations.thirdParty.toast.removed', { name: t(definition.nameKey) }));
     });
   };
 
@@ -173,8 +173,10 @@ export const CatalogExtensionsSection: React.FC<CatalogExtensionsSectionProps> =
       <IntegrationCatalogCard
         key={definition.guestId}
         settingsItem={`integrations.extensions.${definition.guestId}`}
-        logo={<FileTypeIcon filePath={definition.logoFileName} className="size-5" />}
-        name={definition.name}
+        logo={definition.logo.kind === 'file-type'
+          ? <FileTypeIcon filePath={definition.logo.fileName} className="size-5" />
+          : <Icon name={definition.logo.name} className="size-5 text-foreground" />}
+        name={t(definition.nameKey)}
         description={t(definition.descriptionKey)}
         status={status}
         statusTone={tone}
@@ -228,7 +230,7 @@ export const CatalogExtensionsSection: React.FC<CatalogExtensionsSectionProps> =
             <DialogTitle>{t('settings.integrations.extensionCatalog.dialog.remove.title')}</DialogTitle>
             <DialogDescription>
               {t('settings.integrations.extensionCatalog.dialog.remove.description', {
-                name: removeTarget?.name ?? '',
+                name: removeTarget ? t(removeTarget.nameKey) : '',
               })}
             </DialogDescription>
           </DialogHeader>
