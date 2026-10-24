@@ -182,7 +182,9 @@ export const createTelegramRuntime = ({
             continue;
           }
         }
-        throw new Error(`Telegram delivery rejected (HTTP ${response.status})`);
+        const error = new Error(`Telegram delivery rejected (HTTP ${response.status})`);
+        error.retrySafe = response.status === 429 || response.status >= 500;
+        throw error;
       } catch (error) {
         // A lost response can mean Telegram already accepted the message.
         // Retrying an ambiguous POST would send duplicates.
@@ -382,6 +384,13 @@ export const createTelegramRuntime = ({
         recentDelivery.delete(recentDelivery.keys().next().value);
       }
       return true;
+    } catch (error) {
+      // The server explicitly rejected the request. No message was accepted,
+      // so a retry can use the same event key after the backoff.
+      if (error?.retrySafe === true) {
+        await mutate((latest) => { delete latest.deliveries?.[dedupKey]; });
+      }
+      throw error;
     } finally {
       inflightDelivery.delete(dedupKey);
     }
