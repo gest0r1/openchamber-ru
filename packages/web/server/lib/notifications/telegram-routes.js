@@ -102,6 +102,7 @@ export const registerTelegramRoutes = (app, { telegram, config, watch, getSource
       const item = sessionInput(req.body);
       await verify(item);
       await telegram.subscribe(item.directory, item.sessionId, req.body?.alias, { origin: 'user' });
+      await watch.track(item);
       res.json({ subscribed: true });
     } catch (error) { fail(res, error); }
   }));
