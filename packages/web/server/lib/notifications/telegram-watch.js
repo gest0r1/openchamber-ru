@@ -129,7 +129,8 @@ export const createTelegramWatch = ({
     const statuses = await probe.fetchActiveSessionStatuses();
     if (!statuses) return { kind: 'unknown' };
     if (statuses[record.sessionId]) return { kind: 'working', reason: 'session' };
-    const descendants = await probe.hasWorkingDescendants(record.sessionId, statuses);
+    // Session completion requires proof that no descendant remains active.
+    const descendants = await probe.hasWorkingDescendants(record.sessionId, statuses, true);
     if (descendants === null) return { kind: 'unknown' };
     if (descendants) return { kind: 'working', reason: 'descendant' };
     // A location-wide shell lock is conservative. OpenCode's shell list does
