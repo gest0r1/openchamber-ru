@@ -43,11 +43,17 @@ export const createTelegramWatch = ({
         if (item.spaceId !== null && item.spaceId !== undefined && typeof item.spaceId !== 'string') continue;
         pending.set(keyOf(item), item);
       }
-    }).catch((error) => {
-      if (error?.code !== 'ENOENT') {
-        loaded = null;
-        throw error;
+    }).catch(async (error) => {
+      if (error?.code === 'ENOENT') return;
+      if (error instanceof SyntaxError || error?.message === 'Invalid Telegram watch data') {
+        const archived = filePath + '.corrupt-' + Date.now() + '-' + process.pid;
+        // Preserve the damaged data for investigation rather than deleting it.
+        await rename(filePath, archived);
+        console.warn('[Telegram] damaged watch state was quarantined; awaiting reconciliation:', archived);
+        return;
       }
+      loaded = null;
+      throw error;
     });
     return loaded;
   };
