@@ -79,7 +79,9 @@ export const createTelegramWatch = ({
     return unwrapOpenCodeResponse(await response.json());
   };
   const latestIdle = async (source, sessionId) => {
-    const page = await fetchJson(source, '/api/session/' + encodeURIComponent(sessionId) + '/message', { limit: '50', order: 'desc' });
+    // Fetch idle records directly. A long tool-heavy turn can have more than
+    // 50 messages after the latest terminal record.
+    const page = await fetchJson(source, '/api/session/' + encodeURIComponent(sessionId) + '/message', { limit: '1', order: 'desc', type: 'idle' });
     const rows = Array.isArray(page) ? page : page?.data;
     if (!Array.isArray(rows)) return null;
     const record = rows.find((item) => item?.type === 'idle');
