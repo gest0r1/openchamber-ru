@@ -19,8 +19,10 @@ watcher but has its own delivery and completion policy. Files in this module:
   running shells in their location, pending forms/permissions, pending
   `returnResult` deliveries and the terminal `idle` record. An unknown read
   keeps the record pending and schedules another check. A new idle after
-  background activity is required before delivery. Checkpoints let it detect
-  missed events after reconnects and server restarts.
+  background activity is required before delivery. A descendant beyond the
+  UI's eight-level ancestry limit remains unknown to Telegram's strict
+  completion gate. Checkpoints let it detect missed events after reconnects
+  and server restarts.
 - `telegram-routes.js` accepts configuration, subscriptions, user approval
   decisions and manual delivery retries behind OpenChamber API authentication.
   Subscriptions require a valid root session and its real directory. The
