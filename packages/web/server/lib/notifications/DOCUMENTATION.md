@@ -3,6 +3,49 @@
 ## Purpose
 This module provides notification message preparation utilities for the web server runtime, including text truncation and plain-text normalization for system notifications.
 
+## Telegram channel
+
+Telegram is an opt-in, per-root-session channel. It shares the OpenCode event
+watcher but has its own delivery and completion policy. Files in this module:
+
+- `telegram-config.js` keeps the bot token, channel switch and default recipient
+  in `telegram-config.json`, mode 0600. The token is never included in responses.
+- `telegram-runtime.js` owns recipient aliases, topics, persisted subscriptions,
+  outbound Bot API calls and one-time automatic delivery keys in
+  `telegram-subscriptions.json`. Explicit text or Markdown-file sends do not
+  require a session subscription. They require the global channel to be enabled.
+- `telegram-watch.js` owns persisted session checkpoints and unresolved
+  completions in `telegram-watch.json`. It checks active sessions, descendants,
+  running shells in their location, pending forms/permissions, pending
+  `returnResult` deliveries and the terminal `idle` record. An unknown read
+  keeps the record pending and schedules another check. A new idle after
+  background activity is required before delivery. Checkpoints let it detect
+  missed events after reconnects and server restarts.
+- `telegram-routes.js` accepts configuration and session subscription changes
+  behind normal OpenChamber API authentication. Subscriptions require a valid
+  root session and its real directory. The subscription UI lists recent sessions
+  in shared Settings.
+
+The host reads a space's session, shell and form status through a strictly
+limited GET bridge; the space's `returnResult` registry is queried through an
+exact internal GET route. If a space stops or the bridge fails, completion
+remains unknown and is checked again.
+
+### Delivery limitations and decisions
+
+A Telegram HTTP timeout may mean the Bot API accepted the message. Automatic
+delivery keys are stored before sending, which prevents repeated unsolicited
+messages after such an ambiguous result. A confirmed 429 or 5xx can be retried.
+This favors no duplicates over assured delivery after an ambiguous timeout.
+Running shell commands are location-scoped because the OpenCode shell API does
+not promise reliable session ownership. An unrelated running command in the
+same location can delay the completion alert.
+
+Only the server knows recipients and credentials. The managed
+`openchamber_notify` agent tool exposes explicit `notify.telegram_send`,
+which checks its existing capability switch. The send action only reads .md
+files under the calling checkout.
+
 ## Entrypoints and structure
 - `packages/web/server/lib/notifications/index.js`: public entrypoint imported by `packages/web/server/index.js`.
 - `packages/web/server/lib/notifications/routes.js`: route registration for push, visibility, and session status/attention endpoints.
