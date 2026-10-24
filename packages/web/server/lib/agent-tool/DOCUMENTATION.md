@@ -24,7 +24,8 @@ the user can want independently:
   `agentNotifyToolEnabled` is `true`, and the control service refuses the
   action when the setting is off, so a stale plugin cannot keep paging.
   The same tool also offers `notify.telegram_send` for a user-requested text or
-  Markdown file. This explicit send needs a configured Telegram recipient and
+  Markdown file. Each call waits for a one-time approval in Settings →
+  Notifications; an unapproved call times out without sending. This explicit send needs a configured Telegram recipient and
   enabled Telegram channel. It uses the calling session's resolved checkout
   for Markdown path confinement, and does not require the session's automatic
   Telegram subscription. The existing `agentNotifyToolEnabled` gate still
