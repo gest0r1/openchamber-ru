@@ -184,8 +184,9 @@ export const createTelegramRuntime = ({
         }
         throw new Error(`Telegram delivery rejected (HTTP ${response.status})`);
       } catch (error) {
-        if (attempt === 2 || !['TimeoutError', 'TypeError'].includes(error?.name)) throw error;
-        await new Promise((resolve) => setTimeout(resolve, 300 * (2 ** attempt)));
+        // A lost response can mean Telegram already accepted the message.
+        // Retrying an ambiguous POST would send duplicates.
+        throw error;
       }
     }
   };
@@ -340,7 +341,8 @@ export const createTelegramRuntime = ({
     }
     if (!subscription?.opted_in) return false;
     const dedupKey = `${directory}\u0000${sessionId}\u0000${type}\u0000${eventKey ?? ''}`;
-    if (inflightDelivery.has(dedupKey) || data.deliveries?.[dedupKey] || Date.now() - (recentDelivery.get(dedupKey) ?? 0) < 5000) return false;
+    if (data.deliveries?.[dedupKey]) return true;
+    if (inflightDelivery.has(dedupKey) || Date.now() - (recentDelivery.get(dedupKey) ?? 0) < 5000) return false;
     // Completion is only accepted from the server-owned durable verifier.
     // It checks the run outcome, descendants, shells and dispatch results.
     if (type === 'completed' && eventKey?.startsWith('idle:') !== true) return false;
