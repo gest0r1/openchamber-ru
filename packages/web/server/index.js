@@ -1198,6 +1198,7 @@ const telegramWatch = createTelegramWatch({
   filePath: path.join(OPENCHAMBER_DATA_DIR, 'telegram-watch.json'),
   telegram: telegramRuntime,
   sourceFor: telegramSourceFor,
+  isPageWaiting: (sessionId, callId) => openChamberControlService?.isPageWaiting?.(sessionId, callId) === true,
   isGoalActive: async (sessionId, spaceId) => {
     try {
       if (!spaceId) {
@@ -1230,6 +1231,9 @@ const telegramWatch = createTelegramWatch({
   readSettings: async () => ({ telegramEnabled: (await telegramConfig.read()).enabled }),
 });
 void telegramWatch.start().catch((error) => console.warn('[Telegram] Watch restore failed:', error?.message ?? error));
+const unsubscribeTelegramReconnect = globalMessageStreamHub.subscribeStatus((status) => {
+  if (status?.type === 'connect') telegramWatch.reconcileAll();
+});
 
 // Full-text search over this server's conversations (user messages and agent
 // replies). Opt-in: off by default, and off means idle. The index is derived
@@ -2031,6 +2035,8 @@ const gracefulShutdownRuntime = createGracefulShutdownRuntime({
   messageQueueRuntime,
   dispatchResultsRuntime,
   messageSearchRuntime,
+  telegramWatch,
+  unsubscribeTelegramReconnect,
   sessionRuntime,
   getHealthCheckInterval: () => healthCheckInterval,
   clearHealthCheckInterval: (value) => clearInterval(value),
