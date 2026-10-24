@@ -30,7 +30,7 @@ const telegramAliasesSchema = z.object({
 });
 type TelegramConfig = z.infer<typeof telegramConfigSchema>;
 type ListedSession = { id: string; title: string; directory: string; spaceId: string | null };
-type Approval = { id: string; sessionId: string; alias: string; file: string | null; preview: string; mode: string };
+type Approval = { id: string; sessionId: string; alias: string; file: string | null; preview: string; text: string; mode: string };
 type DeliveryIssue = { key: string; status: string; sessionId: string; type: string; at: number; reason?: string };
 type AliasDraft = { name: string; chatId: string; threadId: string; kind: TelegramKind; previousName: string };
 const blankAlias = (): AliasDraft => ({ name: '', chatId: '', threadId: '', kind: 'private', previousName: '' });
@@ -122,7 +122,7 @@ export const TelegramNotificationSettings: React.FC = () => {
     ]);
     const parsedApprovals = z.object({ approvals: z.array(z.object({
       id: z.string(), sessionId: z.string(), alias: z.string(), file: z.string().nullable(),
-      preview: z.string(), mode: z.string(),
+      preview: z.string(), text: z.string(), mode: z.string(),
     })) }).parse(queue);
     const parsedDeliveries = z.object({ deliveries: z.array(z.object({
       key: z.string(), status: z.string(), sessionId: z.string(), type: z.string(),
@@ -260,7 +260,10 @@ export const TelegramNotificationSettings: React.FC = () => {
           <p className="typography-ui-label">{t('settings.notifications.telegram.approvalsTitle')}</p>
           {approvals.map((item) => <div key={item.id} className="space-y-2 rounded-md border p-3">
             <p className="typography-meta">{item.alias || t('settings.notifications.telegram.defaultAlias')} · {item.sessionId}</p>
-            <p className="typography-meta break-all">{item.file || item.preview}</p>
+            <details className="typography-meta max-h-64 overflow-auto break-all">
+              <summary className="cursor-pointer">{item.file || item.preview}</summary>
+              {item.text && <pre className="whitespace-pre-wrap">{item.text}</pre>}
+            </details>
             <div className="flex gap-2">
               <Button size="sm" disabled={approvalBusy} onClick={() => { void decideApproval(item.id, true); }}>{t('settings.notifications.telegram.approve')}</Button>
               <Button size="sm" variant="outline" disabled={approvalBusy} onClick={() => { void decideApproval(item.id, false); }}>{t('settings.notifications.telegram.reject')}</Button>
