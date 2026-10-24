@@ -159,8 +159,12 @@ export const createTelegramWatch = ({
     if (state.kind === 'idle') {
       const idle = state.idle;
       if (idle.outcome === 'interrupted') {
-        pending.delete(key);
+        // An interrupted turn must not alert as completed. Keep its checkpoint
+        // so a later run can still be found after an event-stream disconnect.
+        pending.set(key, { ...record, armed: false, baselineIdleId: idle.id,
+          requireNewIdle: null, waitForNewIdle: false, attempt: 0 });
         await persist();
+        arm(key, 60000);
         return;
       }
       if (record.baselineIdleId && idle.id === record.baselineIdleId) {
@@ -251,6 +255,12 @@ export const createTelegramWatch = ({
         if (!source) return;
         const session = await fetchJson(source, '/api/session/' + encodeURIComponent(sessionId)).catch(() => null);
         if (!session || session.parentID) return;
+        if (kind === 'form' || kind === 'permission') {
+          const resource = kind === 'form' ? 'form' : 'permission';
+          const requests = await fetchJson(source, '/api/session/' + encodeURIComponent(sessionId) + '/' + resource).catch(() => null);
+          if (!Array.isArray(requests) || !requests.some((item) => item?.id === requestId)) return;
+        }
+        // A settlement event cancels the timer before it gets this far.
         await telegram.notify({ directory, sessionId, type: 'needs_input', eventKey: kind + ':' + requestId });
       } catch (error) {
         console.warn('[Telegram] waiting-for-user notification failed:', error?.message ?? error);
