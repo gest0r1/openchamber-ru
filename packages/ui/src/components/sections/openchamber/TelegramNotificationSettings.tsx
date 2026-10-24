@@ -30,6 +30,8 @@ const telegramAliasesSchema = z.object({
 });
 type TelegramConfig = z.infer<typeof telegramConfigSchema>;
 type ListedSession = { id: string; title: string; directory: string; spaceId: string | null };
+type Approval = { id: string; sessionId: string; alias: string; file: string | null; preview: string; mode: string };
+type DeliveryIssue = { key: string; status: string; sessionId: string; type: string; at: number; reason?: string };
 type AliasDraft = { name: string; chatId: string; threadId: string; kind: TelegramKind; previousName: string };
 const blankAlias = (): AliasDraft => ({ name: '', chatId: '', threadId: '', kind: 'private', previousName: '' });
 
@@ -54,6 +56,9 @@ export const TelegramNotificationSettings: React.FC = () => {
   const [selectedSession, setSelectedSession] = React.useState('');
   const [subscribed, setSubscribed] = React.useState(false);
   const [subscriptionBusy, setSubscriptionBusy] = React.useState(false);
+  const [approvals, setApprovals] = React.useState<Approval[]>([]);
+  const [deliveryIssues, setDeliveryIssues] = React.useState<DeliveryIssue[]>([]);
+  const [approvalBusy, setApprovalBusy] = React.useState(false);
   const [loadingError, setLoadingError] = React.useState('');
 
   React.useEffect(() => {
@@ -109,6 +114,45 @@ export const TelegramNotificationSettings: React.FC = () => {
     } finally {
       setSubscriptionBusy(false);
     }
+  };
+
+  const refreshAttention = React.useCallback(async () => {
+    const [queue, deliveries] = await Promise.all([
+      telegramRequest('approvals'), telegramRequest('delivery-issues'),
+    ]);
+    const parsedApprovals = z.object({ approvals: z.array(z.object({
+      id: z.string(), sessionId: z.string(), alias: z.string(), file: z.string().nullable(),
+      preview: z.string(), mode: z.string(),
+    })) }).parse(queue);
+    const parsedDeliveries = z.object({ deliveries: z.array(z.object({
+      key: z.string(), status: z.string(), sessionId: z.string(), type: z.string(),
+      at: z.number(), reason: z.string().optional(),
+    })) }).parse(deliveries);
+    setApprovals(parsedApprovals.approvals);
+    setDeliveryIssues(parsedDeliveries.deliveries);
+  }, []);
+
+  React.useEffect(() => {
+    void refreshAttention().catch(() => {});
+    const id = window.setInterval(() => void refreshAttention().catch(() => {}), 3000);
+    return () => window.clearInterval(id);
+  }, [refreshAttention]);
+
+  const decideApproval = async (id: string, approved: boolean) => {
+    setApprovalBusy(true);
+    try {
+      await telegramRequest('approvals/decide', 'POST', { id, approved });
+      await refreshAttention();
+    } catch { setLoadingError(t('settings.notifications.telegram.saveFailed')); }
+    finally { setApprovalBusy(false); }
+  };
+  const retryUnknownDelivery = async (key: string) => {
+    setApprovalBusy(true);
+    try {
+      await telegramRequest('delivery-issues/retry', 'POST', { key });
+      await refreshAttention();
+    } catch { setLoadingError(t('settings.notifications.telegram.testFailed')); }
+    finally { setApprovalBusy(false); }
   };
 
   const refresh = React.useCallback(async () => {
@@ -212,6 +256,25 @@ export const TelegramNotificationSettings: React.FC = () => {
           label={t('settings.notifications.telegram.enabled')}
           ariaLabel={t('settings.notifications.telegram.enabled')}
         />
+        {approvals.length > 0 && <section aria-label={t('settings.notifications.telegram.approvalsTitle')} className="space-y-3">
+          <p className="typography-ui-label">{t('settings.notifications.telegram.approvalsTitle')}</p>
+          {approvals.map((item) => <div key={item.id} className="space-y-2 rounded-md border p-3">
+            <p className="typography-meta">{item.alias || t('settings.notifications.telegram.defaultAlias')} · {item.sessionId}</p>
+            <p className="typography-meta break-all">{item.file || item.preview}</p>
+            <div className="flex gap-2">
+              <Button size="sm" disabled={approvalBusy} onClick={() => { void decideApproval(item.id, true); }}>{t('settings.notifications.telegram.approve')}</Button>
+              <Button size="sm" variant="outline" disabled={approvalBusy} onClick={() => { void decideApproval(item.id, false); }}>{t('settings.notifications.telegram.reject')}</Button>
+            </div>
+          </div>)}
+        </section>}
+        {deliveryIssues.length > 0 && <section className="space-y-3">
+          <p className="typography-ui-label">{t('settings.notifications.telegram.deliveryIssuesTitle')}</p>
+          <p className="typography-meta text-muted-foreground">{t('settings.notifications.telegram.deliveryIssuesWarning')}</p>
+          {deliveryIssues.map((item) => <div key={item.key} className="flex flex-wrap items-center gap-2 rounded-md border p-2">
+            <span className="typography-meta min-w-0 flex-1">{item.sessionId} — {item.type}: {item.status}</span>
+            <Button size="sm" variant="outline" disabled={approvalBusy} onClick={() => { void retryUnknownDelivery(item.key); }}>{t('settings.notifications.telegram.retryDelivery')}</Button>
+          </div>)}
+        </section>}
         <SettingsFieldRow label={t('settings.notifications.telegram.botToken')}>
           <div className="flex max-w-[24rem] flex-wrap items-center gap-2">
             <Input
