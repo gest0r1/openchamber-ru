@@ -297,8 +297,10 @@ export const createTelegramWatch = ({
   const decision = (payload, spaceId, kind, requestId) => {
     const sessionId = sessionIdOf(payload);
     const directory = payload.properties?.directory;
-    if (!sessionId || !directory || sessionId === 'global') return;
+    if (!sessionId || !directory || sessionId === 'global' || !requestId || !pending.has(keyOf({ sessionId, directory, spaceId }))) return;
     const key = JSON.stringify([spaceId, directory, sessionId, kind, requestId]);
+    const revision = (eventRevisions.get(key) || 0) + 1;
+    eventRevisions.set(key, revision);
     const old = decisions.get(key);
     if (old) clearTimeoutImpl(old);
     const timer = setTimeoutImpl(async () => {
@@ -307,14 +309,25 @@ export const createTelegramWatch = ({
         const source = sourceFor(spaceId);
         if (!source) return;
         const session = await fetchJson(source, '/api/session/' + encodeURIComponent(sessionId)).catch(() => null);
-        if (!session || session.parentID) return;
+        if (!session || session.parentID || eventRevisions.get(key) !== revision ||
+          !pending.has(keyOf({ sessionId, directory, spaceId }))) return;
+        if (kind === 'page' && !isPageWaiting(sessionId, requestId)) return;
         if (kind === 'form' || kind === 'permission') {
           const resource = kind === 'form' ? 'form' : 'permission';
           const requests = await fetchJson(source, '/api/session/' + encodeURIComponent(sessionId) + '/' + resource).catch(() => null);
           if (!Array.isArray(requests) || !requests.some((item) => item?.id === requestId)) return;
         }
-        // A settlement event cancels the timer before it gets this far.
-        await telegram.notify({ directory, sessionId, type: 'needs_input', eventKey: kind + ':' + requestId });
+        // A settlement arriving while a network read is in flight invalidates
+        // its revision. Confirm immediately before entering the delivery gate.
+        if (eventRevisions.get(key) !== revision ||
+          !pending.has(keyOf({ sessionId, directory, spaceId })) ||
+          (kind === 'page' && !isPageWaiting(sessionId, requestId))) return;
+        await telegram.notify({ directory, sessionId, type: 'needs_input',
+          eventKey: kind + ':' + requestId,
+          canSend: async () => eventRevisions.get(key) === revision &&
+            pending.has(keyOf({ sessionId, directory, spaceId })) &&
+            (kind !== 'page' || isPageWaiting(sessionId, requestId)),
+        });
       } catch (error) {
         console.warn('[Telegram] waiting-for-user notification failed:', error?.message ?? error);
       }
@@ -330,6 +343,7 @@ export const createTelegramWatch = ({
     const timer = decisions.get(key);
     if (timer) clearTimeoutImpl(timer);
     decisions.delete(key);
+    eventRevisions.set(key, (eventRevisions.get(key) || 0) + 1);
   };
   const onEvent = (payload, { spaceId = null } = {}) => {
     if (!payload || typeof payload !== 'object') return;
@@ -346,6 +360,23 @@ export const createTelegramWatch = ({
         payload = { ...payload, properties: { ...payload.properties, directory } };
       }
     }
+    if (sessionId && directory && payload.type === 'session.deleted') {
+      void (async () => {
+        await telegram.unsubscribe(directory, sessionId);
+        await cancel(sessionId, directory, spaceId);
+      })().catch((error) => console.warn('[Telegram] session deletion cleanup failed:', error?.message ?? error));
+      return;
+    }
+    if (sessionId && directory && payload.type === 'session.status' && payload.properties?.status?.type !== 'idle') {
+      // Replace the record object synchronously to invalidate in-flight idle
+      // verification before it reaches the outbound delivery gate.
+      const key = keyOf({ sessionId, directory, spaceId });
+      const previous = pending.get(key);
+      if (previous) {
+        pending.set(key, { ...previous, armed: false, baselineIdleId: previous.baselineIdleId });
+        void persist().then(() => arm(key, 5000)).catch(() => {});
+      }
+    }
     if (sessionId && directory && payload.type === 'session.idle') {
       if (payload.properties?.aborted !== true) void queue({ sessionId, directory, spaceId }).catch(() => {});
       else void cancel(sessionId, directory, spaceId).catch(() => {});
@@ -360,9 +391,12 @@ export const createTelegramWatch = ({
     if (payload.type === 'permission.replied') settle(payload, spaceId, 'permission', payload.properties?.requestID);
     if (payload.type === 'openchamber:page-settled') settle(payload, spaceId, 'page', payload.properties?.pageID);
   };
+  const reconcileAll = () => {
+    for (const key of pending.keys()) arm(key, 1000);
+  };
   const start = async () => {
     await load();
-    for (const key of pending.keys()) arm(key, 1000);
+    reconcileAll();
   };
   const stop = () => {
     stopped = true;
@@ -370,5 +404,5 @@ export const createTelegramWatch = ({
     for (const timer of decisions.values()) clearTimeoutImpl(timer);
     decisions.clear();
   };
-  return { start, stop, onEvent, track, queue, cancel, pendingCount: () => pending.size };
+  return { start, stop, reconcileAll, onEvent, track, queue, cancel, pendingCount: () => pending.size };
 };
