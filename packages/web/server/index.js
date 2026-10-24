@@ -1933,6 +1933,13 @@ const openChamberControlService = createOpenChamberControlService({
   },
   // The tool is off by default; a plugin generated before it was switched off
   // must not keep paging the user.
+  telegramSend: async (input) => {
+    const settings = await readSettingsFromDiskMigrated().catch(() => null);
+    if (settings?.agentNotifyToolEnabled !== true) {
+      throw new Error('OpenChamber agent notifications are disabled');
+    }
+    return telegramRuntime.sendContent(input);
+  },
   notifyUser: async (input) => {
     const settings = await readSettingsFromDiskMigrated().catch(() => null);
     if (settings?.agentNotifyToolEnabled !== true) {
