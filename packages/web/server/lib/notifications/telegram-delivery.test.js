@@ -71,3 +71,35 @@ test('an explicit Markdown file stays under the calling session directory', asyn
     })).rejects.toThrow();
   } finally { await h.cleanup(); }
 });
+
+
+test('Bot API 5xx does not retry the same automatic message', async () => {
+  let attempts = 0;
+  const h = await setup(async () => {
+    attempts += 1;
+    return new Response(JSON.stringify({ ok: false, description: 'failure' }), { status: 500 });
+  });
+  try {
+    await h.runtime.configureAlias('team', '123456');
+    await h.runtime.subscribe('/repo', 'session', 'team');
+    const item = { directory: '/repo', sessionId: 'session', type: 'completed', eventKey: 'idle:first' };
+    await expect(h.runtime.notify(item)).rejects.toThrow();
+    expect(await h.runtime.notify(item)).toBe(true);
+    expect(attempts).toBe(1);
+  } finally { await h.cleanup(); }
+});
+
+test('session subscriptions remain enabled until explicitly removed', async () => {
+  const h = await setup(async () =>
+    new Response(JSON.stringify({ ok: true, result: { message_id: 1 } }))
+  );
+  try {
+    await h.runtime.configureAlias('team', '123456');
+    await h.runtime.subscribe('/repo', 'session', 'team');
+    const subscription = await h.runtime.getSubscription('/repo', 'session');
+    expect(subscription?.expires_at).toBeNull();
+    expect(await h.runtime.hasSubscription('/repo', 'session')).toBe(true);
+    await h.runtime.unsubscribe('/repo', 'session');
+    expect(await h.runtime.hasSubscription('/repo', 'session')).toBe(false);
+  } finally { await h.cleanup(); }
+});
