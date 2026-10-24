@@ -114,5 +114,18 @@ export const createSessionActivityProbe = ({ buildOpenCodeUrl, getOpenCodeAuthHe
     return unknown ? null : false;
   };
 
-  return { fetchActiveSessionStatuses, fetchChildSessionIds, hasWorkingChildren, hasWorkingDescendants };
+  /**
+   * OpenCode 2 lists detached shell jobs by location, not session owner.
+   * The endpoint returns running jobs only. Any running job in the location
+   * delays a completion; a failed query is unknown, never an empty list.
+   */
+  const hasRunningShells = async (_sessionId, directory) => {
+    if (typeof directory !== 'string' || !directory) return null;
+    const shells = await openCodeGet('/api/shell', { 'location[directory]': directory }).catch(() => null);
+    if (!Array.isArray(shells)) return null;
+    if (shells.some((shell) => !shell || typeof shell !== 'object' || typeof shell.status !== 'string')) return null;
+    return shells.some((shell) => shell.status === 'running');
+  };
+
+  return { fetchActiveSessionStatuses, fetchChildSessionIds, hasWorkingChildren, hasWorkingDescendants, hasRunningShells };
 };
