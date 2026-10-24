@@ -809,7 +809,7 @@ export const createOpenChamberControlService = (dependencies) => {
         if (!asNonEmptyString(options.contextSessionId) || !asNonEmptyString(contextDirectory)) {
           throw new OpenChamberControlError('Telegram requires a calling session and checkout', 400);
         }
-        return telegramSend({ alias: input.alias, text: input.text, file: input.file,
+        return telegramSend({ sessionId: options.contextSessionId, alias: input.alias, text: input.text, file: input.file,
           caption: input.caption, mode: input.mode, directory: contextDirectory });
       }
       if (action === 'notify.send') {
