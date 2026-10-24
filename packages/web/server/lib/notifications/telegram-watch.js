@@ -80,8 +80,9 @@ export const createTelegramWatch = ({
   };
   const latestIdle = async (source, sessionId) => {
     const page = await fetchJson(source, '/api/session/' + encodeURIComponent(sessionId) + '/message', { limit: '50', order: 'desc' });
-    if (!Array.isArray(page?.data)) return null;
-    const record = page.data.find((item) => item?.type === 'idle');
+    const rows = Array.isArray(page) ? page : page?.data;
+    if (!Array.isArray(rows)) return null;
+    const record = rows.find((item) => item?.type === 'idle');
     if (!record || typeof record.id !== 'string' ||
         !['succeeded', 'failed', 'interrupted'].includes(record.outcome)) return null;
     return record;
@@ -217,7 +218,7 @@ export const createTelegramWatch = ({
       // A subscriber who opts in while the first turn runs can recover
       // its completion even if the corresponding event gets lost.
       const page = await fetchJson(source, '/api/session/' + encodeURIComponent(sessionId) + '/message', { limit: '50', order: 'desc' }).catch(() => null);
-      if (Array.isArray(page?.data)) entry.baselineIdleId = null;
+      if (Array.isArray(page) || Array.isArray(page?.data)) entry.baselineIdleId = null;
     }
     const key = keyOf(entry);
     pending.set(key, entry);
