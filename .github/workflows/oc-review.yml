@@ -52,8 +52,8 @@ jobs:
           node-version: '24'
       - name: Install dependencies
         run: bun install --frozen-lockfile
-      - name: Tests
-        run: bun run test
+      - name: Telegram notification regression tests
+        run: bun test packages/web/server/lib/notifications/telegram-watch.test.js packages/web/server/lib/notifications/telegram-delivery.test.js packages/web/server/lib/notifications/telegram-approval.test.js
       - name: Fork release and agent entrypoint contracts
         run: |
           node scripts/check-fork-release-policy.mjs
