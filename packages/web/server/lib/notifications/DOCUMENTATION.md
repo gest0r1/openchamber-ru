@@ -35,7 +35,7 @@ remains unknown and is checked again.
 
 A Telegram HTTP timeout may mean the Bot API accepted the message. Automatic
 delivery keys are stored before sending, which prevents repeated unsolicited
-messages after such an ambiguous result. A confirmed 429 or 5xx can be retried.
+messages after such an ambiguous result. A confirmed 429 can be retried; 5xx and network timeouts remain ambiguous.
 This favors no duplicates over assured delivery after an ambiguous timeout.
 Running shell commands are location-scoped because the OpenCode shell API does
 not promise reliable session ownership. An unrelated running command in the
