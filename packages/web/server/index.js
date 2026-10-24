@@ -1974,6 +1974,8 @@ const openChamberControlService = createOpenChamberControlService({
     // A filename alone is not enough consent: while approval is pending the
     // agent can still change the file. Bind the user's decision to its bytes.
     let expectedSha256 = null;
+    let filePreview = '';
+    let fileSize = null;
     if (input.file) {
       const root = await fsPromises.realpath(input.directory);
       const actual = await fsPromises.realpath(path.resolve(input.directory, input.file));
@@ -1984,9 +1986,12 @@ const openChamberControlService = createOpenChamberControlService({
       }
       const meta = await fsPromises.stat(actual);
       if (!meta.isFile() || meta.size > 10 * 1024 * 1024) throw new Error('Telegram file exceeds 10 MB');
-      expectedSha256 = crypto.createHash('sha256').update(await fsPromises.readFile(actual)).digest('hex');
+      const contents = await fsPromises.readFile(actual);
+      expectedSha256 = crypto.createHash('sha256').update(contents).digest('hex');
+      filePreview = contents.toString('utf8', 0, 2048);
+      fileSize = meta.size;
     }
-    const approved = await telegramApproval.request(input);
+    const approved = await telegramApproval.request({ ...input, filePreview, fileSize });
     if (!approved) throw new Error('Telegram send was not approved by the user');
     const updatedSettings = await readSettingsFromDiskMigrated().catch(() => null);
     if (updatedSettings?.agentNotifyToolEnabled !== true || !(await telegramConfig.read()).enabled) {
