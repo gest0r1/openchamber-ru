@@ -87,6 +87,10 @@ describe('queue descendant activity', () => {
     expect(reads).toHaveLength(8);
     expect(await probe.hasWorkingDescendants('root', { child_9: running })).toBe(false);
     expect(reads).toHaveLength(16);
+    // Telegram requires proof of completion. An active descendant deeper
+    // than the UI's eight-hop bound must remain unknown to that consumer.
+    expect(await probe.hasWorkingDescendants('root', { child_9: running }, true)).toBeNull();
+    expect(reads).toHaveLength(24);
   });
 
   it('uses one deadline for the entire lineage walk', async () => {
