@@ -91,22 +91,22 @@ export const createTelegramWatch = ({
     const probe = createSessionActivityProbe({ ...source, timeoutMs: 10000 });
     const statuses = await probe.fetchActiveSessionStatuses();
     if (!statuses) return { kind: 'unknown' };
-    if (statuses[record.sessionId]) return { kind: 'working' };
+    if (statuses[record.sessionId]) return { kind: 'working', reason: 'session' };
     const descendants = await probe.hasWorkingDescendants(record.sessionId, statuses);
     if (descendants === null) return { kind: 'unknown' };
-    if (descendants) return { kind: 'working' };
+    if (descendants) return { kind: 'working', reason: 'descendant' };
     // A location-wide shell lock is conservative. OpenCode's shell list does
     // not guarantee a session owner, so an unrelated shell delays completion.
     const shells = await probe.hasRunningShells(record.sessionId, record.directory);
     if (shells === null) return { kind: 'unknown' };
-    if (shells) return { kind: 'working' };
+    if (shells) return { kind: 'working', reason: 'shell' };
     const blocking = await probe.hasBlockingRequests(record.sessionId, record.directory);
     if (blocking === null) return { kind: 'unknown' };
-    if (blocking) return { kind: 'working' };
+    if (blocking) return { kind: 'working', reason: 'request' };
     const dispatched = await dispatchPending(record.spaceId, record.sessionId);
     if (!Array.isArray(dispatched)) return { kind: 'unknown' };
     if (dispatched.some((entry) => entry.parentSessionId === record.sessionId)) {
-      return { kind: 'working' };
+      return { kind: 'working', reason: 'dispatch' };
     }
     const idle = await latestIdle(source, record.sessionId).catch(() => null);
     return idle ? { kind: 'idle', idle } : { kind: 'unknown' };
@@ -145,10 +145,15 @@ export const createTelegramWatch = ({
     }
     // A parent may idle while a background result is on its way. Require a
     // subsequent terminal record after any confirmed background activity.
-    if (state.kind === 'working') {
-      if (!record.requireNewIdle) {
-        const last = await latestIdle(source, record.sessionId).catch(() => null);
-        record.requireNewIdle = last?.id ?? true;
+    if (state.kind === 'working' && state.reason !== 'shell') {
+      // The parent will resume when a descendant, returned result or user
+      // action settles. The current idle record is a temporary boundary.
+      // A detached shell is different: it may finish without resuming the
+      // parent, so a terminal idle is accepted once the shell disappears.
+      if (!record.waitForNewIdle) {
+        const previous = await latestIdle(source, record.sessionId).catch(() => null);
+        record.requireNewIdle = previous?.id ?? null;
+        record.waitForNewIdle = true;
       }
     }
     if (state.kind === 'idle') {
@@ -164,7 +169,7 @@ export const createTelegramWatch = ({
         arm(key, delayFor(record.attempt));
         return;
       }
-      if (record.requireNewIdle && (record.requireNewIdle === true || record.requireNewIdle === idle.id)) {
+      if (record.waitForNewIdle && record.requireNewIdle === idle.id) {
         record.attempt = (record.attempt || 0) + 1;
         await persist();
         arm(key, delayFor(record.attempt));
@@ -182,7 +187,7 @@ export const createTelegramWatch = ({
       if (delivered || !await telegram.hasSubscription(record.directory, record.sessionId)) {
         if (await telegram.hasSubscription(record.directory, record.sessionId)) {
           pending.set(key, { ...record, armed: false, baselineIdleId: idle.id,
-            requireNewIdle: null, attempt: 0 });
+            requireNewIdle: null, waitForNewIdle: false, attempt: 0 });
           await persist();
           arm(key, 60000);
         } else {
