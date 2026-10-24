@@ -179,7 +179,9 @@ export const createTelegramRuntime = ({
         });
         const result = await response.json().catch(() => null);
         if (response.ok && result?.ok === true) return result.result;
-        if (response.status === 429 || response.status >= 500) {
+        // Rate limiting is a confirmed refusal. A 5xx may be ambiguous:
+        // Telegram could have accepted the message before failing to reply.
+        if (response.status === 429) {
           if (attempt < 2) {
             const retryAfter = Number(result?.parameters?.retry_after);
             await new Promise((resolve) => setTimeout(resolve, Number.isFinite(retryAfter) && retryAfter > 0 ? Math.min(retryAfter * 1000, 10000) : 300 * (2 ** attempt)));
@@ -187,7 +189,7 @@ export const createTelegramRuntime = ({
           }
         }
         const error = new Error(`Telegram delivery rejected (HTTP ${response.status})`);
-        error.retrySafe = response.status === 429 || response.status >= 500;
+        error.retrySafe = response.status === 429;
         throw error;
       } catch (error) {
         // A lost response can mean Telegram already accepted the message.
