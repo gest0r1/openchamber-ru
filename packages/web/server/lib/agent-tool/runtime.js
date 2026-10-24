@@ -188,6 +188,11 @@ const KNOWLEDGE_PARAMETER_PROPERTIES = {
 // Its own names, not the shared map: `title` and `body` mean something else in
 // the control and memory tools.
 const NOTIFY_PARAMETER_PROPERTIES = {
+  alias: { type: 'string', description: 'Telegram recipient alias' },
+  text: { type: 'string', description: 'Explicitly requested text to send' },
+  file: { type: 'string', description: 'Markdown document inside the session checkout' },
+  caption: { type: 'string', description: 'Document caption' },
+  mode: { type: 'string', enum: ['document', 'formatted'] },
   title: { type: 'string', description: 'Up to 120 characters' },
   body: { type: 'string', description: 'Up to 500 characters' },
   showWhenFocused: { type: 'boolean', description: 'Show it while the user is in OpenChamber too, otherwise it shows only while they are away. Only for what cannot wait' },
