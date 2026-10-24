@@ -21,10 +21,21 @@ watcher but has its own delivery and completion policy. Files in this module:
   keeps the record pending and schedules another check. A new idle after
   background activity is required before delivery. Checkpoints let it detect
   missed events after reconnects and server restarts.
-- `telegram-routes.js` accepts configuration and session subscription changes
-  behind normal OpenChamber API authentication. Subscriptions require a valid
-  root session and its real directory. The subscription UI lists recent sessions
-  in shared Settings.
+- `telegram-routes.js` accepts configuration, subscriptions, user approval
+  decisions and manual delivery retries behind OpenChamber API authentication.
+  Subscriptions require a valid root session and its real directory. The
+  subscription UI also provides an opt-in button within the open chat.
+- `telegram-approval.js` owns short-lived, single-use user confirmations for
+  any agent-initiated Telegram send. Approval is bound to the original content
+  and destination, times out, and is not delegated to model reasoning.
+  The Notifications settings poll for pending approvals.
+
+Unanswered forms and permissions are rediscovered from OpenCode when the host
+restarts or reconnects. Pending render.page waits are verified against the
+live in-memory page handler; a server restart closes those page requests.
+Stable subscribed sessions reconcile every five minutes, with a quicker
+recheck on any new idle or reconnection. Corrupt watch files are quarantined,
+then checkpoints are rebuilt from the durable subscription records.
 
 The host reads a space's session, shell and form status through a strictly
 limited GET bridge; the space's `returnResult` registry is queried through an
@@ -34,16 +45,21 @@ remains unknown and is checked again.
 ### Delivery limitations and decisions
 
 A Telegram HTTP timeout may mean the Bot API accepted the message. Automatic
-delivery keys are stored before sending, which prevents repeated unsolicited
-messages after such an ambiguous result. A confirmed 429 can be retried; 5xx and network timeouts remain ambiguous.
-This favors no duplicates over assured delivery after an ambiguous timeout.
+delivery keys move through `reserved`, `sent`, `delivery_unknown` and
+`rejected` states in the owner-only subscription file. A confirmed 429 is
+retriable; 5xx and network timeouts remain ambiguous and are not automatically
+retried. Unknown/rejected deliveries remain visible in Settings for explicit
+manual retry. Such a retry can duplicate a message if Telegram accepted the
+original request; the UI warns about this. This favors no automatic duplicates
+over assured delivery after an ambiguous timeout.
 Running shell commands are location-scoped because the OpenCode shell API does
 not promise reliable session ownership. An unrelated running command in the
 same location can delay the completion alert.
 
 Only the server knows recipients and credentials. The managed
 `openchamber_notify` agent tool exposes explicit `notify.telegram_send`,
-which checks its existing capability switch. The send action only reads .md
+which checks its existing capability switch and requires a separate UI approval
+for each send. The send action only reads .md
 files under the calling checkout.
 
 ## Entrypoints and structure
