@@ -124,6 +124,7 @@ export const OPENCHAMBER_KNOWLEDGE_ACTIONS = Object.freeze(
  */
 export const OPENCHAMBER_NOTIFY_ACTION_DEFINITIONS = Object.freeze([
   { action: 'notify.send', title: 'Notify the user', description: 'Requires title' },
+  { action: 'notify.telegram_send', title: 'Send to Telegram', description: 'Requires text or a Markdown file, intended for explicit user requests' },
 ]);
 
 export const OPENCHAMBER_NOTIFY_ACTIONS = Object.freeze(
