@@ -204,6 +204,13 @@ export const createTelegramWatch = ({
     const source = sourceFor(spaceId);
     const idle = source ? await latestIdle(source, sessionId).catch(() => null) : null;
     if (idle) entry.baselineIdleId = idle.id;
+    else if (source) {
+      // Distinguish a readable history with no idle from a failed read.
+      // A subscriber who opts in while the first turn runs can recover
+      // its completion even if the corresponding event gets lost.
+      const page = await fetchJson(source, '/api/session/' + encodeURIComponent(sessionId) + '/message', { limit: '50', order: 'desc' }).catch(() => null);
+      if (Array.isArray(page?.data)) entry.baselineIdleId = null;
+    }
     const key = keyOf(entry);
     pending.set(key, entry);
     await persist();
