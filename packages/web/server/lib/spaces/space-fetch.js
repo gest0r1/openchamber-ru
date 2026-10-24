@@ -49,7 +49,7 @@ const readBody = (response, cap) => new Promise((resolve, reject) => {
 export function createSpaceFetch({ requestInside, maxBytes = DEFAULT_MAX_BYTES, timeoutMs = DEFAULT_TIMEOUT_MS, allowShell = false }) {
   return (spaceId) => async (url, { method = 'GET', signal } = {}) => {
     const { pathname, search } = new URL(url);
-    if (method !== 'GET' || !(isSessionPath(pathname) || (allowShell && (pathname === '/api/shell' || pathname === '/api/form' || pathname === '/api/notifications/telegram/pending')))) {
+    if (method !== 'GET' || !(isSessionPath(pathname) || (allowShell && (pathname === '/api/shell' || pathname === '/api/notifications/telegram/pending')))) {
       throw new Error(`a space is asked only to read its sessions, not ${method} ${pathname}`);
     }
     const deadline = AbortSignal.timeout(timeoutMs);
