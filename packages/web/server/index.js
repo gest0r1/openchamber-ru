@@ -106,6 +106,7 @@ import { createNotificationTriggerRuntime } from './lib/notifications/runtime.js
 import { createTelegramRuntime } from './lib/notifications/telegram-runtime.js';
 import { createTelegramWatch } from './lib/notifications/telegram-watch.js';
 import { createTelegramConfig } from './lib/notifications/telegram-config.js';
+import { createTelegramApproval } from './lib/notifications/telegram-approval.js';
 import { registerTelegramRoutes } from './lib/notifications/telegram-routes.js';
 import { createPushRuntime } from './lib/notifications/push-runtime.js';
 import { createApnsRuntime } from './lib/notifications/apns-runtime.js';
@@ -1178,6 +1179,7 @@ dispatchResultsRuntime.start();
 // Telegram follows the existing OpenCode watcher. Its own durable verifier
 // keeps unknown completions pending until OpenCode proves the turn is over.
 const telegramConfig = createTelegramConfig(path.join(OPENCHAMBER_DATA_DIR, 'telegram-config.json'));
+const telegramApproval = createTelegramApproval();
 const telegramRuntime = createTelegramRuntime({
   storePath: path.join(OPENCHAMBER_DATA_DIR, 'telegram-subscriptions.json'),
   getBotToken: async () => (await telegramConfig.read()).botToken,
@@ -1959,6 +1961,10 @@ const openChamberControlService = createOpenChamberControlService({
     if (settings?.agentNotifyToolEnabled !== true) {
       throw new Error('OpenChamber agent notifications are disabled');
     }
+    const approved = await telegramApproval.request(input);
+    if (!approved) throw new Error('Telegram send was not approved by the user');
+    const updatedSettings = await readSettingsFromDiskMigrated().catch(() => null);
+    if (updatedSettings?.agentNotifyToolEnabled !== true) throw new Error('Agent notifications were disabled');
     return telegramRuntime.sendContent(input);
   },
   notifyUser: async (input) => {
@@ -2036,6 +2042,7 @@ const gracefulShutdownRuntime = createGracefulShutdownRuntime({
   dispatchResultsRuntime,
   messageSearchRuntime,
   telegramWatch,
+  telegramApproval,
   unsubscribeTelegramReconnect,
   sessionRuntime,
   getHealthCheckInterval: () => healthCheckInterval,
@@ -2611,7 +2618,7 @@ async function main(options = {}) {
   relayService.registerRoutes(app);
 
   registerBrowserControlRoutes(app, { express, broker: browserControlBroker });
-  registerTelegramRoutes(app, { telegram: telegramRuntime, config: telegramConfig, watch: telegramWatch, getSource: telegramSourceFor, uiAuthController, dispatchPending: async () => {
+  registerTelegramRoutes(app, { telegram: telegramRuntime, config: telegramConfig, watch: telegramWatch, approval: telegramApproval, getSource: telegramSourceFor, uiAuthController, dispatchPending: async () => {
     await dispatchResultsRuntime.load();
     return dispatchResultsRuntime.pending();
   } });
