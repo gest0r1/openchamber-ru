@@ -349,7 +349,7 @@ export const createTelegramRuntime = ({
       return false;
     }
     if (!subscription?.opted_in) return false;
-    const dedupKey = `${directory}\u0000${sessionId}\u0000${type}\u0000${eventKey ?? ''}`;
+    const dedupKey = JSON.stringify([directory, sessionId, type, eventKey ?? '']);
     if (data.deliveries?.[dedupKey] && !manualRetry) return true;
     if (inflightDelivery.has(dedupKey) || Date.now() - (recentDelivery.get(dedupKey) ?? 0) < 5000) return false;
     // Completion is only accepted from the server-owned durable verifier.
@@ -428,7 +428,7 @@ export const createTelegramRuntime = ({
     if (!entry || !['reserved', 'delivery_unknown', 'rejected'].includes(entry.status)) {
       throw new TypeError('No unresolved delivery with this key');
     }
-    if (key !== `${entry.directory}\\u0000${entry.sessionId}\\u0000${entry.type}\\u0000${entry.eventKey ?? ''}`) {
+    if (key !== JSON.stringify([entry.directory, entry.sessionId, entry.type, entry.eventKey ?? ''])) {
       throw new TypeError('Delivery identifier is inconsistent');
     }
     if (!await hasSubscription(entry.directory, entry.sessionId)) {
