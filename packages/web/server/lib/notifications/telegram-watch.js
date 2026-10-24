@@ -337,9 +337,14 @@ export const createTelegramWatch = ({
           (kind === 'page' && !isPageWaiting(sessionId, requestId))) return;
         await telegram.notify({ directory, sessionId, type: 'needs_input',
           eventKey: kind + ':' + requestId,
-          canSend: async () => eventRevisions.get(key) === revision &&
-            pending.has(keyOf({ sessionId, directory, spaceId })) &&
-            (kind !== 'page' || isPageWaiting(sessionId, requestId)),
+          canSend: async () => {
+            if (eventRevisions.get(key) !== revision ||
+              !pending.has(keyOf({ sessionId, directory, spaceId }))) return false;
+            if (kind === 'page') return isPageWaiting(sessionId, requestId);
+            const active = await fetchJson(source,
+              '/api/session/' + encodeURIComponent(sessionId) + '/' + kind).catch(() => null);
+            return Array.isArray(active) && active.some((item) => item?.id === requestId);
+          },
         });
       } catch (error) {
         console.warn('[Telegram] waiting-for-user notification failed:', error?.message ?? error);
