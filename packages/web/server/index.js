@@ -1213,7 +1213,10 @@ const telegramWatch = createTelegramWatch({
     } catch { return null; }
   },
   dispatchPending: async (spaceId, sessionId) => {
-    if (!spaceId) return dispatchResultsRuntime.pending();
+    if (!spaceId) {
+      await dispatchResultsRuntime.load();
+      return dispatchResultsRuntime.pending();
+    }
     const source = telegramSourceFor(spaceId);
     if (!source) return null;
     try {
@@ -2602,7 +2605,10 @@ async function main(options = {}) {
   relayService.registerRoutes(app);
 
   registerBrowserControlRoutes(app, { express, broker: browserControlBroker });
-  registerTelegramRoutes(app, { telegram: telegramRuntime, config: telegramConfig, watch: telegramWatch, getSource: telegramSourceFor, dispatchPending: () => dispatchResultsRuntime.pending() });
+  registerTelegramRoutes(app, { telegram: telegramRuntime, config: telegramConfig, watch: telegramWatch, getSource: telegramSourceFor, dispatchPending: async () => {
+    await dispatchResultsRuntime.load();
+    return dispatchResultsRuntime.pending();
+  } });
 
   // One scanner backs both discovery and the tunnel allowlist, so a port the
   // user can see is exactly a port the tunnel will dial.
