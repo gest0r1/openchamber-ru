@@ -261,7 +261,7 @@ export const createTelegramRuntime = ({
     }
     return true;
   };
-  const sendDocument = async (alias, filePath, { directory = null, caption = '' } = {}) => {
+  const sendDocument = async (alias, filePath, { directory = null, caption = '', expectedSha256 = null } = {}) => {
     if (typeof filePath !== 'string' || !filePath.trim()) throw new TypeError('File path required');
     if (typeof caption !== 'string' || caption.length > 1024) throw new TypeError('Caption exceeds 1024 characters');
     const actual = await realpath(isAbsolute(filePath) ? filePath : resolve(directory || '', filePath));
@@ -281,6 +281,9 @@ export const createTelegramRuntime = ({
     if (target.threadId) body.append('message_thread_id', String(target.threadId));
     if (caption) body.append('caption', caption);
     const contents = await readFile(actual);
+    if (expectedSha256 && createHash('sha256').update(contents).digest('hex') !== expectedSha256) {
+      throw new TypeError('Markdown document changed after the user approved the send');
+    }
     body.append('document', new Blob([contents], { type: 'text/markdown' }), basename(actual));
     await request('sendDocument', body, { multipart: true });
     return true;
@@ -297,13 +300,13 @@ export const createTelegramRuntime = ({
     }
     rateCount += 1;
   };
-  const sendContent = async ({ alias, text, file, caption = '', mode = 'document', directory = null }) => {
+  const sendContent = async ({ alias, text, file, caption = '', mode = 'document', directory = null, expectedSha256 = null }) => {
     if (!['document', 'formatted'].includes(mode)) throw new TypeError('Invalid Telegram mode');
     if (!text && !file) throw new TypeError('text or file required');
     // Explicit delivery bypasses the per-session opt-in, not the channel switch.
     if (await enabled() !== true) return { delivered: false, reason: 'telegram-disabled' };
     rateLimitExplicit();
-    if (file && mode === 'document') await sendDocument(alias, file, { directory, caption });
+    if (file && mode === 'document') await sendDocument(alias, file, { directory, caption, expectedSha256 });
     if (file && mode === 'formatted') {
       const actual = await realpath(isAbsolute(file) ? file : resolve(directory || '', file));
       const roots = await Promise.all((directory ? [directory] : allowedFileRoots).map((root) => realpath(root).catch(() => null)));
@@ -312,7 +315,11 @@ export const createTelegramRuntime = ({
       }
       const metadata = await stat(actual);
       if (!actual.endsWith('.md') || !metadata.isFile() || metadata.size > 10 * 1024 * 1024) throw new TypeError('Markdown file required, up to 10 MB');
-      await sendText(alias, await readFile(actual, 'utf8'), { formatted: true });
+      const contents = await readFile(actual);
+      if (expectedSha256 && createHash('sha256').update(contents).digest('hex') !== expectedSha256) {
+        throw new TypeError('Markdown document changed after the user approved the send');
+      }
+      await sendText(alias, contents.toString('utf8'), { formatted: true });
     }
     if (text) await sendText(alias, text, { formatted: mode === 'formatted' });
     return { delivered: true };
