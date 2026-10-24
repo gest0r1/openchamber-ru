@@ -1,5 +1,5 @@
 import { test, expect } from 'bun:test';
-import { mkdtemp, rm, readFile } from 'node:fs/promises';
+import { mkdtemp, rm, readFile, writeFile, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { createTelegramWatch } from './telegram-watch.js';
@@ -212,5 +212,41 @@ test('deleted sessions remove their subscription and pending checks', async () =
     await settle();
     expect(deletes).toBe(1);
     expect(watch.pendingCount()).toBe(0);
+  } finally { watch.stop(); await h.cleanup(); }
+});
+
+
+test('a corrupt checkpoint is quarantined and rebuilt from subscriptions', async () => {
+  const h = await createHarness();
+  h.options.telegram.listSubscriptions = async () => [
+    { sessionId: 'session', directory: '/repo', spaceId: null },
+  ];
+  const watch = createTelegramWatch(h.options);
+  try {
+    await writeFile(h.filePath, '{invalid');
+    await watch.start();
+    const files = await readdir(h.root);
+    expect(files.some((name) => name.startsWith('watch.json.corrupt-'))).toBe(true);
+    expect(watch.pendingCount()).toBe(1);
+    const saved = JSON.parse(await readFile(h.filePath, 'utf8'));
+    expect(saved.pending[0].sessionId).toBe('session');
+  } finally { watch.stop(); await h.cleanup(); }
+});
+
+test('a resumed parent before the quiet timer cancels its completion', async () => {
+  const h = await createHarness();
+  const watch = createTelegramWatch(h.options);
+  try {
+    await watch.start();
+    await watch.queue({ sessionId: 'session', directory: '/repo' });
+    await h.tick(); // first idle check, now waiting for quiet recheck
+    h.state.parentWorking = true;
+    await h.tick(); // 500 ms confirmation detects renewed work
+    expect(h.notifications).toHaveLength(0);
+    h.state.parentWorking = false;
+    h.state.idleId = 'idle-2';
+    await h.tick();
+    await h.tick();
+    expect(h.notifications.map((item) => item.eventKey)).toEqual(['idle:idle-2']);
   } finally { watch.stop(); await h.cleanup(); }
 });
