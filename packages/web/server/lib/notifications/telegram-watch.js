@@ -119,8 +119,15 @@ export const createTelegramWatch = ({
       arm(key, 60000);
       return;
     }
-    let state = { kind: 'unknown' };
     const source = sourceFor(record.spaceId);
+    if (!record.armed) {
+      const idle = source ? await latestIdle(source, record.sessionId).catch(() => null) : null;
+      if (idle && record.baselineIdleId === undefined) record.baselineIdleId = idle.id;
+      else if (idle && idle.id !== record.baselineIdleId) record.armed = true;
+      await persist();
+      if (!record.armed) { arm(key, 60000); return; }
+    }
+    let state = { kind: 'unknown' };
     if (source) {
       try { state = await activity(record, source); } catch { /* retry */ }
     }
@@ -161,8 +168,15 @@ export const createTelegramWatch = ({
         eventKey: 'idle:' + idle.id,
       });
       if (delivered || !await telegram.hasSubscription(record.directory, record.sessionId)) {
-        pending.delete(key);
-        await persist();
+        if (await telegram.hasSubscription(record.directory, record.sessionId)) {
+          pending.set(key, { ...record, armed: false, baselineIdleId: idle.id,
+            requireNewIdle: null, attempt: 0 });
+          await persist();
+          arm(key, 60000);
+        } else {
+          pending.delete(key);
+          await persist();
+        }
         return;
       }
     }
@@ -177,9 +191,20 @@ export const createTelegramWatch = ({
     const key = keyOf(entry);
     const existing = pending.get(key);
     // Keep the baseline and the background-work barrier across repeated idle events.
-    pending.set(key, existing ? { ...existing, attempt: 0 } : entry);
+    pending.set(key, existing ? { ...existing, armed: true, attempt: 0 } : { ...entry, armed: true });
     await persist();
     arm(key, QUIET_MS);
+  };
+  const track = async ({ sessionId, directory, spaceId = null }) => {
+    await load();
+    const entry = { sessionId, directory, spaceId, attempt: 0, createdAt: now(), armed: false };
+    const source = sourceFor(spaceId);
+    const idle = source ? await latestIdle(source, sessionId).catch(() => null) : null;
+    if (idle) entry.baselineIdleId = idle.id;
+    const key = keyOf(entry);
+    pending.set(key, entry);
+    await persist();
+    arm(key, 60000);
   };
   const cancel = async (sessionId, directory, spaceId = null) => {
     await load();
@@ -247,5 +272,5 @@ export const createTelegramWatch = ({
     for (const timer of decisions.values()) clearTimeoutImpl(timer);
     decisions.clear();
   };
-  return { start, stop, onEvent, queue, cancel, pendingCount: () => pending.size };
+  return { start, stop, onEvent, track, queue, cancel, pendingCount: () => pending.size };
 };
