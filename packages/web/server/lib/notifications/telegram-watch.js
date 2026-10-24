@@ -5,6 +5,7 @@ import { unwrapOpenCodeResponse } from '../opencode/response-envelope.js';
 
 const QUIET_MS = 1500;
 const RETRY_MS = [2000, 5000, 10000, 30000, 60000];
+const STABLE_RECONCILE_MS = 5 * 60 * 1000;
 const keyOf = (entry) => JSON.stringify([entry.spaceId ?? null, entry.directory, entry.sessionId]);
 const sessionIdOf = (event) => event?.properties?.sessionID ?? event?.properties?.sessionId ?? event?.properties?.info?.sessionID;
 const delayFor = (attempt) => RETRY_MS[Math.min(attempt, RETRY_MS.length - 1)];
@@ -164,7 +165,7 @@ export const createTelegramWatch = ({
       if (idle && record.baselineIdleId === undefined) record.baselineIdleId = idle.id;
       else if (idle && idle.id !== record.baselineIdleId) record.armed = true;
       await persist();
-      if (!record.armed) { arm(key, 60000); return; }
+      if (!record.armed) { arm(key, STABLE_RECONCILE_MS); return; }
     }
     // Goal Mode resumes the agent between idle transitions. Its settled
     // status, not an intermediate idle, allows the final notification.
@@ -242,7 +243,7 @@ export const createTelegramWatch = ({
           pending.set(key, { ...record, armed: false, baselineIdleId: idle.id,
             requireNewIdle: null, waitForNewIdle: false, attempt: 0 });
           await persist();
-          arm(key, 60000);
+          arm(key, STABLE_RECONCILE_MS);
         } else {
           pending.delete(key);
           await persist();
