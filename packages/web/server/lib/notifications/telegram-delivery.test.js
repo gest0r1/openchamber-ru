@@ -1,6 +1,7 @@
 import { test, expect } from 'bun:test';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { createHash } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import { createTelegramRuntime } from './telegram-runtime.js';
 
@@ -143,5 +144,22 @@ test('resuming a busy session prevents a verified ready notification', async () 
     expect(await h.runtime.notify(ready)).toBe(false);
     expect(requests).toBe(0);
     expect(await h.runtime.listDeliveryIssues()).toHaveLength(0);
+  } finally { await h.cleanup(); }
+});
+
+
+test('approved Markdown cannot be replaced while waiting for user consent', async () => {
+  let posted = 0;
+  const h = await setup(async () => {
+    posted += 1;
+    return new Response(JSON.stringify({ ok: true, result: { message_id: 1 } }));
+  });
+  try {
+    await h.runtime.configureAlias('team', '123456');
+    const expectedSha256 = createHash('sha256').update('Original').digest('hex');
+    await writeFile(join(h.root, 'report.md'), 'Replaced');
+    await expect(h.runtime.sendContent({ file: 'report.md', directory: h.root,
+      expectedSha256 })).rejects.toThrow(/changed/);
+    expect(posted).toBe(0);
   } finally { await h.cleanup(); }
 });
