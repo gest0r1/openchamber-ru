@@ -266,7 +266,18 @@ export const createTelegramWatch = ({
   const onEvent = (payload, { spaceId = null } = {}) => {
     if (!payload || typeof payload !== 'object') return;
     const sessionId = sessionIdOf(payload);
-    const directory = payload.properties?.directory;
+    let directory = payload.properties?.directory;
+    // Some execution-status events contain a session id without its location.
+    // The subscription checkpoint holds the verified session location. Use it
+    // only when the session and space identify exactly one tracked record.
+    if (!directory && sessionId) {
+      const matches = [...pending.values()].filter((entry) =>
+        entry.sessionId === sessionId && (entry.spaceId ?? null) === spaceId);
+      if (matches.length === 1) {
+        directory = matches[0].directory;
+        payload = { ...payload, properties: { ...payload.properties, directory } };
+      }
+    }
     if (sessionId && directory && payload.type === 'session.idle') {
       if (payload.properties?.aborted !== true) void queue({ sessionId, directory, spaceId }).catch(() => {});
       else void cancel(sessionId, directory, spaceId).catch(() => {});
