@@ -1,6 +1,9 @@
 name: pr checks
 
 on:
+  push:
+    branches:
+      - feature/telegram-notifications-v2
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
 
