@@ -190,6 +190,7 @@ export const createTelegramRuntime = ({
         }
         const error = new Error(`Telegram delivery rejected (HTTP ${response.status})`);
         error.retrySafe = response.status === 429;
+        error.httpStatus = response.status;
         throw error;
       } catch (error) {
         // A lost response can mean Telegram already accepted the message.
@@ -335,7 +336,7 @@ export const createTelegramRuntime = ({
   const listAliases = async () => {
     return Object.keys(await configuredAliases());
   };
-  const notify = async ({ directory, sessionId, type, eventKey = null, aborted = false }) => {
+  const notify = async ({ directory, sessionId, type, eventKey = null, aborted = false, canSend = async () => true, manualRetry = false }) => {
     if (!directory || !sessionId || aborted || !['completed', 'needs_input', 'error'].includes(type)) return false;
     if (await enabled() !== true) return false;
     const data = await load();
@@ -349,7 +350,7 @@ export const createTelegramRuntime = ({
     }
     if (!subscription?.opted_in) return false;
     const dedupKey = `${directory}\u0000${sessionId}\u0000${type}\u0000${eventKey ?? ''}`;
-    if (data.deliveries?.[dedupKey]) return true;
+    if (data.deliveries?.[dedupKey] && !manualRetry) return true;
     if (inflightDelivery.has(dedupKey) || Date.now() - (recentDelivery.get(dedupKey) ?? 0) < 5000) return false;
     // Completion is only accepted from the server-owned durable verifier.
     // It checks the run outcome, descendants, shells and dispatch results.
@@ -365,18 +366,27 @@ export const createTelegramRuntime = ({
       current.expires_at !== subscription.expires_at ||
       (current.expires_at && current.expires_at <= Date.now()) ||
       await enabled() !== true) return false;
-    if (inflightDelivery.has(dedupKey)) return false;
+    if (inflightDelivery.has(dedupKey) || !await canSend()) return false;
     inflightDelivery.add(dedupKey);
     try {
       // Persist before sending: a lost Telegram response or server restart
       // must not produce a second unsolicited automatic message.
       await mutate((latest) => {
         latest.deliveries ??= {};
-        latest.deliveries[dedupKey] = Date.now();
+        latest.deliveries[dedupKey] = {
+          status: 'reserved', at: Date.now(), directory, sessionId, type, eventKey,
+        };
         const keys = Object.keys(latest.deliveries);
         if (keys.length > 1000) for (const key of keys.slice(0, keys.length - 1000)) delete latest.deliveries[key];
       });
+      if (!await canSend()) {
+        await mutate((latest) => { delete latest.deliveries[dedupKey]; });
+        return false;
+      }
       await sendText(subscription.alias, `${type === 'completed' ? 'Agent completed the task' : type === 'error' ? 'Agent encountered an error' : 'Agent needs your input'}${url}`);
+      await mutate((latest) => {
+        if (latest.deliveries?.[dedupKey]) latest.deliveries[dedupKey].status = 'sent';
+      });
       if (subscription.scope === 'once' || (subscription.scope === 'run' && type === 'completed')) {
         await mutate((latest) => {
           if (latest.subscriptions[keyOf(directory, sessionId)]?.created_at === subscription.created_at) {
@@ -393,13 +403,41 @@ export const createTelegramRuntime = ({
     } catch (error) {
       // The server explicitly rejected the request. No message was accepted,
       // so a retry can use the same event key after the backoff.
-      if (error?.retrySafe === true) {
-        await mutate((latest) => { delete latest.deliveries?.[dedupKey]; });
-      }
+      await mutate((latest) => {
+        if (error?.retrySafe === true) delete latest.deliveries?.[dedupKey];
+        else if (latest.deliveries?.[dedupKey]) {
+          latest.deliveries[dedupKey].status = error?.httpStatus && error.httpStatus < 500 ? 'rejected' : 'delivery_unknown';
+          latest.deliveries[dedupKey].reason = String(error?.message ?? 'Unknown delivery result').slice(0, 200);
+        }
+      });
       throw error;
     } finally {
       inflightDelivery.delete(dedupKey);
     }
   };
-  return { configureAlias, deleteAlias, subscribe, unsubscribe, sendText, sendDocument, sendContent, notify, hasSubscription, getSubscription, listAliases, listAliasDetails, hasBotToken };
+  const listDeliveryIssues = async () => {
+    const data = await load();
+    return Object.entries(data.deliveries ?? {}).filter(([, entry]) =>
+      entry && typeof entry === 'object' && ['reserved', 'delivery_unknown', 'rejected'].includes(entry.status))
+      .slice(-100).map(([key, entry]) => ({ key, ...entry }));
+  };
+  const retryDelivery = async (key) => {
+    if (typeof key !== 'string') throw new TypeError('Delivery key is required');
+    const data = await load();
+    const entry = data.deliveries?.[key];
+    if (!entry || !['reserved', 'delivery_unknown', 'rejected'].includes(entry.status)) {
+      throw new TypeError('No unresolved delivery with this key');
+    }
+    if (key !== `${entry.directory}\\u0000${entry.sessionId}\\u0000${entry.type}\\u0000${entry.eventKey ?? ''}`) {
+      throw new TypeError('Delivery identifier is inconsistent');
+    }
+    if (!await hasSubscription(entry.directory, entry.sessionId)) {
+      throw new TypeError('The original session is no longer subscribed');
+    }
+    // Manual action from an authenticated user, never background retry.
+    return notify({ directory: entry.directory, sessionId: entry.sessionId,
+      type: entry.type, eventKey: entry.eventKey, manualRetry: true });
+  };
+  return { configureAlias, deleteAlias, subscribe, unsubscribe, sendText, sendDocument, sendContent,
+    notify, hasSubscription, getSubscription, listAliases, listAliasDetails, hasBotToken, listDeliveryIssues, retryDelivery };
 };
