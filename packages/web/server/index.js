@@ -2605,7 +2605,7 @@ async function main(options = {}) {
   relayService.registerRoutes(app);
 
   registerBrowserControlRoutes(app, { express, broker: browserControlBroker });
-  registerTelegramRoutes(app, { telegram: telegramRuntime, config: telegramConfig, watch: telegramWatch, getSource: telegramSourceFor, dispatchPending: async () => {
+  registerTelegramRoutes(app, { telegram: telegramRuntime, config: telegramConfig, watch: telegramWatch, getSource: telegramSourceFor, uiAuthController, dispatchPending: async () => {
     await dispatchResultsRuntime.load();
     return dispatchResultsRuntime.pending();
   } });
