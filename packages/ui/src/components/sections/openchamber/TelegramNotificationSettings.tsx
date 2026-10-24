@@ -212,7 +212,6 @@ export const TelegramNotificationSettings: React.FC = () => {
           label={t('settings.notifications.telegram.enabled')}
           ariaLabel={t('settings.notifications.telegram.enabled')}
         />
-        <p className="typography-meta text-muted-foreground">{t('settings.notifications.telegram.optInHint')}</p>
         <SettingsFieldRow label={t('settings.notifications.telegram.botToken')}>
           <div className="flex max-w-[24rem] flex-wrap items-center gap-2">
             <Input
