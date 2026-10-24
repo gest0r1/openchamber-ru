@@ -13,7 +13,7 @@ const MAX_TEXT = 4000;
  * This runtime is intentionally independent of desktop/web push.
  */
 export const createTelegramRuntime = ({
-  storePath, getBotToken, getPublicOrigin, activityProbe, fetchImpl = fetch,
+  storePath, getBotToken, getPublicOrigin, fetchImpl = fetch,
   enabled = async () => true,
   allowedFileRoots = [],
   getConfiguredAliases = null,
