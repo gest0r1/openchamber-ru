@@ -29,6 +29,7 @@ const telegramAliasesSchema = z.object({
   })),
 });
 type TelegramConfig = z.infer<typeof telegramConfigSchema>;
+type ListedSession = { id: string; title: string; directory: string; spaceId: string | null };
 type AliasDraft = { name: string; chatId: string; threadId: string; kind: TelegramKind; previousName: string };
 const blankAlias = (): AliasDraft => ({ name: '', chatId: '', threadId: '', kind: 'private', previousName: '' });
 
@@ -49,7 +50,66 @@ export const TelegramNotificationSettings: React.FC = () => {
   const [botToken, setBotToken] = React.useState('');
   const [draft, setDraft] = React.useState<AliasDraft>(blankAlias);
   const [busy, setBusy] = React.useState(false);
+  const [sessions, setSessions] = React.useState<ListedSession[]>([]);
+  const [selectedSession, setSelectedSession] = React.useState('');
+  const [subscribed, setSubscribed] = React.useState(false);
+  const [subscriptionBusy, setSubscriptionBusy] = React.useState(false);
   const [loadingError, setLoadingError] = React.useState('');
+
+  React.useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const response = await runtimeFetch('/api/session?limit=50&order=desc');
+        if (!response.ok) return;
+        const body: unknown = await response.json();
+        const rows = z.object({ data: z.array(z.object({
+          id: z.string(), title: z.string().optional(),
+          parentID: z.string().nullish(),
+          location: z.object({ directory: z.string() }),
+        }).passthrough()) }).safeParse(body);
+        if (!rows.success || cancelled) return;
+        setSessions(rows.data.data.filter((row) => !row.parentID).map((row) => ({
+          id: row.id, title: row.title || row.id, directory: row.location.directory,
+          spaceId: /^\/spaces\/([^/]+)(?:\/|$)/.exec(row.location.directory)?.[1] ?? null,
+        })));
+      } catch { /* The channel can be configured without a connected OpenCode. */ }
+    };
+    void load();
+    return () => { cancelled = true; };
+  }, []);
+
+  const sessionFromSelection = React.useCallback(() =>
+    sessions.find((session) => session.id === selectedSession), [sessions, selectedSession]);
+
+  const chooseSession = async (sessionId: string) => {
+    setSelectedSession(sessionId);
+    setSubscribed(false);
+    const session = sessions.find((item) => item.id === sessionId);
+    if (!session) return;
+    try {
+      const params = new URLSearchParams({ sessionId: session.id, directory: session.directory });
+      const result = await telegramRequest('subscription?' + params, 'GET');
+      setSubscribed(z.object({ subscribed: z.boolean() }).parse(result).subscribed);
+    } catch {
+      setLoadingError(t('settings.notifications.telegram.subscriptionFailed'));
+    }
+  };
+  const toggleSubscription = async () => {
+    const session = sessionFromSelection();
+    if (!session) return;
+    setSubscriptionBusy(true);
+    try {
+      const action = subscribed ? 'unsubscribe' : 'subscribe';
+      await telegramRequest(action, 'POST', { sessionId: session.id, directory: session.directory, spaceId: session.spaceId });
+      setSubscribed(!subscribed);
+      setLoadingError('');
+    } catch {
+      setLoadingError(t('settings.notifications.telegram.subscriptionFailed'));
+    } finally {
+      setSubscriptionBusy(false);
+    }
+  };
 
   const refresh = React.useCallback(async () => {
     const [settings, recipients] = await Promise.all([
@@ -183,6 +243,24 @@ export const TelegramNotificationSettings: React.FC = () => {
               {aliases.map((alias) => <SelectItem key={alias.name} value={alias.name}>{alias.name}</SelectItem>)}
             </SelectContent>
           </Select>
+        </SettingsFieldRow>
+        <SettingsFieldRow label={t('settings.notifications.telegram.session')}>
+          <div className="flex flex-wrap items-center gap-2">
+            <Select value={selectedSession || '_none'} onValueChange={(value) => { void chooseSession(value); }}>
+              <SelectTrigger className={SETTINGS_SELECT_ROW_TRIGGER_CLASS}>
+                <SelectValue placeholder={t('settings.notifications.telegram.noSessions')} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="_none">{t('settings.notifications.telegram.noSessions')}</SelectItem>
+                {sessions.map((session) => (
+                  <SelectItem key={session.id} value={session.id}>{session.title}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button size="sm" variant="outline" disabled={!selectedSession || selectedSession === '_none' || subscriptionBusy || (!subscribed && !config?.defaultAlias)} onClick={() => { void toggleSubscription(); }}>
+              {subscribed ? t('settings.notifications.telegram.unsubscribe') : t('settings.notifications.telegram.subscribe')}
+            </Button>
+          </div>
         </SettingsFieldRow>
         <p className="typography-meta text-muted-foreground">{t('settings.notifications.telegram.formatHint')}</p>
         {aliases.map((alias) => (
