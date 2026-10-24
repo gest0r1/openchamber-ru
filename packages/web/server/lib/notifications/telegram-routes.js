@@ -1,5 +1,19 @@
 /** UI-authenticated routes. The server stores all credentials and destinations. */
-export const registerTelegramRoutes = (app, { telegram, config, watch, getSource, dispatchPending }) => {
+export const registerTelegramRoutes = (app, { telegram, config, watch, getSource, dispatchPending, uiAuthController }) => {
+  // The route that the host asks inside a space must remain accessible over
+  // the trusted dispatcher. All user-facing configuration/send routes require
+  // a UI session independently of the upstream OpenCode API auth gate.
+  app.use('/api/notifications/telegram', async (req, res, next) => {
+    if (req.path === '/pending') return next();
+    try {
+      const token = await uiAuthController?.ensureSessionToken?.(req, res);
+      if (!token) {
+        if (!res.headersSent) res.status(401).json({ error: 'UI session required' });
+        return;
+      }
+      next();
+    } catch (error) { next(error); }
+  });
   const asyncRoute = (handler) => (req, res, next) => {
     Promise.resolve(handler(req, res)).catch(next);
   };
@@ -102,7 +116,15 @@ export const registerTelegramRoutes = (app, { telegram, config, watch, getSource
       const item = sessionInput(req.body);
       await verify(item);
       await telegram.subscribe(item.directory, item.sessionId, req.body?.alias, { origin: 'user' });
-      await watch.track(item);
+      try {
+        await watch.track(item);
+      } catch (error) {
+        // A subscription without its durable checkpoint could miss every
+        // subsequent end-of-run after a server restart. Fail the operation.
+        await telegram.unsubscribe(item.directory, item.sessionId);
+        await watch.cancel(item.sessionId, item.directory, item.spaceId);
+        throw error;
+      }
       res.json({ subscribed: true });
     } catch (error) { fail(res, error); }
   }));
