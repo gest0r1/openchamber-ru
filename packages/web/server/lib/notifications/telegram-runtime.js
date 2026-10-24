@@ -138,8 +138,12 @@ export const createTelegramRuntime = ({
     const { name } = await selectAlias(alias);
     const scope = options.scope ?? 'session';
     if (!['once', 'run', 'session'].includes(scope)) throw new TypeError('Invalid Telegram subscription scope');
-    const expiresAt = options.expiresAt ?? (Date.now() + 7 * 24 * 60 * 60 * 1000);
-    if (!Number.isSafeInteger(expiresAt) || expiresAt <= Date.now()) throw new TypeError('Invalid Telegram expiry');
+    // A session subscription remains in effect until the user opts out.
+    // Expiry applies only if a caller explicitly requests a deadline.
+    const expiresAt = options.expiresAt ?? null;
+    if (expiresAt !== null && (!Number.isSafeInteger(expiresAt) || expiresAt <= Date.now())) {
+      throw new TypeError('Invalid Telegram expiry');
+    }
     const origin = options.origin === 'agent' ? 'agent' : 'user';
     return mutate((data) => {
       data.subscriptions[keyOf(directory, sessionId)] = {
