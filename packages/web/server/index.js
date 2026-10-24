@@ -1958,14 +1958,31 @@ const openChamberControlService = createOpenChamberControlService({
   // must not keep paging the user.
   telegramSend: async (input) => {
     const settings = await readSettingsFromDiskMigrated().catch(() => null);
-    if (settings?.agentNotifyToolEnabled !== true) {
-      throw new Error('OpenChamber agent notifications are disabled');
+    if (settings?.agentNotifyToolEnabled !== true || !(await telegramConfig.read()).enabled) {
+      throw new Error('Telegram or agent notifications are disabled');
+    }
+    // A filename alone is not enough consent: while approval is pending the
+    // agent can still change the file. Bind the user's decision to its bytes.
+    let expectedSha256 = null;
+    if (input.file) {
+      const root = await fsPromises.realpath(input.directory);
+      const actual = await fsPromises.realpath(path.resolve(input.directory, input.file));
+      const relative = path.relative(root, actual);
+      if (relative === '..' || relative.startsWith('..' + path.sep) || path.isAbsolute(relative) ||
+        !actual.toLowerCase().endsWith('.md')) {
+        throw new Error('Telegram file must be a Markdown document within the calling checkout');
+      }
+      const meta = await fsPromises.stat(actual);
+      if (!meta.isFile() || meta.size > 10 * 1024 * 1024) throw new Error('Telegram file exceeds 10 MB');
+      expectedSha256 = crypto.createHash('sha256').update(await fsPromises.readFile(actual)).digest('hex');
     }
     const approved = await telegramApproval.request(input);
     if (!approved) throw new Error('Telegram send was not approved by the user');
     const updatedSettings = await readSettingsFromDiskMigrated().catch(() => null);
-    if (updatedSettings?.agentNotifyToolEnabled !== true) throw new Error('Agent notifications were disabled');
-    return telegramRuntime.sendContent(input);
+    if (updatedSettings?.agentNotifyToolEnabled !== true || !(await telegramConfig.read()).enabled) {
+      throw new Error('Telegram or agent notifications were disabled');
+    }
+    return telegramRuntime.sendContent({ ...input, expectedSha256 });
   },
   notifyUser: async (input) => {
     const settings = await readSettingsFromDiskMigrated().catch(() => null);
