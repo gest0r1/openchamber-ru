@@ -82,7 +82,7 @@ export const createSessionActivityProbe = ({ buildOpenCodeUrl, getOpenCodeAuthHe
    * A chain deeper than `MAX_SUBAGENT_DEPTH` counts as unrelated, as in the
    * UI's ancestor walk, so a deep tree elsewhere cannot hold every queue.
    */
-  const hasWorkingDescendants = async (sessionId, statuses) => {
+  const hasWorkingDescendants = async (sessionId, statuses, strictDepth = false) => {
     const parents = new Map();
     const signal = AbortSignal.timeout(timeoutMs);
     let unknown = false;
@@ -110,6 +110,10 @@ export const createSessionActivityProbe = ({ buildOpenCodeUrl, getOpenCodeAuthHe
         if (parentId === sessionId) return true;
         current = parentId;
       }
+      // The UI bounds its ancestry walk at eight hops. Telegram's strict
+      // completion gate must keep a deeper chain unknown: that active
+      // session may still belong to the watched parent.
+      if (strictDepth && current) unknown = true;
     }
     return unknown ? null : false;
   };
