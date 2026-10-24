@@ -1179,7 +1179,17 @@ dispatchResultsRuntime.start();
 // Telegram follows the existing OpenCode watcher. Its own durable verifier
 // keeps unknown completions pending until OpenCode proves the turn is over.
 const telegramConfig = createTelegramConfig(path.join(OPENCHAMBER_DATA_DIR, 'telegram-config.json'));
-const telegramApproval = createTelegramApproval();
+const telegramApproval = createTelegramApproval({
+  onRequested: ({ sessionId, alias }) => {
+    broadcastUiNotification({
+      title: 'Telegram send requires confirmation',
+      body: 'Open Settings → Notifications to approve sending to ' + (alias || 'the default recipient'),
+      tag: 'telegram-approval-' + sessionId,
+      kind: 'question',
+      sessionId,
+    });
+  },
+});
 const telegramRuntime = createTelegramRuntime({
   storePath: path.join(OPENCHAMBER_DATA_DIR, 'telegram-subscriptions.json'),
   getBotToken: async () => (await telegramConfig.read()).botToken,
