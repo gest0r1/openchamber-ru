@@ -127,5 +127,16 @@ export const createSessionActivityProbe = ({ buildOpenCodeUrl, getOpenCodeAuthHe
     return shells.some((shell) => shell.status === 'running');
   };
 
-  return { fetchActiveSessionStatuses, fetchChildSessionIds, hasWorkingChildren, hasWorkingDescendants, hasRunningShells };
+  /** Unknown form/permission state cannot prove readiness. */
+  const hasBlockingRequests = async (sessionId, directory) => {
+    if (!directory || !sessionId) return null;
+    const forms = await openCodeGet('/api/form', { 'location[directory]': directory }).catch(() => null);
+    if (!Array.isArray(forms)) return null;
+    if (forms.some((form) => form?.sessionID === sessionId)) return true;
+    const permissions = await openCodeGet('/api/session/' + encodeURIComponent(sessionId) + '/permission').catch(() => null);
+    if (!Array.isArray(permissions)) return null;
+    return permissions.length > 0;
+  };
+
+  return { fetchActiveSessionStatuses, fetchChildSessionIds, hasWorkingChildren, hasWorkingDescendants, hasRunningShells, hasBlockingRequests };
 };
