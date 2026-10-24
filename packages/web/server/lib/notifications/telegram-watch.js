@@ -98,6 +98,9 @@ export const createTelegramWatch = ({
     const shells = await probe.hasRunningShells(record.sessionId, record.directory);
     if (shells === null) return { kind: 'unknown' };
     if (shells) return { kind: 'working' };
+    const blocking = await probe.hasBlockingRequests(record.sessionId, record.directory);
+    if (blocking === null) return { kind: 'unknown' };
+    if (blocking) return { kind: 'working' };
     const dispatched = await dispatchPending(record.spaceId, record.sessionId);
     if (!Array.isArray(dispatched)) return { kind: 'unknown' };
     if (dispatched.some((entry) => entry.parentSessionId === record.sessionId)) {
