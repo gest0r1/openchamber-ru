@@ -23,7 +23,7 @@ const createHarness = async () => {
         case '/api/shell':
           data = state.shells ? [{ id: 'sh-1', status: 'running' }] : [];
           break;
-        case '/api/form':
+        case '/api/session/session/form':
           data = state.form ? [{ id: 'form-1', sessionID: 'session' }] : [];
           break;
         case '/api/session/session/permission':
