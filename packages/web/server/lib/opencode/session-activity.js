@@ -123,8 +123,9 @@ export const createSessionActivityProbe = ({ buildOpenCodeUrl, getOpenCodeAuthHe
     if (typeof directory !== 'string' || !directory) return null;
     const shells = await openCodeGet('/api/shell', { 'location[directory]': directory }).catch(() => null);
     if (!Array.isArray(shells)) return null;
-    if (shells.some((shell) => !shell || typeof shell !== 'object' || typeof shell.status !== 'string')) return null;
-    return shells.some((shell) => shell.status === 'running');
+    // shell.list returns only running commands; exited jobs never appear.
+    // Do not infer a status field that the published Shell.Info may omit.
+    return shells.length > 0;
   };
 
   /** Unknown form/permission state cannot prove readiness. */
