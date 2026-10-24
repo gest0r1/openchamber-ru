@@ -1,5 +1,5 @@
 /** UI-authenticated routes. The server stores all credentials and destinations. */
-export const registerTelegramRoutes = (app, { telegram, config, watch, getSource }) => {
+export const registerTelegramRoutes = (app, { telegram, config, watch, getSource, dispatchPending }) => {
   const asyncRoute = (handler) => (req, res, next) => {
     Promise.resolve(handler(req, res)).catch(next);
   };
@@ -31,6 +31,14 @@ export const registerTelegramRoutes = (app, { telegram, config, watch, getSource
     }
   };
 
+  // The host reads this status inside an isolated space over its authenticated
+  // dispatcher. The external space proxy refuses /api/notifications routes.
+  app.get('/api/notifications/telegram/pending', asyncRoute(async (req, res) => {
+    const sessionId = asString(req.query?.sessionId);
+    if (!sessionId) return res.status(400).json({ error: 'sessionId required' });
+    const entries = await dispatchPending();
+    res.json({ pending: entries.some((entry) => entry.parentSessionId === sessionId) });
+  }));
   app.get('/api/notifications/telegram/config', asyncRoute(async (_req, res) => {
     res.json(await config.publicConfig());
   }));
