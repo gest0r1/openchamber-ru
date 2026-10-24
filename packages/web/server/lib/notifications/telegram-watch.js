@@ -114,7 +114,13 @@ export const createTelegramWatch = ({
         if (!Array.isArray(refreshed) || !refreshed.some((active) => active?.id === item.id)) continue;
         if (pending.get(keyOf(record)) !== record) return;
         await telegram.notify({ directory: record.directory, sessionId: record.sessionId,
-          type: 'needs_input', eventKey: resource + ':' + item.id });
+          type: 'needs_input', eventKey: resource + ':' + item.id,
+          canSend: async () => {
+            if (stopped || pending.get(keyOf(record)) !== record) return false;
+            const latest = await fetchJson(source, url).catch(() => null);
+            return Array.isArray(latest) && latest.some((value) => value?.id === item.id);
+          },
+        });
       }
     }
   };
@@ -368,7 +374,12 @@ export const createTelegramWatch = ({
       }
     }
     if (sessionId && directory && payload.type === 'session.deleted') {
+      // Invalidate in-flight confirmations synchronously, before any await.
+      const key = keyOf({ sessionId, directory, spaceId });
+      pending.delete(key);
+      clear(key);
       void (async () => {
+        await persist();
         await telegram.unsubscribe(directory, sessionId);
         await cancel(sessionId, directory, spaceId);
       })().catch((error) => console.warn('[Telegram] session deletion cleanup failed:', error?.message ?? error));
