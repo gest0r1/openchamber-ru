@@ -402,6 +402,12 @@ export const createTelegramWatch = ({
   };
   const start = async () => {
     await load();
+    // A corrupted watch file or crash between subscription and checkpoint
+    // cannot permanently disable future monitoring.
+    for (const item of await telegram.listSubscriptions()) {
+      const key = keyOf(item);
+      if (!pending.has(key)) await track(item);
+    }
     reconcileAll();
   };
   const stop = () => {
