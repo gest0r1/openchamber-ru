@@ -23,7 +23,7 @@ export const createTelegramWatch = ({
 
   const persist = () => {
     const bytes = JSON.stringify({ version: 1, pending: [...pending.values()] });
-    writes = writes.then(async () => {
+    writes = writes.catch(() => {}).then(async () => {
       await mkdir(dirname(filePath), { recursive: true });
       const temp = filePath + '.' + process.pid + '.tmp';
       await writeFile(temp, bytes, { mode: 0o600 });
