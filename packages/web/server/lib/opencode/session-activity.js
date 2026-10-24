@@ -79,8 +79,9 @@ export const createSessionActivityProbe = ({ buildOpenCodeUrl, getOpenCodeAuthHe
 
   /**
    * Queue delivery waits for running descendants, including nested subagents.
-   * A chain deeper than `MAX_SUBAGENT_DEPTH` counts as unrelated, as in the
-   * UI's ancestor walk, so a deep tree elsewhere cannot hold every queue.
+   * The UI treats an ancestry chain beyond `MAX_SUBAGENT_DEPTH` as unrelated.
+   * When `strictDepth` is true, an unresolved chain remains unknown so a
+   * completion notifier cannot mistake a deep active descendant for idle.
    */
   const hasWorkingDescendants = async (sessionId, statuses, strictDepth = false) => {
     const parents = new Map();
