@@ -2011,7 +2011,7 @@ export const settingsDict = {
   'settings.notifications.telegram.deliveryIssuesTitle': "Неопределённые доставки в Telegram",
   'settings.notifications.telegram.deliveryIssuesWarning': "Telegram мог принять сообщение до таймаута. Ручной повтор может создать дубликат.",
   'settings.notifications.telegram.retryDelivery': "Повторить вручную",
-  'settings.notifications.telegram.title': "Telegram",
+  'settings.notifications.telegram.title': "Уведомления в Telegram",
   'settings.notifications.telegram.enabled': "Включить уведомления Telegram",
   'settings.notifications.telegram.optInHint': "Автоматические уведомления приходят только для сессий, которые пользователь или агент явно отметил для уведомления.",
   'settings.notifications.telegram.botToken': "Токен бота",
