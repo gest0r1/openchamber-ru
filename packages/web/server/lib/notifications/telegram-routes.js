@@ -1,5 +1,5 @@
 /** UI-authenticated routes. The server stores all credentials and destinations. */
-export const registerTelegramRoutes = (app, { telegram, config, watch, getSource, dispatchPending, uiAuthController }) => {
+export const registerTelegramRoutes = (app, { telegram, config, watch, approval, getSource, dispatchPending, uiAuthController }) => {
   // The route that the host asks inside a space must remain accessible over
   // the trusted dispatcher. All user-facing configuration/send routes require
   // a UI session independently of the upstream OpenCode API auth gate.
@@ -52,6 +52,26 @@ export const registerTelegramRoutes = (app, { telegram, config, watch, getSource
     if (!sessionId) return res.status(400).json({ error: 'sessionId required' });
     const entries = await dispatchPending();
     res.json({ pending: entries.some((entry) => entry.parentSessionId === sessionId) });
+  }));
+
+  app.get('/api/notifications/telegram/approvals', asyncRoute(async (_req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    res.json({ approvals: approval.list() });
+  }));
+  app.post('/api/notifications/telegram/approvals/decide', asyncRoute(async (req, res) => {
+    if (typeof req.body?.id !== 'string' || typeof req.body?.approved !== 'boolean') {
+      return res.status(400).json({ error: 'id and approved are required' });
+    }
+    res.json({ resolved: approval.decide(req.body.id, req.body.approved) });
+  }));
+  app.get('/api/notifications/telegram/delivery-issues', asyncRoute(async (_req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    res.json({ deliveries: await telegram.listDeliveryIssues() });
+  }));
+  app.post('/api/notifications/telegram/delivery-issues/retry', asyncRoute(async (req, res) => {
+    try {
+      res.json({ delivered: await telegram.retryDelivery(req.body?.key) });
+    } catch (error) { fail(res, error); }
   }));
   app.get('/api/notifications/telegram/config', asyncRoute(async (_req, res) => {
     res.json(await config.publicConfig());
