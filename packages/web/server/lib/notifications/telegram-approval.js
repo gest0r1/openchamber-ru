@@ -15,16 +15,18 @@ export const createTelegramApproval = ({
   const list = () => Array.from(pending.values(), (item) => ({
     id: item.id, sessionId: item.sessionId, alias: item.alias,
     file: item.file || null, preview: item.text?.slice(0, 500) ?? '',
-    text: item.text ?? '',
+    text: item.text ?? '', caption: item.caption ?? '',
+    filePreview: item.filePreview ?? '', fileSize: item.fileSize ?? null,
     mode: item.mode || 'document', createdAt: item.createdAt,
   }));
-  const request = ({ sessionId, alias, text, file, mode }) => {
+  const request = ({ sessionId, alias, text, file, mode, caption, filePreview, fileSize }) => {
     if (!sessionId || (!text && !file)) throw new TypeError('Telegram approval requires a session and content');
     if (pending.size >= 10) throw new Error('Too many pending Telegram approvals');
     return new Promise((resolve) => {
       const id = randomUUID();
       const item = {
         id, sessionId, alias: alias || '', text: text || '', file: file || '',
+        caption: caption || '', filePreview: filePreview || '', fileSize: fileSize ?? null,
         mode: mode || 'document', createdAt: Date.now(), resolve, timer: null,
       };
       item.timer = setTimer(() => {
