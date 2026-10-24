@@ -7,6 +7,7 @@ import { randomUUID } from 'node:crypto';
  */
 export const createTelegramApproval = ({
   timeoutMs = 120_000,
+  onRequested = () => {},
   setTimer = setTimeout,
   clearTimer = clearTimeout,
 } = {}) => {
@@ -14,10 +15,12 @@ export const createTelegramApproval = ({
   const list = () => Array.from(pending.values(), (item) => ({
     id: item.id, sessionId: item.sessionId, alias: item.alias,
     file: item.file || null, preview: item.text?.slice(0, 500) ?? '',
+    text: item.text ?? '',
     mode: item.mode || 'document', createdAt: item.createdAt,
   }));
   const request = ({ sessionId, alias, text, file, mode }) => {
     if (!sessionId || (!text && !file)) throw new TypeError('Telegram approval requires a session and content');
+    if (pending.size >= 10) throw new Error('Too many pending Telegram approvals');
     return new Promise((resolve) => {
       const id = randomUUID();
       const item = {
@@ -30,6 +33,7 @@ export const createTelegramApproval = ({
       }, timeoutMs);
       item.timer.unref?.();
       pending.set(id, item);
+      try { onRequested({ id, sessionId, alias: item.alias }); } catch { /* presentation is best effort */ }
     });
   };
   const decide = (id, approved) => {
