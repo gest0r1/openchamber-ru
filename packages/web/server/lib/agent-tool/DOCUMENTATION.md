@@ -23,6 +23,12 @@ the user can want independently:
   `POST /api/notifications/emit`). Off by default: enabled only while
   `agentNotifyToolEnabled` is `true`, and the control service refuses the
   action when the setting is off, so a stale plugin cannot keep paging.
+  The same tool also offers `notify.telegram_send` for a user-requested text or
+  Markdown file. This explicit send needs a configured Telegram recipient and
+  enabled Telegram channel. It uses the calling session's resolved checkout
+  for Markdown path confinement, and does not require the session's automatic
+  Telegram subscription. The existing `agentNotifyToolEnabled` gate still
+  controls whether the model sees or can call the tool.
 - `openchamber_knowledge` — the project's Notes, Todos and Plans, the items of
   the Project knowledge panel (`knowledge.list`, `save`, `delete`, `show`,
   with `kind` naming note, todo or plan; plans are files, so list and save
