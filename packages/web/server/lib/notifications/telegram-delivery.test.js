@@ -103,3 +103,45 @@ test('session subscriptions remain enabled until explicitly removed', async () =
     expect(await h.runtime.hasSubscription('/repo', 'session')).toBe(false);
   } finally { await h.cleanup(); }
 });
+
+
+test('ambiguous delivery remains visible and can be retried manually exactly once', async () => {
+  let attempt = 0;
+  const h = await setup(async () => {
+    attempt += 1;
+    if (attempt === 1) throw new TypeError('network lost after send');
+    return new Response(JSON.stringify({ ok: true, result: { message_id: 2 } }));
+  });
+  try {
+    await h.runtime.configureAlias('team', '123456');
+    await h.runtime.subscribe('/repo', 'session', 'team');
+    const item = { directory: '/repo', sessionId: 'session', type: 'completed', eventKey: 'idle:one' };
+    await expect(h.runtime.notify(item)).rejects.toThrow();
+    const issues = await h.runtime.listDeliveryIssues();
+    expect(issues).toHaveLength(1);
+    expect(issues[0].status).toBe('delivery_unknown');
+    expect(await h.runtime.notify(item)).toBe(true);
+    expect(attempt).toBe(1);
+    expect(await h.runtime.retryDelivery(issues[0].key)).toBe(true);
+    expect(attempt).toBe(2);
+    expect(await h.runtime.listDeliveryIssues()).toHaveLength(0);
+    await expect(h.runtime.retryDelivery(issues[0].key)).rejects.toThrow();
+  } finally { await h.cleanup(); }
+});
+
+test('resuming a busy session prevents a verified ready notification', async () => {
+  let requests = 0;
+  const h = await setup(async () => {
+    requests += 1;
+    return new Response(JSON.stringify({ ok: true, result: { message_id: 1 } }));
+  });
+  try {
+    await h.runtime.configureAlias('team', '123456');
+    await h.runtime.subscribe('/repo', 'session', 'team');
+    const ready = { directory: '/repo', sessionId: 'session', type: 'completed',
+      eventKey: 'idle:one', canSend: async () => false };
+    expect(await h.runtime.notify(ready)).toBe(false);
+    expect(requests).toBe(0);
+    expect(await h.runtime.listDeliveryIssues()).toHaveLength(0);
+  } finally { await h.cleanup(); }
+});
