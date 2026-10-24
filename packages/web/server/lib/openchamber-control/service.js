@@ -220,6 +220,7 @@ export const createOpenChamberControlService = (dependencies) => {
     browserControl = null,
     fileOpen = null,
     notifyUser = null,
+    telegramSend = null,
     agentMemoryActions = null,
     sessionLinks = null,
     projectContextRuntime = null,
@@ -802,6 +803,14 @@ export const createOpenChamberControlService = (dependencies) => {
           throw new OpenChamberControlError('The in-app browser is not available on this server', 503);
         }
         return browserAction(action, input, options.signal, contextDirectory, options.contextSessionId);
+      }
+      if (action === 'notify.telegram_send') {
+        if (!telegramSend) throw new OpenChamberControlError('Telegram is unavailable', 503);
+        if (!asNonEmptyString(options.contextSessionId) || !asNonEmptyString(contextDirectory)) {
+          throw new OpenChamberControlError('Telegram requires a calling session and checkout', 400);
+        }
+        return telegramSend({ alias: input.alias, text: input.text, file: input.file,
+          caption: input.caption, mode: input.mode, directory: contextDirectory });
       }
       if (action === 'notify.send') {
         if (!notifyUser) {
