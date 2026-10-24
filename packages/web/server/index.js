@@ -1198,7 +1198,18 @@ const telegramWatch = createTelegramWatch({
   filePath: path.join(OPENCHAMBER_DATA_DIR, 'telegram-watch.json'),
   telegram: telegramRuntime,
   sourceFor: telegramSourceFor,
-  dispatchPending: async (spaceId) => spaceId ? null : dispatchResultsRuntime.pending(),
+  dispatchPending: async (spaceId, sessionId) => {
+    if (!spaceId) return dispatchResultsRuntime.pending();
+    const source = telegramSourceFor(spaceId);
+    if (!source) return null;
+    try {
+      const response = await source.fetchImpl('http://space/api/notifications/telegram/pending?sessionId=' + encodeURIComponent(sessionId), { method: 'GET', signal: AbortSignal.timeout(10000) });
+      if (!response.ok) return null;
+      const state = await response.json();
+      return typeof state.pending === 'boolean'
+        ? (state.pending ? [{ parentSessionId: sessionId }] : []) : null;
+    } catch { return null; }
+  },
   readSettings: async () => ({ telegramEnabled: (await telegramConfig.read()).enabled }),
 });
 void telegramWatch.start().catch((error) => console.warn('[Telegram] Watch restore failed:', error?.message ?? error));
@@ -2570,7 +2581,7 @@ async function main(options = {}) {
   relayService.registerRoutes(app);
 
   registerBrowserControlRoutes(app, { express, broker: browserControlBroker });
-  registerTelegramRoutes(app, { telegram: telegramRuntime, config: telegramConfig, watch: telegramWatch, getSource: telegramSourceFor });
+  registerTelegramRoutes(app, { telegram: telegramRuntime, config: telegramConfig, watch: telegramWatch, getSource: telegramSourceFor, dispatchPending: () => dispatchResultsRuntime.pending() });
 
   // One scanner backs both discovery and the tunnel allowlist, so a port the
   // user can see is exactly a port the tunnel will dial.
