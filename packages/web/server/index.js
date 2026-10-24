@@ -1198,6 +1198,20 @@ const telegramWatch = createTelegramWatch({
   filePath: path.join(OPENCHAMBER_DATA_DIR, 'telegram-watch.json'),
   telegram: telegramRuntime,
   sourceFor: telegramSourceFor,
+  isGoalActive: async (sessionId, spaceId) => {
+    try {
+      if (!spaceId) {
+        const metadata = await readStoredSessionMetadata(sessionId);
+        return metadata?.openchamber?.goal?.status === 'active';
+      }
+      const source = telegramSourceFor(spaceId);
+      if (!source) return null;
+      const response = await source.fetchImpl('http://space/api/session/' + encodeURIComponent(sessionId), { method: 'GET', signal: AbortSignal.timeout(10000) });
+      if (!response.ok) return null;
+      const body = await response.json();
+      return (body?.data ?? body)?.metadata?.openchamber?.goal?.status === 'active';
+    } catch { return null; }
+  },
   dispatchPending: async (spaceId, sessionId) => {
     if (!spaceId) return dispatchResultsRuntime.pending();
     const source = telegramSourceFor(spaceId);
