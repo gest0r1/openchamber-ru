@@ -11,6 +11,7 @@ const delayFor = (attempt) => RETRY_MS[Math.min(attempt, RETRY_MS.length - 1)];
 
 export const createTelegramWatch = ({
   filePath, telegram, sourceFor, dispatchPending = async () => [],
+  isGoalActive = async () => false,
   readSettings, setTimeoutImpl = setTimeout, clearTimeoutImpl = clearTimeout,
   now = Date.now,
 }) => {
@@ -129,6 +130,13 @@ export const createTelegramWatch = ({
       else if (idle && idle.id !== record.baselineIdleId) record.armed = true;
       await persist();
       if (!record.armed) { arm(key, 60000); return; }
+    }
+    // Goal Mode resumes the agent between idle transitions. Its settled
+    // status, not an intermediate idle, allows the final notification.
+    const goal = await isGoalActive(record.sessionId, record.spaceId).catch(() => null);
+    if (goal !== false) {
+      arm(key, 5000);
+      return;
     }
     let state = { kind: 'unknown' };
     if (source) {
