@@ -103,6 +103,10 @@ import { runCliEntryIfMain } from './lib/opencode/cli-entry-runtime.js';
 import { registerNotificationRoutes } from './lib/notifications/routes.js';
 import { createNotificationEmitterRuntime } from './lib/notifications/emitter-runtime.js';
 import { createNotificationTriggerRuntime } from './lib/notifications/runtime.js';
+import { createTelegramRuntime } from './lib/notifications/telegram-runtime.js';
+import { createTelegramWatch } from './lib/notifications/telegram-watch.js';
+import { createTelegramConfig } from './lib/notifications/telegram-config.js';
+import { registerTelegramRoutes } from './lib/notifications/telegram-routes.js';
 import { createPushRuntime } from './lib/notifications/push-runtime.js';
 import { createApnsRuntime } from './lib/notifications/apns-runtime.js';
 import { createNotificationTemplateRuntime } from './lib/notifications/template-runtime.js';
@@ -1171,6 +1175,34 @@ const dispatchResultsRuntime = createDispatchResultsRuntime({
 });
 dispatchResultsRuntime.start();
 
+// Telegram follows the existing OpenCode watcher. Its own durable verifier
+// keeps unknown completions pending until OpenCode proves the turn is over.
+const telegramConfig = createTelegramConfig(path.join(OPENCHAMBER_DATA_DIR, 'telegram-config.json'));
+const telegramRuntime = createTelegramRuntime({
+  storePath: path.join(OPENCHAMBER_DATA_DIR, 'telegram-subscriptions.json'),
+  getBotToken: async () => (await telegramConfig.read()).botToken,
+  getDefaultAlias: async () => (await telegramConfig.read()).defaultAlias,
+  getPublicOrigin: async () => tunnelRuntimeContextHolder?.tunnelService?.getPublicUrl?.() ?? '',
+  enabled: async () => (await telegramConfig.read()).enabled === true,
+});
+const telegramSourceFor = (spaceId) => {
+  if (!spaceId) return { buildOpenCodeUrl, getOpenCodeAuthHeaders, fetchImpl: fetch };
+  const fetchImpl = spacesHost?.openCodeActivityFetchFor(spaceId);
+  return fetchImpl ? {
+    buildOpenCodeUrl: (resource) => 'http://space' + resource,
+    getOpenCodeAuthHeaders: () => ({}),
+    fetchImpl,
+  } : null;
+};
+const telegramWatch = createTelegramWatch({
+  filePath: path.join(OPENCHAMBER_DATA_DIR, 'telegram-watch.json'),
+  telegram: telegramRuntime,
+  sourceFor: telegramSourceFor,
+  dispatchPending: async (spaceId) => spaceId ? null : dispatchResultsRuntime.pending(),
+  readSettings: async () => ({ telegramEnabled: (await telegramConfig.read()).enabled }),
+});
+void telegramWatch.start().catch((error) => console.warn('[Telegram] Watch restore failed:', error?.message ?? error));
+
 // Full-text search over this server's conversations (user messages and agent
 // replies). Opt-in: off by default, and off means idle. The index is derived
 // data in the data dir, fed from the same event stream; see lib/message-search.
@@ -1194,6 +1226,7 @@ const openCodeWatcherRuntime = createOpenCodeWatcherRuntime({
   onPayload: (payload, { spaceId }) => {
     maybeCacheSessionInfoFromEvent(payload, { spaceId });
     void maybeSendPushForTrigger(payload, { spaceId });
+    telegramWatch.onEvent(payload, { spaceId });
     sessionRuntime.processOpenCodeSsePayload(payload);
   },
 });
@@ -1877,12 +1910,15 @@ const openChamberControlService = createOpenChamberControlService({
       };
       broadcastOpenChamberUiEvent(payload);
       void maybeSendPushForTrigger(payload);
+      telegramWatch.onEvent(payload);
       return;
     }
-    broadcastOpenChamberUiEvent({
+    const settled = {
       type: 'openchamber:page-settled',
-      properties: { sessionID: change.sessionId, pageID: change.callId },
-    });
+      properties: { sessionID: change.sessionId, directory: change.directory, pageID: change.callId },
+    };
+    broadcastOpenChamberUiEvent(settled);
+    telegramWatch.onEvent(settled);
   },
   // The tool is off by default; a plugin generated before it was switched off
   // must not keep paging the user.
@@ -2534,6 +2570,7 @@ async function main(options = {}) {
   relayService.registerRoutes(app);
 
   registerBrowserControlRoutes(app, { express, broker: browserControlBroker });
+  registerTelegramRoutes(app, { telegram: telegramRuntime, config: telegramConfig, watch: telegramWatch, getSource: telegramSourceFor });
 
   // One scanner backs both discovery and the tunnel allowlist, so a port the
   // user can see is exactly a port the tunnel will dial.
