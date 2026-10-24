@@ -148,7 +148,7 @@ export const createTelegramRuntime = ({
     return mutate((data) => {
       data.subscriptions[keyOf(directory, sessionId)] = {
         opted_in: true, alias: name, scope, created_at: Date.now(), expires_at: expiresAt, origin,
-        sessionId,
+        sessionId, directory, spaceId: options.spaceId ?? null,
       };
     });
   };
@@ -322,6 +322,12 @@ export const createTelegramRuntime = ({
     const record = data.subscriptions[keyOf(directory, sessionId)];
     return record?.opted_in && !isExpired(record) ? record : null;
   };
+  const listSubscriptions = async () => {
+    const data = await load();
+    return Object.values(data.subscriptions).filter((entry) => entry?.opted_in === true && !isExpired(entry))
+      .map((entry) => ({ directory: entry.directory, sessionId: entry.sessionId,
+        spaceId: entry.spaceId ?? null })).filter((entry) => entry.directory && entry.sessionId);
+  };
   const hasSubscription = async (directory, sessionId) => {
     const data = await load();
     const key = keyOf(directory, sessionId);
@@ -439,5 +445,5 @@ export const createTelegramRuntime = ({
       type: entry.type, eventKey: entry.eventKey, manualRetry: true });
   };
   return { configureAlias, deleteAlias, subscribe, unsubscribe, sendText, sendDocument, sendContent,
-    notify, hasSubscription, getSubscription, listAliases, listAliasDetails, hasBotToken, listDeliveryIssues, retryDelivery };
+    notify, hasSubscription, getSubscription, listSubscriptions, listAliases, listAliasDetails, hasBotToken, listDeliveryIssues, retryDelivery };
 };
