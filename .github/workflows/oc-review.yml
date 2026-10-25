@@ -25,7 +25,7 @@ jobs:
       - name: Test Telegram regressions
         run: |
           cd packages/web
-          bun run test server/lib/notifications/telegram-watch.test.js server/lib/notifications/telegram-delivery.test.js server/lib/notifications/telegram-approval.test.js server/lib/opencode/session-activity.test.js server/lib/spaces/space-fetch.test.js server/lib/openchamber-control/service.test.js server/lib/agent-tool/runtime.test.js
+          bun run test server/lib/notifications/telegram-watch.test.js server/lib/notifications/telegram-delivery.test.js server/lib/notifications/telegram-approval.test.js server/lib/notifications/telegram-routes.test.js server/lib/opencode/session-activity.test.js server/lib/spaces/space-fetch.test.js server/lib/openchamber-control/service.test.js server/lib/agent-tool/runtime.test.js
       - name: Check changed source files
         run: bun run check:changed
       - name: Build web UI
