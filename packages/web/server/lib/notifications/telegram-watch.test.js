@@ -23,8 +23,15 @@ const createHarness = async () => {
   };
   const clearTimer = (handle) => jobs.delete(handle?.id);
   const tick = async () => {
-    await settle();
-    const first = [...jobs].sort((a, b) => a[1].ms - b[1].ms)[0];
+    // The watch persists a checkpoint before scheduling another timer.
+    // Disk IO can exceed one short timer flush under parallel Vitest runs.
+    // Wait for the next scheduled check instead of asserting immediately.
+    const deadline = Date.now() + 2500;
+    let first;
+    while (!first && Date.now() < deadline) {
+      await settle();
+      first = [...jobs].sort((a, b) => a[1].ms - b[1].ms)[0];
+    }
     if (!first) throw new Error('No scheduled check to execute');
     jobs.delete(first[0]);
     first[1].fn();
