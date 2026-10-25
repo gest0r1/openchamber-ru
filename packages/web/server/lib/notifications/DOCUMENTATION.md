@@ -29,7 +29,10 @@ watcher but has its own delivery and completion policy. Files in this module:
 - `telegram-routes.js` accepts configuration, subscriptions, user approval
   decisions and manual delivery retries behind OpenChamber API authentication.
   Subscriptions require a valid root session and its real directory. The
-  subscription UI also provides an opt-in button within the open chat.
+  subscription UI also provides an opt-in button within the open chat. The
+  status lookup uses a host-only POST with the session directory in its body:
+  passing a space directory in a GET query would be rejected by the isolated
+  space dispatcher.
 - `telegram-approval.js` owns short-lived, single-use user confirmations for
   any agent-initiated Telegram send. Approval is bound to the original content
   and destination, times out, and is not delegated to model reasoning.
