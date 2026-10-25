@@ -2,6 +2,7 @@ import { installOpenCodeV2, supportsOpenCodeV2Install } from './lib/opencode/v2-
 import { describeOpenCodeCompatibility, readOpenCodeCliVersion, readExternalOpenCodeVersion } from './lib/opencode/compatibility.js';
 import 'reflect-metadata';
 import express from 'express';
+import { z } from 'zod';
 import compression from 'compression';
 import path from 'path';
 import { spawn, spawnSync } from 'child_process';
@@ -1236,7 +1237,7 @@ const telegramWatch = createTelegramWatch({
       const response = await source.fetchImpl('http://space/api/notifications/telegram/pending?sessionId=' + encodeURIComponent(sessionId), { method: 'GET', signal: AbortSignal.timeout(10000) });
       if (!response.ok) return null;
       const state = await response.json();
-      return typeof state.pending === 'boolean'
+      return z.boolean().safeParse(state.pending).success
         ? (state.pending ? [{ parentSessionId: sessionId }] : []) : null;
     } catch { return null; }
   },

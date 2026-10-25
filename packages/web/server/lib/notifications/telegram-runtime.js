@@ -1,9 +1,10 @@
 import { createHash } from 'node:crypto';
+import { z } from 'zod';
 import { readFile, writeFile, mkdir, rename, realpath, stat, chmod } from 'node:fs/promises';
 import { dirname, resolve, relative, isAbsolute, basename } from 'node:path';
 
 const keyOf = (directory, sessionId) => createHash('sha256').update(JSON.stringify([directory, sessionId])).digest('hex');
-const safeAlias = (value) => typeof value === 'string' && /^[\p{L}\p{N} _-]{1,80}$/u.test(value.trim());
+const safeAlias = (value) => z.string().trim().regex(/^[\p{L}\p{N} _-]{1,80}$/u).safeParse(value).success;
 const validChat = (value) => /^-?\d+$/.test(String(value)) || /^@[A-Za-z][A-Za-z0-9_]{4,}$/.test(String(value));
 const MAX_TEXT = 4000;
 
@@ -132,7 +133,7 @@ export const createTelegramRuntime = ({
     throw new TypeError(`Unknown Telegram alias: ${name}`);
   };
   const subscribe = async (directory, sessionId, alias, options = {}) => {
-    if (typeof directory !== 'string' || !directory.trim() || typeof sessionId !== 'string' || !sessionId.trim()) {
+    if (!z.string().trim().min(1).safeParse(directory).success || !z.string().trim().min(1).safeParse(sessionId).success) {
       throw new TypeError('Invalid subscription');
     }
     const { name } = await selectAlias(alias);
@@ -234,11 +235,10 @@ export const createTelegramRuntime = ({
   };
   const sendText = async (alias, text, { formatted = false } = {}) => {
     const { target } = await selectAlias(alias);
-    if (typeof text !== 'string' || !text.trim()) throw new TypeError('Message is empty');
+    if (!z.string().trim().min(1).safeParse(text).success) throw new TypeError('Message is empty');
     if (text.length > 100_000) throw new TypeError('Message exceeds 100000 characters');
-    const destination = {
-      chat_id: target.chatId, ...(target.threadId ? { message_thread_id: target.threadId } : {}),
-    };
+    const destination = { chat_id: target.chatId };
+    if (target.threadId) destination.message_thread_id = target.threadId;
     if (!formatted) {
       for (let offset = 0; offset < text.length;) {
         const end = safeChunkEnd(text, offset, MAX_TEXT);
@@ -262,8 +262,8 @@ export const createTelegramRuntime = ({
     return true;
   };
   const sendDocument = async (alias, filePath, { directory = null, caption = '', expectedSha256 = null } = {}) => {
-    if (typeof filePath !== 'string' || !filePath.trim()) throw new TypeError('File path required');
-    if (typeof caption !== 'string' || caption.length > 1024) throw new TypeError('Caption exceeds 1024 characters');
+    if (!z.string().trim().min(1).safeParse(filePath).success) throw new TypeError('File path required');
+    if (!z.string().max(1024).safeParse(caption).success) throw new TypeError('Caption exceeds 1024 characters');
     const actual = await realpath(isAbsolute(filePath) ? filePath : resolve(directory || '', filePath));
     const candidateRoots = directory ? [directory] : allowedFileRoots;
     const allowed = await Promise.all(candidateRoots.map(async (root) => realpath(root).catch(() => null)));
@@ -431,11 +431,11 @@ export const createTelegramRuntime = ({
   const listDeliveryIssues = async () => {
     const data = await load();
     return Object.entries(data.deliveries ?? {}).filter(([, entry]) =>
-      entry && typeof entry === 'object' && ['reserved', 'delivery_unknown', 'rejected'].includes(entry.status))
+      z.object({ status: z.enum(['reserved', 'delivery_unknown', 'rejected']) }).passthrough().safeParse(entry).success)
       .slice(-100).map(([key, entry]) => ({ key, ...entry }));
   };
   const retryDelivery = async (key) => {
-    if (typeof key !== 'string') throw new TypeError('Delivery key is required');
+    if (!z.string().safeParse(key).success) throw new TypeError('Delivery key is required');
     const data = await load();
     const entry = data.deliveries?.[key];
     if (!entry || !['reserved', 'delivery_unknown', 'rejected'].includes(entry.status)) {

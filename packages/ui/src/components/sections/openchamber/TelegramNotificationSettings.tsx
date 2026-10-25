@@ -35,13 +35,23 @@ type DeliveryIssue = { key: string; status: string; sessionId: string; type: str
 type AliasDraft = { name: string; chatId: string; threadId: string; kind: TelegramKind; previousName: string };
 const blankAlias = (): AliasDraft => ({ name: '', chatId: '', threadId: '', kind: 'private', previousName: '' });
 
-const telegramRequest = async (path: string, method = 'GET', body?: object): Promise<unknown> => {
-  const response = await runtimeFetch(`/api/notifications/telegram/${path}`, {
-    method,
-    ...(body ? { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : {}),
-  });
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(typeof data.error === 'string' ? data.error : `HTTP ${response.status}`);
+type TelegramRequestBody = {
+  enabled?: boolean; defaultAlias?: string; botToken?: string;
+  alias?: string; previousName?: string; chatId?: string | null;
+  threadId?: number | null; kind?: TelegramKind;
+  sessionId?: string; directory?: string; spaceId?: string | null;
+  id?: string; approved?: boolean; key?: string;
+};
+const telegramResponseSchema = z.object({ error: z.string().optional() }).passthrough();
+const telegramRequest = async (path: string, method = 'GET', body?: TelegramRequestBody) => {
+  const init: RequestInit = { method };
+  if (body) {
+    init.headers = { 'Content-Type': 'application/json' };
+    init.body = JSON.stringify(body);
+  }
+  const response = await runtimeFetch(`/api/notifications/telegram/${path}`, init);
+  const data = telegramResponseSchema.parse(await response.json().catch(() => ({})));
+  if (!response.ok) throw new Error(data.error ?? `HTTP ${response.status}`);
   return data;
 };
 

@@ -39,10 +39,10 @@ const createHarness = async () => {
       const { pathname } = new URL(url);
       let data;
       if (pathname === '/api/session/active') {
-        data = {
-          ...(state.parentWorking ? { session: { type: 'running' } } : {}),
-          ...(state.childWorking ? { child: { type: 'running' } } : {}),
-        };
+        const statuses = {};
+        if (state.parentWorking) statuses.session = { type: 'running' };
+        if (state.childWorking) statuses.child = { type: 'running' };
+        data = statuses;
       } else if (pathname === '/api/session/child') {
         data = { id: 'child', parentID: 'session' };
       } else if (pathname === '/api/shell') {

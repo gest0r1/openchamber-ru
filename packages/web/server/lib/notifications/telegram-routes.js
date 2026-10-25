@@ -1,3 +1,5 @@
+import { z } from 'zod';
+
 /** UI-authenticated routes. The server stores all credentials and destinations. */
 export const registerTelegramRoutes = (app, { telegram, config, watch, approval, getSource, dispatchPending, uiAuthController }) => {
   // The route that the host asks inside a space must remain accessible over
@@ -20,7 +22,7 @@ export const registerTelegramRoutes = (app, { telegram, config, watch, approval,
   const fail = (res, error) => res.status(error instanceof TypeError ? 400 : 502).json({
     error: error instanceof TypeError ? error.message : 'Telegram operation failed',
   });
-  const asString = (value) => typeof value === 'string' ? value.trim() : '';
+  const asString = (value) => z.string().safeParse(value).data?.trim() ?? '';
   const sessionInput = (body) => {
     const sessionId = asString(body?.sessionId);
     const directory = asString(body?.directory);
@@ -59,7 +61,7 @@ export const registerTelegramRoutes = (app, { telegram, config, watch, approval,
     res.json({ approvals: approval.list() });
   }));
   app.post('/api/notifications/telegram/approvals/decide', asyncRoute(async (req, res) => {
-    if (typeof req.body?.id !== 'string' || typeof req.body?.approved !== 'boolean') {
+    if (!z.object({ id: z.string(), approved: z.boolean() }).safeParse(req.body).success) {
       return res.status(400).json({ error: 'id and approved are required' });
     }
     res.json({ resolved: approval.decide(req.body.id, req.body.approved) });
@@ -80,11 +82,11 @@ export const registerTelegramRoutes = (app, { telegram, config, watch, approval,
     const input = req.body || {};
     const patch = {};
     if (input.enabled !== undefined) {
-      if (typeof input.enabled !== 'boolean') return res.status(400).json({ error: 'enabled must be a boolean' });
+      if (!z.boolean().safeParse(input.enabled).success) return res.status(400).json({ error: 'enabled must be a boolean' });
       patch.enabled = input.enabled;
     }
     if (input.botToken !== undefined && input.botToken !== '') {
-      if (typeof input.botToken !== 'string' || !/^[0-9]+:[A-Za-z0-9_-]+$/.test(input.botToken)) {
+      if (!z.string().regex(/^[0-9]+:[A-Za-z0-9_-]+$/).safeParse(input.botToken).success) {
         return res.status(400).json({ error: 'Invalid bot token' });
       }
       patch.botToken = input.botToken;

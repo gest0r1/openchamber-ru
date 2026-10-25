@@ -40,7 +40,8 @@ export const createSessionActivityProbe = ({ buildOpenCodeUrl, getOpenCodeAuthHe
    */
   const fetchActiveSessionStatuses = async () => {
     const statuses = await openCodeGet('/api/session/active').catch(() => null);
-    return statuses && typeof statuses === 'object' && !Array.isArray(statuses) ? statuses : null;
+    const parsed = z.record(z.string(), z.unknown()).safeParse(statuses);
+    return parsed.success ? parsed.data : null;
   };
 
   /**
@@ -60,7 +61,7 @@ export const createSessionActivityProbe = ({ buildOpenCodeUrl, getOpenCodeAuthHe
       }).catch(() => null);
       if (!Array.isArray(page?.data)) return null;
       for (const child of page.data) {
-        if (typeof child?.id === 'string' && child.id) ids.push(child.id);
+        if (z.string().min(1).safeParse(child?.id).success) ids.push(child.id);
       }
       const next = page.cursor?.next;
       if (!next || page.data.length === 0 || seenCursors.has(next)) return ids;
@@ -125,7 +126,7 @@ export const createSessionActivityProbe = ({ buildOpenCodeUrl, getOpenCodeAuthHe
    * delays a completion; a failed query is unknown, never an empty list.
    */
   const hasRunningShells = async (_sessionId, directory) => {
-    if (typeof directory !== 'string' || !directory) return null;
+    if (!z.string().min(1).safeParse(directory).success) return null;
     const shells = await openCodeGet('/api/shell', { 'location[directory]': directory }).catch(() => null);
     if (!Array.isArray(shells)) return null;
     // shell.list returns only running commands; exited jobs never appear.

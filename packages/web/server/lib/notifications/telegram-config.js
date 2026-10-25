@@ -1,12 +1,15 @@
 import { readFile, writeFile, rename, mkdir } from 'node:fs/promises';
 import { dirname } from 'node:path';
+import { z } from 'zod';
 
 export const createTelegramConfig = (filePath) => {
   let writes = Promise.resolve();
   const read = async () => {
     try {
-      const raw = JSON.parse(await readFile(filePath, 'utf8'));
-      if (raw?.version !== 1 || typeof raw.enabled !== 'boolean') throw new Error('Invalid Telegram settings');
+      const raw = z.object({
+        version: z.literal(1), enabled: z.boolean(),
+        botToken: z.string().optional(), defaultAlias: z.string().optional(),
+      }).parse(JSON.parse(await readFile(filePath, 'utf8')));
       return { version: 1, enabled: raw.enabled, botToken: raw.botToken || '', defaultAlias: raw.defaultAlias || '' };
     } catch (error) {
       if (error?.code === 'ENOENT') return { version: 1, enabled: false, botToken: '', defaultAlias: '' };

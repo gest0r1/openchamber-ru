@@ -1,5 +1,6 @@
 import { readFile, writeFile, mkdir, rename } from 'node:fs/promises';
 import { dirname } from 'node:path';
+import { z } from 'zod';
 import { createSessionActivityProbe } from '../opencode/session-activity.js';
 import { unwrapOpenCodeResponse } from '../opencode/response-envelope.js';
 
@@ -17,6 +18,9 @@ export const createTelegramWatch = ({
   readSettings, setTimeoutImpl = setTimeout, clearTimeoutImpl = clearTimeout,
   now = Date.now,
 }) => {
+  const persistedEntrySchema = z.object({
+    directory: z.string(), sessionId: z.string(), spaceId: z.string().nullish(),
+  }).passthrough();
   const pending = new Map();
   const timers = new Map();
   const decisions = new Map();
@@ -40,8 +44,7 @@ export const createTelegramWatch = ({
       const file = JSON.parse(raw);
       if (file.version !== 1 || !Array.isArray(file.pending)) throw new Error('Invalid Telegram watch data');
       for (const item of file.pending) {
-        if (!item || typeof item.directory !== 'string' || typeof item.sessionId !== 'string') continue;
-        if (item.spaceId !== null && item.spaceId !== undefined && typeof item.spaceId !== 'string') continue;
+        if (!persistedEntrySchema.safeParse(item).success) continue;
         pending.set(keyOf(item), item);
       }
     }).catch(async (error) => {
@@ -94,7 +97,7 @@ export const createTelegramWatch = ({
     const rows = Array.isArray(page) ? page : page?.data;
     if (!Array.isArray(rows)) return null;
     const record = rows.find((item) => item?.type === 'idle');
-    if (!record || typeof record.id !== 'string' ||
+    if (!record || !z.string().safeParse(record.id).success ||
         !['succeeded', 'failed', 'interrupted'].includes(record.outcome)) return null;
     return record;
   };
@@ -107,7 +110,7 @@ export const createTelegramWatch = ({
       const list = await fetchJson(source, url).catch(() => null);
       if (!Array.isArray(list)) continue;
       for (const item of list) {
-        if (typeof item?.id !== 'string' || !item.id) continue;
+        if (!z.string().min(1).safeParse(item?.id).success) continue;
         // Fetch twice: a request may settle between reading the list and
         // preparing the notification. Unknown never means unanswered.
         const refreshed = await fetchJson(source, url).catch(() => null);
@@ -365,7 +368,7 @@ export const createTelegramWatch = ({
     eventRevisions.set(key, (eventRevisions.get(key) || 0) + 1);
   };
   const onEvent = (payload, { spaceId = null } = {}) => {
-    if (!payload || typeof payload !== 'object') return;
+    if (!z.object({ type: z.string() }).passthrough().safeParse(payload).success) return;
     const sessionId = sessionIdOf(payload);
     let directory = payload.properties?.directory;
     // Some execution-status events contain a session id without its location.

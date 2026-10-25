@@ -3,10 +3,13 @@ import { Button } from '@/components/ui/button';
 import { useI18n } from '@/lib/i18n';
 import { runtimeFetch } from '@/lib/runtime-fetch';
 
-const request = async (path: string, method = 'GET', data?: object) => {
-  const response = await runtimeFetch('/api/notifications/telegram/' + path, {
-    method, ...(data ? { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) } : {}),
-  });
+const request = async (path: string, method = 'GET', data?: { sessionId: string; directory: string; spaceId: string | null }) => {
+  const init: RequestInit = { method };
+  if (data) {
+    init.headers = { 'Content-Type': 'application/json' };
+    init.body = JSON.stringify(data);
+  }
+  const response = await runtimeFetch('/api/notifications/telegram/' + path, init);
   if (!response.ok) throw new Error('Telegram settings unavailable');
   return response.json();
 };
