@@ -54,10 +54,10 @@ try {
     });
   }
   const api = async (path, options = {}) => {
+    const headers = { authorization: auth, accept: 'application/json', ...options.headers };
+    if (options.body) headers['content-type'] = 'application/json';
     const response = await fetch(baseUrl + path, {
-      ...options,
-      headers: { authorization: auth, accept: 'application/json', ...(options.body ? { 'content-type': 'application/json' } : {}), ...options.headers },
-      signal: AbortSignal.timeout(10000),
+      ...options, headers, signal: AbortSignal.timeout(10000),
     });
     if (!response.ok) throw new Error(`OpenCode ${path}: HTTP ${response.status}: ${(await response.text()).slice(0, 500)}`);
     return response.status === 204 ? null : response.json();
