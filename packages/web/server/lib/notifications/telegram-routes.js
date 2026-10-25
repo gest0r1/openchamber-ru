@@ -133,6 +133,15 @@ export const registerTelegramRoutes = (app, { telegram, config, watch, approval,
       res.json({ subscribed: await telegram.hasSubscription(item.directory, item.sessionId) });
     } catch (error) { fail(res, error); }
   }));
+  // An isolated space is selected by directory query/header *before* this
+  // host-only route is reached. POST keeps the directory in the request body,
+  // so subscription status is answered by the host's subscription store.
+  app.post('/api/notifications/telegram/subscription/status', asyncRoute(async (req, res) => {
+    try {
+      const item = sessionInput(req.body);
+      res.json({ subscribed: await telegram.hasSubscription(item.directory, item.sessionId) });
+    } catch (error) { fail(res, error); }
+  }));
   app.post('/api/notifications/telegram/subscribe', asyncRoute(async (req, res) => {
     try {
       const item = sessionInput(req.body);
