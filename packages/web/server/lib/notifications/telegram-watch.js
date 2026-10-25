@@ -224,8 +224,9 @@ export const createTelegramWatch = ({
         arm(key, delayFor(record.attempt));
         return;
       }
-      // Quiet recheck closes the usual race where a parent resumes just
-      // after the first idle probe. Validate all gates and the same run.
+      // A second probe reduces false completion alerts if a parent resumes
+      // after the first idle read. This is not an atomic OpenCode completion
+      // barrier; another run can still start between probes and Bot API send.
       await new Promise((resolve) => { const timer = setTimeoutImpl(resolve, 500); timer.unref?.(); });
       if (pending.get(key) !== record || stopped) return;
       const confirmed = source ? await activity(record, source).catch(() => ({ kind: 'unknown' })) : { kind: 'unknown' };
