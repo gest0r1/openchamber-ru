@@ -1,4 +1,4 @@
-import { test, expect } from 'bun:test';
+import { test, expect } from 'vitest';
 import { createTelegramApproval } from './telegram-approval.js';
 
 test('an agent cannot approve its own Telegram send', async () => {
