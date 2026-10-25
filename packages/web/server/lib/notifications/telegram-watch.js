@@ -402,8 +402,23 @@ export const createTelegramWatch = ({
       }
     }
     if (sessionId && directory && payload.type === 'session.idle') {
-      if (payload.properties?.aborted !== true) void queue({ sessionId, directory, spaceId }).catch(() => {});
-      else void cancel(sessionId, directory, spaceId).catch(() => {});
+      if (payload.properties?.aborted !== true) {
+        void queue({ sessionId, directory, spaceId }).catch((error) => {
+          console.warn('[Telegram] could not record idle candidate:', error?.message ?? error);
+        });
+      } else {
+        // An interrupted turn ends without a completion notification. Keep
+        // its subscription checkpoint so a later run is still reconciled if
+        // the next idle event is lost while the watcher is disconnected.
+        const key = keyOf({ sessionId, directory, spaceId });
+        const previous = pending.get(key);
+        if (previous) {
+          pending.set(key, { ...previous, armed: false, attempt: 0 });
+          void persist().then(() => arm(key, 1000)).catch((error) => {
+            console.warn('[Telegram] could not preserve interrupted checkpoint:', error?.message ?? error);
+          });
+        }
+      }
     }
     if (sessionId && directory && payload.type === 'session.error') {
       void queue({ sessionId, directory, spaceId }).catch(() => {});
