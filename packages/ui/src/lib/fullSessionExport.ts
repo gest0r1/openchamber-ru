@@ -7,7 +7,7 @@ import {
 
 const PAGE_LIMIT = 100;
 
-type FullSessionExportNode = {
+export type FullSessionExportNode = {
   session: Session;
   records: SessionMessageRecord[] | null;
   recordsError?: string;
