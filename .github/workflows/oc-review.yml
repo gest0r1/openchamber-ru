@@ -26,6 +26,12 @@ jobs:
         run: |
           cd packages/web
           bun run test server/lib/notifications/telegram-watch.test.js server/lib/notifications/telegram-delivery.test.js server/lib/notifications/telegram-approval.test.js server/lib/notifications/telegram-routes.test.js server/lib/opencode/session-activity.test.js server/lib/spaces/space-fetch.test.js server/lib/openchamber-control/service.test.js server/lib/agent-tool/runtime.test.js
+      - name: Real OpenCode v2 API smoke (no model, no Telegram credentials)
+        timeout-minutes: 8
+        run: |
+          curl -fsSL --retry 3 https://opencode.ai/v2/install -o "$RUNNER_TEMP/opencode-install.sh"
+          bash "$RUNNER_TEMP/opencode-install.sh" --version 2.0.32 --no-modify-path
+          OPENCODE_SMOKE_BINARY="$HOME/.opencode/bin/opencode" node scripts/telegram-opencode-v2-smoke.mjs
       - name: Check changed source files
         run: bun run check:changed
       - name: Build web UI
