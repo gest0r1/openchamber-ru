@@ -18,8 +18,11 @@ watcher but has its own delivery and completion policy. Files in this module:
   completions in `telegram-watch.json`. It checks active sessions, descendants,
   running shells in their location, pending forms/permissions, pending
   `returnResult` deliveries and the terminal `idle` record. An unknown read
-  keeps the record pending and schedules another check. A new idle after
-  background activity is required before delivery. A descendant beyond the
+  keeps the record pending and schedules another check. A new idle is
+  required after descendant activity or a pending returned result. A detached
+  shell may finish without a second parent idle. Interrupted runs preserve
+  their checkpoints so a later run is found even if its idle SSE event is lost.
+  A descendant beyond the
   UI's eight-level ancestry limit remains unknown to Telegram's strict
   completion gate. Checkpoints let it detect missed events after reconnects
   and server restarts.
