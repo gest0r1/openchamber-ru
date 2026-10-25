@@ -388,7 +388,9 @@ export const createTelegramWatch = ({
       const key = keyOf({ sessionId, directory, spaceId });
       pending.delete(key);
       clear(key);
-      void (async () => {
+      // Return the cleanup promise so a caller that needs a durable deletion
+      // barrier can await it. Event stream callers remain fire-and-forget.
+      return (async () => {
         // Deletion can arrive while the saved checkpoints are still loading.
         // Finish restoring before removing the session from the disk snapshot.
         await load();
@@ -398,7 +400,6 @@ export const createTelegramWatch = ({
         await telegram.unsubscribe(directory, sessionId);
         await cancel(sessionId, directory, spaceId);
       })().catch((error) => console.warn('[Telegram] session deletion cleanup failed:', error?.message ?? error));
-      return;
     }
     if (sessionId && directory && payload.type === 'session.status' && payload.properties?.status?.type !== 'idle') {
       // Replace the record object synchronously to invalidate in-flight idle
