@@ -2,6 +2,7 @@ import React from 'react';
 import { Button } from '@/components/ui/button';
 import { useI18n } from '@/lib/i18n';
 import { runtimeFetch } from '@/lib/runtime-fetch';
+import { spaceIdOfDirectory } from '@/lib/spaces/space-route';
 
 const request = async (path: string, method = 'GET', data?: { sessionId: string; directory: string; spaceId: string | null }) => {
   const init: RequestInit = { method };
@@ -27,9 +28,14 @@ export const TelegramSessionButton: React.FC<{ sessionId: string | null; directo
     if (!sessionId || !directory) return;
     const fetchStatus = async () => {
       try {
-        const params = new URLSearchParams({ sessionId, directory });
+        // The space dispatcher rejects host-only notification routes when a
+        // space directory appears in the query or directory header.
+        // Put it in the POST body so the host owns this lookup.
         const [config, subscription] = await Promise.all([
-          request('config'), request('subscription?' + params),
+          request('config'),
+          request('subscription/status', 'POST', {
+            sessionId, directory, spaceId: spaceIdOfDirectory(directory),
+          }),
         ]);
         if (canceled) return;
         setSubscribed(subscription?.subscribed === true);
@@ -45,7 +51,7 @@ export const TelegramSessionButton: React.FC<{ sessionId: string | null; directo
   const onToggle = async () => {
     setBusy(true);
     try {
-      const spaceId = /^\/spaces\/([^/]+)(?:\/|$)/.exec(directory)?.[1] ?? null;
+      const spaceId = spaceIdOfDirectory(directory);
       await request(subscribed ? 'unsubscribe' : 'subscribe', 'POST', { sessionId, directory, spaceId });
       setSubscribed(!subscribed);
     } catch { /* The server refuses invalid or non-root sessions. */ }
