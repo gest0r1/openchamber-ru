@@ -382,6 +382,9 @@ export const createTelegramRuntime = ({
       await enabled() !== true) return false;
     if (inflightDelivery.has(dedupKey) || !await canSend()) return false;
     inflightDelivery.add(dedupKey);
+    // A failed verification before sendText cannot have reached the Bot API.
+    // Keep it distinct from an ambiguous network failure during delivery.
+    let sendAttempted = false;
     try {
       // Persist before sending: a lost Telegram response or server restart
       // must not produce a second unsolicited automatic message.
@@ -397,6 +400,7 @@ export const createTelegramRuntime = ({
         await mutate((latest) => { delete latest.deliveries[dedupKey]; });
         return false;
       }
+      sendAttempted = true;
       await sendText(subscription.alias, `${type === 'completed' ? 'Agent completed the task' : type === 'error' ? 'Agent encountered an error' : 'Agent needs your input'}${url}`);
       await mutate((latest) => {
         if (latest.deliveries?.[dedupKey]) latest.deliveries[dedupKey].status = 'sent';
@@ -415,10 +419,10 @@ export const createTelegramRuntime = ({
       }
       return true;
     } catch (error) {
-      // The server explicitly rejected the request. No message was accepted,
-      // so a retry can use the same event key after the backoff.
+      // Validation can fail after reservation but before the first Bot API
+      // request. Only an attempted request can have an ambiguous outcome.
       await mutate((latest) => {
-        if (error?.retrySafe === true) delete latest.deliveries?.[dedupKey];
+        if (!sendAttempted || error?.retrySafe === true) delete latest.deliveries?.[dedupKey];
         else if (latest.deliveries?.[dedupKey]) {
           latest.deliveries[dedupKey].status = error?.httpStatus && error.httpStatus < 500 ? 'rejected' : 'delivery_unknown';
           latest.deliveries[dedupKey].reason = String(error?.message ?? 'Unknown delivery result').slice(0, 200);
