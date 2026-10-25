@@ -386,8 +386,10 @@ export const createTelegramRuntime = ({
     // Keep it distinct from an ambiguous network failure during delivery.
     let sendAttempted = false;
     try {
-      // Persist before sending: a lost Telegram response or server restart
-      // must not produce a second unsolicited automatic message.
+      // Reserve this event before the Bot API request. Network failure or a
+      // restart after the request can leave its status ambiguous; do not retry
+      // automatically. Validation failures before sendText have no such risk
+      // and must release the reservation so verification can run again.
       await mutate((latest) => {
         latest.deliveries ??= {};
         latest.deliveries[dedupKey] = {
