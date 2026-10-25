@@ -385,6 +385,11 @@ export const createTelegramWatch = ({
       pending.delete(key);
       clear(key);
       void (async () => {
+        // Deletion can arrive while the saved checkpoints are still loading.
+        // Finish restoring before removing the session from the disk snapshot.
+        await load();
+        pending.delete(key);
+        clear(key);
         await persist();
         await telegram.unsubscribe(directory, sessionId);
         await cancel(sessionId, directory, spaceId);
