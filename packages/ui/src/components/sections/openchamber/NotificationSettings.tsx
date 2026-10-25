@@ -1,4 +1,5 @@
 import React from 'react';
+import { TelegramNotificationSettings } from './TelegramNotificationSettings';
 import { useUIStore } from '@/stores/useUIStore';
 import { isDesktopShell, isVSCodeRuntime } from '@/lib/desktop';
 import { toast } from '@/components/ui';
@@ -608,6 +609,8 @@ export const NotificationSettings: React.FC = () => {
 
           </>
         )}
+
+        <TelegramNotificationSettings />
 
         {isBrowser && (
           <SettingsSection

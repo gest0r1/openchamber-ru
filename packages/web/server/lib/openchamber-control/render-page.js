@@ -137,7 +137,7 @@ export const createPageAnswers = ({ onWaitChange = () => {} } = {}) => {
     return { answered: true };
   };
 
-  return { wait, answer };
+  return { wait, answer, isWaiting: (sessionId, callId) => waiting.has(pageKey(sessionId, callId)) };
 };
 
 /**

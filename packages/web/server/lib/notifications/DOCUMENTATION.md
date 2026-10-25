@@ -3,6 +3,73 @@
 ## Purpose
 This module provides notification message preparation utilities for the web server runtime, including text truncation and plain-text normalization for system notifications.
 
+## Telegram channel
+
+Telegram is an opt-in, per-root-session channel. It shares the OpenCode event
+watcher but has its own delivery and completion policy. Files in this module:
+
+- `telegram-config.js` keeps the bot token, channel switch and default recipient
+  in `telegram-config.json`, mode 0600. The token is never included in responses.
+- `telegram-runtime.js` owns recipient aliases, topics, persisted subscriptions,
+  outbound Bot API calls and one-time automatic delivery keys in
+  `telegram-subscriptions.json`. Explicit text or Markdown-file sends do not
+  require a session subscription. They require the global channel to be enabled.
+- `telegram-watch.js` owns persisted session checkpoints and unresolved
+  completions in `telegram-watch.json`. It checks active sessions, descendants,
+  running shells in their location, pending forms/permissions, pending
+  `returnResult` deliveries and the terminal `idle` record. An unknown read
+  keeps the record pending and schedules another check. A new idle is
+  required after descendant activity or a pending returned result. A detached
+  shell may finish without a second parent idle. Interrupted runs preserve
+  their checkpoints so a later run is found even if its idle SSE event is lost.
+  A descendant beyond the
+  UI's eight-level ancestry limit remains unknown to Telegram's strict
+  completion gate. Checkpoints let it detect missed events after reconnects
+  and server restarts.
+- `telegram-routes.js` accepts configuration, subscriptions, user approval
+  decisions and manual delivery retries behind OpenChamber API authentication.
+  Subscriptions require a valid root session and its real directory. The
+  subscription UI also provides an opt-in button within the open chat. The
+  status lookup uses a host-only POST with the session directory in its body:
+  passing a space directory in a GET query would be rejected by the isolated
+  space dispatcher.
+- `telegram-approval.js` owns short-lived, single-use user confirmations for
+  any agent-initiated Telegram send. Approval is bound to the original content
+  and destination, times out, and is not delegated to model reasoning.
+  The Notifications settings poll for pending approvals.
+
+Unanswered forms and permissions are rediscovered from OpenCode when the host
+restarts or reconnects. Pending render.page waits are verified against the
+live in-memory page handler; a server restart closes those page requests.
+Stable subscribed sessions reconcile every five minutes, with a quicker
+recheck on any new idle or reconnection. Corrupt watch files are quarantined,
+then checkpoints are rebuilt from the durable subscription records.
+
+The host reads a space's session, shell and form status through a strictly
+limited GET bridge; the space's `returnResult` registry is queried through an
+exact internal GET route. If a space stops or the bridge fails, completion
+remains unknown and is checked again.
+
+### Delivery limitations and decisions
+
+A Telegram HTTP timeout may mean the Bot API accepted the message. Automatic
+delivery keys move through `reserved`, `sent`, `delivery_unknown` and
+`rejected` states in the owner-only subscription file. A confirmed 429 is
+retriable; 5xx and network timeouts remain ambiguous and are not automatically
+retried. Unknown/rejected deliveries remain visible in Settings for explicit
+manual retry. Such a retry can duplicate a message if Telegram accepted the
+original request; the UI warns about this. This favors no automatic duplicates
+over assured delivery after an ambiguous timeout.
+Running shell commands are location-scoped because the OpenCode shell API does
+not promise reliable session ownership. An unrelated running command in the
+same location can delay the completion alert.
+
+Only the server knows recipients and credentials. The managed
+`openchamber_notify` agent tool exposes explicit `notify.telegram_send`,
+which checks its existing capability switch and requires a separate UI approval
+for each send. The send action only reads .md
+files under the calling checkout.
+
 ## Entrypoints and structure
 - `packages/web/server/lib/notifications/index.js`: public entrypoint imported by `packages/web/server/index.js`.
 - `packages/web/server/lib/notifications/routes.js`: route registration for push, visibility, and session status/attention endpoints.

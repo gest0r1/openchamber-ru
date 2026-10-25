@@ -2,6 +2,7 @@ import { installOpenCodeV2, supportsOpenCodeV2Install } from './lib/opencode/v2-
 import { describeOpenCodeCompatibility, readOpenCodeCliVersion, readExternalOpenCodeVersion } from './lib/opencode/compatibility.js';
 import 'reflect-metadata';
 import express from 'express';
+import { z } from 'zod';
 import compression from 'compression';
 import path from 'path';
 import { spawn, spawnSync } from 'child_process';
@@ -103,6 +104,11 @@ import { runCliEntryIfMain } from './lib/opencode/cli-entry-runtime.js';
 import { registerNotificationRoutes } from './lib/notifications/routes.js';
 import { createNotificationEmitterRuntime } from './lib/notifications/emitter-runtime.js';
 import { createNotificationTriggerRuntime } from './lib/notifications/runtime.js';
+import { createTelegramRuntime } from './lib/notifications/telegram-runtime.js';
+import { createTelegramWatch } from './lib/notifications/telegram-watch.js';
+import { createTelegramConfig } from './lib/notifications/telegram-config.js';
+import { createTelegramApproval } from './lib/notifications/telegram-approval.js';
+import { registerTelegramRoutes } from './lib/notifications/telegram-routes.js';
 import { createPushRuntime } from './lib/notifications/push-runtime.js';
 import { createApnsRuntime } from './lib/notifications/apns-runtime.js';
 import { createNotificationTemplateRuntime } from './lib/notifications/template-runtime.js';
@@ -1171,6 +1177,77 @@ const dispatchResultsRuntime = createDispatchResultsRuntime({
 });
 dispatchResultsRuntime.start();
 
+// Telegram follows the existing OpenCode watcher. Its own durable verifier
+// keeps unknown completions pending until OpenCode proves the turn is over.
+const telegramConfig = createTelegramConfig(path.join(OPENCHAMBER_DATA_DIR, 'telegram-config.json'));
+const telegramApproval = createTelegramApproval({
+  onRequested: ({ sessionId, alias }) => {
+    broadcastUiNotification({
+      title: 'Telegram send requires confirmation',
+      body: 'Open Settings → Notifications to approve sending to ' + (alias || 'the default recipient'),
+      tag: 'telegram-approval-' + sessionId,
+      kind: 'question',
+      sessionId,
+    });
+  },
+});
+const telegramRuntime = createTelegramRuntime({
+  storePath: path.join(OPENCHAMBER_DATA_DIR, 'telegram-subscriptions.json'),
+  getBotToken: async () => (await telegramConfig.read()).botToken,
+  getDefaultAlias: async () => (await telegramConfig.read()).defaultAlias,
+  getPublicOrigin: async () => tunnelRuntimeContextHolder?.tunnelService?.getPublicUrl?.() ?? '',
+  enabled: async () => (await telegramConfig.read()).enabled === true,
+});
+const telegramSourceFor = (spaceId) => {
+  if (!spaceId) return { buildOpenCodeUrl, getOpenCodeAuthHeaders, fetchImpl: fetch };
+  const fetchImpl = spacesHost?.openCodeActivityFetchFor(spaceId);
+  return fetchImpl ? {
+    buildOpenCodeUrl: (resource) => 'http://space' + resource,
+    getOpenCodeAuthHeaders: () => ({}),
+    fetchImpl,
+  } : null;
+};
+const telegramWatch = createTelegramWatch({
+  filePath: path.join(OPENCHAMBER_DATA_DIR, 'telegram-watch.json'),
+  telegram: telegramRuntime,
+  sourceFor: telegramSourceFor,
+  isPageWaiting: (sessionId, callId) => openChamberControlService?.isPageWaiting?.(sessionId, callId) === true,
+  isGoalActive: async (sessionId, spaceId) => {
+    try {
+      if (!spaceId) {
+        const metadata = await readStoredSessionMetadata(sessionId);
+        return metadata?.openchamber?.goal?.status === 'active';
+      }
+      const source = telegramSourceFor(spaceId);
+      if (!source) return null;
+      const response = await source.fetchImpl('http://space/api/session/' + encodeURIComponent(sessionId), { method: 'GET', signal: AbortSignal.timeout(10000) });
+      if (!response.ok) return null;
+      const body = await response.json();
+      return (body?.data ?? body)?.metadata?.openchamber?.goal?.status === 'active';
+    } catch { return null; }
+  },
+  dispatchPending: async (spaceId, sessionId) => {
+    if (!spaceId) {
+      await dispatchResultsRuntime.load();
+      return dispatchResultsRuntime.pending();
+    }
+    const source = telegramSourceFor(spaceId);
+    if (!source) return null;
+    try {
+      const response = await source.fetchImpl('http://space/api/notifications/telegram/pending?sessionId=' + encodeURIComponent(sessionId), { method: 'GET', signal: AbortSignal.timeout(10000) });
+      if (!response.ok) return null;
+      const state = await response.json();
+      return z.boolean().safeParse(state.pending).success
+        ? (state.pending ? [{ parentSessionId: sessionId }] : []) : null;
+    } catch { return null; }
+  },
+  readSettings: async () => ({ telegramEnabled: (await telegramConfig.read()).enabled }),
+});
+void telegramWatch.start().catch((error) => console.warn('[Telegram] Watch restore failed:', error?.message ?? error));
+const unsubscribeTelegramReconnect = globalMessageStreamHub.subscribeStatus((status) => {
+  if (status?.type === 'connect') telegramWatch.reconcileAll();
+});
+
 // Full-text search over this server's conversations (user messages and agent
 // replies). Opt-in: off by default, and off means idle. The index is derived
 // data in the data dir, fed from the same event stream; see lib/message-search.
@@ -1194,6 +1271,7 @@ const openCodeWatcherRuntime = createOpenCodeWatcherRuntime({
   onPayload: (payload, { spaceId }) => {
     maybeCacheSessionInfoFromEvent(payload, { spaceId });
     void maybeSendPushForTrigger(payload, { spaceId });
+    telegramWatch.onEvent(payload, { spaceId });
     sessionRuntime.processOpenCodeSsePayload(payload);
   },
 });
@@ -1877,15 +1955,51 @@ const openChamberControlService = createOpenChamberControlService({
       };
       broadcastOpenChamberUiEvent(payload);
       void maybeSendPushForTrigger(payload);
+      telegramWatch.onEvent(payload);
       return;
     }
-    broadcastOpenChamberUiEvent({
+    const settled = {
       type: 'openchamber:page-settled',
-      properties: { sessionID: change.sessionId, pageID: change.callId },
-    });
+      properties: { sessionID: change.sessionId, directory: change.directory, pageID: change.callId },
+    };
+    broadcastOpenChamberUiEvent(settled);
+    telegramWatch.onEvent(settled);
   },
   // The tool is off by default; a plugin generated before it was switched off
   // must not keep paging the user.
+  telegramSend: async (input) => {
+    const settings = await readSettingsFromDiskMigrated().catch(() => null);
+    if (settings?.agentNotifyToolEnabled !== true || !(await telegramConfig.read()).enabled) {
+      throw new Error('Telegram or agent notifications are disabled');
+    }
+    // A filename alone is not enough consent: while approval is pending the
+    // agent can still change the file. Bind the user's decision to its bytes.
+    let expectedSha256 = null;
+    let filePreview = '';
+    let fileSize = null;
+    if (input.file) {
+      const root = await fsPromises.realpath(input.directory);
+      const actual = await fsPromises.realpath(path.resolve(input.directory, input.file));
+      const relative = path.relative(root, actual);
+      if (relative === '..' || relative.startsWith('..' + path.sep) || path.isAbsolute(relative) ||
+        !actual.toLowerCase().endsWith('.md')) {
+        throw new Error('Telegram file must be a Markdown document within the calling checkout');
+      }
+      const meta = await fsPromises.stat(actual);
+      if (!meta.isFile() || meta.size > 10 * 1024 * 1024) throw new Error('Telegram file exceeds 10 MB');
+      const contents = await fsPromises.readFile(actual);
+      expectedSha256 = crypto.createHash('sha256').update(contents).digest('hex');
+      filePreview = contents.toString('utf8', 0, 2048);
+      fileSize = meta.size;
+    }
+    const approved = await telegramApproval.request({ ...input, filePreview, fileSize });
+    if (!approved) throw new Error('Telegram send was not approved by the user');
+    const updatedSettings = await readSettingsFromDiskMigrated().catch(() => null);
+    if (updatedSettings?.agentNotifyToolEnabled !== true || !(await telegramConfig.read()).enabled) {
+      throw new Error('Telegram or agent notifications were disabled');
+    }
+    return telegramRuntime.sendContent({ ...input, expectedSha256 });
+  },
   notifyUser: async (input) => {
     const settings = await readSettingsFromDiskMigrated().catch(() => null);
     if (settings?.agentNotifyToolEnabled !== true) {
@@ -1960,6 +2074,9 @@ const gracefulShutdownRuntime = createGracefulShutdownRuntime({
   messageQueueRuntime,
   dispatchResultsRuntime,
   messageSearchRuntime,
+  telegramWatch,
+  telegramApproval,
+  unsubscribeTelegramReconnect,
   sessionRuntime,
   getHealthCheckInterval: () => healthCheckInterval,
   clearHealthCheckInterval: (value) => clearInterval(value),
@@ -2534,6 +2651,10 @@ async function main(options = {}) {
   relayService.registerRoutes(app);
 
   registerBrowserControlRoutes(app, { express, broker: browserControlBroker });
+  registerTelegramRoutes(app, { telegram: telegramRuntime, config: telegramConfig, watch: telegramWatch, approval: telegramApproval, getSource: telegramSourceFor, uiAuthController, dispatchPending: async () => {
+    await dispatchResultsRuntime.load();
+    return dispatchResultsRuntime.pending();
+  } });
 
   // One scanner backs both discovery and the tunnel allowlist, so a port the
   // user can see is exactly a port the tunnel will dial.

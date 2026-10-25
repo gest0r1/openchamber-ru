@@ -40,7 +40,8 @@ export const createSessionActivityProbe = ({ buildOpenCodeUrl, getOpenCodeAuthHe
    */
   const fetchActiveSessionStatuses = async () => {
     const statuses = await openCodeGet('/api/session/active').catch(() => null);
-    return statuses && typeof statuses === 'object' && !Array.isArray(statuses) ? statuses : null;
+    const parsed = z.record(z.string(), z.unknown()).safeParse(statuses);
+    return parsed.success ? parsed.data : null;
   };
 
   /**
@@ -60,7 +61,7 @@ export const createSessionActivityProbe = ({ buildOpenCodeUrl, getOpenCodeAuthHe
       }).catch(() => null);
       if (!Array.isArray(page?.data)) return null;
       for (const child of page.data) {
-        if (typeof child?.id === 'string' && child.id) ids.push(child.id);
+        if (z.string().min(1).safeParse(child?.id).success) ids.push(child.id);
       }
       const next = page.cursor?.next;
       if (!next || page.data.length === 0 || seenCursors.has(next)) return ids;
@@ -79,10 +80,11 @@ export const createSessionActivityProbe = ({ buildOpenCodeUrl, getOpenCodeAuthHe
 
   /**
    * Queue delivery waits for running descendants, including nested subagents.
-   * A chain deeper than `MAX_SUBAGENT_DEPTH` counts as unrelated, as in the
-   * UI's ancestor walk, so a deep tree elsewhere cannot hold every queue.
+   * The UI treats an ancestry chain beyond `MAX_SUBAGENT_DEPTH` as unrelated.
+   * When `strictDepth` is true, an unresolved chain remains unknown so a
+   * completion notifier cannot mistake a deep active descendant for idle.
    */
-  const hasWorkingDescendants = async (sessionId, statuses) => {
+  const hasWorkingDescendants = async (sessionId, statuses, strictDepth = false) => {
     const parents = new Map();
     const signal = AbortSignal.timeout(timeoutMs);
     let unknown = false;
@@ -110,9 +112,38 @@ export const createSessionActivityProbe = ({ buildOpenCodeUrl, getOpenCodeAuthHe
         if (parentId === sessionId) return true;
         current = parentId;
       }
+      // The UI bounds its ancestry walk at eight hops. Telegram's strict
+      // completion gate must keep a deeper chain unknown: that active
+      // session may still belong to the watched parent.
+      if (strictDepth && current) unknown = true;
     }
     return unknown ? null : false;
   };
 
-  return { fetchActiveSessionStatuses, fetchChildSessionIds, hasWorkingChildren, hasWorkingDescendants };
+  /**
+   * OpenCode 2 lists detached shell jobs by location, not session owner.
+   * The endpoint returns running jobs only. Any running job in the location
+   * delays a completion; a failed query is unknown, never an empty list.
+   */
+  const hasRunningShells = async (_sessionId, directory) => {
+    if (!z.string().min(1).safeParse(directory).success) return null;
+    const shells = await openCodeGet('/api/shell', { 'location[directory]': directory }).catch(() => null);
+    if (!Array.isArray(shells)) return null;
+    // shell.list returns only running commands; exited jobs never appear.
+    // Do not infer a status field that the published Shell.Info may omit.
+    return shells.length > 0;
+  };
+
+  /** Unknown form/permission state cannot prove readiness. */
+  const hasBlockingRequests = async (sessionId, directory) => {
+    if (!directory || !sessionId) return null;
+    const forms = await openCodeGet('/api/session/' + encodeURIComponent(sessionId) + '/form').catch(() => null);
+    if (!Array.isArray(forms)) return null;
+    if (forms.length > 0) return true;
+    const permissions = await openCodeGet('/api/session/' + encodeURIComponent(sessionId) + '/permission').catch(() => null);
+    if (!Array.isArray(permissions)) return null;
+    return permissions.length > 0;
+  };
+
+  return { fetchActiveSessionStatuses, fetchChildSessionIds, hasWorkingChildren, hasWorkingDescendants, hasRunningShells, hasBlockingRequests };
 };

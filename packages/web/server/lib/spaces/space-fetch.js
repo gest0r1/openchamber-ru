@@ -46,10 +46,10 @@ const readBody = (response, cap) => new Promise((resolve, reject) => {
  * A refused path, a dead channel, an answer past the cap, past `timeoutMs` for the whole read or
  * past the caller's own signal rejects, as a failed `fetch` does.
  */
-export function createSpaceFetch({ requestInside, maxBytes = DEFAULT_MAX_BYTES, timeoutMs = DEFAULT_TIMEOUT_MS }) {
+export function createSpaceFetch({ requestInside, maxBytes = DEFAULT_MAX_BYTES, timeoutMs = DEFAULT_TIMEOUT_MS, allowShell = false }) {
   return (spaceId) => async (url, { method = 'GET', signal } = {}) => {
     const { pathname, search } = new URL(url);
-    if (method !== 'GET' || !isSessionPath(pathname)) {
+    if (method !== 'GET' || !(isSessionPath(pathname) || (allowShell && (pathname === '/api/shell' || pathname === '/api/notifications/telegram/pending')))) {
       throw new Error(`a space is asked only to read its sessions, not ${method} ${pathname}`);
     }
     const deadline = AbortSignal.timeout(timeoutMs);

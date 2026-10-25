@@ -220,6 +220,7 @@ export const createOpenChamberControlService = (dependencies) => {
     browserControl = null,
     fileOpen = null,
     notifyUser = null,
+    telegramSend = null,
     agentMemoryActions = null,
     sessionLinks = null,
     projectContextRuntime = null,
@@ -803,6 +804,14 @@ export const createOpenChamberControlService = (dependencies) => {
         }
         return browserAction(action, input, options.signal, contextDirectory, options.contextSessionId);
       }
+      if (action === 'notify.telegram_send') {
+        if (!telegramSend) throw new OpenChamberControlError('Telegram is unavailable', 503);
+        if (!asNonEmptyString(options.contextSessionId) || !asNonEmptyString(contextDirectory)) {
+          throw new OpenChamberControlError('Telegram requires a calling session and checkout', 400);
+        }
+        return telegramSend({ sessionId: options.contextSessionId, alias: input.alias, text: input.text, file: input.file,
+          caption: input.caption, mode: input.mode, directory: contextDirectory });
+      }
       if (action === 'notify.send') {
         if (!notifyUser) {
           throw new OpenChamberControlError('Notifications are not available on this server', 503);
@@ -1004,5 +1013,5 @@ export const createOpenChamberControlService = (dependencies) => {
   // id and the directory is resolved here, where it is authoritative.
   // `answerPage` is the chat's side of a page that waits (render.page with
   // awaitAnswer).
-  return { execute, resolveSessionDirectory, answerPage: pageAnswers.answer };
+  return { execute, resolveSessionDirectory, answerPage: pageAnswers.answer, isPageWaiting: pageAnswers.isWaiting };
 };

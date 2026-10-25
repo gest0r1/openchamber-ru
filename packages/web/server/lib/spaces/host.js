@@ -417,6 +417,8 @@ export function createSpacesHost({
     journey,
     /** A `fetch` for the host's own reads of one space's sessions, for its notifications. */
     openCodeFetchFor: createSpaceFetch({ requestInside: dispatcher.requestInside }),
+    // Only the host's Telegram activity verifier can read a space's running shells.
+    openCodeActivityFetchFor: createSpaceFetch({ requestInside: dispatcher.requestInside, allowShell: true }),
     /** The places a space can be made on, for the funnel. */
     places: () => registry.list(),
     /** What gets Docker going on this computer, and the action that does it, for the local place. */

@@ -6,6 +6,7 @@ import { keepCommandSubagentReports } from '@/lib/opencode/subagent-run';
 import { isOpencodeNotFound, opencodeClient } from '@/lib/opencode/client';
 
 import { ChatInput } from './ChatInput';
+import { TelegramSessionButton } from './TelegramSessionButton';
 import { CHAT_INPUT_EDITOR_SELECTOR } from './composer/editor/dom';
 import {
     ChatColumnActionsContext,
@@ -369,7 +370,7 @@ const ChatViewport = React.memo(({
     // above the rows, and a reader on the end saw the whole transcript jump
     // by it (after a revert, mid-send). Only the button inside it toggles.
     const listHeader = React.useMemo(() => (
-        <div className="flex h-12 justify-center pt-3 pb-1">
+        <div className="flex h-12 items-center justify-between px-3 pt-3 pb-1">
             {showLoadOlderButton ? (
                 <Button
                     variant="secondary"
@@ -382,9 +383,10 @@ const ChatViewport = React.memo(({
                     )}
                     {t('chat.history.loadOlder')}
                 </Button>
-            ) : null}
+            ) : <span />}
+            <TelegramSessionButton sessionId={currentSessionId} directory={directory} />
         </div>
-    ), [isLoadingOlder, onLoadOlder, showLoadOlderButton, t]);
+    ), [currentSessionId, directory, isLoadingOlder, onLoadOlder, showLoadOlderButton, t]);
 
     const listFooter = React.useMemo(() => (
         <>
