@@ -250,3 +250,28 @@ test('a resumed parent before the quiet timer cancels its completion', async () 
     expect(h.notifications.map((item) => item.eventKey)).toEqual(['idle:idle-2']);
   } finally { watch.stop(); await h.cleanup(); }
 });
+
+
+test('an aborted idle keeps the subscription checkpoint across a missed later idle event', async () => {
+  const h = await createHarness();
+  const watch = createTelegramWatch(h.options);
+  try {
+    await watch.start();
+    await watch.track({ sessionId: 'session', directory: '/repo' });
+    h.state.idleId = 'idle-2';
+    h.state.outcome = 'interrupted';
+    watch.onEvent({ type: 'session.idle', properties: {
+      sessionID: 'session', directory: '/repo', aborted: true,
+    } });
+    expect(watch.pendingCount()).toBe(1);
+    await h.tick();
+    expect(h.notifications).toHaveLength(0);
+    // No SSE event arrives for the next turn; the durable checkpoint must
+    // still detect its completed idle record during reconciliation.
+    h.state.idleId = 'idle-3';
+    h.state.outcome = 'succeeded';
+    await h.tick();
+    await h.tick();
+    expect(h.notifications.map((item) => item.eventKey)).toEqual(['idle:idle-3']);
+  } finally { watch.stop(); await h.cleanup(); }
+});
