@@ -33,6 +33,7 @@ export const createTelegramRuntime = ({
   };
   const recentDelivery = new Map();
   const inflightDelivery = new Set();
+  const inflightVerification = new Set();
   const empty = () => ({ version: 1, aliases: {}, subscriptions: {}, deliveries: {} });
   const load = async () => {
     try {
@@ -365,23 +366,32 @@ export const createTelegramRuntime = ({
     if (!subscription?.opted_in) return false;
     const dedupKey = JSON.stringify([directory, sessionId, type, eventKey ?? '']);
     if (data.deliveries?.[dedupKey] && !manualRetry) return true;
-    if (inflightDelivery.has(dedupKey) || Date.now() - (recentDelivery.get(dedupKey) ?? 0) < 5000) return false;
+    if (inflightDelivery.has(dedupKey) || inflightVerification.has(dedupKey) ||
+      Date.now() - (recentDelivery.get(dedupKey) ?? 0) < 5000) return false;
     // Completion is only accepted from the server-owned durable verifier.
     // It checks the run outcome, descendants, shells and dispatch results.
     if (type === 'completed' && eventKey?.startsWith('idle:') !== true) return false;
-    const origin = String(await getPublicOrigin() || '').replace(/\/$/, '');
-    const url = /^https:\/\//.test(origin) ? `\n${origin}/?session=${encodeURIComponent(sessionId)}` : '';
-    // Live probes and URL resolution can take several seconds. Honor an opt-out,
-    // expiry, alias switch, or channel disable that happened while awaiting them.
-    const current = (await load()).subscriptions[keyOf(directory, sessionId)];
-    if (!current?.opted_in || current.alias !== subscription.alias ||
-      current.created_at !== subscription.created_at ||
-      current.scope !== subscription.scope ||
-      current.expires_at !== subscription.expires_at ||
-      (current.expires_at && current.expires_at <= Date.now()) ||
-      await enabled() !== true) return false;
-    if (inflightDelivery.has(dedupKey) || !await canSend()) return false;
-    inflightDelivery.add(dedupKey);
+    // Claim the delivery key before the first asynchronous verification. Two
+    // simultaneous event handlers must not both pass the same canSend fence.
+    inflightVerification.add(dedupKey);
+    let url = '';
+    try {
+      const origin = String(await getPublicOrigin() || '').replace(/\/$/, '');
+      url = /^https:\/\//.test(origin) ? `\n${origin}/?session=${encodeURIComponent(sessionId)}` : '';
+      // Live probes and URL resolution can take several seconds. Honor an opt-out,
+      // expiry, alias switch, or channel disable that happened while awaiting them.
+      const current = (await load()).subscriptions[keyOf(directory, sessionId)];
+      if (!current?.opted_in || current.alias !== subscription.alias ||
+        current.created_at !== subscription.created_at ||
+        current.scope !== subscription.scope ||
+        current.expires_at !== subscription.expires_at ||
+        (current.expires_at && current.expires_at <= Date.now()) ||
+        await enabled() !== true) return false;
+      if (!await canSend()) return false;
+      inflightDelivery.add(dedupKey);
+    } finally {
+      inflightVerification.delete(dedupKey);
+    }
     // A failed verification before sendText cannot have reached the Bot API.
     // Keep it distinct from an ambiguous network failure during delivery.
     let sendAttempted = false;
@@ -399,6 +409,18 @@ export const createTelegramRuntime = ({
         if (keys.length > 1000) for (const key of keys.slice(0, keys.length - 1000)) delete latest.deliveries[key];
       });
       if (!await canSend()) {
+        await mutate((latest) => { delete latest.deliveries[dedupKey]; });
+        return false;
+      }
+      // A subscriber may opt out while the second live activity probe runs.
+      // Check the subscription again after that await and before the Bot API.
+      const finalSubscription = (await load()).subscriptions[keyOf(directory, sessionId)];
+      if (!finalSubscription?.opted_in ||
+        finalSubscription.created_at !== subscription.created_at ||
+        finalSubscription.alias !== subscription.alias ||
+        finalSubscription.scope !== subscription.scope ||
+        finalSubscription.expires_at !== subscription.expires_at ||
+        isExpired(finalSubscription) || await enabled() !== true) {
         await mutate((latest) => { delete latest.deliveries[dedupKey]; });
         return false;
       }
