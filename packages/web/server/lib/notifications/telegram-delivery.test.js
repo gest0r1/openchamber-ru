@@ -189,3 +189,65 @@ test('pre-send verification errors remain retryable and do not create delivery_u
     expect(posts).toBe(1);
   } finally { await h.cleanup(); }
 });
+
+test('concurrent notifications cannot both pass an asynchronous completion fence', async () => {
+  let posts = 0;
+  const h = await setup(async () => {
+    posts += 1;
+    return new Response(JSON.stringify({ ok: true, result: { message_id: posts } }));
+  });
+  try {
+    await h.runtime.configureAlias('team', '123456');
+    await h.runtime.subscribe('/repo', 'session', 'team');
+    let entered;
+    let release;
+    const checking = new Promise((resolve) => { entered = resolve; });
+    const held = new Promise((resolve) => { release = resolve; });
+    let checks = 0;
+    const item = { directory: '/repo', sessionId: 'session', type: 'completed', eventKey: 'idle:shared' };
+    const first = h.runtime.notify({ ...item, canSend: async () => {
+      checks += 1;
+      if (checks === 1) { entered(); await held; }
+      return true;
+    } });
+    await checking;
+    // This second event arrives while the first is still reading OpenCode.
+    expect(await h.runtime.notify({ ...item, canSend: async () => true })).toBe(false);
+    release();
+    expect(await first).toBe(true);
+    expect(posts).toBe(1);
+    expect(await h.runtime.notify(item)).toBe(true);
+    expect(posts).toBe(1);
+  } finally { await h.cleanup(); }
+});
+
+test('unsubscribe during the final live probe cancels delivery before Bot API', async () => {
+  let posts = 0;
+  const h = await setup(async () => {
+    posts += 1;
+    return new Response(JSON.stringify({ ok: true, result: { message_id: posts } }));
+  });
+  try {
+    await h.runtime.configureAlias('team', '123456');
+    await h.runtime.subscribe('/repo', 'session', 'team');
+    let entered;
+    let release;
+    const checking = new Promise((resolve) => { entered = resolve; });
+    const held = new Promise((resolve) => { release = resolve; });
+    let checks = 0;
+    const delivery = h.runtime.notify({
+      directory: '/repo', sessionId: 'session', type: 'completed', eventKey: 'idle:last',
+      canSend: async () => {
+        checks += 1;
+        if (checks === 2) { entered(); await held; }
+        return true;
+      },
+    });
+    await checking;
+    await h.runtime.unsubscribe('/repo', 'session');
+    release();
+    expect(await delivery).toBe(false);
+    expect(posts).toBe(0);
+    expect(await h.runtime.listDeliveryIssues()).toHaveLength(0);
+  } finally { await h.cleanup(); }
+});
