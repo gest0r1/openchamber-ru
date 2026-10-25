@@ -213,10 +213,9 @@ test('deleted sessions remove their subscription and pending checks', async () =
   try {
     await watch.start();
     await watch.track({ sessionId: 'session', directory: '/repo' });
-    watch.onEvent({ type: 'session.deleted', properties: {
+    await watch.onEvent({ type: 'session.deleted', properties: {
       sessionID: 'session', directory: '/repo',
     } });
-    await settle();
     expect(deletes).toBe(1);
     expect(watch.pendingCount()).toBe(0);
   } finally { watch.stop(); await h.cleanup(); }
@@ -293,10 +292,9 @@ test('a deletion received before restoring checkpoints cannot revive the deleted
     watch.stop();
     watch = createTelegramWatch(h.options);
     // A delete event can race with the first checkpoint load at startup.
-    watch.onEvent({ type: 'session.deleted', properties: {
+    await watch.onEvent({ type: 'session.deleted', properties: {
       sessionID: 'session', directory: '/repo',
     } });
-    await settle();
     const saved = JSON.parse(await readFile(h.filePath, 'utf8'));
     expect(saved.pending).toHaveLength(0);
     expect(watch.pendingCount()).toBe(0);
