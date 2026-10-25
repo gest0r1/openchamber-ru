@@ -28,3 +28,5 @@ jobs:
           bun run test server/lib/notifications/telegram-watch.test.js server/lib/notifications/telegram-delivery.test.js server/lib/notifications/telegram-approval.test.js server/lib/opencode/session-activity.test.js
       - name: Check changed source files
         run: bun run check:changed
+      - name: Build web UI
+        run: bun run build:web
