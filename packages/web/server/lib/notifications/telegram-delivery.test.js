@@ -163,3 +163,29 @@ test('approved Markdown cannot be replaced while waiting for user consent', asyn
     expect(posted).toBe(0);
   } finally { await h.cleanup(); }
 });
+
+test('pre-send verification errors remain retryable and do not create delivery_unknown', async () => {
+  let posts = 0;
+  let checks = 0;
+  const h = await setup(async () => {
+    posts += 1;
+    return new Response(JSON.stringify({ ok: true, result: { message_id: 1 } }));
+  });
+  try {
+    await h.runtime.configureAlias('team', '123456');
+    await h.runtime.subscribe('/repo', 'session', 'team');
+    const item = {
+      directory: '/repo', sessionId: 'session', type: 'completed', eventKey: 'idle:first',
+      canSend: async () => {
+        checks += 1;
+        if (checks === 2) throw new Error('OpenCode lost connection before send');
+        return true;
+      },
+    };
+    await expect(h.runtime.notify(item)).rejects.toThrow(/lost connection/);
+    expect(posts).toBe(0);
+    expect(await h.runtime.listDeliveryIssues()).toHaveLength(0);
+    expect(await h.runtime.notify({ ...item, canSend: async () => true })).toBe(true);
+    expect(posts).toBe(1);
+  } finally { await h.cleanup(); }
+});
