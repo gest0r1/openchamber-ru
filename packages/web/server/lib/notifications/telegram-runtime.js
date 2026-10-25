@@ -172,12 +172,13 @@ export const createTelegramRuntime = ({
     if (!token || !/^[0-9]+:[A-Za-z0-9_-]+$/.test(token)) throw new Error('Telegram is not configured');
     for (let attempt = 0; attempt < 3; attempt += 1) {
       try {
-        const response = await fetchImpl(`https://api.telegram.org/bot${token}/${method}`, {
+        const requestOptions = {
           method: 'POST',
-          ...(multipart ? {} : { headers: { 'content-type': 'application/json' } }),
           body: multipart ? fields : JSON.stringify(fields),
           signal: AbortSignal.timeout(multipart ? 30000 : 10000),
-        });
+        };
+        if (!multipart) requestOptions.headers = { 'content-type': 'application/json' };
+        const response = await fetchImpl(`https://api.telegram.org/bot${token}/${method}`, requestOptions);
         const result = await response.json().catch(() => null);
         if (response.ok && result?.ok === true) return result.result;
         // Rate limiting is a confirmed refusal. A 5xx may be ambiguous:
