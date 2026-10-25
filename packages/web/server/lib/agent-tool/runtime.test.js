@@ -574,7 +574,7 @@ describe('managed agent tool runtime', () => {
 
     expect(Object.keys(tool)).toEqual(['openchamber', 'openchamber_notify']);
     expect(Object.keys(tool.openchamber_notify.input.properties.parameters.properties).sort())
-      .toEqual(['body', 'showWhenFocused', 'title']);
+      .toEqual(['alias', 'body', 'caption', 'file', 'mode', 'showWhenFocused', 'text', 'title']);
     expect(Object.keys(tool.openchamber.input.properties.parameters.properties)).not.toContain('showWhenFocused');
 
     const { runtime: plain, dataDir: plainDir } = await createRuntime();
