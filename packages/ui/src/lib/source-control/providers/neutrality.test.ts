@@ -49,6 +49,10 @@ const ALLOWLIST = {
     rule: 'comparison',
     reason: 'OpenCode tool names of the Linear MCP server (`linear`, `linear_*`), not a tracker id.',
   },
+  'lib/linkedIssues.ts': {
+    rule: 'comparison',
+    reason: 'Fork: the prompt names linked GitHub issues as owner/repo#N for /pipeline-plan, which reads them with the gh CLI; other hosts have no such reader.',
+  },
   'components/chat/message/parts/toolPresentation.tsx': {
     rule: 'comparison',
     reason: 'OpenCode tool names of the Linear MCP server (`linear`, `linear_*`), not a tracker id.',
