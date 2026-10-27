@@ -33,6 +33,12 @@ const technicalTermAllowlist = new Set([
   'settings.extensions.source.zip', 'settings.extensions.source.git', 'chat.chatInput.linked.guest.pr.number',
   'settings.integrations.github.title', 'settings.integrations.linear.title', 'settings.magicPrompts.sidebar.group.linear',
   'contextPanel.mode.linear',
+  // Tailscale mode names, CLI and data-format names, and scope tokens stay as written.
+  'settings.openchamber.tunnel.option.mode.serve.label', 'settings.openchamber.tunnel.option.mode.funnel.label',
+  'settings.openchamber.tunnel.badge.serve', 'settings.openchamber.tunnel.badge.funnel',
+  'settings.sourceControl.cli.label', 'settings.sourceControl.accountSource.cli',
+  'chat.autocomplete.scope.opencode', 'chat.autocomplete.scope.openchamber', 'workflows.panel.answer.raw',
+  'header.sourceControl.connectedWithLogin',
   // Intentionally empty in both locales: Windows command suffix is not needed here.
   'onboarding.localSetup.windows.stepInstallWslSuffix',
   'mobile.menu.mcp',
