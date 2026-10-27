@@ -1,12 +1,20 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import fs from 'node:fs/promises';
+import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { spawnManagedOpenCodeProcess } from './managed-opencode-process';
 
+// A killed process the host's PID 1 has not reaped yet is a zombie: it has exited, but signal 0
+// still reaches it. On Linux read its state so the test does not depend on the host's init.
+const zombie = (pid: number) => {
+  if (process.platform !== 'linux') return false;
+  try { return /^\d+ \(.*\) Z /.test(readFileSync(`/proc/${pid}/stat`, 'utf8')); } catch { return false; }
+};
 const alive = (pid: number) => {
-  try { process.kill(pid, 0); return true; } catch { return false; }
+  try { process.kill(pid, 0); } catch { return false; }
+  return !zombie(pid);
 };
 const readPids = async (marker: string) => (await fs.readFile(marker, 'utf8').catch(() => ''))
   .trim().split('\n').filter(Boolean).map(Number);
