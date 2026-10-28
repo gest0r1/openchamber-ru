@@ -1,5 +1,20 @@
 [
   {
+    "version": "2.5.2.2",
+    "date": "2026-10-28",
+    "title": "Telegram notification delivery fix",
+    "intro": null,
+    "app": {
+      "new": [],
+      "improvements": [],
+      "fixes": [
+        "Restored automatic Telegram alerts for completed work, errors and requests for user input when the public tunnel is unavailable."
+      ],
+      "misc": []
+    },
+    "vscode": null
+  },
+  {
     "version": "2.5.2.1",
     "date": "2026-10-27",
     "title": "Upstream OpenChamber 2.5.2",
