@@ -2,6 +2,12 @@
 
 <!-- Legacy copy for app versions up to 1.22.1, which fetch this file for their update notes. Generated from changelog/*.md while it exists; delete it after 2026-09-19 and nothing will recreate it. -->
 
+## [2.5.2.2] - 2026-10-28
+
+### Fixes
+
+- Restored automatic Telegram alerts for completed work, errors and requests for user input when the public tunnel is unavailable.
+
 ## [2.5.2.1] - 2026-10-27
 
 ### New
