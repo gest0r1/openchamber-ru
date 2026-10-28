@@ -112,6 +112,7 @@ import { registerNotificationRoutes } from './lib/notifications/routes.js';
 import { createNotificationEmitterRuntime } from './lib/notifications/emitter-runtime.js';
 import { createNotificationTriggerRuntime } from './lib/notifications/runtime.js';
 import { createTelegramRuntime } from './lib/notifications/telegram-runtime.js';
+import { createTelegramPublicOrigin } from './lib/notifications/telegram-origin.js';
 import { createTelegramWatch } from './lib/notifications/telegram-watch.js';
 import { createTelegramConfig } from './lib/notifications/telegram-config.js';
 import { createTelegramApproval } from './lib/notifications/telegram-approval.js';
@@ -1282,11 +1283,12 @@ const telegramApproval = createTelegramApproval({
     });
   },
 });
+const telegramPublicOrigin = createTelegramPublicOrigin();
 const telegramRuntime = createTelegramRuntime({
   storePath: path.join(OPENCHAMBER_DATA_DIR, 'telegram-subscriptions.json'),
   getBotToken: async () => (await telegramConfig.read()).botToken,
   getDefaultAlias: async () => (await telegramConfig.read()).defaultAlias,
-  getPublicOrigin: async () => tunnelRuntimeContextHolder?.tunnelService?.getPublicUrl?.() ?? '',
+  getPublicOrigin: telegramPublicOrigin.getPublicOrigin,
   enabled: async () => (await telegramConfig.read()).enabled === true,
 });
 const telegramSourceFor = (spaceId) => {
@@ -2789,6 +2791,7 @@ async function main(options = {}) {
   const tunnelRuntimeContext = tunnelWiringRuntime.initialize(app, port, Boolean(uiPassword?.trim()));
   const { tunnelService, startTunnelWithNormalizedRequest } = tunnelRuntimeContext;
   tunnelRuntimeContextHolder = tunnelRuntimeContext;
+  telegramPublicOrigin.setTunnelRuntime(tunnelRuntimeContext);
 
   // Private relay host service: config + management routes + host client
   // lifecycle. Loopback port comes from the same source the tunnel uses so
