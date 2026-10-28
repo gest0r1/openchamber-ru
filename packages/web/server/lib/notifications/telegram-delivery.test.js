@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { createHash } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import { createTelegramRuntime } from './telegram-runtime.js';
+import { createTelegramPublicOrigin } from './telegram-origin.js';
 
 const setup = async (fetchImpl) => {
   const root = await mkdtemp(join(tmpdir(), 'telegram-delivery-'));
@@ -250,4 +251,57 @@ test('unsubscribe during the final live probe cancels delivery before Bot API', 
     expect(posts).toBe(0);
     expect(await h.runtime.listDeliveryIssues()).toHaveLength(0);
   } finally { await h.cleanup(); }
+});
+
+test('automatic completion, input and error messages survive absent or failed tunnel URLs', async () => {
+  const posted = [];
+  const origin = createTelegramPublicOrigin();
+  const root = await mkdtemp(join(tmpdir(), 'telegram-origin-'));
+  const runtime = createTelegramRuntime({
+    storePath: join(root, 'subscriptions.json'),
+    getBotToken: async () => '12345:token',
+    getDefaultAlias: async () => 'team',
+    getPublicOrigin: origin.getPublicOrigin,
+    enabled: async () => true,
+    fetchImpl: async (_url, options) => {
+      posted.push(JSON.parse(options.body));
+      return new Response(JSON.stringify({ ok: true, result: { message_id: posted.length } }));
+    },
+  });
+  try {
+    await runtime.configureAlias('team', '123456');
+    await runtime.subscribe('/repo', 'session', 'team');
+
+    // The watcher may notify before the tunnel is initialized or when it is disabled.
+    expect(await runtime.notify({ directory: '/repo', sessionId: 'session',
+      type: 'completed', eventKey: 'idle:first' })).toBe(true);
+    expect(posted[0].text).toBe('Agent completed the task');
+
+    origin.setTunnelRuntime({ tunnelService: { getPublicUrl: () => 'https://openchamber.example' } });
+    expect(await runtime.notify({ directory: '/repo', sessionId: 'session',
+      type: 'needs_input', eventKey: 'form:one' })).toBe(true);
+    expect(posted[1].text).toContain('https://openchamber.example/?session=session');
+
+    origin.setTunnelRuntime({ tunnelService: { getPublicUrl: () => { throw new Error('tunnel offline'); } } });
+    expect(await runtime.notify({ directory: '/repo', sessionId: 'session',
+      type: 'error', eventKey: 'idle:failed' })).toBe(true);
+    expect(posted[2].text).toBe('Agent encountered an error');
+    expect(await runtime.listDeliveryIssues()).toHaveLength(0);
+    expect(posted).toHaveLength(3);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('origin resolver tolerates late tunnel startup and asynchronous URL failures', async () => {
+  const origin = createTelegramPublicOrigin();
+  expect(await origin.getPublicOrigin()).toBe('');
+  origin.setTunnelRuntime({ tunnelService: { getPublicUrl: async () => {
+    throw new Error('unavailable');
+  } } });
+  expect(await origin.getPublicOrigin()).toBe('');
+  origin.setTunnelRuntime({ tunnelService: { getPublicUrl: async () => 'https://example.test' } });
+  expect(await origin.getPublicOrigin()).toBe('https://example.test');
+  origin.setTunnelRuntime(null);
+  expect(await origin.getPublicOrigin()).toBe('');
 });
