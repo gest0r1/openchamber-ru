@@ -108,7 +108,23 @@ describe('per-call Markdown tool timing', () => {
     expect(unknown).toMatchObject({ started_at: 'unavailable', completed_at: 'unavailable', duration_ms: 'unavailable' });
     expect(measuredZero).toMatchObject({ duration_ms: 0, duration_source: 'persisted_tool_state' });
     expect(measuredLong).toMatchObject({ duration_ms: 1_726_500, duration_source: 'persisted_tool_state' });
-    expect(error).toMatchObject({ status: 'error', duration_ms: 5 });
+    expect(error).toMatchObject({ status: 'error', duration_ms: 5, duration_final: true, duration_source: 'persisted_tool_state' });
+  });
+
+  test('exports interruption as a censored observation rather than process completion', () => {
+    const interrupted = call('s', 'a', 'stopped', 'shell', {
+      status: 'error', input: {}, error: 'Interrupted', time: { start: 1_000, end: 5_000 },
+    }) as Extract<Part, { type: 'tool' }>;
+    interrupted.timing = { startMeasured: true, endMeasured: false, endSource: 'interruption_observed' };
+    const [tool] = calls(formatSessionAsMarkdown([answer('s', 'a', [interrupted])]));
+    expect(tool).toMatchObject({
+      completed_at: 'unavailable',
+      observed_end_at: '1970-01-01T00:00:05.000Z',
+      duration_ms: 4_000,
+      duration_source: 'observed_interruption',
+      duration_final: false,
+      duration_censored: true,
+    });
   });
 
   test('does not count projected fallback timestamps as measured endpoints', () => {

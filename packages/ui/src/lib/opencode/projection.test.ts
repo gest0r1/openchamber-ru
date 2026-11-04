@@ -151,7 +151,7 @@ describe("projectToolPart", () => {
       owner,
     )
     expect(part.state).toEqual({ status: "pending", input: {}, raw: '{"pa' })
-    expect(part.timing).toEqual({ startMeasured: false, endMeasured: false })
+    expect(part.timing).toEqual({ startMeasured: false, endMeasured: false, endSource: 'fallback' })
   })
 
   test("running state uses the run timestamp as start", () => {
@@ -166,7 +166,7 @@ describe("projectToolPart", () => {
       owner,
     )
     expect(part.state).toEqual({ status: "running", input: { path: "a" }, metadata: { title: "Editing" }, time: { start: 7 } })
-    expect(part.timing).toEqual({ startMeasured: true, endMeasured: false })
+    expect(part.timing).toEqual({ startMeasured: true, endMeasured: false, endSource: 'fallback' })
   })
 
   test("error state renders the structured error as text and keeps partial output", () => {
@@ -192,7 +192,7 @@ describe("projectToolPart", () => {
       output: "partial",
       time: { start: 6, end: 9 },
     })
-    expect(part.timing).toEqual({ startMeasured: true, endMeasured: true })
+    expect(part.timing).toEqual({ startMeasured: true, endMeasured: true, endSource: 'persisted' })
   })
 })
 
