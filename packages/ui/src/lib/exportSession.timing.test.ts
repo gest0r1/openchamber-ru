@@ -2,14 +2,14 @@ import { describe, expect, test } from 'bun:test';
 import type { Message, Part } from '@/lib/opencode/model';
 import { formatSessionAsMarkdown } from './exportSession';
 
-type Record = { info: Message; parts: Part[] };
+type SessionRecord = { info: Message; parts: Part[] };
 type State = Extract<Part, { type: 'tool' }>['state'];
 
 function call(sessionID: string, messageID: string, callID: string, tool: string, state: State): Part {
   return { id: `tool_${callID}`, sessionID, messageID, type: 'tool', callID, tool, state };
 }
 
-function answer(sessionID: string, messageID: string, parts: Part[]): Record {
+function answer(sessionID: string, messageID: string, parts: Part[]): SessionRecord {
   return {
     info: { id: messageID, sessionID, role: 'assistant', agent: 'build',
       providerID: 'openai', modelID: 'gpt', time: { created: 100 } },
