@@ -58,7 +58,7 @@ describe('per-call Markdown tool timing', () => {
       } as unknown as State)]),
     ];
     const [error, active, pending, legacy] = calls(formatSessionAsMarkdown(records));
-    expect(error).toMatchObject({ status: 'error', duration_ms: 5 });
+    expect(error).toMatchObject({ status: 'error', duration_ms: 5, duration_final: true, duration_source: 'persisted_tool_state' });
     expect(active).toMatchObject({ status: 'running', completed_at: 'unavailable', duration_ms: 'unavailable' });
     expect(pending).toMatchObject({ status: 'pending', started_at: 'unavailable', duration_ms: 'unavailable' });
     expect(legacy).toMatchObject({ status: 'completed', started_at: 'unavailable', completed_at: 'unavailable', duration_ms: 'unavailable' });

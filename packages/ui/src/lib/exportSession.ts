@@ -119,12 +119,16 @@ function formatToolCalls(record: SessionMessageRecord, nextByCall?: Map<string, 
   return record.parts.filter((part): part is Extract<Part, { type: 'tool' }> => part.type === 'tool')
     .map((part) => {
       const start = toolStartedAt(part);
-      const end = part.state.status === 'completed' || part.state.status === 'error'
-        ? (part.timing?.endMeasured === false ? undefined : persistedMillis(part.state.time?.end)) : undefined;
-      const finalDuration = start !== undefined && end !== undefined && end >= start ? end - start : undefined;
+      const stateEnd = part.state.status === 'completed' || part.state.status === 'error'
+        ? persistedMillis(part.state.time?.end) : undefined;
+      const persistedEnd = stateEnd !== undefined && part.timing?.endMeasured !== false && part.timing?.endSource !== 'interruption_observed'
+        ? stateEnd : undefined;
+      const observedEnd = part.timing?.endSource === 'interruption_observed' ? stateEnd : undefined;
+      const finalDuration = start !== undefined && persistedEnd !== undefined && persistedEnd >= start ? persistedEnd - start : undefined;
+      const interruptedDuration = start !== undefined && observedEnd !== undefined && observedEnd >= start ? observedEnd - start : undefined;
       const clockSkewMs = part.state.status === 'running' && start !== undefined && start > snapshotAt ? start - snapshotAt : undefined;
       const runningSnapshot = part.state.status === 'running' && start !== undefined && clockSkewMs === undefined ? snapshotAt - start : undefined;
-      const duration = finalDuration ?? runningSnapshot;
+      const duration = finalDuration ?? interruptedDuration ?? runningSnapshot;
       const next = nextByCall?.get(`${part.sessionID}:${part.callID}`)?.nextStartedAt;
       const iso = (time: number | undefined) => time === undefined ? 'unavailable' : new Date(time).toISOString();
       const fields = {
@@ -133,15 +137,17 @@ function formatToolCalls(record: SessionMessageRecord, nextByCall?: Map<string, 
         name: part.tool,
         status: part.state.status,
         started_at: iso(start),
-        completed_at: iso(end),
+        completed_at: iso(persistedEnd),
+        observed_end_at: iso(observedEnd),
         duration_ms: duration ?? 'unavailable',
-        duration_source: finalDuration !== undefined ? 'persisted_tool_state' : runningSnapshot !== undefined ? 'export_snapshot' : 'unavailable',
+        duration_source: finalDuration !== undefined ? 'persisted_tool_state' : interruptedDuration !== undefined ? 'observed_interruption' : runningSnapshot !== undefined ? 'export_snapshot' : 'unavailable',
         duration_final: finalDuration !== undefined,
+        duration_censored: interruptedDuration !== undefined,
         duration_generated_at: runningSnapshot !== undefined ? snapshotISO : 'unavailable',
         duration_clock_skew_ms: clockSkewMs ?? 'unavailable',
         next_tool_started_at: iso(next),
         next_tool_start_gap_ms: start !== undefined && next !== undefined ? next - start : 'unavailable',
-        overlaps_next: next !== undefined && end !== undefined ? next < end : 'unavailable',
+        overlaps_next: next !== undefined && persistedEnd !== undefined ? next < persistedEnd : 'unavailable',
       };
       return `**Tool call timing**\n\n\`\`\`json\n${JSON.stringify(fields)}\n\`\`\``;
     }).join('\n\n');

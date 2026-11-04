@@ -2658,7 +2658,8 @@ export function interruptedTurnToolParts(
       },
       timing: {
         startMeasured: part.state.status === "running" && part.timing?.startMeasured !== false,
-        endMeasured: true,
+        endMeasured: false,
+        endSource: 'interruption_observed',
       },
     }
   })

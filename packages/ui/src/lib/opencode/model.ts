@@ -390,7 +390,7 @@ export type ToolPart = PartBase & {
   /** The provider actually executed the call (false for replayed/synthetic calls). */
   executed?: boolean
   /** Whether persisted tool timestamps came from execution events, not wire fallbacks. */
-  timing?: { startMeasured: boolean; endMeasured: boolean }
+  timing?: { startMeasured: boolean; endMeasured: boolean; endSource?: 'persisted' | 'fallback' | 'interruption_observed' }
 }
 
 export type Part = TextPart | ReasoningPart | FilePart | AgentPart | ToolPart

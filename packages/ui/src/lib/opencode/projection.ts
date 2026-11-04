@@ -179,7 +179,7 @@ export function projectToolPart(
     tool: tool.name,
     state,
     executed: tool.executed,
-    timing: { startMeasured: tool.time.ran !== undefined, endMeasured: tool.time.completed !== undefined },
+    timing: { startMeasured: tool.time.ran !== undefined, endMeasured: tool.time.completed !== undefined, endSource: tool.time.completed !== undefined ? 'persisted' : 'fallback' },
   })
 }
 
