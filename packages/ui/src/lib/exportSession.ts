@@ -98,7 +98,14 @@ function toolSequence(records: SessionMessageRecord[]): Map<string, ToolTiming> 
   }
   const nextByCall = new Map<string, ToolTiming>();
   const bySession = new Map<string, typeof calls>();
-  for (const call of calls) bySession.set(call.sessionID, [...(bySession.get(call.sessionID) ?? []), call]);
+  for (const call of calls) {
+    let sessionCalls = bySession.get(call.sessionID);
+    if (!sessionCalls) {
+      sessionCalls = [];
+      bySession.set(call.sessionID, sessionCalls);
+    }
+    sessionCalls.push(call);
+  }
   for (const sessionCalls of bySession.values()) {
     sessionCalls.sort((a, b) => a.start - b.start || a.order - b.order);
     sessionCalls.forEach((call, index) => nextByCall.set(call.key, { nextStartedAt: sessionCalls[index + 1]?.start }));
