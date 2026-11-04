@@ -389,6 +389,8 @@ export type ToolPart = PartBase & {
   state: ToolState
   /** The provider actually executed the call (false for replayed/synthetic calls). */
   executed?: boolean
+  /** Whether persisted tool timestamps came from execution events, not wire fallbacks. */
+  timing?: { startMeasured: boolean; endMeasured: boolean }
 }
 
 export type Part = TextPart | ReasoningPart | FilePart | AgentPart | ToolPart

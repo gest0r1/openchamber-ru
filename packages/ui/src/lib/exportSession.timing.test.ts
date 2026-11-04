@@ -63,6 +63,29 @@ describe('per-call Markdown tool timing', () => {
     expect(legacy).toMatchObject({ status: 'completed', started_at: 'unavailable', completed_at: 'unavailable', duration_ms: 'unavailable' });
   });
 
+  test('exports a running elapsed snapshot without claiming completion', () => {
+    const markdown = formatSessionAsMarkdown([answer('s', 'a', [call('s', 'a', 'run', 'shell', {
+      status: 'running', input: {}, time: { start: Date.now() - 1_726_500 },
+    })])]);
+    const [running] = calls(markdown);
+    expect(running.completed_at).toBe('unavailable');
+    expect(running.duration_ms).toBeGreaterThanOrEqual(1_726_500);
+    expect(running.duration_source).toBe('export_snapshot');
+    expect(running.duration_final).toBe(false);
+    expect(running.duration_generated_at).not.toBe('unavailable');
+  });
+
+  test('does not count projected fallback timestamps as measured endpoints', () => {
+    const projectedFallback = call('s', 'a', 'unknown', 'shell', {
+      status: 'completed', input: {}, output: '', time: { start: 1_000, end: 1_000 },
+    }) as Extract<Part, { type: 'tool' }>;
+    projectedFallback.timing = { startMeasured: false, endMeasured: false };
+    const [unknown] = calls(formatSessionAsMarkdown([answer('s', 'a', [projectedFallback])]));
+    expect(unknown.started_at).toBe('unavailable');
+    expect(unknown.completed_at).toBe('unavailable');
+    expect(unknown.duration_ms).toBe('unavailable');
+  });
+
   test('labels overlaps of parallel calls and preserves part ordering', () => {
     const record = answer('same', 'a', [
       call('same', 'a', 'first', 'shell', { status: 'completed', input: {}, output: '', time: { start: 500, end: 2_000 } }),

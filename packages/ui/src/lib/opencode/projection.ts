@@ -179,6 +179,7 @@ export function projectToolPart(
     tool: tool.name,
     state,
     executed: tool.executed,
+    timing: { startMeasured: tool.time.ran !== undefined, endMeasured: tool.time.completed !== undefined },
   })
 }
 

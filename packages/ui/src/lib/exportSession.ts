@@ -83,7 +83,7 @@ function persistedMillis(value: number | undefined): number | undefined {
 }
 
 function toolStartedAt(part: Extract<Part, { type: 'tool' }>): number | undefined {
-  return part.state.status === 'pending' ? undefined : persistedMillis(part.state.time?.start);
+  return part.state.status === 'pending' || part.timing?.startMeasured === false ? undefined : persistedMillis(part.state.time?.start);
 }
 
 function toolSequence(records: SessionMessageRecord[]): Map<string, ToolTiming> {
@@ -114,12 +114,16 @@ function toolSequence(records: SessionMessageRecord[]): Map<string, ToolTiming> 
 }
 
 function formatToolCalls(record: SessionMessageRecord, nextByCall?: Map<string, ToolTiming>): string {
+  const snapshotAt = Date.now();
+  const snapshotISO = new Date(snapshotAt).toISOString();
   return record.parts.filter((part): part is Extract<Part, { type: 'tool' }> => part.type === 'tool')
     .map((part) => {
       const start = toolStartedAt(part);
       const end = part.state.status === 'completed' || part.state.status === 'error'
-        ? persistedMillis(part.state.time?.end) : undefined;
-      const duration = start !== undefined && end !== undefined && end >= start ? end - start : undefined;
+        ? (part.timing?.endMeasured === false ? undefined : persistedMillis(part.state.time?.end)) : undefined;
+      const finalDuration = start !== undefined && end !== undefined && end >= start ? end - start : undefined;
+      const runningSnapshot = part.state.status === 'running' && start !== undefined ? Math.max(0, snapshotAt - start) : undefined;
+      const duration = finalDuration ?? runningSnapshot;
       const next = nextByCall?.get(`${part.sessionID}:${part.callID}`)?.nextStartedAt;
       const iso = (time: number | undefined) => time === undefined ? 'unavailable' : new Date(time).toISOString();
       const fields = {
@@ -130,7 +134,9 @@ function formatToolCalls(record: SessionMessageRecord, nextByCall?: Map<string, 
         started_at: iso(start),
         completed_at: iso(end),
         duration_ms: duration ?? 'unavailable',
-        duration_source: duration === undefined ? 'unavailable' : 'persisted_tool_state',
+        duration_source: finalDuration !== undefined ? 'persisted_tool_state' : runningSnapshot !== undefined ? 'export_snapshot' : 'unavailable',
+        duration_final: finalDuration !== undefined,
+        duration_generated_at: runningSnapshot !== undefined ? snapshotISO : 'unavailable',
         next_tool_started_at: iso(next),
         next_tool_start_gap_ms: start !== undefined && next !== undefined ? next - start : 'unavailable',
         overlaps_next: next !== undefined && end !== undefined ? next < end : 'unavailable',
