@@ -75,6 +75,16 @@ describe('per-call Markdown tool timing', () => {
     expect(running.duration_generated_at).not.toBe('unavailable');
   });
 
+  test('does not turn a future start into a zero-duration snapshot', () => {
+    const futureStart = Date.now() + 60_000;
+    const [running] = calls(formatSessionAsMarkdown([answer('s', 'a', [call('s', 'a', 'future', 'shell', {
+      status: 'running', input: {}, time: { start: futureStart },
+    })])]));
+    expect(running.duration_ms).toBe('unavailable');
+    expect(running.duration_clock_skew_ms).toBeGreaterThan(0);
+    expect(running.duration_source).toBe('unavailable');
+  });
+
   test('does not count projected fallback timestamps as measured endpoints', () => {
     const projectedFallback = call('s', 'a', 'unknown', 'shell', {
       status: 'completed', input: {}, output: '', time: { start: 1_000, end: 1_000 },

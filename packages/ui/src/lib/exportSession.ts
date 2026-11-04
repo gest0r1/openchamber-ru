@@ -122,7 +122,8 @@ function formatToolCalls(record: SessionMessageRecord, nextByCall?: Map<string, 
       const end = part.state.status === 'completed' || part.state.status === 'error'
         ? (part.timing?.endMeasured === false ? undefined : persistedMillis(part.state.time?.end)) : undefined;
       const finalDuration = start !== undefined && end !== undefined && end >= start ? end - start : undefined;
-      const runningSnapshot = part.state.status === 'running' && start !== undefined ? Math.max(0, snapshotAt - start) : undefined;
+      const clockSkewMs = part.state.status === 'running' && start !== undefined && start > snapshotAt ? start - snapshotAt : undefined;
+      const runningSnapshot = part.state.status === 'running' && start !== undefined && clockSkewMs === undefined ? snapshotAt - start : undefined;
       const duration = finalDuration ?? runningSnapshot;
       const next = nextByCall?.get(`${part.sessionID}:${part.callID}`)?.nextStartedAt;
       const iso = (time: number | undefined) => time === undefined ? 'unavailable' : new Date(time).toISOString();
@@ -137,6 +138,7 @@ function formatToolCalls(record: SessionMessageRecord, nextByCall?: Map<string, 
         duration_source: finalDuration !== undefined ? 'persisted_tool_state' : runningSnapshot !== undefined ? 'export_snapshot' : 'unavailable',
         duration_final: finalDuration !== undefined,
         duration_generated_at: runningSnapshot !== undefined ? snapshotISO : 'unavailable',
+        duration_clock_skew_ms: clockSkewMs ?? 'unavailable',
         next_tool_started_at: iso(next),
         next_tool_start_gap_ms: start !== undefined && next !== undefined ? next - start : 'unavailable',
         overlaps_next: next !== undefined && end !== undefined ? next < end : 'unavailable',

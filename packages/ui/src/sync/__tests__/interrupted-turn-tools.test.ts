@@ -61,6 +61,7 @@ describe("interruptedTurnToolParts (#2577)", () => {
     expect(part.state.status).toBe("error")
     expect(part.state.error).toBe("Interrupted")
     expect(part.state.time.end).toBe(5000)
+    expect((part as unknown as { timing: { endMeasured: boolean } }).timing.endMeasured).toBe(true)
     expect(result!.messages[0]).toEqual({
       ...unfinishedAssistantMessage("msg_1"),
       time: { created: 10, completed: 5000 },
