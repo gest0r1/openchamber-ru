@@ -79,11 +79,11 @@ type ToolTiming = { nextStartedAt?: number };
 // Tool part times are persisted OpenCode millisecond timestamps, not message times
 // or the elapsed timer derived by the UI while a call is running.
 function persistedMillis(value: number | undefined): number | undefined {
-  return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : undefined;
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 && Number.isFinite(new Date(value).getTime()) ? value : undefined;
 }
 
 function toolStartedAt(part: Extract<Part, { type: 'tool' }>): number | undefined {
-  return part.state.status === 'pending' ? undefined : persistedMillis(part.state.time.start);
+  return part.state.status === 'pending' ? undefined : persistedMillis(part.state.time?.start);
 }
 
 function toolSequence(records: SessionMessageRecord[]): Map<string, ToolTiming> {
@@ -111,7 +111,7 @@ function formatToolCalls(record: SessionMessageRecord, nextByCall?: Map<string, 
     .map((part) => {
       const start = toolStartedAt(part);
       const end = part.state.status === 'completed' || part.state.status === 'error'
-        ? persistedMillis(part.state.time.end) : undefined;
+        ? persistedMillis(part.state.time?.end) : undefined;
       const duration = start !== undefined && end !== undefined && end >= start ? end - start : undefined;
       const next = nextByCall?.get(`${part.sessionID}:${part.callID}`)?.nextStartedAt;
       const iso = (time: number | undefined) => time === undefined ? 'unavailable' : new Date(time).toISOString();
