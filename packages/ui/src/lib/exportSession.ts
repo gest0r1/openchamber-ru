@@ -132,7 +132,7 @@ function formatToolCalls(record: SessionMessageRecord, nextByCall?: Map<string, 
     }).join('\n\n');
 }
 /** A single record exactly as the regular Markdown export renders it. */
-export function formatMessageRecordAsMarkdown(record: SessionMessageRecord, nextByCall?: Map<string, ToolTiming>): string {
+function formatRecordWithToolTiming(record: SessionMessageRecord, nextByCall?: Map<string, ToolTiming>): string {
   // Only the conversation roles carry parts. A synthetic message is either
   // context the user attached to the next prompt — exported as Context, the
   // way v1 exported it from inside the user message — or prompt plumbing a
@@ -153,6 +153,11 @@ export function formatMessageRecordAsMarkdown(record: SessionMessageRecord, next
   return `${role}\n\n${[text, timing].filter(Boolean).join('\n\n')}`;
 }
 
+/** A single record as exported Markdown, including already persisted tool timings. */
+export function formatMessageRecordAsMarkdown(record: SessionMessageRecord): string {
+  return formatRecordWithToolTiming(record);
+}
+
 function formatChildSessionAsMarkdown(child: ChildSessionExport, depth: number): string {
   const heading = '#'.repeat(Math.min(depth + 1, 6));
   const agentLabel = child.agent ? ` — ${child.agent}` : '';
@@ -160,7 +165,7 @@ function formatChildSessionAsMarkdown(child: ChildSessionExport, depth: number):
 
   const childSequence = toolSequence(child.records);
   const childBody = child.records
-    .map(record => formatMessageRecordAsMarkdown(record, childSequence))
+    .map(record => formatRecordWithToolTiming(record, childSequence))
     .filter(Boolean)
     .join('\n\n---\n\n');
 
@@ -187,7 +192,7 @@ export function formatSessionAsMarkdown(
 
   const sequence = toolSequence(messages);
   const body = messages
-    .map(record => formatMessageRecordAsMarkdown(record, sequence))
+    .map(record => formatRecordWithToolTiming(record, sequence))
     .filter(Boolean)
     .join('\n\n---\n\n');
 
