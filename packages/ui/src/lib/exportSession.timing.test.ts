@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import type { Message, Part } from '@/lib/opencode/model';
 import { formatSessionAsMarkdown } from './exportSession';
+import { projectToolPart } from './opencode/projection';
 
 type SessionRecord = { info: Message; parts: Part[] };
 type State = Extract<Part, { type: 'tool' }>['state'];
@@ -83,6 +84,31 @@ describe('per-call Markdown tool timing', () => {
     expect(running.duration_ms).toBe('unavailable');
     expect(running.duration_clock_skew_ms).toBeGreaterThan(0);
     expect(running.duration_source).toBe('unavailable');
+  });
+
+  test('projects real wire timings through Markdown without treating fallbacks as measured', () => {
+    const owner = { sessionID: 's', messageID: 'a' };
+    const project = (id: string, time: { created: number; ran?: number; completed?: number }, status: 'completed' | 'error' = 'completed') =>
+      projectToolPart({
+        type: 'tool',
+        id,
+        name: 'shell',
+        time,
+        state: status === 'completed'
+          ? { status, input: {}, content: [] }
+          : { status, input: {}, error: { type: 'tool.failed', message: 'failed' }, content: [] },
+      }, owner);
+    const missing = project('missing', { created: 1_000 });
+    const zero = project('zero', { created: 1_000, ran: 1_000, completed: 1_000 });
+    const long = project('long', { created: 1_000, ran: 1_000, completed: 1_727_500 });
+    const failed = project('failed', { created: 1_000, ran: 10, completed: 15 }, 'error');
+    const [unknown, measuredZero, measuredLong, error] = calls(formatSessionAsMarkdown([
+      answer('s', 'a', [missing, zero, long, failed]),
+    ]));
+    expect(unknown).toMatchObject({ started_at: 'unavailable', completed_at: 'unavailable', duration_ms: 'unavailable' });
+    expect(measuredZero).toMatchObject({ duration_ms: 0, duration_source: 'persisted_tool_state' });
+    expect(measuredLong).toMatchObject({ duration_ms: 1_726_500, duration_source: 'persisted_tool_state' });
+    expect(error).toMatchObject({ status: 'error', duration_ms: 5 });
   });
 
   test('does not count projected fallback timestamps as measured endpoints', () => {
