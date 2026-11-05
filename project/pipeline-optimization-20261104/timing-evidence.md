@@ -10,14 +10,21 @@ Scope: Markdown tool timing follow-up in commit e531696 and subsequent review fi
 - Native Bun/UI tests, typecheck, and build have **not** run: Bun was not found in PATH or searched install locations; workspace checkout/dependencies unavailable. This is not a native test pass.
 - Next step: run `bun test packages/ui/src/lib/exportSession*.test.ts packages/ui/src/lib/opencode/projection.test.ts packages/ui/src/sync/__tests__/interrupted-turn-tools.test.ts`, then typecheck/build in an isolated checkout before integration.
 
-## Executed check
+## Executed runtime check
 
-- Tested source SHA: `279a2b45e245d019555704ea5951d670e62b9057`.
-- Materialized blobs: `projection.ts=5ab3e4deb992515a932d0716475b501a9dd397ea`, `model.ts=a8e563c883316ed06fdf1afd339bdeefbd1bfcfb`, `modelIdentifier.ts=32282a87a95691d63af56c4f8f7e77d911faf165`.
-- Command (from `/tmp/timing-snapshot`):
+- Exact tested source SHA: `647e7377ff2cf82b98d86681c3575cedbda75708`.
+- Source blob SHAs: `projection.ts=5ab3e4deb992515a932d0716475b501a9dd397ea`, `model.ts=a8e563c883316ed06fdf1afd339bdeefbd1bfcfb`, `modelIdentifier.ts=32282a87a95691d63af56c4f8f7e77d911faf165`, `exportSession.ts=0c2e520c27adedf364ad454891d55378cf5b8be7`.
+- Materialized the exact TypeScript runtime import closure (83 files, 3,932,258 characters) under `/tmp/timing-export-snapshot` from GitHub API file contents in chunks. No checkout was changed.
+- Command (from `/tmp/timing-export-snapshot`):
 ```sh
-node --import /workspace/scratch/061630f1d1c5/openchamber-work/node_modules/tsx/dist/loader.mjs --input-type=module -e 'import assert from "node:assert/strict"; import {projectToolPart} from "./packages/ui/src/lib/opencode/projection.ts"; const o={sessionID:"s",messageID:"a"}; const make=(id,time,status="completed")=>projectToolPart({type:"tool",id,name:"shell",time,state:status==="completed"?{status,input:{},content:[]}:status==="error"?{status,input:{},error:{type:"failed",message:"failed"},content:[]}:status==="running"?{status,input:{}}:{status:"streaming",input:"{}"}},o); const pending=make("p",{created:1},"pending"); const running=make("r",{created:1},"running"); const unknown=make("u",{created:1}); const zero=make("z",{created:1,ran:1,completed:1}); const long=make("l",{created:1,ran:1000,completed:1727500}); const error=make("e",{created:1,ran:10,completed:15},"error"); assert.deepEqual(pending.timing,{startMeasured:false,endMeasured:false,endSource:"fallback"}); assert.deepEqual(running.timing,{startMeasured:false,endMeasured:false,endSource:"fallback"}); assert.deepEqual(unknown.timing,{startMeasured:false,endMeasured:false,endSource:"fallback"}); assert.deepEqual(zero.timing,{startMeasured:true,endMeasured:true,endSource:"persisted"}); assert.equal(zero.state.time.end-zero.state.time.start,0); assert.deepEqual(long.timing,{startMeasured:true,endMeasured:true,endSource:"persisted"}); assert.equal(long.state.time.end-long.state.time.start,1726500); assert.deepEqual(error.timing,{startMeasured:true,endMeasured:true,endSource:"persisted"}); console.log("projection runtime PASS at 279a2b4");'
+node --import /workspace/scratch/061630f1d1c5/openchamber-work/node_modules/tsx/dist/loader.mjs ./export-check.mjs
 ```
-- Result: projection runtime PASS for pending, running without ran, unknown completed fallback, measured 0 ms, 1,726,500 ms, and error provenance.
-- Exporter runtime attempt (from the same directory): `node --import /workspace/scratch/061630f1d1c5/openchamber-work/node_modules/tsx/dist/loader.mjs --input-type=module -e 'import {formatSessionAsMarkdown} from "./packages/ui/src/lib/exportSession.ts"; console.log(typeof formatSessionAsMarkdown)'` → NOT RUN: loader failed with `ERR_MODULE_NOT_FOUND` for `lib/i18n/messages/en` imported from `lib/i18n/store.ts`; the transitive source closure was 85 modules.
-- Bun tests, typecheck/build, and sync-context/UI runtime: NOT RUN.
+- Result: `actual projection+export runtime PASS`. The script imports the actual `projectToolPart` and `formatSessionAsMarkdown`, and checks unknown fallback, measured 0 ms, 1,726,500 ms, persisted error, running snapshot, and censored interruption.
+- Runtime limits: Node v24.22.1 and TSX 4.21.0 came from an existing different-generation checkout; its Bun install is 1.4.2 and repository is 2.1.1, while this source requires Bun 1.4.4 and package 2.5.2. Fuse.js 7.1.0 was checked against this branch's lock. This is an actual-module Node runtime check, not a locked-dependency or Bun test pass.
+
+## Bun / typecheck / build blocker
+
+- No Bun executable was found in PATH or searched local executable caches; `npm cache ls bun` was empty.
+- The allowed Git mirror host responds, but read-only `git ls-remote https://git.chatgpt-team.site/gest0r1/openchamber-ru.git refs/heads/feature/pipeline-optimization-20261104` stops with `could not read Username`. No credential was available through an authorized source.
+- The only existing OpenChamber checkout is a dirty different generation; its Git object database does not contain this branch SHA, and its package manager/lock generation differs.
+- Therefore native Bun exporter tests, typecheck, and build: **NOT RUN**. No claim of native PASS.
