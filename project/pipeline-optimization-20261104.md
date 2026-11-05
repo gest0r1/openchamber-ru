@@ -14,4 +14,6 @@
 - Тесты `bun test packages/ui/src/lib/exportSession*.test.ts`, `bun run check:changed`, type-check/build/UI не запускались: GitHub connector поддерживает remote read/write, но не предоставляет checkout/shell; основной контейнер не резолвит github.com. Запрещено использовать production сервер `sevami` для испытаний.
 - Релизы/merge/main/deploy/restart не выполнялись. Продолжать из основной записи my-opencode и тестировать оба репозитория **до** интеграции.
 
-Пример синтетического Markdown и provenance: [timing-evidence.md](https://github.com/gest0r1/my-opencode/blob/feature/pipeline-optimization-20261104/project/pipeline-optimization-20261104/timing-evidence.md).
+Пример синтетического Markdown: [markdown-timing-synthetic.md](https://github.com/gest0r1/my-opencode/blob/feature/pipeline-optimization-20261104/project/pipeline-optimization-20261104/artifacts/markdown-timing-synthetic.md). Фактический provenance и запуск exporter: [timing-evidence.md](pipeline-optimization-20261104/timing-evidence.md).
+
+Проверяемая передача двух веток (без production/Actions): [TESTING_HANDOFF.md](https://github.com/gest0r1/my-opencode/blob/feature/pipeline-optimization-20261104/project/pipeline-optimization-20261104/TESTING_HANDOFF.md). До upstream merge и полноценного Bun/build этот fork **не готов к слиянию**, только к тестированию опубликованного timing-кода.
