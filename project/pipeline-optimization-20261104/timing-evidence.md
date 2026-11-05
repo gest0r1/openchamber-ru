@@ -21,7 +21,7 @@ Scope: Markdown tool timing follow-up in commit e531696 and subsequent review fi
 - Materialized the exact TypeScript runtime import closure (83 files, 3,932,258 characters) under `/tmp/timing-export-snapshot` from GitHub API file contents in chunks. No checkout was changed.
 - To reproduce from the root of that materialized closure, save the following exact script as `export-check.mjs` and run the command shown below. The script directly imports the actual projection and exporter modules; it does not copy their implementations.
 
-```mjs
+````mjs
 import assert from "node:assert/strict";
 import { projectToolPart } from "./packages/ui/src/lib/opencode/projection.ts";
 import { formatSessionAsMarkdown } from "./packages/ui/src/lib/exportSession.ts";
@@ -44,7 +44,7 @@ const record = (parts) => ({
   info: { id: "a", sessionID: "s", role: "assistant", agent: "build", providerID: "openai", modelID: "gpt", time: { created: 1 } },
   parts,
 });
-const calls = (markdown) => [...markdown.matchAll(/\*\*Tool call timing\*\*\n\n`{3}json\n(\{[^\n]+\})\n`{3}/g)].map((match) => JSON.parse(match[1]));
+const calls = (markdown) => [...markdown.matchAll(/\*\*Tool call timing\*\*\n\n```json\n(\{[^\n]+\})\n```/g)].map((match) => JSON.parse(match[1]));
 
 const unknown = project("u", { created: 1000 });
 const zero = project("z", { created: 1000, ran: 1000, completed: 1000 });
@@ -72,7 +72,7 @@ assert.equal(i.duration_source, "observed_interruption");
 assert.equal(i.completed_at, "unavailable");
 assert.equal(i.duration_censored, true);
 console.log("actual projection+export runtime PASS");
-```
+````
 
 - Command (from the materialized root):
 ```sh
