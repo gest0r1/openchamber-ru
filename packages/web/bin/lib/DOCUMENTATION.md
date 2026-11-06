@@ -60,6 +60,7 @@ Command modules implement user-facing commands and preserve output contracts acr
   - Implements `openchamber update`.
   - Loads the package-manager helper, performs update flow, and coordinates restart behavior after updates.
   - Installs the exact version returned by the update check and verifies the globally installed version after the package manager exits; a zero exit status without the target version is a loud failure, not a success report (#3083).
+  - An instance that is the Linux startup service (its PID is the unit's `MainPID`) is not stopped before the install: with `Restart=always`, systemd would start the old release again while the package manager replaces its files. The service keeps running through the install, then `systemctl --user restart` starts the new release, the way the Update button does (#2542). The command then waits for `/health` to report the target version and fails with a pointer to `openchamber startup enable` when it does not, which is what a unit written by an older release looks like (#5793).
 
 - `commands-tunnel.js`
   - Implements `openchamber tunnel` and its subcommands: `profile`, `providers`, `ready`, `doctor`, `status`, `start`, `stop`, and `completion`.
@@ -106,6 +107,10 @@ These modules hold reusable, non-presentational logic for commands.
 - `cli-control.js`
   - Sends one typed action request to the authenticated OpenChamber control endpoint and maps HTTP failures to CLI exit behavior.
   - Must not reproduce session, scheduled-task, project-resolution, or wait orchestration.
+  - Every session create reserves the provisioning HTTP window, including a retry in an existing checkout, because it can still await checkout setup before selection. An explicit HTTP timeout remains authoritative.
+
+- `cli-shell.js`
+  - Quotes replay arguments for PowerShell on Windows and POSIX shells elsewhere. Session recovery and tunnel replay commands share this formatter.
 
 - `cli-api-target.js`
   - Resolves the target OpenChamber runtime for control-plane commands, preferring desktop unless a port is explicit.
@@ -131,6 +136,8 @@ These modules hold reusable, non-presentational logic for commands.
   - On Linux, `OPENCHAMBER_STARTUP_LAUNCHER` selects an existing absolute executable as the stable service entrypoint. Reject newlines and systemd specifiers before modifying startup state. Without it, retain the ordinary Node/CLI entrypoint.
   - Native `startup enable` owns unit/env writes, daemon reload, enable and restart. `--no-start` enables without starting or restarting.
   - `OPENCHAMBER_MIGRATE_MANAGED_STARTUP=1` removes only known drop-ins carrying a recognized ownership marker; other user drop-ins remain intact. External installers switch binaries and call native startup, without editing/restoring unit/env files.
+  - pnpm 11 and later install every global update into a new `global/v11/<dir>` and delete the old one; the link `global/v11/<hash>` beside it moves to each new directory, and pnpm's shim starts the CLI through it. When the CLI was started through that link, the service keeps the unresolved path, so a pnpm upgrade does not leave the unit pointing at a deleted directory (#5727).
+  - On Linux, `startup enable` restarts the unit after rewriting it. `enable --now` leaves a running service alone, so it kept the old unit and release while reporting `service active` (#5793). macOS already reloads the agent with `kickstart -k`.
   - The macOS LaunchAgent leaves `ProcessType` unset so launchd does not force the managed OpenCode child into background-tier scheduling. Re-running `startup enable` replaces an existing plist.
   - The environment snapshot drops the variables a running OpenChamber put into the enabling shell, read from the `OPENCHAMBER_INJECTED_ENV` record (`server/lib/injected-env.js`), so a service enabled from the desktop app's terminal or an agent's shell does not inherit that instance's runtime flags, UI password, managed OpenCode password, or the integrated terminal's `OPENCHAMBER_EMBEDDED_TERMINAL` marker (#4604). The user's own exports, `OPENCODE_HOST` included, still carry over. `cli-args.js` applies the same record to the `OPENCHAMBER_UI_PASSWORD` default.
 
@@ -148,11 +155,7 @@ These modules hold reusable, non-presentational logic for commands.
 - Add new CLI commands as `commands-*.js` modules and wire them from `cli.js`.
 - Add reusable logic to the narrow helper module that owns the domain. Create a new helper module before mixing unrelated domains into an existing one.
 - Keep command modules responsible for user-visible behavior and mode-specific output. Keep helper modules mostly output-free unless the helper exists specifically for CLI rendering.
-- Preserve output contracts when moving code:
-  - `--json` emits JSON only.
-  - `--quiet` emits concise essential output.
-  - Prompts are gated by `canPrompt(options)`.
-  - Validation and policy run in every mode.
+- Preserve the mode output contract when moving code (`clack-cli-patterns`, *Mode Contract*).
 - Prefer dependency injection from `cli.js` for cross-command behavior, especially when one command needs another command's implementation.
 - Do not import `cli.js` from modules in this directory. The dependency direction is `cli.js` -> command modules -> helper modules.
 
@@ -162,11 +165,4 @@ For CLI behavior changes, run the focused CLI suite from `packages/web`:
 
 ```sh
 bun run test -- bin/cli.test.js
-```
-
-Before finalizing source changes that affect CLI behavior, also run:
-
-```sh
-bun run type-check
-bun run lint
 ```

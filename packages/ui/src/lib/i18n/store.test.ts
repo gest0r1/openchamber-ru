@@ -43,6 +43,18 @@ describe('i18n store', () => {
     }
   });
 
+  test('loads Russian translations for existing and upstream keys', async () => {
+    try {
+      useI18nStore.getState().setLocale('ru');
+      await waitForLocaleLoadToSettle('ru');
+      const dictionary = useI18nStore.getState().dictionary;
+      expect(dictionary['opencodeCompatibility.title']).toBe('Требуется OpenCode v2');
+      expect(dictionary['chat.agentStatus.browser.capture']).toBe('делает снимок экрана');
+    } finally {
+      resetStore();
+    }
+  });
+
   test('loads the french dictionary', async () => {
     try {
       useI18nStore.getState().setLocale('fr');

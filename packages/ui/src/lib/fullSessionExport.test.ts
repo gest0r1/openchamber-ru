@@ -4,7 +4,7 @@ import { collectFullSessionExport, formatFullSessionAsMarkdown } from './fullSes
 
 const session = (id: string, parentID?: string): Session => ({
   id,
-  ...(parentID ? { parentID } : {}),
+  parentID,
   projectID: 'project',
   directory: `/repo/${id}`,
   title: id,
@@ -68,7 +68,7 @@ describe('full session export', () => {
       },
     };
 
-    const result = await collectFullSessionExport(root, records('root'), async (item) => records(item.id), client as never);
+    const result = await collectFullSessionExport(root, records('root'), async (item) => records(item.id), client);
 
     expect(result.root.children.map((item) => item.session.id)).toEqual(['child']);
     expect(result.root.children[0]?.children.map((item) => item.session.id)).toEqual(['grandchild']);
@@ -89,7 +89,7 @@ describe('full session export', () => {
     const result = await collectFullSessionExport(root, records('root'), async (item) => {
       if (item.id === 'broken') throw new Error('history unavailable');
       return records(item.id);
-    }, client as never);
+    }, client);
     const markdown = formatFullSessionAsMarkdown(result);
 
     expect(result.incompleteCount).toBe(1);
@@ -101,7 +101,7 @@ describe('full session export', () => {
   test('includes tool input, partial result, and error', async () => {
     const root = session('root');
     const client = { async listSessionsPage() { return { sessions: [], cursor: {} }; } };
-    const result = await collectFullSessionExport(root, records('root', true), async () => [], client as never);
+    const result = await collectFullSessionExport(root, records('root', true), async () => [], client);
     const markdown = formatFullSessionAsMarkdown(result);
 
     expect(markdown).toContain('Tool: `shell`');

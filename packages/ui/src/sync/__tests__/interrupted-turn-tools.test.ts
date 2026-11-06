@@ -23,11 +23,11 @@ function state(overrides: Partial<DirectoryStore> = {}): DirectoryStore {
   } as unknown as DirectoryStore
 }
 
-function toolPart(id: string, messageID: string, state: ToolPart["state"]): Part {
+function toolPart(id: string, messageID: string, state: ToolPart["state"]): ToolPart {
   return { id, messageID, sessionID: "ses_1", type: "tool", callID: `call-${id}`, tool: "bash", state }
 }
 
-function runningTool(id: string, messageID: string, start = 1000): Part {
+function runningTool(id: string, messageID: string, start = 1000): ToolPart {
   return toolPart(id, messageID, { status: "running", time: { start }, input: {} })
 }
 

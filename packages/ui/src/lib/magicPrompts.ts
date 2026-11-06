@@ -533,7 +533,9 @@ Focus on correctness, regressions, missing implementation, missing tests, and wh
     ],
     template: `Another agent reviewed your changes and left the feedback below.
 
-Fix the findings you agree with. When you think a finding is wrong, leave the code as it is and explain why. Then list what you changed and which findings you declined, with the reason for each.
+Weigh each finding yourself before you act on it. A problem your change neither causes nor set out to fix, such as another path, a rare case or a small cost that was there before, is a nit whatever label it came with. Something your change breaks is never a nit, however rare. Fix what is wrong in the case this change is for, with the smallest fix: one that deletes or narrows code beats a new guard, helper, option or test the goal does not need. When you think a finding is wrong, leave the code as it is and say why, with evidence: file and line, a test, command output. Decline nits and anything outside the change in one line each. Do not agree with a finding just to end the review.
+
+Then list what you changed and which findings you declined, with the reason for each.
 
 {{review_feedback}}`,
   },
@@ -893,7 +895,8 @@ During this session, save no new memories: you only restructure what is already 
 - Partly outdated: rewrite it by memoryId with what is true now.
 - Wrong scope: something about this project filed under the user (global), or the other way round. Save it in the right scope, then delete the original.
 - One-off task state and anything the save rules exclude: delete.
-- A date in a title that only records when a decision was made: keep the decision; drop the date if the title needs the room.
+- A title with a date, or cut off mid-word: rewrite it by memoryId without the date, in at most 60 characters. The store keeps the dates, and they are what settles a contradiction.
+- A title that names only a topic ("Product decisions, part 2", "Feedback: what is still open"): rewrite it by memoryId to name what the entry holds, so an agent can tell from the session index whether to read it. Do not split the entry to do so.
 - Entries marked flagged: leave them alone; the user decides on those.
 An entry nothing contradicts still holds. Leave it as it is.
 

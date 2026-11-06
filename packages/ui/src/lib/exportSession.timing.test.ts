@@ -6,7 +6,7 @@ import { projectToolPart } from './opencode/projection';
 type SessionRecord = { info: Message; parts: Part[] };
 type State = Extract<Part, { type: 'tool' }>['state'];
 
-function call(sessionID: string, messageID: string, callID: string, tool: string, state: State): Part {
+function call(sessionID: string, messageID: string, callID: string, tool: string, state: State): Extract<Part, { type: 'tool' }> {
   return { id: `tool_${callID}`, sessionID, messageID, type: 'tool', callID, tool, state };
 }
 
@@ -18,9 +18,11 @@ function answer(sessionID: string, messageID: string, parts: Part[]): SessionRec
   };
 }
 
-function calls(markdown: string): Array<Record<string, unknown>> {
+type ToolTiming = { session_id: string; call_id: string; started_at: string; completed_at: string; duration_ms: number | 'unavailable'; duration_source: string; duration_final: boolean; duration_generated_at: string; duration_clock_skew_ms: number | 'unavailable'; next_tool_started_at: string; next_tool_start_gap_ms: number | 'unavailable'; overlaps_next: boolean | 'unavailable' };
+
+function calls(markdown: string): ToolTiming[] {
   return [...markdown.matchAll(/\*\*Tool call timing\*\*\n\n```json\n(\{[^\n]+\})\n```/g)]
-    .map(match => JSON.parse(match[1]!) as Record<string, unknown>);
+    .map(match => JSON.parse(match[1]!));
 }
 
 describe('per-call Markdown tool timing', () => {
@@ -40,11 +42,13 @@ describe('per-call Markdown tool timing', () => {
     expect(a.completed_at).toBe('1970-01-01T00:28:47.500Z');
     expect(b.duration_ms).toBe(25);
     expect(b.next_tool_started_at).toBe('unavailable');
-    expect(markdown).toMatch(/generated_at: .*Z; timezone: /);
+    expect(markdown.includes('generated_at: ') && /Z; timezone: /.test(markdown)).toBe(true);
     expect(markdown).toContain('timestamps: UTC ISO-8601');
   });
 
   test('does not invent a final duration for running, pending, error with missing timestamps or legacy', () => {
+    // SAFETY: This legacy fixture intentionally omits time to test persisted records predating that field.
+    const legacyState = { status: 'completed', input: {}, output: '' } as State;
     const records = [
       answer('parent', 'a1', [call('parent', 'a1', 'error', 'shell', {
         status: 'error', input: {}, error: 'interrupted', time: { start: 10, end: 15 },
@@ -53,13 +57,11 @@ describe('per-call Markdown tool timing', () => {
       }), call('parent', 'a1', 'pending', 'read', {
         status: 'pending', input: {}, raw: '',
       })]),
-      answer('parent', 'a2', [call('parent', 'a2', 'legacy', 'shell', {
-        status: 'completed', input: {}, output: '',
-      } as unknown as State)]),
+      answer('parent', 'a2', [call('parent', 'a2', 'legacy', 'shell', legacyState)]),
     ];
     const [error, active, pending, legacy] = calls(formatSessionAsMarkdown(records));
     expect(error).toMatchObject({ status: 'error', duration_ms: 5, duration_final: true, duration_source: 'persisted_tool_state' });
-    expect(active).toMatchObject({ status: 'running', completed_at: 'unavailable', duration_ms: 'unavailable' });
+    expect(active).toMatchObject({ status: 'running', completed_at: 'unavailable', duration_final: false, duration_source: 'export_snapshot' });
     expect(pending).toMatchObject({ status: 'pending', started_at: 'unavailable', duration_ms: 'unavailable' });
     expect(legacy).toMatchObject({ status: 'completed', started_at: 'unavailable', completed_at: 'unavailable', duration_ms: 'unavailable' });
   });
@@ -95,8 +97,8 @@ describe('per-call Markdown tool timing', () => {
         name: 'shell',
         time,
         state: status === 'completed'
-          ? { status, input: {}, content: [] }
-          : { status, input: {}, error: { type: 'tool.failed', message: 'failed' }, content: [] },
+          ? { status, input: {}, content: [{ type: 'text', text: '' }] }
+          : { status, input: {}, error: { type: 'tool.failed', message: 'failed' }, content: [{ type: 'text', text: '' }] },
       }, owner);
     const missing = project('missing', { created: 1_000 });
     const zero = project('zero', { created: 1_000, ran: 1_000, completed: 1_000 });
@@ -114,7 +116,7 @@ describe('per-call Markdown tool timing', () => {
   test('exports interruption as a censored observation rather than process completion', () => {
     const interrupted = call('s', 'a', 'stopped', 'shell', {
       status: 'error', input: {}, error: 'Interrupted', time: { start: 1_000, end: 5_000 },
-    }) as Extract<Part, { type: 'tool' }>;
+    });
     interrupted.timing = { startMeasured: true, endMeasured: false, endSource: 'interruption_observed' };
     const [tool] = calls(formatSessionAsMarkdown([answer('s', 'a', [interrupted])]));
     expect(tool).toMatchObject({
@@ -130,7 +132,7 @@ describe('per-call Markdown tool timing', () => {
   test('does not count projected fallback timestamps as measured endpoints', () => {
     const projectedFallback = call('s', 'a', 'unknown', 'shell', {
       status: 'completed', input: {}, output: '', time: { start: 1_000, end: 1_000 },
-    }) as Extract<Part, { type: 'tool' }>;
+    });
     projectedFallback.timing = { startMeasured: false, endMeasured: false };
     const [unknown] = calls(formatSessionAsMarkdown([answer('s', 'a', [projectedFallback])]));
     expect(unknown.started_at).toBe('unavailable');

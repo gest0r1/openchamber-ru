@@ -1,12 +1,16 @@
 import { asNonEmptyString, isBoolean } from '../shared/guards.js';
 import path from 'node:path';
+import nodeFsPromises from 'node:fs/promises';
 import { OpenCode } from '@opencode/client';
 import { OpenChamberControlError, asControlError } from './error.js';
 import { OPENCHAMBER_ALL_ACTIONS, OPENCHAMBER_KNOWLEDGE_ACTIONS } from './actions.js';
 import { writeScreenshot } from './screenshots.js';
 import { createProjectKnowledgeActions } from './project-knowledge.js';
 import { createPageAnswers, createRenderPageAction } from './render-page.js';
+import { createImageGenerationAction } from './generate-image.js';
+import { createSecretRequests } from './secret-request.js';
 import { createWorkNamer } from '../openchamber-sessions/work-naming.js';
+import { CHATS_SCOPE_PUBLIC_ID } from '../scheduled-tasks/chats-scope.js';
 
 const DEFAULT_WAIT_TIMEOUT_SECONDS = 600;
 const MAX_WAIT_TIMEOUT_SECONDS = 86_400;
@@ -217,6 +221,7 @@ export const createOpenChamberControlService = (dependencies) => {
     getOpenCodeAuthHeaders,
     waitForOpenCodeReady,
     sessionService,
+    chatsScope = null,
     scheduledTaskService,
     browserControl = null,
     fileOpen = null,
@@ -230,16 +235,23 @@ export const createOpenChamberControlService = (dependencies) => {
     resolveProjectContextId = null,
     isKnowledgeToolEnabled = async () => true,
     isRenderToolEnabled = async () => true,
+    isSecretToolEnabled = async () => true,
+    // Where `secret.request` writes what the user saves
+    // (`createSecretFiles`); absent means the server cannot take secrets.
+    secretFiles = null,
     // Hears when a page an agent shows starts and stops waiting for the
-    // user's answer (render.page with awaitAnswer).
+    // user's answer (render.page with awaitAnswer, and secret.request).
     onPageWaitChange = () => {},
     // Puts a plan in front of the user; answers how many windows it reached.
     showPlan = null,
     // Delivers a dispatched session's result back to the session that asked
     // (`returnResult`); absent means the server cannot offer it.
     dispatchResults = null,
-    // Agent workflows (../workflows/runtime.js); absent where they are not
-    // available, which is every build without OPENCHAMBER_WORKFLOWS_ENABLE.
+    // An agent waiting on its pull request (../pr-watch); absent means the
+    // server cannot offer it.
+    prWatch = null,
+    // Agent workflows (../workflows/runtime.js); absent means the server
+    // cannot offer them.
     workflowRuntime = null,
     // Archive lives in OpenChamber's own store now — v2 has no route that sets
     // Session.time.archived — so an unwired store simply means nothing is archived.
@@ -247,6 +259,8 @@ export const createOpenChamberControlService = (dependencies) => {
     // Whether OpenCode may open a folder (../opencode-trust); absent opens every folder.
     isOpenCodeDirectoryTrusted = null,
     createClient = OpenCode.make,
+    // Reads an agent's reference images and writes the generated ones.
+    imageFsPromises = nodeFsPromises,
     sleep = (duration) => new Promise((resolve) => setTimeout(resolve, duration)),
     now = Date.now,
   } = dependencies;
@@ -298,10 +312,6 @@ export const createOpenChamberControlService = (dependencies) => {
       const client = await getClient();
       return client.session.get({ sessionID }).catch(() => null);
     },
-    renameSession: async (sessionID, title, directory) => {
-      const client = await getClient(directory);
-      await client.session.update({ sessionID, title });
-    },
     createError: (message, status) => new OpenChamberControlError(message, status),
   }) : null;
 
@@ -318,11 +328,14 @@ export const createOpenChamberControlService = (dependencies) => {
 
   const projects = async () => {
     const settings = await readSettingsFromDiskMigrated();
-    return sanitizeProjects(settings?.projects || []).map((project) => ({
+    const configured = sanitizeProjects(settings?.projects || []).map((project) => ({
       id: project.id,
       path: path.resolve(project.path),
       label: asNonEmptyString(project.label) || path.basename(project.path) || project.path,
     }));
+    return chatsScope
+      ? [...configured, { id: CHATS_SCOPE_PUBLIC_ID, path: chatsScope.root, label: 'Chats' }]
+      : configured;
   };
 
   // projectId and directory are two names for one scope. Accepting both let
@@ -351,8 +364,28 @@ export const createOpenChamberControlService = (dependencies) => {
     resolveDirectory: (input) => sessionService.resolveDirectory(input),
   });
 
+  // A message the user steered into the turn stays in OpenCode's inbox until
+  // a step ends. A queued one waits for the turn to end, so the page's call
+  // returning would not deliver it. A failed read counts as none, so the page
+  // waits as it did before this check.
+  const hasUnreadChat = async (sessionID) => {
+    try {
+      const client = await getClient();
+      const items = await client.session.inbox.list({ sessionID });
+      return items.some((item) => item.type === 'user' && item.delivery === 'steer');
+    } catch (error) {
+      console.warn('[render.page] could not read the session inbox:', error?.message ?? error);
+      return false;
+    }
+  };
   const pageAnswers = createPageAnswers({ onWaitChange: onPageWaitChange });
-  const renderPage = createRenderPageAction({ isEnabled: isRenderToolEnabled, pageAnswers });
+  const renderPage = createRenderPageAction({ isEnabled: isRenderToolEnabled, pageAnswers, hasUnreadChat });
+  const secretRequests = createSecretRequests({ isEnabled: isSecretToolEnabled, files: secretFiles, onWaitChange: onPageWaitChange, hasUnreadChat });
+  const generateImage = createImageGenerationAction({
+    getClient,
+    readSettings: readSettingsFromDiskMigrated,
+    fsPromises: imageFsPromises,
+  });
 
   const models = async () => {
     const settings = await readSettingsFromDiskMigrated();
@@ -430,6 +463,27 @@ export const createOpenChamberControlService = (dependencies) => {
       total: matching.length,
       next: offset + limit < matching.length ? offset + limit : null,
     };
+  };
+
+  // Only validate a named model so tasks with a removed model stay editable.
+  const assertNamedModelKnown = async (projectID, input, task) => {
+    if (input.model === undefined) return;
+    const parsed = parseModel(input.model);
+    const directory = await scheduledTaskService.resolveExecutionDirectory(projectID, task.targetSessionId);
+    const client = await getClient(directory);
+    const catalog = await client.model.list();
+    const entries = Array.isArray(catalog.data) ? catalog.data : [];
+    if (entries.length === 0) return;
+    // Same matcher as the session routes' `findCatalogModel`: a catalog entry
+    // may carry a display override in `id`, and the `modelID` is the upstream
+    // name the fire path dispatches and the UI's model strings carry, so
+    // either form names a model that will run.
+    const known = entries
+      .some((model) => model.providerID === parsed.providerID
+        && (model.id === parsed.modelID || model.modelID === parsed.modelID));
+    if (!known) {
+      throw new OpenChamberControlError(`unknown model: ${parsed.providerID}/${parsed.modelID}`, 400);
+    }
   };
 
   // /api/session/active is global in v2 and reports only `{ type: 'running' }`.
@@ -896,6 +950,17 @@ export const createOpenChamberControlService = (dependencies) => {
           signal: options.signal,
         });
       }
+      if (action === 'image.generate') {
+        return await generateImage(input, { directory: asNonEmptyString(contextDirectory), signal: options.signal });
+      }
+      if (action === 'secret.request') {
+        return await secretRequests.request(input, {
+          sessionId: asNonEmptyString(options.contextSessionId),
+          callId: asNonEmptyString(options.contextCallId),
+          directory: asNonEmptyString(contextDirectory),
+          signal: options.signal,
+        });
+      }
       if (action === 'file.open') {
         if (!fileOpen) {
           throw new OpenChamberControlError('The file viewer is not available on this server', 503);
@@ -928,13 +993,17 @@ export const createOpenChamberControlService = (dependencies) => {
           case 'schedule.list':
             return { scheduler: await scheduledTaskService.status(), tasks: await scheduledTaskService.list(projectID) };
           case 'schedule.create': {
-            const result = await scheduledTaskService.upsert(projectID, buildScheduledTask(input));
+            const task = buildScheduledTask(input);
+            await assertNamedModelKnown(projectID, input, task);
+            const result = await scheduledTaskService.upsert(projectID, task);
             return { task: result.task, created: result.created };
           }
           case 'schedule.update': {
             const existing = (await scheduledTaskService.list(projectID)).find((task) => task.id === taskID);
             if (!existing) throw new OpenChamberControlError(`Scheduled task not found: ${taskID}`, 404);
-            const result = await scheduledTaskService.upsert(projectID, patchScheduledTask(existing, input));
+            const task = patchScheduledTask(existing, input);
+            await assertNamedModelKnown(projectID, input, task);
+            const result = await scheduledTaskService.upsert(projectID, task);
             return { task: result.task, updated: true };
           }
           case 'schedule.run':
@@ -969,6 +1038,19 @@ export const createOpenChamberControlService = (dependencies) => {
         const link = input.link ?? { url: input.url, title: input.title, kind: input.kind, identifier: input.identifier };
         return sessionLinks.link({ sessionId: sessionID, directory, link });
       }
+      if (action === 'pr.watch' || action === 'pr.unwatch') {
+        if (!prWatch) throw new OpenChamberControlError('Waiting on a pull request is not available on this server', 503);
+        // Always the calling session: it is the one a change wakes.
+        const sessionID = asNonEmptyString(options.contextSessionId);
+        if (!sessionID) throw new OpenChamberControlError(`${action} must be called from a session`, 400);
+        try {
+          if (action === 'pr.unwatch') return await prWatch.unwatch(sessionID);
+          const directory = (await resolveSessionDirectory(sessionID)) || asNonEmptyString(contextDirectory);
+          return await prWatch.watch({ sessionID, directory, url: input.url });
+        } catch (error) {
+          throw new OpenChamberControlError(error?.message ?? String(error), Number.isInteger(error?.status) ? error.status : 500);
+        }
+      }
       if (action === 'work.name') {
         if (!workNamer) throw new OpenChamberControlError('Naming tasks is not available on this server', 503);
         const sessionID = asNonEmptyString(input.sessionId) || asNonEmptyString(options.contextSessionId);
@@ -994,7 +1076,13 @@ export const createOpenChamberControlService = (dependencies) => {
         const payload = { worktree };
         if (directory) payload.directory = directory;
         if (input.carry !== undefined) payload.carry = input.carry;
-        return sessionService.moveToWorktree(sessionID, payload);
+        const moved = await sessionService.moveToWorktree(sessionID, payload);
+        // A new branch takes the task's name along; an existing branch keeps its own.
+        if (workNamer && !existingBranch && moved?.worktree?.path) {
+          await workNamer.carryToWorktree({ sessionId: sessionID, worktree: moved.worktree.path })
+            .catch((error) => console.warn('Failed to carry the task name into the new worktree:', error instanceof Error ? error.message : String(error)));
+        }
+        return moved;
       }
       if (action.startsWith('session.')) {
         const sessionID = asNonEmptyString(input.sessionId);
@@ -1073,5 +1161,5 @@ export const createOpenChamberControlService = (dependencies) => {
   // id and the directory is resolved here, where it is authoritative.
   // `answerPage` is the chat's side of a page that waits (render.page with
   // awaitAnswer).
-  return { execute, resolveSessionDirectory, answerPage: pageAnswers.answer, isPageWaiting: pageAnswers.isWaiting };
+  return { execute, resolveSessionDirectory, answerPage: pageAnswers.answer, isPageWaiting: pageAnswers.isWaiting, answerSecret: secretRequests.answer };
 };

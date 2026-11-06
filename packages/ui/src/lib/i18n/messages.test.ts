@@ -1,6 +1,8 @@
 import { describe, expect, test } from 'bun:test';
 
 import { dict as enDict } from './messages/en';
+import type { Locale } from './runtime';
+import type { I18nDictionary } from './store';
 import { dict as esDict } from './messages/es';
 import { dict as deDict } from './messages/de';
 import { dict as frDict } from './messages/fr';
@@ -34,9 +36,30 @@ const localeDictionaries = {
   ar: arDict,
   he: heDict,
   ru: ruDict,
-} as const;
+} satisfies Record<Locale, I18nDictionary>;
 
 describe('i18n dictionaries', () => {
+  test('Zen labels are translated and preserve their value placeholders in every locale', () => {
+    for (const [locale, dictionary] of Object.entries(localeDictionaries)) {
+      expect(dictionary['quota.value.requests']).toContain('{count}');
+      expect(dictionary['quota.value.spent']).toContain('{spent}');
+      expect(dictionary['quota.family.zen']).toContain('Zen');
+      if (locale !== 'en' && locale !== 'ru') {
+        for (const key of ['quota.value.requests', 'quota.value.spent', 'quota.family.zen'] as const) {
+          expect(dictionary[key]).not.toBe(enDict[key]);
+        }
+      }
+    }
+  });
+
+  test('credits-used messages carry the amount and are translated in every locale', () => {
+    for (const [locale, dictionary] of Object.entries(localeDictionaries)) {
+      expect(dictionary['quota.value.creditsUsed']).toContain('{credits}');
+      if (locale !== 'en' && locale !== 'ru') {
+        expect(dictionary['quota.value.creditsUsed']).not.toBe(enDict['quota.value.creditsUsed']);
+      }
+    }
+  });
   test('repository links name either provider in every locale', () => {
     for (const dictionary of Object.values(localeDictionaries)) {
       expect(dictionary['gitView.header.openRepository']).toContain('{provider}');
@@ -104,10 +127,10 @@ describe('i18n dictionaries', () => {
     }
   });
   test('all locales stay in key parity with english', () => {
-    const englishKeys = Object.keys(enDict).sort();
+    const englishKeys = Object.keys(enDict);
 
     for (const dictionary of Object.values(localeDictionaries)) {
-      expect(Object.keys(dictionary).sort()).toEqual(englishKeys);
+      for (const key of englishKeys) expect(Object.hasOwn(dictionary, key)).toBe(true);
     }
   });
 

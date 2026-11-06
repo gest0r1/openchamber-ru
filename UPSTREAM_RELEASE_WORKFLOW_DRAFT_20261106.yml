@@ -1,0 +1,481 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v[0-9]*.[0-9]*.[0-9]*'
+  workflow_run:
+    workflows: ['OpenChamber V2 Linux web package']
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (e.g., 0.1.0)'
+        required: true
+        type: string
+      dry_run:
+        description: 'Dry run (skip publishing)'
+        required: false
+        default: false
+        type: boolean
+
+concurrency:
+  group: release-publication
+  cancel-in-progress: false
+
+env:
+  NODE_OPTIONS: --max-old-space-size=6144
+  CARGO_INCREMENTAL: 0
+  RUST_BACKTRACE: short
+
+permissions:
+  contents: read
+
+jobs:
+  authorize-release:
+    permissions:
+      contents: read
+    if: ${{ github.event_name != 'workflow_run' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main' && github.event.workflow_run.head_repository.full_name == github.repository) }}
+    runs-on: ubuntu-24.04
+    outputs:
+      proceed: ${{ steps.identity.outputs.proceed }}
+      source_sha: ${{ steps.identity.outputs.source_sha }}
+      version: ${{ steps.identity.outputs.version }}
+      app_version: ${{ steps.identity.outputs.app_version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+      - name: Resolve immutable release request
+        id: identity
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT_NAME: ${{ github.event_name }}
+          SOURCE_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+          INPUT_VERSION: ${{ inputs.version }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          if [[ "$EVENT_NAME" == workflow_run ]]; then
+            version=$(node -p "require('./.github/release-request.json').version")
+          elif [[ -n "$INPUT_VERSION" ]]; then
+            version="$INPUT_VERSION"
+          else
+            version="${REF_NAME#v}"
+          fi
+          # Fork releases keep the upstream app version and add a fork number: 2.3.1.3 tags
+          # and names the release; packages, artifacts and the updater stay on 2.3.1.
+          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(\.[0-9]+)?$ ]]
+          app_version="$(printf '%s' "$version" | cut -d. -f1-3)"
+          VERSION="$app_version" node - <<'NODE'
+          for (const file of ['package.json', 'packages/web/package.json', 'packages/electron/package.json']) {
+            if (require('./' + file).version !== process.env.VERSION) throw Error(`Release version mismatch: ${file}`);
+          }
+          NODE
+          echo "app_version=$app_version" >> "$GITHUB_OUTPUT"
+          echo "source_sha=$SOURCE_SHA" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          if release="$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/v$version" 2>release-error.log)"; then
+            if [[ "$(printf '%s' "$release" | node -e 'let s="";process.stdin.on("data",c=>s+=c).on("end",()=>console.log(JSON.parse(s).draft))')" == true ]]; then
+              echo 'Resuming draft release with all platforms rebuilt from the requested source.'
+              echo 'proceed=true' >> "$GITHUB_OUTPUT"
+            elif [[ "$EVENT_NAME" == workflow_run ]]; then
+              echo 'Published version already exists; skipping.'
+              echo 'proceed=false' >> "$GITHUB_OUTPUT"
+            else
+              echo 'Published release already exists; refusing to overwrite it' >&2; exit 1
+            fi
+          elif grep -q 'HTTP 404' release-error.log; then
+            echo 'proceed=true' >> "$GITHUB_OUTPUT"
+          else
+            cat release-error.log >&2; exit 1
+          fi
+
+
+  create-release:
+    permissions:
+      contents: write
+    needs: authorize-release
+    if: ${{ needs.authorize-release.outputs.proceed == 'true' }}
+    runs-on: ubuntu-latest
+    outputs:
+      source_sha: ${{ needs.authorize-release.outputs.source_sha }}
+      release_id: ${{ steps.create_release.outputs.id }}
+      release_upload_url: ${{ steps.create_release.outputs.upload_url }}
+      version: ${{ steps.get_version.outputs.version }}
+      app_version: ${{ needs.authorize-release.outputs.app_version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.authorize-release.outputs.source_sha }}
+
+      - name: Get version
+        id: get_version
+        env:
+          VERSION: ${{ needs.authorize-release.outputs.version }}
+        run: echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Extract changelog for release
+        id: release_notes
+        env:
+          VERSION: ${{ steps.get_version.outputs.version }}
+        run: |
+          title=$(node scripts/changelog/release-notes.mjs "$VERSION" artifacts/release-notes.md)
+          echo "name=OpenChamber v$VERSION: $title" >> "$GITHUB_OUTPUT"
+
+      - name: Point unpublished release tag at the requested source
+        if: ${{ github.event.inputs.dry_run != 'true' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_SHA: ${{ needs.authorize-release.outputs.source_sha }}
+          VERSION: ${{ steps.get_version.outputs.version }}
+        run: |
+          set -euo pipefail
+          if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/v$VERSION" >/dev/null 2>tag-error.log; then
+            gh api --method PATCH "repos/$GITHUB_REPOSITORY/git/refs/tags/v$VERSION" -f sha="$SOURCE_SHA" -F force=true >/dev/null
+          elif ! grep -q 'HTTP 404' tag-error.log; then
+            cat tag-error.log >&2; exit 1
+          fi
+
+      - name: Create GitHub Release
+        if: ${{ github.event.inputs.dry_run != 'true' }}
+        id: create_release
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
+        with:
+          tag_name: v${{ steps.get_version.outputs.version }}
+          target_commitish: ${{ needs.authorize-release.outputs.source_sha }}
+          draft: true
+          generate_release_notes: false
+          body_path: artifacts/release-notes.md
+          name: ${{ steps.release_notes.outputs.name }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  package-web:
+    permissions:
+      contents: write
+    needs: create-release
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.create-release.outputs.source_sha }}
+
+      - name: Reuse the verified exact-SHA web package
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_SHA: ${{ needs.create-release.outputs.source_sha }}
+          VERSION: ${{ needs.create-release.outputs.app_version }}
+        run: node scripts/reuse-release-web-package.mjs
+
+      - name: Upload npm tarball to release
+        if: ${{ github.event.inputs.dry_run != 'true' }}
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
+        with:
+          tag_name: v${{ needs.create-release.outputs.version }}
+          draft: true
+          files: packages/web/*.tgz
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+
+  build-desktop-electron-windows:
+    permissions:
+      contents: write
+    needs: create-release
+    # windows-latest currently resolves to a runner with Visual Studio 18,
+    # which this electron/node-gyp stack does not detect correctly.
+    runs-on: windows-2022
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x64
+            target: x86_64-pc-windows-msvc
+            platform: win32-x64
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.create-release.outputs.source_sha }}
+
+      - name: Setup bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24'
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Get bundled OpenCode CLI version
+        id: opencode_cli_version
+        shell: bash
+        run: |
+          VERSION=$(node -p "require('./packages/electron/package.json').opencodeCli.version")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Cache bundled OpenCode CLI artifact
+        uses: actions/cache@0400d5f644dc74513175e3cd8d07132dd4860809 # v4.2.4
+        with:
+          path: packages/electron/.cache/opencode-cli
+          key: opencode-cli-${{ runner.os }}-${{ matrix.arch }}-${{ steps.opencode_cli_version.outputs.version }}
+          restore-keys: |
+            opencode-cli-${{ runner.os }}-${{ matrix.arch }}-
+
+      - name: Build web assets
+        working-directory: packages/electron
+        run: bun run build:web-assets
+
+      - name: Prepare bundled OpenCode CLI
+        working-directory: packages/electron
+        shell: bash
+        env:
+          # OpenCode and ripgrep are prepared for the matrix target arch.
+          OPENCHAMBER_TARGET_ARCH: ${{ matrix.arch }}
+        run: |
+          bun run prepare:opencode-cli
+          bun run verify:opencode-cli
+          bun run prepare:ripgrep
+
+      - name: Bundle main process
+        working-directory: packages/electron
+        run: bun run bundle:main
+
+      - name: Rebuild native modules
+        working-directory: packages/electron
+        shell: bash
+        env:
+          ELECTRON_BUILDER_ARCH: ${{ matrix.arch }}
+        # npmRebuild=false in package.json, so electron-builder won't
+        # recompile native deps on its own — we must rebuild against the
+        # target Electron ABI before packaging.
+        run: node ./scripts/rebuild-native.mjs
+
+      - name: Build Windows app
+        working-directory: packages/electron
+        shell: bash
+        env:
+          # verify:opencode-cli:packaged checks the CLI against the target arch.
+          OPENCHAMBER_TARGET_ARCH: ${{ matrix.arch }}
+        run: |
+          node ./scripts/package.mjs --win --${{ matrix.arch }} --publish=never
+          bun run verify:opencode-cli:packaged
+
+      - name: Validate Windows update manifest
+        shell: bash
+        env:
+          VERSION: ${{ needs.create-release.outputs.app_version }}
+        run: node packages/electron/scripts/verify-update-manifest.mjs packages/electron/dist/latest.yml "$VERSION" "packages/electron/dist/OpenChamber-${VERSION}-win-x64.exe"
+
+      - name: Upload installer to release
+        if: ${{ github.event.inputs.dry_run != 'true' }}
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
+        with:
+          tag_name: v${{ needs.create-release.outputs.version }}
+          draft: true
+          files: |
+            packages/electron/dist/*.exe
+            packages/electron/dist/*.blockmap
+            packages/electron/dist/latest.yml
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build-desktop-electron-linux:
+    permissions:
+      contents: write
+    needs: create-release
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            arch: x64
+            host_arch: x86_64
+            artifact_arch: x86_64
+            deb_arch: amd64
+            rpm_arch: x86_64
+            manifest: latest-linux.yml
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.create-release.outputs.source_sha }}
+
+      - name: Setup bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24'
+
+      - name: Verify native Linux architecture
+        env:
+          EXPECTED_HOST_ARCH: ${{ matrix.host_arch }}
+          OPENCHAMBER_TARGET_ARCH: ${{ matrix.arch }}
+        run: |
+          set -euo pipefail
+          test "$(uname -m)" = "$EXPECTED_HOST_ARCH"
+          test "$(node -p 'process.arch')" = "$OPENCHAMBER_TARGET_ARCH"
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Install rpmbuild for the .rpm package
+        run: sudo apt-get update && sudo apt-get install -y rpm
+
+      - name: Get bundled OpenCode CLI version
+        id: opencode_cli_version
+        shell: bash
+        run: |
+          VERSION=$(node -p "require('./packages/electron/package.json').opencodeCli.version")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Cache bundled OpenCode CLI artifact
+        uses: actions/cache@0400d5f644dc74513175e3cd8d07132dd4860809 # v4.2.4
+        with:
+          path: packages/electron/.cache/opencode-cli
+          key: opencode-cli-${{ runner.os }}-${{ matrix.arch }}-${{ steps.opencode_cli_version.outputs.version }}
+          restore-keys: |
+            opencode-cli-${{ runner.os }}-${{ matrix.arch }}-
+
+      - name: Run focused Electron release tests
+        working-directory: packages/electron
+        run: |
+          bun run test:architecture
+          bun run test:updater
+
+      - name: Build and package Linux AppImage, .deb and .rpm
+        working-directory: packages/electron
+        env:
+          OPENCHAMBER_TARGET_ARCH: ${{ matrix.arch }}
+        run: |
+          set -euo pipefail
+          bun run build:web-assets
+          bun run prepare:opencode-cli
+          bun run verify:opencode-cli
+          bun run prepare:ripgrep
+          bun run bundle:main
+          bun run rebuild:native
+          node ./scripts/package.mjs --linux --${{ matrix.arch }} --publish=never
+          bun run verify:opencode-cli:packaged
+          bun run verify:linux-appimage
+
+      - name: Validate Linux update manifest
+        working-directory: packages/electron
+        env:
+          VERSION: ${{ needs.create-release.outputs.app_version }}
+          ARTIFACT_ARCH: ${{ matrix.artifact_arch }}
+          DEB_ARCH: ${{ matrix.deb_arch }}
+          RPM_ARCH: ${{ matrix.rpm_arch }}
+          MANIFEST: ${{ matrix.manifest }}
+        run: |
+          set -euo pipefail
+          node ./scripts/verify-update-manifest.mjs "dist/${MANIFEST}" "$VERSION" \
+            "dist/OpenChamber-${VERSION}-linux-${ARTIFACT_ARCH}.AppImage" \
+            "dist/OpenChamber-${VERSION}-linux-${DEB_ARCH}.deb" \
+            "dist/OpenChamber-${VERSION}-linux-${RPM_ARCH}.rpm"
+
+      - name: Publish validated Linux release files
+        if: ${{ github.event.inputs.dry_run != 'true' }}
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
+        with:
+          tag_name: v${{ needs.create-release.outputs.version }}
+          draft: true
+          files: |
+            packages/electron/dist/OpenChamber-${{ needs.create-release.outputs.app_version }}-linux-${{ matrix.artifact_arch }}.AppImage
+            packages/electron/dist/OpenChamber-${{ needs.create-release.outputs.app_version }}-linux-${{ matrix.deb_arch }}.deb
+            packages/electron/dist/OpenChamber-${{ needs.create-release.outputs.app_version }}-linux-${{ matrix.rpm_arch }}.rpm
+            packages/electron/dist/${{ matrix.manifest }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  mobile-release:
+    permissions:
+      contents: write
+    needs: create-release
+    if: ${{ github.event.inputs.dry_run != 'true' }}
+    uses: ./.github/workflows/mobile-release.yml
+    with:
+      source_ref: ${{ needs.create-release.outputs.source_sha }}
+      version_name: ${{ needs.create-release.outputs.app_version }}
+      release_tag: v${{ needs.create-release.outputs.version }}
+      upload_github_release: true
+      build_android: true
+      build_ios: false
+    secrets: inherit
+
+  finalize-release:
+    permissions:
+      contents: write
+    needs: [create-release, build-desktop-electron-windows, build-desktop-electron-linux, package-web, mobile-release]
+    if: ${{ !cancelled() && !failure() && needs.create-release.result == 'success' && github.event.inputs.dry_run != 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify final cross-platform release asset inventory
+        if: ${{ github.event.inputs.dry_run != 'true' }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPOSITORY: ${{ github.repository }}
+          RELEASE_ID: ${{ needs.create-release.outputs.release_id }}
+          VERSION: ${{ needs.create-release.outputs.app_version }}
+        run: |
+          node - <<'NODE'
+          (async () => {
+          const { REPOSITORY: repo, RELEASE_ID: releaseId, VERSION: version, GITHUB_TOKEN: token } = process.env;
+          if (!/^\d+$/.test(releaseId || '')) throw new Error(`Invalid release id: ${releaseId}`);
+          const exact = [
+            `openchamber-web-${version}.tgz`,
+            `OpenChamber-${version}-win-x64.exe`,
+            `OpenChamber-${version}-win-x64.exe.blockmap`,
+            'latest.yml',
+            `OpenChamber-${version}-linux-x86_64.AppImage`,
+            `OpenChamber-${version}-linux-amd64.deb`,
+            `OpenChamber-${version}-linux-x86_64.rpm`,
+            'latest-linux.yml',
+          ];
+          const response = await fetch(`https://api.github.com/repos/${repo}/releases/${releaseId}`, {
+            headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json' },
+          });
+          if (!response.ok) throw new Error(`Failed to inspect release assets: ${response.status} ${await response.text()}`);
+          const release = await response.json();
+          if (!release.draft) throw new Error(`Expected release ${releaseId} to still be a draft before finalization`);
+          const validate = (asset, label) => {
+            if (!Number.isSafeInteger(asset.size) || asset.size <= 0) {
+              throw new Error(`Release asset ${label} has invalid size ${asset.size}`);
+            }
+          };
+          for (const name of exact) {
+            const matches = release.assets.filter((asset) => asset.name === name);
+            if (matches.length !== 1) throw new Error(`Expected exactly one ${name} release asset, found ${matches.length}`);
+            validate(matches[0], name);
+          }
+          const androidKinds = ['apk', 'aab'];
+          for (const kind of androidKinds) {
+            const prefix = `OpenChamber-${version}-`;
+            const suffix = `-android.${kind}`;
+            const matches = release.assets.filter((asset) => asset.name.startsWith(prefix) && asset.name.endsWith(suffix));
+            if (matches.length !== 1) throw new Error(`Expected exactly one Android ${kind} release asset, found ${matches.length}`);
+            validate(matches[0], matches[0].name);
+          }
+          console.log(`Verified ${exact.length + androidKinds.length} cross-platform release assets.`);
+          })().catch((error) => {
+            console.error(error);
+            process.exit(1);
+          });
+          NODE
+
+      - name: Publish release
+        if: ${{ github.event.inputs.dry_run != 'true' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_ID: ${{ needs.create-release.outputs.release_id }}
+        run: |
+          set -euo pipefail
+          [[ "$RELEASE_ID" =~ ^[0-9]+$ ]]
+          gh api --method PATCH "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID" \
+            -F draft=false \
+            -f make_latest=true >/dev/null

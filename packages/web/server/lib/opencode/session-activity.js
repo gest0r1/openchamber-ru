@@ -18,9 +18,19 @@ const CHILDREN_PAGE_SIZE = 50;
 const CHILDREN_MAX_PAGES = 8;
 const MAX_SUBAGENT_DEPTH = 8;
 const sessionLineageSchema = z.object({ id: z.string().min(1), parentID: z.string().min(1).nullish() });
+const runningShellsSchema = z.array(z.object({
+  status: z.string(),
+  command: z.string(),
+  metadata: z.record(z.string(), z.unknown()).nullish(),
+  time: z.object({ started: z.number() }),
+}));
 
-export const createSessionActivityProbe = ({ buildOpenCodeUrl, getOpenCodeAuthHeaders, timeoutMs = 10_000, fetchImpl = fetch }) => {
-  const openCodeGet = async (fetchPath, query, signal = AbortSignal.timeout(timeoutMs)) => {
+export const createSessionActivityProbe = ({ buildOpenCodeUrl, getOpenCodeAuthHeaders, timeoutMs = 10_000, fetchImpl = fetch, signal: parentSignal }) => {
+  const requestSignal = () => {
+    const timeout = AbortSignal.timeout(timeoutMs);
+    return parentSignal ? AbortSignal.any([parentSignal, timeout]) : timeout;
+  };
+  const openCodeGet = async (fetchPath, query, signal = requestSignal()) => {
     const base = buildOpenCodeUrl(fetchPath, '');
     const search = new URLSearchParams(query || {}).toString();
     const response = await fetchImpl(search ? `${base}?${search}` : base, {
@@ -86,7 +96,7 @@ export const createSessionActivityProbe = ({ buildOpenCodeUrl, getOpenCodeAuthHe
    */
   const hasWorkingDescendants = async (sessionId, statuses, strictDepth = false) => {
     const parents = new Map();
-    const signal = AbortSignal.timeout(timeoutMs);
+    const signal = requestSignal();
     let unknown = false;
     for (const activeId of Object.keys(statuses)) {
       if (activeId === sessionId) continue;
@@ -121,17 +131,42 @@ export const createSessionActivityProbe = ({ buildOpenCodeUrl, getOpenCodeAuthHe
   };
 
   /**
-   * OpenCode 2 lists detached shell jobs by location, not session owner.
-   * The endpoint returns running jobs only. Any running job in the location
-   * delays a completion; a failed query is unknown, never an empty list.
+   * Commands still running in a directory, each with the session that started
+   * it (`metadata.sessionID`, set by OpenCode's shell tool). `shell.list` is
+   * location-scoped, so the directory travels in the header; name only one
+   * that is already running. Null when OpenCode could not be asked.
    */
-  const hasRunningShells = async (_sessionId, directory) => {
-    if (!z.string().min(1).safeParse(directory).success) return null;
-    const shells = await openCodeGet('/api/shell', { 'location[directory]': directory }).catch(() => null);
-    if (!Array.isArray(shells)) return null;
-    // shell.list returns only running commands; exited jobs never appear.
-    // Do not infer a status field that the published Shell.Info may omit.
-    return shells.length > 0;
+  const readRunningShells = async (directory) => {
+    const base = buildOpenCodeUrl('/api/shell', '');
+    const response = await fetchImpl(base, {
+      method: 'GET',
+      headers: {
+        Accept: 'application/json',
+        'x-opencode-directory': encodeURIComponent(directory),
+        ...getOpenCodeAuthHeaders(),
+      },
+      signal: requestSignal(),
+    }).catch(() => null);
+    if (!response?.ok) return null;
+    const parsed = runningShellsSchema.safeParse(unwrapOpenCodeResponse(await response.json().catch(() => null)));
+    if (!parsed.success) return null;
+    return parsed.data;
+  };
+
+  const fetchRunningShells = async (directory) => {
+    const shells = await readRunningShells(directory);
+    if (!shells) return null;
+    return shells.flatMap((shell) => {
+      const owner = shell.metadata?.sessionID;
+      if (shell.status !== 'running' || typeof owner !== 'string' || !owner) return [];
+      return [{ sessionID: owner, command: shell.command, startedAt: shell.time.started }];
+    });
+  };
+
+  /** True when any command is running in the directory, even without a known owner. */
+  const hasRunningShells = async (directory) => {
+    const shells = await readRunningShells(directory);
+    return shells === null ? null : shells.some((shell) => shell.status === 'running');
   };
 
   /** Unknown form/permission state cannot prove readiness. */
@@ -145,5 +180,5 @@ export const createSessionActivityProbe = ({ buildOpenCodeUrl, getOpenCodeAuthHe
     return permissions.length > 0;
   };
 
-  return { fetchActiveSessionStatuses, fetchChildSessionIds, hasWorkingChildren, hasWorkingDescendants, hasRunningShells, hasBlockingRequests };
+  return { fetchActiveSessionStatuses, fetchChildSessionIds, hasWorkingChildren, hasWorkingDescendants, fetchRunningShells, hasRunningShells, hasBlockingRequests };
 };

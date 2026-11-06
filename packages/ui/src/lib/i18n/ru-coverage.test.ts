@@ -4,6 +4,10 @@ import { dict as enDict } from './messages/en';
 import { dict as ruDict } from './messages/ru';
 
 const technicalTermAllowlist = new Set([
+  // The update channel name, version/date templates and example SSH URL are locale-neutral.
+  'settings.openchamber.about.option.updateChannel.canary', 'settings.openchamber.about.canaryVersion',
+  'settings.sourceControl.field.sshUrl.placeholder', 'updateDialog.canary.version',
+  'updateDialog.canary.night', 'updateDialog.canary.pair', 'updateDialog.canary.build',
   'settings.gitlab.title', 'settings.gitlab.cli.label', 'settings.gitIdentities.editor.auth.ssh',
   'gitView.hydration.kind.lfs', 'gitView.mr.walkthroughScope', 'header.gitlab.connectedWithLogin',
   'settings.view.home.cards.mcp.title', 'settings.page.mcp.title', 'settings.page.git.title',
@@ -134,9 +138,12 @@ describe('Russian i18n coverage', () => {
     const placeholderMismatches: string[] = [];
     const placeholderPattern = /\{([a-zA-Z0-9_]+)\}/g;
 
-    for (const key of Object.keys(enDict)) {
-      const englishValue = (enDict as Record<string, string>)[key];
-      const russianValue = (ruDict as Record<string, string>)[key];
+    const russianEntries = new Map(Object.entries(ruDict));
+    // SAFETY: The static English dictionary owns every key returned by Object.keys.
+    const keys = Object.keys(enDict) as Array<keyof typeof enDict>;
+    for (const key of keys) {
+      const englishValue = enDict[key];
+      const russianValue = russianEntries.get(key);
 
       if (russianValue === undefined || (englishValue.trim() !== '' && russianValue.trim() === '')) {
         missingKeys.push(key);

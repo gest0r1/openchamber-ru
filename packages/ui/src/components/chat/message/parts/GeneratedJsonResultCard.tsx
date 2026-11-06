@@ -48,7 +48,7 @@ export const GeneratedJsonResultCard: React.FC<{ result: GeneratedResult }> = ({
 
   return (
     <div data-component="generated-json-result" className="my-4 group oc-tile overflow-hidden rounded-2xl">
-      <div className="flex items-center justify-between border-b border-border/70 px-3 py-1.5">
+      <div className="flex items-center justify-between border-b border-edge px-3 py-1.5">
         <span className="font-mono text-[0.8125rem] text-muted-foreground">
           {result.kind === 'commit'
             ? t('chat.generatedResult.commit.title')
@@ -74,7 +74,7 @@ export const GeneratedJsonResultCard: React.FC<{ result: GeneratedResult }> = ({
               <ul className="space-y-1 text-sm text-muted-foreground">
                 {result.highlights.map((highlight, index) => (
                   <li key={`${index}-${highlight}`} className="flex gap-2">
-                    <span className="text-muted-foreground/70">-</span>
+                    <span className="text-muted-foreground">-</span>
                     <span>{highlight}</span>
                   </li>
                 ))}

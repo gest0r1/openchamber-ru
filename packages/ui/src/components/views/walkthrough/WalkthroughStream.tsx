@@ -3,6 +3,7 @@ import { Icon } from '@/components/icon/Icon';
 import { FileTypeIcon } from '@/components/icons/FileTypeIcon';
 import { ChangedPathLabel } from '@/components/views/git/ChangedPathLabel';
 import { Button } from '@/components/ui/button';
+import { ScrollableOverlay } from '@/components/ui/ScrollableOverlay';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { useI18n, type I18nKey } from '@/lib/i18n';
 import { groupHunksByFile } from '@/lib/walkthrough/model';
@@ -141,15 +142,18 @@ const FileHeader = ({ path, commentOrigin }: { path: string; commentOrigin?: Dif
   const wholeFileComment = useWholeFileComment({ fileLabel: path, origin: commentOrigin });
   return (
     <>
-      <div className="sticky top-0 z-10 flex items-center gap-1.5 border-b border-[var(--interactive-border)]/35 bg-[var(--surface-elevated)]/90 px-4 py-1.5 backdrop-blur-md supports-[backdrop-filter]:bg-[var(--surface-elevated)]/80">
-        <FileTypeIcon filePath={path} className="size-3.5 shrink-0" />
-        <ChangedPathLabel path={path} className="typography-meta min-w-0 flex-1 font-mono" />
-        <WholeFileCommentButton
-          onClick={wholeFileComment.toggle}
-          active={wholeFileComment.isOpen}
-        />
+      <div className="sticky top-0 z-10 border-b border-[var(--interactive-border)]/35 bg-[var(--surface-elevated)]/90 backdrop-blur-md supports-[backdrop-filter]:bg-[var(--surface-elevated)]/80">
+        <div className="flex items-center gap-1.5 px-4 py-1.5">
+          <FileTypeIcon filePath={path} className="size-3.5 shrink-0" />
+          <ChangedPathLabel path={path} className="typography-meta min-w-0 flex-1 font-mono" />
+          <WholeFileCommentButton
+            onClick={wholeFileComment.toggle}
+            active={wholeFileComment.isOpen}
+          />
+        </div>
+        {wholeFileComment.editor}
       </div>
-      {wholeFileComment.body}
+      {wholeFileComment.cards}
     </>
   );
 };
@@ -214,7 +218,7 @@ export const WalkthroughStream = memo(function WalkthroughStream({
   onFindWordRequest,
 }: WalkthroughStreamProps) {
   const { t } = useI18n();
-  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const scrollRef = useRef<HTMLElement | null>(null);
   const [uncoveredOpen, setUncoveredOpen] = useState(false);
 
   // Set while a click-driven jump is in flight. Without it the observer reports
@@ -315,11 +319,12 @@ export const WalkthroughStream = memo(function WalkthroughStream({
   );
 
   return (
-    <div
+    <ScrollableOverlay
       ref={scrollRef}
-      className="min-h-0 flex-1 overflow-y-auto"
+      outerClassName="min-h-0 flex-1"
       data-diff-virtual-root
       data-diff-virtual-content
+      disableHorizontal
     >
       {summary && (
         <p className="typography-ui-label px-4 pt-4 text-muted-foreground">{summary}</p>
@@ -330,7 +335,7 @@ export const WalkthroughStream = memo(function WalkthroughStream({
           id={stopElementId(stopView.stop.id)}
           data-stop-id={stopView.stop.id}
           className={cn(
-            'border-b border-border/60',
+            'border-b border-edge',
             activeStopId === stopView.stop.id && 'bg-interactive-selection/5'
           )}
         >
@@ -354,7 +359,7 @@ export const WalkthroughStream = memo(function WalkthroughStream({
       ))}
 
       {view.uncoveredHunks.length > 0 && (
-        <section className="border-b border-border/60">
+        <section className="border-b border-edge">
           <Button
             type="button"
             variant="ghost"
@@ -393,6 +398,6 @@ export const WalkthroughStream = memo(function WalkthroughStream({
             ))}
         </section>
       )}
-    </div>
+    </ScrollableOverlay>
   );
 });
