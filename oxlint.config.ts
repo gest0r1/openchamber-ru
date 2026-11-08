@@ -99,6 +99,18 @@ export default defineConfig({
       },
     },
     {
+      files: ["packages/web/server/index.js"],
+      env: { node: true },
+      globals: {
+        AbortSignal: "readonly",
+        fetch: "readonly",
+        URL: "readonly",
+      },
+      rules: {
+        "eslint/no-undef": "error",
+      },
+    },
+    {
       files: ["packages/ui/src/**/*.ts", "packages/ui/src/**/*.tsx"],
       rules: {
         "openchamber/no-physical-sides": "error",
