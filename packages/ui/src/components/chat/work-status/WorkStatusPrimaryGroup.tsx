@@ -11,6 +11,9 @@ import { useContextWindowLimits } from '@/hooks/useContextWindowLimits';
 import { useUIStore } from '@/stores/useUIStore';
 import { useProjectsStore } from '@/stores/useProjectsStore';
 import { resolveProjectForSessionDirectory } from '@/lib/projectResolution';
+import { useSpaceProjectDirectory } from '@/lib/spaces/spaces-store';
+import { useDraftSpaceTarget } from '@/lib/spaces/useDraftSpaceTarget';
+import { panelContentDirectory } from '@/lib/spaces/space-creation-requests';
 import { useSessionUIStore } from '@/sync/session-ui-store';
 import { resolveUsageTone } from '@/lib/quota';
 import { sessionEvents } from '@/lib/sessionEvents';
@@ -32,9 +35,6 @@ import { WorkStatusWarmingToggle } from './WorkStatusWarmingToggle';
 import { changeRequestCopy } from '@/lib/source-control/changeRequestCopy';
 import { formatChangeRequestReference } from '@/lib/source-control/providers/terminology';
 import { useSourceControlProvider } from '@/lib/source-control/providers/registry';
-import { ProjectActionsButton } from '@/components/layout/ProjectActionsButton';
-import { OpenInAppButton } from '@/components/desktop/OpenInAppButton';
-import { useProjectActionsContext } from '@/hooks/useProjectActionsContext';
 import { PrChecksValue } from './PrChecksValue';
 import { useMobileAppActions } from '@/apps/mobileAppContext';
 import { useOpenTrackerItem } from '@/components/sourceBoard/openTrackerItem';
@@ -65,13 +65,10 @@ const UNKNOWN_PERCENT = '\u2014';
  */
 export const WorkStatusPrimaryGroup: React.FC<Props> = ({ sessionId, directory, goalRow, showSession, showRepository, children }) => {
   const { t } = useI18n();
-  // On the phone the rows lead to the phone's own pages, and the project's
-  // app and run controls, which need a desktop host, are left out.
+  // On the phone the rows lead to the phone's own pages.
   const mobile = useMobileAppActions();
   const leaveWorkStatus = useLeaveWorkStatus();
   const openTrackerItem = useOpenTrackerItem();
-  const desktopProjectActionsContext = useProjectActionsContext();
-  const projectActionsContext = mobile ? null : desktopProjectActionsContext;
   const { git } = useRuntimeAPIs();
   const ensureStatus = useGitStore((state) => state.ensureStatus);
   const fetchStatus = useGitStore((state) => state.fetchStatus);
@@ -83,7 +80,11 @@ export const WorkStatusPrimaryGroup: React.FC<Props> = ({ sessionId, directory, 
   // folder of repositories still reports the branch and changes the Git tab
   // shows. Navigation below stays keyed on `directory` — context-panel tabs
   // are per project root.
-  const { gitDirectory } = useNestedGitDirectory(directory, { enabled: showRepository });
+  // A draft waiting for a new space reads the space's tree once it runs, and
+  // none while it is made, as the other panels do (`panelContentDirectory`).
+  const draftSpace = useDraftSpaceTarget();
+  const repositoryDirectory = sessionId ? directory : panelContentDirectory(draftSpace, directory);
+  const { gitDirectory } = useNestedGitDirectory(repositoryDirectory, { enabled: showRepository });
 
   const gitStatus = useGitStore(
     React.useCallback(
@@ -153,27 +154,29 @@ export const WorkStatusPrimaryGroup: React.FC<Props> = ({ sessionId, directory, 
   // when the readouts come from a nested repository; for a project that is a
   // repository itself the section header already names it.
   const nestedRepoLabel = React.useMemo(() => {
-    if (!directory || !gitDirectory || gitDirectory === directory) return null;
-    const rootPrefix = `${directory}/`;
+    if (!repositoryDirectory || !gitDirectory || gitDirectory === repositoryDirectory) return null;
+    const rootPrefix = `${repositoryDirectory}/`;
     return gitDirectory.startsWith(rootPrefix) ? gitDirectory.slice(rootPrefix.length) : gitDirectory;
-  }, [directory, gitDirectory]);
+  }, [gitDirectory, repositoryDirectory]);
 
   const availableWorktreesByProject = useSessionUIStore((state) => state.availableWorktreesByProject);
   // Worktrees normally sit beside rather than beneath their project directory,
   // so a prefix match alone cannot find their owning project. Reuse the shared
   // session-directory resolver, which consults the discovered worktree map.
+  const spaceProjectDirectory = useSpaceProjectDirectory(directory);
   const projectLabel = useProjectsStore(
     React.useCallback((state) => {
       const project = resolveProjectForSessionDirectory(
         state.projects,
         availableWorktreesByProject,
         directory,
+        spaceProjectDirectory,
       );
       if (!project) return null;
       return project.label?.trim()
         || project.path.split('/').filter(Boolean).pop()
         || project.path;
-    }, [availableWorktreesByProject, directory]),
+    }, [availableWorktreesByProject, directory, spaceProjectDirectory]),
   );
 
   // Read-only: PR watching is owned by the background tracker. Starting a watch
@@ -285,7 +288,7 @@ export const WorkStatusPrimaryGroup: React.FC<Props> = ({ sessionId, directory, 
   // restate the number directly above it.
   const showCostBreakdown = cost !== null && subagentCount > 0 && subagentCost > 0;
   const hasSession = showSession && (contextUsage !== null || cost !== null || Boolean(goalRow));
-  const hasRepository = showRepository && Boolean(branch || changed || prSummary || attentionLabel || projectActionsContext);
+  const hasRepository = showRepository && Boolean(branch || changed || prSummary || attentionLabel);
 
   useReportWorkStatusPresence('session-repository', hasSession || hasRepository);
 
@@ -338,9 +341,6 @@ export const WorkStatusPrimaryGroup: React.FC<Props> = ({ sessionId, directory, 
         <WorkStatusSection
           title={t('chat.workStatus.section.project')}
           subject={projectLabel}
-          summary={projectActionsContext?.directory
-            ? <OpenInAppButton directory={projectActionsContext.directory} />
-            : null}
         >
           {attentionLabel ? <WorkStatusCallout>{attentionLabel}</WorkStatusCallout> : null}
 
@@ -425,9 +425,6 @@ export const WorkStatusPrimaryGroup: React.FC<Props> = ({ sessionId, directory, 
               ) : null}
             </>
           ) : null}
-
-          {/* Last: the readouts above describe the project, this runs something in it. */}
-          {projectActionsContext ? <ProjectActionsButton /> : null}
         </WorkStatusSection>
       ) : null,
   });

@@ -138,7 +138,7 @@ export const createTelegramWatch = ({
     if (descendants) return { kind: 'working', reason: 'descendant' };
     // A location-wide shell lock is conservative. OpenCode's shell list does
     // not guarantee a session owner, so an unrelated shell delays completion.
-    const shells = await probe.hasRunningShells(record.sessionId, record.directory);
+    const shells = await probe.hasRunningShells(record.directory);
     if (shells === null) return { kind: 'unknown' };
     if (shells) return { kind: 'working', reason: 'shell' };
     const blocking = await probe.hasBlockingRequests(record.sessionId, record.directory);

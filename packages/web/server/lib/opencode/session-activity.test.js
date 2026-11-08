@@ -23,6 +23,26 @@ const createProbe = (sessions, { failureId, timeoutMs = 10_000, delayMs = 0 } = 
 describe('queue descendant activity', () => {
   const running = { type: 'running' };
 
+  it.each(['statuses', 'descendants', 'shells'])('cancels a hanging %s read with its caller', async (operation) => {
+    const controller = new AbortController();
+    const entered = Promise.withResolvers();
+    const probe = createSessionActivityProbe({
+      buildOpenCodeUrl: (route) => `http://opencode.test${route}`,
+      getOpenCodeAuthHeaders: () => ({}), signal: controller.signal,
+      fetchImpl: async (_url, init) => {
+        entered.resolve(init.signal);
+        return new Promise((_, reject) => init.signal.addEventListener('abort', () => reject(init.signal.reason), { once: true }));
+      },
+    });
+    const result = operation === 'statuses' ? probe.fetchActiveSessionStatuses()
+      : operation === 'shells' ? probe.fetchRunningShells('/repo/run')
+        : probe.hasWorkingDescendants('root', { child: running });
+    const signal = await entered.promise;
+    controller.abort(new DOMException('Cleanup timed out', 'TimeoutError'));
+    expect(await result).toBeNull();
+    expect(signal.aborted).toBe(true);
+  });
+
   it('detects a live grandchild through an idle intermediate session', async () => {
     const { probe, reads } = createProbe({ child: { id: 'child', parentID: 'root' }, grandchild: { id: 'grandchild', parentID: 'child' } });
     expect(await probe.hasWorkingDescendants('root', { grandchild: running })).toBe(true);
@@ -97,5 +117,27 @@ describe('queue descendant activity', () => {
     const { probe, reads } = createProbe({ child: { id: 'child', parentID: 'parent' } }, { timeoutMs: 1, delayMs: 10 });
     expect(await probe.hasWorkingDescendants('root', { child: running })).toBeNull();
     expect(reads).toEqual(['child']);
+  });
+});
+
+describe('running shell activity', () => {
+  const createShellProbe = (data) => createSessionActivityProbe({
+    buildOpenCodeUrl: (route) => `http://opencode.test${route}`,
+    getOpenCodeAuthHeaders: () => ({}),
+    fetchImpl: async (_url, init) => {
+      expect(init.headers['x-opencode-directory']).toBe(encodeURIComponent('/repo/run'));
+      return Response.json({ data });
+    },
+  });
+
+  it('treats any running shell in the directory as active, including one without an owner', async () => {
+    const probe = createShellProbe([{ status: 'running', command: 'build', metadata: null, time: { started: 1 } }]);
+    expect(await probe.hasRunningShells('/repo/run')).toBe(true);
+    expect(await probe.fetchRunningShells('/repo/run')).toEqual([]);
+  });
+
+  it('keeps an unreadable shell list unknown', async () => {
+    const probe = createShellProbe([{ status: 'running', command: 'build', metadata: null }]);
+    expect(await probe.hasRunningShells('/repo/run')).toBeNull();
   });
 });

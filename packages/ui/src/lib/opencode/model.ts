@@ -217,6 +217,8 @@ export type SyntheticMessage = MessageBase & {
   time: { created: number }
   text: string
   description?: string
+  /** Still in OpenCode's inbox: the agent reads it at its next step. Delivery removes this. */
+  pending?: true
 }
 
 /** Text OpenCode itself added (instruction updates, notices). */
@@ -372,6 +374,10 @@ type ToolStateError = {
   status: "error"
   input: ToolInput
   error: string
+  /** Structured failure kind, retained for question recovery. */
+  errorType?: string
+  /** A local interrupted-turn mark yields to later server transitions. */
+  errorSource?: "local"
   /** Partial text content the tool produced before failing, if any. */
   output?: string
   metadata?: Metadata
@@ -389,6 +395,8 @@ export type ToolPart = PartBase & {
   state: ToolState
   /** The provider actually executed the call (false for replayed/synthetic calls). */
   executed?: boolean
+  /** Whether persisted tool timestamps came from execution events, not wire fallbacks. */
+  timing?: { startMeasured: boolean; endMeasured: boolean; endSource?: 'persisted' | 'fallback' | 'interruption_observed' }
 }
 
 export type Part = TextPart | ReasoningPart | FilePart | AgentPart | ToolPart

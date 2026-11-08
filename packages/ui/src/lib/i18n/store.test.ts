@@ -14,13 +14,23 @@ const resetStore = () => {
 };
 
 const waitForLocaleLoadToSettle = async (locale: Locale) => {
-  for (let attempt = 0; attempt < 20; attempt += 1) {
-    if (useI18nStore.getState().loadingLocale !== locale) {
-      return;
-    }
-    await new Promise((resolve) => setTimeout(resolve, 0));
+  if (useI18nStore.getState().loadingLocale !== locale) return;
+
+  let unsubscribe = () => {};
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  try {
+    await new Promise<void>((resolve, reject) => {
+      unsubscribe = useI18nStore.subscribe((state) => {
+        if (state.loadingLocale !== locale) resolve();
+      });
+      timeout = setTimeout(() => reject(new Error(`Timed out waiting for ${locale} dictionary load`)), 2_000);
+      // Close the race between the initial state check and subscription setup.
+      if (useI18nStore.getState().loadingLocale !== locale) resolve();
+    });
+  } finally {
+    unsubscribe();
+    if (timeout !== undefined) clearTimeout(timeout);
   }
-  throw new Error(`Timed out waiting for ${locale} dictionary load`);
 };
 
 describe('i18n store', () => {
@@ -38,6 +48,18 @@ describe('i18n store', () => {
 
       expect(useI18nStore.getState().loadingLocale).toBe('es');
       await waitForLocaleLoadToSettle('es');
+    } finally {
+      resetStore();
+    }
+  });
+
+  test('loads Russian translations for existing and upstream keys', async () => {
+    try {
+      useI18nStore.getState().setLocale('ru');
+      await waitForLocaleLoadToSettle('ru');
+      const dictionary = useI18nStore.getState().dictionary;
+      expect(dictionary['opencodeCompatibility.title']).toBe('Требуется OpenCode v2');
+      expect(dictionary['chat.agentStatus.browser.capture']).toBe('делает снимок экрана');
     } finally {
       resetStore();
     }

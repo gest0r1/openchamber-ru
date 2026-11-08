@@ -74,8 +74,86 @@ export function formatMessageRecordText(record: SessionMessageRecord): string {
   return formatMessageText(record.parts, { user: record.info.role === 'user' });
 }
 
+type ToolTiming = { nextStartedAt?: number };
+
+// Tool part times are persisted OpenCode millisecond timestamps, not message times
+// or the elapsed timer derived by the UI while a call is running.
+function persistedMillis(value: number | undefined): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 && Number.isFinite(new Date(value).getTime()) ? value : undefined;
+}
+
+function toolStartedAt(part: Extract<Part, { type: 'tool' }>): number | undefined {
+  return part.state.status === 'pending' || part.timing?.startMeasured === false ? undefined : persistedMillis(part.state.time?.start);
+}
+
+function toolSequence(records: SessionMessageRecord[]): Map<string, ToolTiming> {
+  const calls: Array<{ key: string; sessionID: string; start: number; order: number }> = [];
+  for (const record of records) {
+    for (const part of record.parts) {
+      if (part.type !== 'tool') continue;
+      const start = toolStartedAt(part);
+      if (start === undefined) continue;
+      calls.push({ key: `${part.sessionID}:${part.callID}`, sessionID: part.sessionID, start, order: calls.length });
+    }
+  }
+  const nextByCall = new Map<string, ToolTiming>();
+  const bySession = new Map<string, typeof calls>();
+  for (const call of calls) {
+    let sessionCalls = bySession.get(call.sessionID);
+    if (!sessionCalls) {
+      sessionCalls = [];
+      bySession.set(call.sessionID, sessionCalls);
+    }
+    sessionCalls.push(call);
+  }
+  for (const sessionCalls of bySession.values()) {
+    sessionCalls.sort((a, b) => a.start - b.start || a.order - b.order);
+    sessionCalls.forEach((call, index) => nextByCall.set(call.key, { nextStartedAt: sessionCalls[index + 1]?.start }));
+  }
+  return nextByCall;
+}
+
+function formatToolCalls(record: SessionMessageRecord, nextByCall?: Map<string, ToolTiming>): string {
+  const snapshotAt = Date.now();
+  const snapshotISO = new Date(snapshotAt).toISOString();
+  return record.parts.filter((part): part is Extract<Part, { type: 'tool' }> => part.type === 'tool')
+    .map((part) => {
+      const start = toolStartedAt(part);
+      const stateEnd = part.state.status === 'completed' || part.state.status === 'error'
+        ? persistedMillis(part.state.time?.end) : undefined;
+      const persistedEnd = stateEnd !== undefined && part.timing?.endMeasured !== false && part.timing?.endSource !== 'interruption_observed'
+        ? stateEnd : undefined;
+      const observedEnd = part.timing?.endSource === 'interruption_observed' ? stateEnd : undefined;
+      const finalDuration = start !== undefined && persistedEnd !== undefined && persistedEnd >= start ? persistedEnd - start : undefined;
+      const interruptedDuration = start !== undefined && observedEnd !== undefined && observedEnd >= start ? observedEnd - start : undefined;
+      const clockSkewMs = part.state.status === 'running' && start !== undefined && start > snapshotAt ? start - snapshotAt : undefined;
+      const runningSnapshot = part.state.status === 'running' && start !== undefined && clockSkewMs === undefined ? snapshotAt - start : undefined;
+      const duration = finalDuration ?? interruptedDuration ?? runningSnapshot;
+      const next = nextByCall?.get(`${part.sessionID}:${part.callID}`)?.nextStartedAt;
+      const iso = (time: number | undefined) => time === undefined ? 'unavailable' : new Date(time).toISOString();
+      const fields = {
+        session_id: part.sessionID,
+        call_id: part.callID,
+        name: part.tool,
+        status: part.state.status,
+        started_at: iso(start),
+        completed_at: iso(persistedEnd),
+        observed_end_at: iso(observedEnd),
+        duration_ms: duration ?? 'unavailable',
+        duration_source: finalDuration !== undefined ? 'persisted_tool_state' : interruptedDuration !== undefined ? 'observed_interruption' : runningSnapshot !== undefined ? 'export_snapshot' : 'unavailable',
+        duration_final: finalDuration !== undefined,
+        duration_censored: interruptedDuration !== undefined,
+        duration_generated_at: runningSnapshot !== undefined ? snapshotISO : 'unavailable',
+        duration_clock_skew_ms: clockSkewMs ?? 'unavailable',
+        next_tool_started_at: iso(next),
+        next_tool_start_gap_ms: start !== undefined && next !== undefined ? next - start : 'unavailable',
+        overlaps_next: next !== undefined && persistedEnd !== undefined ? next < persistedEnd : 'unavailable',
+      };
+      return `**Tool call timing**\n\n\`\`\`json\n${JSON.stringify(fields)}\n\`\`\``;
+    }).join('\n\n');
+}
 /** A single record exactly as the regular Markdown export renders it. */
-export function formatMessageRecordAsMarkdown(record: SessionMessageRecord): string {
+function formatRecordWithToolTiming(record: SessionMessageRecord, nextByCall?: Map<string, ToolTiming>): string {
   // Only the conversation roles carry parts. A synthetic message is either
   // context the user attached to the next prompt — exported as Context, the
   // way v1 exported it from inside the user message — or prompt plumbing a
@@ -91,8 +169,14 @@ export function formatMessageRecordAsMarkdown(record: SessionMessageRecord): str
   const role = formatMessageHeader(record);
   const text = formatMessageRecordText(record);
 
-  if (!text) return '';
-  return `${role}\n\n${text}`;
+  const timing = formatToolCalls(record, nextByCall);
+  if (!text && !timing) return '';
+  return `${role}\n\n${[text, timing].filter(Boolean).join('\n\n')}`;
+}
+
+/** A single record as exported Markdown, including already persisted tool timings. */
+export function formatMessageRecordAsMarkdown(record: SessionMessageRecord): string {
+  return formatRecordWithToolTiming(record);
 }
 
 function formatChildSessionAsMarkdown(child: ChildSessionExport, depth: number): string {
@@ -100,8 +184,9 @@ function formatChildSessionAsMarkdown(child: ChildSessionExport, depth: number):
   const agentLabel = child.agent ? ` — ${child.agent}` : '';
   const childHeader = `${heading} Sub-agent: ${child.title}${agentLabel}\n\n---\n\n`;
 
+  const childSequence = toolSequence(child.records);
   const childBody = child.records
-    .map(formatMessageRecordAsMarkdown)
+    .map(record => formatRecordWithToolTiming(record, childSequence))
     .filter(Boolean)
     .join('\n\n---\n\n');
 
@@ -120,12 +205,15 @@ export function formatSessionAsMarkdown(
   childSessions?: ChildSessionExport[],
 ): string {
   const title = sessionTitle?.trim() || 'Session';
-  const date = new Date().toISOString().split('T')[0];
+  const generatedAt = new Date().toISOString();
+  const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'unavailable';
+  const date = generatedAt.split('T')[0];
 
-  const header = `# ${title}\n\n*Exported on ${date}*\n\n---\n\n`;
+  const header = `# ${title}\n\n*Exported on ${date}*\n\n*generated_at: ${generatedAt}; timezone: ${timezone}; timestamps: UTC ISO-8601*\n\n---\n\n`;
 
+  const sequence = toolSequence(messages);
   const body = messages
-    .map(formatMessageRecordAsMarkdown)
+    .map(record => formatRecordWithToolTiming(record, sequence))
     .filter(Boolean)
     .join('\n\n---\n\n');
 

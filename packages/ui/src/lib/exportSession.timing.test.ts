@@ -1,0 +1,191 @@
+import { describe, expect, test } from 'bun:test';
+import type { Message, Part } from '@/lib/opencode/model';
+import { formatSessionAsMarkdown } from './exportSession';
+import { projectToolPart } from './opencode/projection';
+
+type SessionRecord = { info: Message; parts: Part[] };
+type State = Extract<Part, { type: 'tool' }>['state'];
+
+function call(sessionID: string, messageID: string, callID: string, tool: string, state: State): Extract<Part, { type: 'tool' }> {
+  return { id: `tool_${callID}`, sessionID, messageID, type: 'tool', callID, tool, state };
+}
+
+function answer(sessionID: string, messageID: string, parts: Part[]): SessionRecord {
+  return {
+    info: { id: messageID, sessionID, role: 'assistant', agent: 'build',
+      providerID: 'openai', modelID: 'gpt', time: { created: 100 } },
+    parts,
+  };
+}
+
+type ToolTiming = { session_id: string; call_id: string; started_at: string; completed_at: string; duration_ms: number | 'unavailable'; duration_source: string; duration_final: boolean; duration_generated_at: string; duration_clock_skew_ms: number | 'unavailable'; next_tool_started_at: string; next_tool_start_gap_ms: number | 'unavailable'; overlaps_next: boolean | 'unavailable' };
+
+function calls(markdown: string): ToolTiming[] {
+  return [...markdown.matchAll(/\*\*Tool call timing\*\*\n\n```json\n(\{[^\n]+\})\n```/g)]
+    .map(match => JSON.parse(match[1]!));
+}
+
+describe('per-call Markdown tool timing', () => {
+  test('exports a real millisecond interval and next-call start gap across assistant messages', () => {
+    const first = answer('parent', 'a1', [call('parent', 'a1', 'call1', 'shell', {
+      status: 'completed', input: {}, output: '', time: { start: 1_000, end: 1_727_500 },
+    })]);
+    const second = answer('parent', 'a2', [call('parent', 'a2', 'call2', 'read', {
+      status: 'completed', input: {}, output: 'ok', time: { start: 1_731_000, end: 1_731_025 },
+    })]);
+    const markdown = formatSessionAsMarkdown([first, second], 'Pipeline');
+    const [a, b] = calls(markdown);
+    expect(a).toMatchObject({ session_id: 'parent', call_id: 'call1', name: 'shell',
+      status: 'completed', duration_ms: 1_726_500, duration_source: 'persisted_tool_state',
+      next_tool_start_gap_ms: 1_730_000, overlaps_next: false });
+    expect(a.started_at).toBe('1970-01-01T00:00:01.000Z');
+    expect(a.completed_at).toBe('1970-01-01T00:28:47.500Z');
+    expect(b.duration_ms).toBe(25);
+    expect(b.next_tool_started_at).toBe('unavailable');
+    expect(markdown.includes('generated_at: ') && /Z; timezone: /.test(markdown)).toBe(true);
+    expect(markdown).toContain('timestamps: UTC ISO-8601');
+  });
+
+  test('does not invent a final duration for running, pending, error with missing timestamps or legacy', () => {
+    // SAFETY: This legacy fixture intentionally omits time to test persisted records predating that field.
+    const legacyState = { status: 'completed', input: {}, output: '' } as State;
+    const records = [
+      answer('parent', 'a1', [call('parent', 'a1', 'error', 'shell', {
+        status: 'error', input: {}, error: 'interrupted', time: { start: 10, end: 15 },
+      }), call('parent', 'a1', 'active', 'shell', {
+        status: 'running', input: {}, time: { start: 20 },
+      }), call('parent', 'a1', 'pending', 'read', {
+        status: 'pending', input: {}, raw: '',
+      })]),
+      answer('parent', 'a2', [call('parent', 'a2', 'legacy', 'shell', legacyState)]),
+    ];
+    const [error, active, pending, legacy] = calls(formatSessionAsMarkdown(records));
+    expect(error).toMatchObject({ status: 'error', duration_ms: 5, duration_final: true, duration_source: 'persisted_tool_state' });
+    expect(active).toMatchObject({ status: 'running', completed_at: 'unavailable', duration_final: false, duration_source: 'export_snapshot' });
+    expect(pending).toMatchObject({ status: 'pending', started_at: 'unavailable', duration_ms: 'unavailable' });
+    expect(legacy).toMatchObject({ status: 'completed', started_at: 'unavailable', completed_at: 'unavailable', duration_ms: 'unavailable' });
+  });
+
+  test('exports a running elapsed snapshot without claiming completion', () => {
+    const markdown = formatSessionAsMarkdown([answer('s', 'a', [call('s', 'a', 'run', 'shell', {
+      status: 'running', input: {}, time: { start: Date.now() - 1_726_500 },
+    })])]);
+    const [running] = calls(markdown);
+    expect(running.completed_at).toBe('unavailable');
+    expect(running.duration_ms).toBeGreaterThanOrEqual(1_726_500);
+    expect(running.duration_source).toBe('export_snapshot');
+    expect(running.duration_final).toBe(false);
+    expect(running.duration_generated_at).not.toBe('unavailable');
+  });
+
+  test('does not turn a future start into a zero-duration snapshot', () => {
+    const futureStart = Date.now() + 60_000;
+    const [running] = calls(formatSessionAsMarkdown([answer('s', 'a', [call('s', 'a', 'future', 'shell', {
+      status: 'running', input: {}, time: { start: futureStart },
+    })])]));
+    expect(running.duration_ms).toBe('unavailable');
+    expect(running.duration_clock_skew_ms).toBeGreaterThan(0);
+    expect(running.duration_source).toBe('unavailable');
+  });
+
+  test('projects real wire timings through Markdown without treating fallbacks as measured', () => {
+    const owner = { sessionID: 's', messageID: 'a' };
+    const project = (id: string, time: { created: number; ran?: number; completed?: number }, status: 'completed' | 'error' = 'completed') =>
+      projectToolPart({
+        type: 'tool',
+        id,
+        name: 'shell',
+        time,
+        state: status === 'completed'
+          ? { status, input: {}, content: [{ type: 'text', text: '' }] }
+          : { status, input: {}, error: { type: 'tool.failed', message: 'failed' }, content: [{ type: 'text', text: '' }] },
+      }, owner);
+    const missing = project('missing', { created: 1_000 });
+    const zero = project('zero', { created: 1_000, ran: 1_000, completed: 1_000 });
+    const long = project('long', { created: 1_000, ran: 1_000, completed: 1_727_500 });
+    const failed = project('failed', { created: 1_000, ran: 10, completed: 15 }, 'error');
+    const [unknown, measuredZero, measuredLong, error] = calls(formatSessionAsMarkdown([
+      answer('s', 'a', [missing, zero, long, failed]),
+    ]));
+    expect(unknown).toMatchObject({ started_at: 'unavailable', completed_at: 'unavailable', duration_ms: 'unavailable' });
+    expect(measuredZero).toMatchObject({ duration_ms: 0, duration_source: 'persisted_tool_state' });
+    expect(measuredLong).toMatchObject({ duration_ms: 1_726_500, duration_source: 'persisted_tool_state' });
+    expect(error).toMatchObject({ status: 'error', duration_ms: 5, duration_final: true, duration_source: 'persisted_tool_state' });
+  });
+
+  test('exports interruption as a censored observation rather than process completion', () => {
+    const interrupted = call('s', 'a', 'stopped', 'shell', {
+      status: 'error', input: {}, error: 'Interrupted', time: { start: 1_000, end: 5_000 },
+    });
+    interrupted.timing = { startMeasured: true, endMeasured: false, endSource: 'interruption_observed' };
+    const [tool] = calls(formatSessionAsMarkdown([answer('s', 'a', [interrupted])]));
+    expect(tool).toMatchObject({
+      completed_at: 'unavailable',
+      observed_end_at: '1970-01-01T00:00:05.000Z',
+      duration_ms: 4_000,
+      duration_source: 'observed_interruption',
+      duration_final: false,
+      duration_censored: true,
+    });
+  });
+
+  test('does not count projected fallback timestamps as measured endpoints', () => {
+    const projectedFallback = call('s', 'a', 'unknown', 'shell', {
+      status: 'completed', input: {}, output: '', time: { start: 1_000, end: 1_000 },
+    });
+    projectedFallback.timing = { startMeasured: false, endMeasured: false };
+    const [unknown] = calls(formatSessionAsMarkdown([answer('s', 'a', [projectedFallback])]));
+    expect(unknown.started_at).toBe('unavailable');
+    expect(unknown.completed_at).toBe('unavailable');
+    expect(unknown.duration_ms).toBe('unavailable');
+  });
+
+  test('labels overlaps of parallel calls and preserves part ordering', () => {
+    const record = answer('same', 'a', [
+      call('same', 'a', 'first', 'shell', { status: 'completed', input: {}, output: '', time: { start: 500, end: 2_000 } }),
+      call('same', 'a', 'second', 'read', { status: 'completed', input: {}, output: '', time: { start: 700, end: 800 } }),
+    ]);
+    const [first, second] = calls(formatSessionAsMarkdown([record]));
+    expect(first.call_id).toBe('first');
+    expect(first.next_tool_start_gap_ms).toBe(200);
+    expect(first.overlaps_next).toBe(true);
+    expect(second.call_id).toBe('second');
+  });
+
+  test('separates child and grandchild timings from the main session, across prompts', () => {
+    const parent = answer('parent', 'p1', [call('parent', 'p1', 'same-id', 'shell', {
+      status: 'completed', input: {}, output: '', time: { start: 10, end: 20 },
+    })]);
+    const child = { title: 'Coder', agent: 'coder', records: [
+      answer('child', 'c1', [call('child', 'c1', 'same-id', 'shell', {
+        status: 'completed', input: {}, output: '', time: { start: 100, end: 120 },
+      })]),
+      answer('child', 'c2', [call('child', 'c2', 'other-id', 'read', {
+        status: 'completed', input: {}, output: '', time: { start: 150, end: 155 },
+      })]),
+    ], children: [{ title: 'Nested', records: [
+      answer('grandchild', 'g1', [call('grandchild', 'g1', 'same-id', 'shell', {
+        status: 'completed', input: {}, output: '', time: { start: 110, end: 200 },
+      })]),
+    ], children: [] }] };
+    const markdown = formatSessionAsMarkdown([parent], 'Main', [child]);
+    const tools = calls(markdown);
+    expect(tools.map(tool => tool.session_id)).toEqual(['parent', 'child', 'child', 'grandchild']);
+    expect(tools[0]?.next_tool_started_at).toBe('unavailable');
+    expect(tools[1]?.next_tool_start_gap_ms).toBe(50);
+    expect(tools[2]?.next_tool_started_at).toBe('unavailable');
+    expect(tools[3]?.next_tool_started_at).toBe('unavailable');
+  });
+
+  test('invalid negative / out-of-range timestamps do not become negative durations or invalid dates', () => {
+    const records = [answer('s', 'a', [call('s', 'a', 'bad', 'shell', {
+      status: 'completed', input: {}, output: '', time: { start: 1_000, end: 100 },
+    }), call('s', 'a', 'future', 'shell', {
+      status: 'completed', input: {}, output: '', time: { start: 1e20, end: 1e20 },
+    })])];
+    const [bad, future] = calls(formatSessionAsMarkdown(records));
+    expect(bad.duration_ms).toBe('unavailable');
+    expect(future.started_at).toBe('unavailable');
+    expect(future.duration_ms).toBe('unavailable');
+  });
+});

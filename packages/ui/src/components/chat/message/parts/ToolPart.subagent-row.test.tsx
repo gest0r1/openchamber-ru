@@ -265,11 +265,11 @@ test('a background subagent drops the background label once its report arrives',
 
 test('the agent name on a subagent row takes the colour saved for that agent', async () => {
   const previousAgents = useConfigStore.getState().agents;
-  useConfigStore.setState({ agents: [{ name: 'explore', mode: 'subagent', color: '#12a4c8' }] as never });
+  useConfigStore.setState({ agents: [{ id: 'explore', name: 'explore', displayName: 'Explore', mode: 'subagent', color: '#12a4c8', hidden: false, request: { settings: {}, headers: {}, body: {} }, permissions: [] }] });
   try {
     await withHarness(parent, false, async (store, container) => {
       await act(async () => store.setState(childActivity('child')));
-      const title = [...container.querySelectorAll('[style]')].find((element) => element.textContent === 'Explore') as HTMLElement | undefined;
+      const title = [...container.querySelectorAll<HTMLElement>('[style]')].find((element) => element.textContent === 'Explore');
       expect(title).toBeDefined();
       expect(/#12a4c8|rgb\(18,164,200\)/i.test(title?.style.color.replace(/\s/g, '') ?? '')).toBe(true);
     });

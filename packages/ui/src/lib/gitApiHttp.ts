@@ -29,6 +29,7 @@ import type {
   GitWorktreeArchive,
   GitWorktreeArchiveRestoreResult,
   GitWorktreeTitleResult,
+  GitWorktreePinResult,
   GitWorktreeValidationResult,
   CreateGitCommitOptions,
   GitCommitResult,
@@ -104,7 +105,12 @@ const gitFileDiffSchema = z.object({
 });
 
 async function pathDiffResponseError(response: Response, fallback: string): Promise<Error> {
-  const parsed = gitPathUnavailableBodySchema.safeParse(await response.json().catch(() => null));
+  const body: unknown = await response.json().catch(() => null);
+  const nonRepository = z.object({ code: z.literal('not_repository'), error: z.string() }).safeParse(body);
+  if (response.status === 409 && nonRepository.success) {
+    return new Error(nonRepository.data.error);
+  }
+  const parsed = gitPathUnavailableBodySchema.safeParse(body);
   if (parsed.success && (response.status === 404 || response.status === 422)) {
     return new GitPathUnavailableError(parsed.data.error, parsed.data.code);
   }
@@ -1205,7 +1211,7 @@ export async function getGitDiffs(directory: string, options: GetGitDiffsOptions
       body: JSON.stringify({ paths: paths.slice(start, start + GIT_DIFFS_MAX_PATHS), staged: staged === true, context: contextLines }),
     });
     if (!response.ok) {
-      throw new Error(`Failed to get git diffs: ${response.statusText}`);
+      throw await pathDiffResponseError(response, 'Failed to get git diffs');
     }
     for (const entry of gitPathDiffsSchema.parse(await response.json()).diffs) {
       entries.push('diff' in entry
@@ -1685,11 +1691,11 @@ export async function deleteGitWorktree(directory: string, payload: RemoveGitWor
 
 const worktreeTitleResultSchema = z.object({ title: z.string(), branch: z.string() });
 
-export async function setGitWorktreeTitle(directory: string, title: string): Promise<GitWorktreeTitleResult> {
+export async function setGitWorktreeTitle(directory: string, title: string, by: 'user' | 'agent' = 'user'): Promise<GitWorktreeTitleResult> {
   const response = await runtimeFetch(buildUrl(`${API_BASE}/worktrees/title`, directory), {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ title }),
+    body: JSON.stringify({ title, by }),
   });
   const body = await response.json().catch(() => null);
   if (!response.ok) {
@@ -1698,6 +1704,24 @@ export async function setGitWorktreeTitle(directory: string, title: string): Pro
   }
   const parsed = worktreeTitleResultSchema.safeParse(body);
   if (!parsed.success) throw new Error('Malformed task title response');
+  return parsed.data;
+}
+
+const worktreePinResultSchema = z.object({ pinned: z.boolean(), branch: z.string() });
+
+export async function setGitWorktreePinned(directory: string, pinned: boolean, list: string | null = null): Promise<GitWorktreePinResult> {
+  const response = await runtimeFetch(buildUrl(`${API_BASE}/worktrees/pin`, directory), {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(list ? { pinned, list } : { pinned }),
+  });
+  const body = await response.json().catch(() => null);
+  if (!response.ok) {
+    const message = z.object({ error: z.string() }).safeParse(body).data?.error;
+    throw new Error(message || 'Failed to pin the task');
+  }
+  const parsed = worktreePinResultSchema.safeParse(body);
+  if (!parsed.success) throw new Error('Malformed pin response');
   return parsed.data;
 }
 

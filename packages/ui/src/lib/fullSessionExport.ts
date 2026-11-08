@@ -32,9 +32,8 @@ type SessionTreeClient = {
 
 type LoadRecords = (session: Session) => Promise<SessionMessageRecord[] | null>;
 
-function errorText(error: unknown): string {
-  if (error instanceof Error && error.message.trim()) return error.message.trim();
-  const text = String(error).trim();
+function errorText(error: string): string {
+  const text = error.trim();
   return text || 'Unknown error';
 }
 
@@ -45,13 +44,14 @@ async function listDirectChildren(client: SessionTreeClient, parentID: string): 
   let cursor: string | undefined;
 
   do {
-    const page = await client.listSessionsPage({
+    const options: Parameters<SessionTreeClient['listSessionsPage']>[0] = {
       global: true,
       parentID,
       limit: PAGE_LIMIT,
       order: 'asc',
-      ...(cursor ? { cursor } : {}),
-    });
+    };
+    if (cursor) options.cursor = cursor;
+    const page = await client.listSessionsPage(options);
 
     for (const session of page.sessions) {
       // The server owns the parent filter. Keep this guard so a mixed or stale
@@ -80,16 +80,16 @@ async function collectNode(
   const node: FullSessionExportNode = {
     session,
     records,
-    ...(recordsError ? { recordsError } : {}),
     children: [],
   };
+  if (recordsError) node.recordsError = recordsError;
   let incompleteCount = recordsError ? 1 : 0;
 
   let children: Session[];
   try {
     children = await listDirectChildren(client, session.id);
   } catch (error) {
-    node.childrenError = errorText(error);
+    node.childrenError = errorText(error instanceof Error && error.message.trim() ? error.message : String(error));
     return { node, incompleteCount: incompleteCount + 1 };
   }
 
@@ -100,7 +100,7 @@ async function collectNode(
       childRecords = await loadRecords(child);
       if (!childRecords) childRecordsError = 'Session history became unavailable during export';
     } catch (error) {
-      childRecordsError = errorText(error);
+      childRecordsError = errorText(error instanceof Error && error.message.trim() ? error.message : String(error));
     }
 
     // A missing transcript does not make the subtree disappear. We still ask

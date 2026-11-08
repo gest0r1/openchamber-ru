@@ -27,29 +27,29 @@ async function loadDictionary(locale: Locale): Promise<I18nDictionary> {
   }
 
   const mod = locale === 'zh-CN'
-    ? await import('./messages/zh-CN') as { dict: I18nDictionary }
+    ? await import('./messages/zh-CN')
     : locale === 'fr'
-      ? await import('./messages/fr') as { dict: I18nDictionary }
+      ? await import('./messages/fr')
       : locale === 'nl'
-        ? await import('./messages/nl') as { dict: I18nDictionary }
+        ? await import('./messages/nl')
     : locale === 'zh-TW'
-      ? await import('./messages/zh-TW') as { dict: I18nDictionary }
+      ? await import('./messages/zh-TW')
       : locale === 'es'
-        ? await import('./messages/es') as { dict: I18nDictionary }
+        ? await import('./messages/es')
         : locale === 'pt-BR'
-          ? await import('./messages/pt-BR') as { dict: I18nDictionary }
+          ? await import('./messages/pt-BR')
           : locale === 'uk'
-            ? await import('./messages/uk') as { dict: I18nDictionary }
+            ? await import('./messages/uk')
             : locale === 'ko'
-              ? await import('./messages/ko') as { dict: I18nDictionary }
+              ? await import('./messages/ko')
               : locale === 'pl'
-                ? await import('./messages/pl') as { dict: I18nDictionary }
+                ? await import('./messages/pl')
                 : locale === 'de'
-                  ? await import('./messages/de') as { dict: I18nDictionary }
+                  ? await import('./messages/de')
                   : locale === 'ja'
-                    ? await import('./messages/ja') as { dict: I18nDictionary }
+                    ? await import('./messages/ja')
                     : locale === 'tr'
-                      ? await import('./messages/tr') as { dict: I18nDictionary }
+                      ? await import('./messages/tr')
                       : locale === 'ar'
                         ? await import('./messages/ar')
                         : locale === 'he'

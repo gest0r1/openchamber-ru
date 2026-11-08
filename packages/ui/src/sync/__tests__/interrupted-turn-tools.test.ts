@@ -23,11 +23,11 @@ function state(overrides: Partial<DirectoryStore> = {}): DirectoryStore {
   } as unknown as DirectoryStore
 }
 
-function toolPart(id: string, messageID: string, state: ToolPart["state"]): Part {
+function toolPart(id: string, messageID: string, state: ToolPart["state"]): ToolPart {
   return { id, messageID, sessionID: "ses_1", type: "tool", callID: `call-${id}`, tool: "bash", state }
 }
 
-function runningTool(id: string, messageID: string, start = 1000): Part {
+function runningTool(id: string, messageID: string, start = 1000): ToolPart {
   return toolPart(id, messageID, { status: "running", time: { start }, input: {} })
 }
 
@@ -52,15 +52,16 @@ describe("interruptedTurnToolParts (#2577)", () => {
     const store = state({
       session_status: { ses_1: { type: "idle" } },
       message: { ses_1: [unfinishedAssistantMessage("msg_1")] },
-      part: { msg_1: [runningTool("tool_1", "msg_1")] },
+      part: { msg_1: [{ ...runningTool("tool_1", "msg_1"), timing: { startMeasured: false, endMeasured: false, endSource: "fallback" } }] },
     })
 
     const result = interruptedTurnToolParts(store, "ses_1", 5000)
     expect(result).not.toBeNull()
-    const part = result!.parts![0] as { state: { status: string; error: string; time: { end: number } } }
+    const part = result!.parts![0] as { state: { status: string; error: string; time: { end: number } }; timing: { startMeasured: boolean; endMeasured: boolean; endSource: string } }
     expect(part.state.status).toBe("error")
     expect(part.state.error).toBe("Interrupted")
     expect(part.state.time.end).toBe(5000)
+    expect(part.timing).toMatchObject({ startMeasured: false, endMeasured: false, endSource: 'interruption_observed' })
     expect(result!.messages[0]).toEqual({
       ...unfinishedAssistantMessage("msg_1"),
       time: { created: 10, completed: 5000 },

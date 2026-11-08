@@ -164,6 +164,7 @@ export function projectToolPart(
         status: "error",
         input: tool.state.input,
         error: structuredErrorText(tool.state.error),
+        errorType: tool.state.error.type,
         output: toolOutputText(tool.state.content) || undefined,
         metadata: tool.state.metadata,
         time: { start, end },
@@ -179,6 +180,7 @@ export function projectToolPart(
     tool: tool.name,
     state,
     executed: tool.executed,
+    timing: { startMeasured: tool.time.ran !== undefined, endMeasured: tool.time.completed !== undefined, endSource: tool.time.completed !== undefined ? 'persisted' : 'fallback' },
   })
 }
 
@@ -306,6 +308,7 @@ export function projectInboxMessage(
         text: item.payload.text,
         description: item.payload.description,
         metadata: item.payload.metadata,
+        pending: true,
       }),
       parts: null,
     }

@@ -1,10 +1,53 @@
 import { describe, expect, test } from 'bun:test';
 import { createRuntimeOpencodeClient } from '@/lib/opencode/client';
-import { addRuntimeProxyHeaders, buildRuntimeFetchUrl, isLatin1Safe, runtimeFetch, sanitizeHeadersForBrowser } from './runtime-fetch';
-import { clearRuntimeAuthCredentialProvider, setRuntimeBearerToken } from './runtime-auth';
+import { addRuntimeProxyHeaders, buildRuntimeFetchUrl, installRuntimeFetchBridge, isLatin1Safe, runtimeFetch, sanitizeHeadersForBrowser } from './runtime-fetch';
+import { answerRenderedPage } from './renderPageAnswer';
+import { clearRuntimeAuthCredentialProvider, setRuntimeBearerToken, setRuntimeExtraHeaders } from './runtime-auth';
 import { configureRuntimeUrlResolver, getRuntimeUrlResolver, setRuntimeUrlResolver } from './runtime-url';
+import { serveTestHttp } from './test-http-server';
 
 const originalFetch = globalThis.fetch;
+
+test('mobile runtime credentials cannot follow HTTP redirects through fetch or the bridge', async () => {
+  const previous = getRuntimeUrlResolver();
+  const originalWindow = globalThis.window;
+  let targetRequests = 0;
+  const target = await serveTestHttp((_request, response) => {
+    targetRequests += 1;
+    response.end('ok');
+  });
+  const source = await serveTestHttp((_request, response) => {
+    response.writeHead(302, { Location: target.url.toString() });
+    response.end();
+  });
+  try {
+    Object.defineProperty(globalThis, 'window', { configurable: true, value: {
+      location: { protocol: 'capacitor:', origin: 'capacitor://localhost', href: 'capacitor://localhost' },
+      fetch: originalFetch,
+    } });
+    configureRuntimeUrlResolver({ apiBaseUrl: source.url.toString() });
+    setRuntimeExtraHeaders({ 'X-Proxy-Secret': 'synthetic-only' });
+    const url = new URL('/health', source.url);
+    for (const input of [url.toString(), url, new Request(url)]) {
+      await expect(runtimeFetch(input, { redirect: 'follow' })).rejects.toThrow();
+    }
+    installRuntimeFetchBridge();
+    for (const input of [url.toString(), url, new Request(url)]) {
+      await expect(window.fetch(input, { redirect: 'follow' })).rejects.toThrow();
+    }
+    expect(targetRequests).toBe(0);
+    // Requests without mobile proxy credentials retain normal redirect behavior.
+    setRuntimeExtraHeaders({});
+    expect((await runtimeFetch(url)).ok).toBe(true);
+    expect(targetRequests).toBe(1);
+  } finally {
+    setRuntimeExtraHeaders({});
+    setRuntimeUrlResolver(previous);
+    Object.defineProperty(globalThis, 'window', { configurable: true, value: originalWindow });
+    source.close();
+    target.close();
+  }
+});
 
 describe('buildRuntimeFetchUrl', () => {
   test('preserves same-origin paths by default', () => {
@@ -541,7 +584,7 @@ describe('runtimeFetch addresses isolated spaces', () => {
   const REPO = `/spaces/${SPACE}/repo`;
   type Seen = { url: string; directory: string | null; encoding: string | null };
   let lastHeaders = new Headers();
-  const capture = async (input: string | URL | Request, init?: Parameters<typeof runtimeFetch>[1]): Promise<Seen> => {
+  const capture = async (input: string | URL | Request, init?: Parameters<typeof runtimeFetch>[1], execute: () => Promise<Response | void> = () => runtimeFetch(input, init)): Promise<Seen> => {
     let seen: Seen = { url: '', directory: null, encoding: null };
     globalThis.fetch = (async (target: string | URL | Request, requestInit?: RequestInit) => {
       const request = new Request(target instanceof Request ? target : new URL(target.toString(), 'http://localhost:3000'), requestInit);
@@ -554,7 +597,7 @@ describe('runtimeFetch addresses isolated spaces', () => {
       return new Response('{}', { status: 200 });
     }) as typeof fetch;
     try {
-      await runtimeFetch(input, init);
+      await execute();
     } finally {
       globalThis.fetch = originalFetch;
     }
@@ -578,6 +621,12 @@ describe('runtimeFetch addresses isolated spaces', () => {
     await capture('/api/terminal/create', { method: 'POST', headers: [['Content-Type', 'application/json']], body: '{}', directory: REPO });
     expect(lastHeaders.get('content-type')).toBe('application/json');
     expect(lastHeaders.get('x-opencode-directory')).toBe(encodeURIComponent(REPO));
+  });
+
+  test('routes a rendered page answer to the session directory', async () => {
+    const seen = await capture('/api/openchamber/render/answer', undefined,
+      () => answerRenderedPage({ sessionId: 'ses_1', callId: 'call_1', summary: 'A', data: {} }, REPO));
+    expect(seen.directory).toBe(encodeURIComponent(REPO));
   });
 
   test('leaves a directory header the caller set itself, so a request naming two directories reaches the server as it is', async () => {

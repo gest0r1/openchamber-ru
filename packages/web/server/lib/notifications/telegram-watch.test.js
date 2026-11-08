@@ -53,7 +53,7 @@ const createHarness = async () => {
       } else if (pathname === '/api/session/child') {
         data = { id: 'child', parentID: 'session' };
       } else if (pathname === '/api/shell') {
-        data = state.shellWorking ? [{ id: 'job' }] : [];
+        data = state.shellWorking ? [{ status: 'running', command: 'build', metadata: null, time: { started: Date.now() } }] : [];
       } else if (pathname === '/api/session/session/form') {
         data = state.form ? [{ id: 'form-1', sessionID: 'session' }] : [];
       } else if (pathname === '/api/session/session/permission') {
