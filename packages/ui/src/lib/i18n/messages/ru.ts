@@ -1,3 +1,4 @@
+import { dict as enDict } from './en';
 import { guestStatusViewI18n } from './guest-status-view.i18n';
 import { sessionReferencesI18n } from './session-references.i18n';
 import { workflowsI18n } from './workflows.i18n';
@@ -38,7 +39,10 @@ import { pluginsGridI18n } from './plugins-grid.i18n';
 import { integrationsCatalogI18n } from './integrations-catalog.i18n';
 import { diffFindI18n } from './diff-find.i18n';
 
+// Untranslated keys introduced upstream remain available in English until localized.
+// Existing Russian entries below always override these defaults.
 export const dict = {
+  ...enDict,
   'opencodeCompatibility.bundled': 'OpenCode входит в состав OpenChamber. Обновите OpenChamber, чтобы получить OpenCode v2.',
   'opencodeCompatibility.title': 'Требуется OpenCode v2',
   'opencodeCompatibility.outdatedTitle': 'Обновите OpenCode',
