@@ -35,8 +35,8 @@ Telegram subscription/recovery/delivery ledger; RU i18n и настройки; M
 - [ ] `README.md` (base `911f1eb3d2fb`, fork `5ecca4a185d8`, upstream `183c364fa7b8`)
 - [x] `package.json` (base `a705fd207702`, fork `5ddaf6bed8ae`, upstream `b21b3ed78704`)
 - [x] `packages/electron/package.json` (base `4ee6ca77a2ca`, fork `228ac8c9e0d8`, upstream `425531bb116e`)
-- [ ] `packages/electron/updater-feed.mjs` (base `2f906fda5d2f`, fork `fd5c3c07fc21`, upstream `4eee6e79ee1f`)
-- [ ] `packages/electron/updater-feed.test.mjs` (base `fe6c975ac8a5`, fork `00ada6b5dbbe`, upstream `66fa2d772c97`)
+- [x] `packages/electron/updater-feed.mjs` (base `2f906fda5d2f`, fork `fd5c3c07fc21`, upstream `4eee6e79ee1f`)
+- [x] `packages/electron/updater-feed.test.mjs` (base `fe6c975ac8a5`, fork `00ada6b5dbbe`, upstream `66fa2d772c97`)
 - [ ] `packages/ui/src/components/chat/ChatContainer.tsx` (base `cd648023bf29`, fork `659732fa21ce`, upstream `02538157ff65`)
 - [ ] `packages/ui/src/components/chat/ChatInput.tsx` (base `81f4ef4644c5`, fork `d50a7dac2e23`, upstream `bc18c7f77c8d`)
 - [ ] `packages/ui/src/components/chat/message/parts/DOCUMENTATION.md` (base `2d7fc6501138`, fork `8f09137e98b2`, upstream `d42e33e2ac81`)
@@ -46,7 +46,7 @@ Telegram subscription/recovery/delivery ledger; RU i18n и настройки; M
 - [ ] `packages/ui/src/components/chat/message/parts/UiPageFrame.tsx` (base `c6f4f6c21f0e`, fork `19ba370c6994`, upstream `f2081739eabc`)
 - [ ] `packages/ui/src/components/chat/work-status/DOCUMENTATION.md` (base `7a25d516a8ab`, fork `f9f54f5ee8b7`, upstream `ab28d2e8ecbc`)
 - [ ] `packages/ui/src/components/sections/extensions/ExtensionsPage.tsx` (base `c03c651221b5`, fork `abd59b2cd279`, upstream `f00b93d101bb`)
-- [ ] `packages/ui/src/components/sections/integrations/CatalogExtensionsSection.tsx` (base `d6bf3215588b`, fork `f573a8ba375c`, upstream `a330fb2ed636`)
+- [x] `packages/ui/src/components/sections/integrations/CatalogExtensionsSection.tsx` (base `d6bf3215588b`, fork `f573a8ba375c`, upstream `a330fb2ed636`)
 - [ ] `packages/ui/src/components/sections/openchamber/NotificationSettings.tsx` (base `bf9e8d9a2f19`, fork `b4c300b8e9ce`, upstream `c4451e668269`)
 - [ ] `packages/ui/src/components/session/sidebar/sessions/SessionNodeItem.tsx` (base `76e4f798f242`, fork `91301e88ed72`, upstream `24ab9844e3ed`)
 - [x] `packages/ui/src/lib/i18n/messages.test.ts` (base `f89bfa57a3e4`, fork `25787893a715`, upstream `e25f752dc538`)
@@ -105,7 +105,7 @@ Telegram subscription/recovery/delivery ledger; RU i18n и настройки; M
 - [x] `packages/ui/src/lib/opencode/model.ts` (base `a3e139615ec5`, fork `b8d8a9827625`, upstream `fc28c5b75480`)
 - [ ] `packages/ui/src/lib/opencode/projection.test.ts` (base `d832c7705152`, fork `47ffa390233d`, upstream `5691a83588f3`)
 - [ ] `packages/ui/src/lib/opencode/projection.ts` (base `4d8ec297b011`, fork `5f61030f3e66`, upstream `0ac31848d9d3`)
-- [ ] `packages/ui/src/lib/renderPageAnswer.ts` (base `3ce7cbf7e6a0`, fork `a4413080f708`, upstream `eea3ac507e2f`)
+- [x] `packages/ui/src/lib/renderPageAnswer.ts` (base `3ce7cbf7e6a0`, fork `a4413080f708`, upstream `eea3ac507e2f`)
 - [ ] `packages/ui/src/lib/settings/search.ts` (base `9953821e01dc`, fork `a9cdafa14982`, upstream `957b34dd91cd`)
 - [ ] `packages/ui/src/styles/typography.css` (base `c18f200ea0e1`, fork `85da81011148`, upstream `bb69a62721c9`)
 - [ ] `packages/ui/src/sync/sync-context.tsx` (base `b52881a2c8d9`, fork `ae599805d0e3`, upstream `d75a03d1b671`)
@@ -158,3 +158,12 @@ Telegram subscription/recovery/delivery ledger; RU i18n и настройки; M
 - **RU fallback:** Russian `ru.ts` now spreads `enDict` first and overrides it with existing Russian strings, keeping previously untranslated new v2.7.1 keys available. This is a temporary **English fallback**, not complete RU translation; new strings need later localization if required. `ru.settings.ts` remains fork's Russian translations.
 - **Static validations:** uniqueness of locale labels/settings from earlier subblock; new quota keys present in RU block; rebase inclusion of RTL and measured timings; upstream tests structurally updated. **Node/Bun/typecheck/test/build: NOT RUN.** Actual translations/screens are not certified until runtime tests.
 - Checkpoint last code commit `c6fdfc3`. Marked 24 additional overlap rows. **52 file-level overlaps remain.**
+
+## A2: updater + bounded UI compatibility (2026-11-14)
+
+- **`packages/ui/src/lib/renderPageAnswer.ts` — adapt:** upstream 2.7.1 `declined` request accepted; keep fork directory scope in runtimeFetch, avoiding cross-project misrouting.
+- **`packages/ui/src/components/sections/integrations/CatalogExtensionsSection.tsx` — reuse upstream:** fork delta relative to shared base consists solely of a comment rewrite; no production behavioral delta to preserve, obsolete text dropped.
+- **`packages/electron/updater-feed.mjs` — adapt with security boundary:** upstream v2.7.1 introduces R2 CDN mirror of upstream's OpenChamber binaries. The fork Stable feed MUST point to `gest0r1/openchamber-ru`. Upstream R2 stable mirror is **not** a compatible source of fork builds. Its exported `STABLE_MIRROR_UPDATER_FEED` is therefore pinned to the fork's GitHub feed, and Canary mirror to the existing Canary GitHub feed; upstream channel/URL validation logic retained.
+- **`packages/electron/updater-feed.test.mjs` — adapt tests:** upstream test suite kept, fork owner/repo restored, explicit regression test added for `source: mirror` on Stable channel.
+- Code commits include `333f531`, `0f747c1`, `a55a51b`, `16eed0f`. **Static review only.** Node 24/Bun tests and integration smoke: **NOT RUN**.
+- **48 overlaps pending.**
