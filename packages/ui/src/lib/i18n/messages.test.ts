@@ -1,8 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 
 import { dict as enDict } from './messages/en';
-import type { Locale } from './runtime';
-import type { I18nDictionary } from './store';
+import { getCustomizableShortcutActions } from '@/lib/shortcuts';
 import { dict as esDict } from './messages/es';
 import { dict as deDict } from './messages/de';
 import { dict as frDict } from './messages/fr';
@@ -36,7 +35,7 @@ const localeDictionaries = {
   ar: arDict,
   he: heDict,
   ru: ruDict,
-} satisfies Record<Locale, I18nDictionary>;
+} as const;
 
 describe('i18n dictionaries', () => {
   test('Zen labels are translated and preserve their value placeholders in every locale', () => {
@@ -126,11 +125,18 @@ describe('i18n dictionaries', () => {
       }
     }
   });
+  test('every customizable shortcut has an English label', () => {
+    const missing = getCustomizableShortcutActions()
+      .map((action) => action.settingsLabelKey)
+      .filter((key) => !(key in enDict));
+    expect(missing).toEqual([]);
+  });
+
   test('all locales stay in key parity with english', () => {
-    const englishKeys = Object.keys(enDict);
+    const englishKeys = Object.keys(enDict).sort();
 
     for (const dictionary of Object.values(localeDictionaries)) {
-      for (const key of englishKeys) expect(Object.hasOwn(dictionary, key)).toBe(true);
+      expect(Object.keys(dictionary).sort()).toEqual(englishKeys);
     }
   });
 
