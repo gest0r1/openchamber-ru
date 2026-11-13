@@ -339,6 +339,11 @@ export const extensionsSettingsI18n = {
     'settings.extensions.detail.field.location': 'Locatie',
   },
   ru: {
+    'settings.extensions.capability.service.providesQuota': 'Показывает расход как встроенный провайдер, используя учётные данные, сохранённые OpenCode для:',
+    'settings.extensions.capability.service.providesQuota.credentials': 'Получает эти учётные данные при каждом обновлении и больше ничего от OpenCode.',
+    'settings.extensions.capability.service.providesQuota.none': 'Показывает расход как встроенный провайдер. Не получает учётных данных от OpenCode.',
+    'settings.extensions.service.providesQuota': 'Показывает расход как встроенный провайдер, используя учётные данные, сохранённые OpenCode для {list}.',
+    'settings.extensions.service.providesQuota.none': 'Показывает расход как встроенный провайдер, не получая учётных данных от OpenCode.',
     'settings.extensions.actions.openSource': 'Открыть исходный код',
     'settings.extensions.builtIn.info': 'Поставляется вместе с OpenChamber и обновляется вместе с приложением. Заявленные разрешения выдаются автоматически. При отключении данные и подключённые аккаунты сохраняются.',
     'settings.extensions.toast.reservedId': 'Этот ID расширения зарезервирован для встроенного расширения.',
