@@ -114,7 +114,7 @@ Telegram subscription/recovery/delivery ledger; RU i18n и настройки; M
 - [ ] `packages/web/bin/lib/DOCUMENTATION.md` (base `71f9cc3162d2`, fork `3954d82bbb4e`, upstream `645848442784`)
 - [ ] `packages/web/bin/lib/cli-startup.js` (base `c13f42e65aca`, fork `9775b6debb73`, upstream `af1b51bd38d3`)
 - [x] `packages/web/package.json` (base `636c1d91368c`, fork `2061c2b478f9`, upstream `8b2b1a1059e2`)
-- [ ] `packages/web/server/index.js` (base `d31d7cddd1a9`, fork `7695211dd5f2`, upstream `72f759be2640`)
+- [x] `packages/web/server/index.js` (base `d31d7cddd1a9`, fork `7695211dd5f2`, upstream `72f759be2640`)
 - [ ] `packages/web/server/lib/agent-tool/DOCUMENTATION.md` (base `569fb28ad17f`, fork `5411966a396b`, upstream `652fe02db6c6`)
 - [ ] `packages/web/server/lib/agent-tool/runtime.js` (base `561d6ec565da`, fork `2a8df0714f87`, upstream `b30176342543`)
 - [ ] `packages/web/server/lib/agent-tool/runtime.test.js` (base `b0573e51f693`, fork `f0d646020114`, upstream `6721b408dc58`)
@@ -123,10 +123,10 @@ Telegram subscription/recovery/delivery ledger; RU i18n и настройки; M
 - [ ] `packages/web/server/lib/openchamber-control/render-page.js` (base `c079c7365cb2`, fork `e27b9daa1fc8`, upstream `42d3487ba45d`)
 - [ ] `packages/web/server/lib/openchamber-control/service.js` (base `254a8d954c0f`, fork `0c3c36940c34`, upstream `522d42420e03`)
 - [ ] `packages/web/server/lib/opencode/DOCUMENTATION.md` (base `a2c9adf4cec5`, fork `01b6caaeeda6`, upstream `88e35cda0fd0`)
-- [ ] `packages/web/server/lib/opencode/session-activity.js` (base `b626dcc8db29`, fork `e935c091afed`, upstream `04ad7339537f`)
-- [ ] `packages/web/server/lib/opencode/session-activity.test.js` (base `ddf7c4b232e5`, fork `2e105734729f`, upstream `f9a0b000727a`)
+- [x] `packages/web/server/lib/opencode/session-activity.js` (base `b626dcc8db29`, fork `e935c091afed`, upstream `04ad7339537f`)
+- [x] `packages/web/server/lib/opencode/session-activity.test.js` (base `ddf7c4b232e5`, fork `2e105734729f`, upstream `f9a0b000727a`)
 - [ ] `packages/web/server/lib/opencode/settings-helpers.js` (base `a597b01910b7`, fork `a8d6a10f3de2`, upstream `aa2c78a711a9`)
-- [ ] `packages/web/server/lib/opencode/shutdown-runtime.js` (base `5c9ce114c6b5`, fork `ae09ebba4feb`, upstream `83a763df9e30`)
+- [x] `packages/web/server/lib/opencode/shutdown-runtime.js` (base `5c9ce114c6b5`, fork `ae09ebba4feb`, upstream `83a763df9e30`)
 - [ ] `packages/web/server/lib/terminal/DOCUMENTATION.md` (base `9e5da32bc801`, fork `b89dbeff04ea`, upstream `807ed1c28c76`)
 - [ ] `packages/web/server/lib/terminal/runtime.js` (base `6422ebf174e1`, fork `8685eb08405d`, upstream `e35bdabe9866`)
 
@@ -167,3 +167,11 @@ Telegram subscription/recovery/delivery ledger; RU i18n и настройки; M
 - **`packages/electron/updater-feed.test.mjs` — adapt tests:** upstream test suite kept, fork owner/repo restored, explicit regression test added for `source: mirror` on Stable channel.
 - Code commits include `333f531`, `0f747c1`, `a55a51b`, `16eed0f`. **Static review only.** Node 24/Bun tests and integration smoke: **NOT RUN**.
 - **48 overlaps pending.**
+
+## A2-session runtime, native jobs + legacy Telegram (2026-11-14)
+
+- `packages/web/server/index.js`: **rebase on upstream 2.7.1, selectively graft embedded Telegram** (config/approval/source/watch, one-time user confirmation for explicit Markdown/text, route registration, reconnect, event callbacks, tunnel origin, graceful shutdown). A static comparison against fork/main and common ancestor found **103 original fork-only content lines; all 103 preserved**. The old watcher remains the **only active Telegram sender**; SDK extension not installed/enabled, cutover has NOT happened. Upstream new features (session todos, hidden sessions, SDK service lifetime, memory dreaming, extension waits, native notifications) remain in rebased entry point.
+- `session-activity.js`: preserve strict descendant depth (unknown after 8), pending form/permission and detached shell guard; add official 2.2.7 job.list path to track background subagent, shell and image jobs with 31-minute timeout. Unknown responses remain fail-closed. `session-activity.test.js`: retain upstream job.list regression and fork strict depth/shell tests, add form/permission cases.
+- `shutdown-runtime.js`: retain stop of Telegram watcher, approval and reconnect subscription; adopt upstream session todos, extension waits and service lifetime cleanup.
+- Static checks: one Telegram route, one embedded Telegram sender, one watcher start, one watcher event subscription; upstream lifecycle handlers and fork completion guards exist in exact branch blobs. **PASS (static)**; no Node/Bun runtime, endpoint contracts, typecheck, or CI executed: **NOT RUN**. Separate interactions with `openchamber-control/service.js`, `agent-tool/runtime.js`, UI forms and new OpenCode 2.2.7 require full integration tests before certifying this subblock.
+- Code commits: `407c594`, `e336b74`, `596e5fd`, `206e538`. **44 unresolved file-level overlaps remain.**
