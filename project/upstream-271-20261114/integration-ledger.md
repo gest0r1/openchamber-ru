@@ -33,8 +33,8 @@ Telegram subscription/recovery/delivery ledger; RU i18n и настройки; M
 - [ ] `.github/workflows/stale.yml` (base `ac1b4b358bc1`, fork `∅`, upstream `1e82fc068342`)
 - [ ] `.github/workflows/vscode-extension.yml` (base `8f51aade1a4d`, fork `∅`, upstream `fb23b34d0177`)
 - [ ] `README.md` (base `911f1eb3d2fb`, fork `5ecca4a185d8`, upstream `183c364fa7b8`)
-- [ ] `package.json` (base `a705fd207702`, fork `5ddaf6bed8ae`, upstream `b21b3ed78704`)
-- [ ] `packages/electron/package.json` (base `4ee6ca77a2ca`, fork `228ac8c9e0d8`, upstream `425531bb116e`)
+- [x] `package.json` (base `a705fd207702`, fork `5ddaf6bed8ae`, upstream `b21b3ed78704`)
+- [x] `packages/electron/package.json` (base `4ee6ca77a2ca`, fork `228ac8c9e0d8`, upstream `425531bb116e`)
 - [ ] `packages/electron/updater-feed.mjs` (base `2f906fda5d2f`, fork `fd5c3c07fc21`, upstream `4eee6e79ee1f`)
 - [ ] `packages/electron/updater-feed.test.mjs` (base `fe6c975ac8a5`, fork `00ada6b5dbbe`, upstream `66fa2d772c97`)
 - [ ] `packages/ui/src/components/chat/ChatContainer.tsx` (base `cd648023bf29`, fork `659732fa21ce`, upstream `02538157ff65`)
@@ -113,7 +113,7 @@ Telegram subscription/recovery/delivery ledger; RU i18n и настройки; M
 - [ ] `packages/web/bin/cli.test.js` (base `421c6fbf47de`, fork `920ce93cee5b`, upstream `b5c831f42a03`)
 - [ ] `packages/web/bin/lib/DOCUMENTATION.md` (base `71f9cc3162d2`, fork `3954d82bbb4e`, upstream `645848442784`)
 - [ ] `packages/web/bin/lib/cli-startup.js` (base `c13f42e65aca`, fork `9775b6debb73`, upstream `af1b51bd38d3`)
-- [ ] `packages/web/package.json` (base `636c1d91368c`, fork `2061c2b478f9`, upstream `8b2b1a1059e2`)
+- [x] `packages/web/package.json` (base `636c1d91368c`, fork `2061c2b478f9`, upstream `8b2b1a1059e2`)
 - [ ] `packages/web/server/index.js` (base `d31d7cddd1a9`, fork `7695211dd5f2`, upstream `72f759be2640`)
 - [ ] `packages/web/server/lib/agent-tool/DOCUMENTATION.md` (base `569fb28ad17f`, fork `5411966a396b`, upstream `652fe02db6c6`)
 - [ ] `packages/web/server/lib/agent-tool/runtime.js` (base `561d6ec565da`, fork `2a8df0714f87`, upstream `b30176342543`)
@@ -136,3 +136,10 @@ Telegram subscription/recovery/delivery ledger; RU i18n и настройки; M
 - [ ] Сохранить bootstrap/runtime readiness, auth, Telegram и release policy.
 - [ ] Bun 1.4.4 / Node 24 type-check, lint, tests, build: **NOT RUN**; CI только на принятом SHA, релиз/publish не запускались.
 - [ ] Только после PASS и обзора всех конфликтов принимать merge-commit с upstream в истории; этот WIP-коммит одно-родительский и не подменяет подтверждённый merge.
+
+## Подтверждённые решения после начального импорта (2026-11-14)
+
+- **Реконсиляция manifest/CLI pin (3/109 конфликтов):** `package.json` — upstream зависимости/patches, сохранены fork `opencode:pins` и вызов в `type-check`; `packages/web/package.json` — upstream зависимости, сохранён lint server/index.js и увеличена минимальная совместимость до OpenCode 2.2.7; `packages/electron/package.json` — upstream версия/CLI 2.2.7, сохранены publish gest0r1/openchamber-ru и fork NSIS policy. Коммиты `0f6e1ca`, `e63e28a`, `d1b6563`.
+- **Static cross-package pins PASS:** root/web/ui/vscode `@opencode/client` и `@opencode/schema` выровнены 2.2.7, Electron CLI 2.2.7, Docker CLI 2.2.7, `bun.lock` 2.2.7; версии всех пяти package.json: 2.7.1. Сопоставлено с правилами `scripts/check-opencode-pins.mjs`; сам скрипт **NOT RUN** (нет isolated checkout / Node 24 / Bun 1.4.4).
+- **SDK v2.7.1 contract static review:** `contributes.sessionEvents` включает `turn-finished`, `question-asked`, `permission-asked`; `service.keepRunning` удерживает воркер; `sessionControl.answers` позволяет отвечать на форму/permission после разрешения. `provides: notifications` — штатный host channel, но его семантика **не доказывает** per-root Telegram, дедупликацию после crash/reconnect и учёт detached shells. Запросы service permissions advisory (не OS sandbox). В B требуется сравнение c `telegram-watch.js`, отдельный secure token/migration и shadow без доставок.
+- **Оставшиеся пересечения:** 106 файлов (файловая классификация); это не 106 доказанных текстовых конфликтов. Выполнение CI/runtime тестов: **NOT RUN**.
