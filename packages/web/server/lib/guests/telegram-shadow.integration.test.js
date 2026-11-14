@@ -63,13 +63,14 @@ describe('Telegram shadow SDK host install and durable lifecycle', () => {
 
       const first = await request({ method: 'POST', route: '/session-events', wire: envelope('evt-root') });
       expect(first.status).toBe(200);
-      expect(JSON.parse(first.body)).toMatchObject({ ok: true, recorded: true, duplicate: false });
+      expect(JSON.parse(first.body)).toEqual({ ok: true });
       const second = await request({ method: 'POST', route: '/session-events', wire: envelope('evt-child', 'ses_root') });
       expect(second.status).toBe(200);
-      const replay = await request({ method: 'POST', route: '/session-events', wire: envelope('evt-root') });
-      expect(JSON.parse(replay.body)).toMatchObject({ ok: true, recorded: false, duplicate: true });
-
       const statePath = path.join(root, 'guest-data', guestId, 'shadow-events-v1.json');
+      const beforeReplay = await fs.readFile(statePath, 'utf8');
+      const replay = await request({ method: 'POST', route: '/session-events', wire: envelope('evt-root') });
+      expect(JSON.parse(replay.body)).toEqual({ ok: true });
+      expect(await fs.readFile(statePath, 'utf8')).toBe(beforeReplay);
       const state = JSON.parse(await fs.readFile(statePath, 'utf8'));
       expect(state.events.length).toBe(2);
       expect((await fs.stat(statePath)).mode & 0o777).toBe(0o600);
@@ -83,7 +84,8 @@ describe('Telegram shadow SDK host install and durable lifecycle', () => {
         ok: true, version: 1, observed: 2, rootEvents: 1, deliveryEnabled: false,
       });
       const duplicateAfterRestart = await request({ method: 'POST', route: '/session-events', wire: envelope('evt-child', 'ses_root') });
-      expect(JSON.parse(duplicateAfterRestart.body)).toMatchObject({ duplicate: true, recorded: false });
+      expect(JSON.parse(duplicateAfterRestart.body)).toEqual({ ok: true });
+      expect(await fs.readFile(statePath, 'utf8')).toBe(beforeReplay);
 
       await setCapabilityGrants(guestId, persistPath, []);
       await stopGuestService(guestId);
