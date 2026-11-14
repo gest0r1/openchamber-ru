@@ -48,6 +48,41 @@ test('preserves scope, topic, original session identity, checkpoint, ambiguous d
   assert.deepEqual(migrated.sourceSha256, digest);
 });
 
+test('preserves once/run/session scopes across spaces and all delivery outcome fences', () => {
+  const s = sample();
+  const scopes = ['once', 'run', 'session'];
+  const states = ['sent', 'reserved', 'rejected', 'delivery_unknown'];
+  s.runtime.subscriptions = {};
+  s.runtime.deliveries = {};
+  s.watch.pending = [];
+  for (let i = 0; i < scopes.length; i += 1) {
+    const directory = '/repo/worktree-' + i;
+    const sessionId = 'ses_' + i;
+    const key = sha(JSON.stringify([directory, sessionId]));
+    s.runtime.subscriptions[key] = { opted_in: true, alias: 'Team Ops', scope: scopes[i],
+      created_at: 1770000000000 + i, expires_at: i === 0 ? 1771000000000 : null,
+      origin: i === 2 ? 'agent' : 'user', sessionId, directory,
+      spaceId: i === 1 ? 'space-1' : null };
+    s.watch.pending.push({ directory, sessionId, spaceId: i === 1 ? 'space-1' : null,
+      attempt: 0, armed: false, createdAt: 1770000000000 + i });
+  }
+  for (let i = 0; i < states.length; i += 1) {
+    const directory = '/repo/worktree-' + (i % 3);
+    const sessionId = 'ses_' + (i % 3);
+    const eventKey = 'idle:' + i;
+    s.runtime.deliveries[JSON.stringify([directory, sessionId, 'completed', eventKey])] = {
+      directory, sessionId, type: 'completed', eventKey, status: states[i], at: 1770000000000 + i,
+    };
+  }
+  const snapshot = prepareLegacySnapshot(s);
+  assert.deepEqual(Object.values(snapshot.subscriptions).map((entry) => entry.scope), scopes);
+  assert.equal(Object.values(snapshot.subscriptions)[1].spaceId, 'space-1');
+  assert.equal(snapshot.pending.length, 3);
+  assert.deepEqual(Object.values(snapshot.deliveries).map((entry) => entry.status), states);
+  assert.equal(snapshot.owner, 'legacy');
+  assert.equal(snapshot.deliveryEnabled, false);
+});
+
 test('denies missing configured alias, incorrect keys, incorrect statuses, duplicate checkpoints, unsupported format', () => {
   const scenarios = [
     (a) => { delete a.configuredAliases; },
