@@ -8,13 +8,17 @@ const infoSchema = z.object({ version: versionSchema });
 const legacyHealthSchema = z.object({ version: versionSchema, healthy: z.boolean() });
 
 /**
- * Minimum OpenCode for this fork: 2.2.7 is the exact version pinned across
- * Electron, Docker, package manifests and the SDK lock. Upstream OpenChamber
- * supports older 2.x, but this integrated fork has not validated those builds.
- * Keep this runtime guard aligned with packages/web/package.json engines.opencode:
- * the published requirement and the startup check must enforce the same floor.
+ * Oldest OpenCode OpenChamber runs against. 2.2.4 accepts a share such as
+ * `"20%"` in `compaction.buffer`, the form Settings writes; an older OpenCode
+ * rejects the whole config file holding it. (2.2.0 before it moved text
+ * generation to `POST /api/experimental/generate/text`, 2.1.0 added
+ * `archived` to `PATCH /api/session/{id}`, 2.0.20 `GET /api/credential`,
+ * 2.0.15 `PATCH /api/session` metadata.)
+ *
+ * `engines.opencode` in packages/web/package.json repeats it, so the release
+ * published to npm says what it needs before a server installs it.
  */
-const MINIMUM_OPENCODE_VERSION = '2.2.7';
+const MINIMUM_OPENCODE_VERSION = '2.2.4';
 
 const releaseParts = (version) => version.split(/[-+]/, 1)[0].split('.').map(Number);
 
