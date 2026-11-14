@@ -151,3 +151,88 @@ test('tracked-session search finds a renamed older subscription beyond the lates
   });
   expect(response.hasMore).toBe(false);
 });
+
+
+const optInFixture = (initial = 'legacy', holdVerify = false) => {
+  let sender = initial;
+  let verifyStarted;
+  let releaseVerify;
+  const verifying = new Promise((resolve) => { verifyStarted = resolve; });
+  const held = new Promise((resolve) => { releaseVerify = resolve; });
+  const trace = [];
+  const handlers = new Map();
+  const app = {
+    use: () => {},
+    get: (route, h) => handlers.set('GET ' + route, h),
+    post: (route, h) => handlers.set('POST ' + route, h),
+    delete: () => {},
+  };
+  registerTelegramRoutes(app, {
+    config: {
+      read: async () => ({ sender, enabled: true }),
+      update: async ({ sender: next }) => { sender = next; trace.push('sender:' + next); },
+    },
+    telegram: {
+      subscribe: async () => trace.push('subscribed'),
+      unsubscribe: async () => trace.push('unsubscribed'),
+      waitForSettledDeliveries: async () => {},
+      listSubscriptions: async () => [],
+      seedBaselines: async () => {},
+    },
+    watch: {
+      track: async () => trace.push('legacy-track'),
+      cancel: async () => {},
+      checkpoints: async () => [],
+      reconcileAll: () => {},
+    },
+    approval: {}, dispatchPending: async () => [],
+    completionProof: async () => ({ kind: 'idle', idle: { id: 'idle-old', outcome: 'succeeded' } }),
+    sdkSenderReady: async () => true,
+    getSource: () => ({
+      buildOpenCodeUrl: (url) => 'http://opencode' + url,
+      getOpenCodeAuthHeaders: () => ({}),
+      fetchImpl: async (url) => {
+        if (new URL(url).pathname.endsWith('/message')) {
+          return Response.json({ data: [{ type: 'idle', id: 'idle-old' }] });
+        }
+        verifyStarted();
+        if (holdVerify) await held;
+        return Response.json({ data: {
+          id: 'ses_1', title: 'Work', parentID: null,
+          location: { directory: '/repo' },
+        } });
+      },
+    }),
+    uiAuthController: { ensureSessionToken: async () => 'test-session' },
+  });
+  const request = (route, body = {}) => new Promise((resolve, reject) => {
+    let status = 200;
+    const res = {
+      headersSent: false,
+      status: (code) => { status = code; return res; },
+      json: (data) => { resolve({ status, body: data }); return res; },
+      setHeader: () => {},
+    };
+    handlers.get('POST /api/notifications/telegram/' + route)({ body }, res, reject);
+  });
+  return { request, trace, verifying, releaseVerify, getSender: () => sender };
+};
+
+test('SDK opt-in relies on notifier sweep and does not create a legacy watcher', async () => {
+  const h = optInFixture('sdk');
+  expect(await h.request('subscribe', { sessionId: 'ses_1', directory: '/repo' }))
+    .toEqual({ status: 200, body: { subscribed: true } });
+  expect(h.trace).toEqual(['subscribed']);
+});
+
+test('ongoing subscription blocks a concurrent sender cutover until checkpoint is durable', async () => {
+  const h = optInFixture('legacy', true);
+  const optIn = h.request('subscribe', { sessionId: 'ses_1', directory: '/repo' });
+  await h.verifying;
+  const switching = await h.request('sender', { sender: 'sdk' });
+  expect(switching.status).toBe(409);
+  expect(h.getSender()).toBe('legacy');
+  h.releaseVerify();
+  expect(await optIn).toEqual({ status: 200, body: { subscribed: true } });
+  expect(h.trace).toEqual(['subscribed', 'legacy-track']);
+});
