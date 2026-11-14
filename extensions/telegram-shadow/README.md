@@ -51,7 +51,8 @@ unresolved destinations, duplicate watch checkpoints and changed input files.
 It **does not** discover source paths or alter any input. It atomically
 creates `legacy-prepared-v1.json` mode 0600 under the chosen data directory.
 The private snapshot includes credentials and chat destinations: **never
-commit it, upload it to GitHub or post it in a chat**. Output on success is
+commit it, upload it to GitHub or post it in a chat**. The CLI rejects a
+private data directory nested under the extension source checkout. Output on success is
 only aggregate counts. Repeating with identical data is idempotent; different
 data cannot overwrite the prior snapshot. There is no CLI command to activate
 the snapshot, and the running SDK service never reads it.
