@@ -135,4 +135,13 @@ export const tooltipsWalkthroughI18n = {
     'contextTooltips.walkthrough.openChanges': '開啟所有變更',
     'contextTooltips.walkthrough.checkAgain': '重新檢查',
   },
+  ru: {
+    'contextTooltips.walkthrough.generate': "Пошагово объяснить изменения",
+    'contextTooltips.walkthrough.regenerate': "Создать новый пошаговый разбор",
+    'contextTooltips.walkthrough.stop': "Остановить создание разбора",
+    'contextTooltips.walkthrough.generateRequested': "Создать для выбранного языка и модели",
+    'contextTooltips.walkthrough.regenerateStale': "Пересоздать для текущей версии кода",
+    'contextTooltips.walkthrough.openChanges': "Открыть все изменения",
+    'contextTooltips.walkthrough.checkAgain': "Проверить ещё раз",
+  },
 };
