@@ -301,15 +301,16 @@ export const createExtensionSessionEvents = ({
     return Boolean(goal && typeof goal === 'object' && goal.status === 'active');
   };
 
-  /** True when a subagent of the session still runs; a check that cannot be made counts as "no". */
+  /** An unreadable child-status check cannot prove a terminal turn: fail closed. */
   const hasWorkingChildren = async (sessionId) => {
-    if (stopped) return false;
+    if (stopped) return true;
     try {
       const statuses = await activityProbe.fetchActiveSessionStatuses();
-      if (stopped || !statuses) return false;
-      return (await activityProbe.hasWorkingChildren(sessionId, statuses)) === true;
+      if (stopped || !statuses) return true;
+      // null means the descendant list could not be read, not "no children".
+      return (await activityProbe.hasWorkingChildren(sessionId, statuses)) !== false;
     } catch {
-      return false;
+      return true;
     }
   };
 
