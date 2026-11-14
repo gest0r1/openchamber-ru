@@ -16,6 +16,7 @@ const MAX_TEXT = 4000;
 export const createTelegramRuntime = ({
   storePath, getBotToken, getPublicOrigin, fetchImpl = fetch,
   enabled = async () => true,
+  getSender = async () => 'legacy',
   allowedFileRoots = [],
   getConfiguredAliases = null,
   persistAliases = null,
@@ -353,9 +354,9 @@ export const createTelegramRuntime = ({
   const listAliases = async () => {
     return Object.keys(await configuredAliases());
   };
-  const notify = async ({ directory, sessionId, type, eventKey = null, aborted = false, canSend = async () => true, manualRetry = false }) => {
+  const notify = async ({ directory, sessionId, type, eventKey = null, aborted = false, canSend = async () => true, manualRetry = false, sender = 'legacy' }) => {
     if (!directory || !sessionId || aborted || !['completed', 'needs_input', 'error'].includes(type)) return false;
-    if (await enabled() !== true) return false;
+    if (await enabled() !== true || await getSender() !== sender) return false;
     const data = await load();
     const subscription = data.subscriptions[keyOf(directory, sessionId)];
     if (isExpired(subscription)) {
@@ -422,7 +423,7 @@ export const createTelegramRuntime = ({
         finalSubscription.alias !== subscription.alias ||
         finalSubscription.scope !== subscription.scope ||
         finalSubscription.expires_at !== subscription.expires_at ||
-        isExpired(finalSubscription) || await enabled() !== true) {
+        isExpired(finalSubscription) || await enabled() !== true || await getSender() !== sender) {
         await mutate((latest) => { delete latest.deliveries[dedupKey]; });
         return false;
       }
@@ -480,7 +481,7 @@ export const createTelegramRuntime = ({
     }
     // Manual action from an authenticated user, never background retry.
     return notify({ directory: entry.directory, sessionId: entry.sessionId,
-      type: entry.type, eventKey: entry.eventKey, manualRetry: true });
+      type: entry.type, eventKey: entry.eventKey, manualRetry: true, sender: await getSender() });
   };
   return { configureAlias, deleteAlias, subscribe, unsubscribe, sendText, sendDocument, sendContent,
     notify, hasSubscription, getSubscription, listSubscriptions, listAliases, listAliasDetails, hasBotToken, listDeliveryIssues, retryDelivery };
