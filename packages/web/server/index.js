@@ -2360,14 +2360,7 @@ onGuestServiceEnded((guestId) => {
   if (guestMarks.dropEnded(guestId)) announceGuestMarksChanged();
 });
 
-const serviceHostApi = createServiceHostApi({
-  telegramNotifier: createTelegramNotifierBridge({
-    telegram: telegramRuntime, config: telegramConfig, sourceFor: telegramSourceFor,
-    listWaitingPages: (sessionId, spaceId) => !spaceId
-      ? openChamberControlService?.listWaitingPages?.(sessionId) ?? null
-      : null,
-  }),
-  completionProof: createSessionCompletionProof({
+const telegramCompletionProof = createSessionCompletionProof({
     sourceFor: telegramSourceFor,
     isGoalActive: async (sessionId, spaceId) => {
       try {
@@ -2400,7 +2393,15 @@ const serviceHostApi = createServiceHostApi({
         return (await response.json())?.pending === false ? [] : [{ parentSessionId: sessionId }];
       } catch { return null; }
     },
+  });
+const serviceHostApi = createServiceHostApi({
+  telegramNotifier: createTelegramNotifierBridge({
+    telegram: telegramRuntime, config: telegramConfig, sourceFor: telegramSourceFor,
+    listWaitingPages: (sessionId, spaceId) => !spaceId
+      ? openChamberControlService?.listWaitingPages?.(sessionId) ?? null
+      : null,
   }),
+  completionProof: telegramCompletionProof,
   listGuests: () => listInstalledGuests({ persistPath: extensionsPersistPath(OPENCHAMBER_DATA_DIR) }),
   control: {
     execute: (...args) => openChamberControlService.execute(...args),
@@ -3271,7 +3272,18 @@ async function main(options = {}) {
   relayService.registerRoutes(app);
 
   registerBrowserControlRoutes(app, { express, broker: browserControlBroker });
-  registerTelegramRoutes(app, { telegram: telegramRuntime, config: telegramConfig, watch: telegramWatch, approval: telegramApproval, getSource: telegramSourceFor, uiAuthController, dispatchPending: async () => {
+  registerTelegramRoutes(app, {
+    telegram: telegramRuntime, config: telegramConfig, watch: telegramWatch, approval: telegramApproval,
+    getSource: telegramSourceFor, uiAuthController, completionProof: telegramCompletionProof,
+    sdkSenderReady: async () => {
+      const guest = await findInstalledGuest('telegram-notifier', extensionsPersistPath(OPENCHAMBER_DATA_DIR));
+      return guest?.enabled === true && getServiceStatus('telegram-notifier') === 'ready' &&
+        guest.service?.provides?.includes('opencode') === true &&
+        guest.capabilityGrants?.includes('service') === true &&
+        guest.capabilityGrants?.includes('opencode') === true &&
+        Array.isArray(guest.sessionEvents?.events);
+    },
+    dispatchPending: async () => {
     await dispatchResultsRuntime.load();
     return dispatchResultsRuntime.pending();
   } });
