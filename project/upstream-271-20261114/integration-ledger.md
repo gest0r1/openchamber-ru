@@ -384,7 +384,7 @@ Telegram subscription/recovery/delivery ledger; RU i18n и настройки; M
 - Re-run grouped PR checks on candidate SHA resulting from this ledger commit; exact-head CI result **NOT RUN when this entry was written**. Do not cite `43609598701` as a full PASS. No Telegram sender or cutover enabled.
 
 
-## LATEST HANDOFF — verified CI source SHA 5b347025 (2026-11-14)
+## HISTORICAL HANDOFF — verified CI source SHA 5b347025 (2026-11-14; superseded by SDK sender implementation below)
 
 **Read this entry before preceding historical CI attempts.** Branch `feature/upstream-271-fork-reconciliation-20261114` was at code+ledger SHA `5b347025bd912227b9f2f0624f3ff4135cb10083` before appending this document-only entry. PR [#27](https://github.com/gest0r1/openchamber-ru/pull/27) remains OPEN, **DRAFT**, GitHub reports mergeable; **no merge/release/deploy** and no SSH/production operations.
 
@@ -403,3 +403,37 @@ Telegram subscription/recovery/delivery ledger; RU i18n и настройки; M
 
 **Resumption:** Re-fetch both branches and PR #27, verify OC latest source diff relative to `5b347025`. If only this ledger changed, leave PR draft until the independent blockers above are cleared or the owner explicitly approves a scoped partial release. Master plan: [my-opencode project plan](https://github.com/gest0r1/my-opencode/blob/feature/upstream-227-telegram-review-value-plan-20261113/project/upstream-227-telegram-review-value-plan-20261113.md). Update status only against exact SHA + real test evidence.
 
+
+
+## LATEST HANDOFF — Telegram SDK sender + session subscription UI, 2026-11-14
+
+**Resume from this entry, not the earlier 5b347025 shadow-only handoff above.** This branch has **51 subsequent commits / 46 changed paths** since the doc-only branch checkpoint `72a37191`. Do not treat the old 5b347025 green PR CI as validation of this new code.
+
+| Item | Verified point |
+| --- | --- |
+| Repository | `gest0r1/openchamber-ru` |
+| Feature branch | `feature/upstream-271-fork-reconciliation-20261114` |
+| **Implementation source HEAD at capture** | **`7e25145c9ca142a1c8a9623033b9dac505834905`** (the following ledger-only commit is untested documentation) |
+| Pull request | [#27](https://github.com/gest0r1/openchamber-ru/pull/27) OPEN/DRAFT, mergeable; **NOT merged** |
+| PR CI on exact source SHA | [run 43628894909](https://github.com/gest0r1/openchamber-ru/actions/runs/43628894909): **type-check PASS, lint PASS, build PASS, tests IN PROGRESS at checkpoint**. The tests job had already passed frozen install and both Telegram SDK shadow + notifier Node service steps; full Vitest/release contracts/Electron packaging NOT YET PASS when this entry was authored. |
+| RU i18n on exact source SHA | [run 43628894980](https://github.com/gest0r1/openchamber-ru/actions/runs/43628894980) **PASS**. |
+| my-opencode | Separate branch `feature/upstream-227-telegram-review-value-plan-20261113`, `c074e862e413aa93a41ffeb60dae6268cf33ac3a` before next handoff update; runtime acceptance still NOT RUN. |
+
+### Owner-approved design and implemented source
+
+1. **Only SDK-oriented forward implementation.** Added standalone SDK host package `extensions/telegram-notifier/` (`service/main.js`, `service/reconcile.js`, tests), separate from `extensions/telegram-shadow/` (retained passive validation artifact). The notifier does **not** read Telegram updates, commands, bot tokens, chat recipients or message content; outbound transport, credentials and durable dedup ledger remain in the OpenChamber host. It is **not** a general-purpose Telegram reader. Its `sessionEvents` are wake-up hints only; a 60-second periodic sweep reconciles after dropped events/restart.
+2. **Minimal read-only completion SDK contract:** `sessions.completion` on service-host API/schemas plus `session-completion-proof.js`, `telegram.subscriptions`, `telegram.attention`, `telegram.deliverAttention`, `telegram.deliver` restricted to the approved `telegram-notifier` service. It checks root, Goal, descendant status (strict depth), detached shells, forms/permissions, pending dispatch and latest terminal idle; unreadable data => `unknown`, never send. Before Bot API use host checks proof and subscription/owner again. This code was implemented and unit tests added; **real host/Telegram end-to-end not yet proven**.
+3. **Active subscriptions management inside OpenChamber, not bot:** existing `TelegramNotificationSettings.tsx` now has **Отслеживаемые сессии**, name/directory/alias/scope, search, refresh, paging 30, direct **Отключить**. Backend `GET /api/notifications/telegram/subscriptions` reads **all stored opt-in subscriptions** (not just last 50 sessions) and refreshes each visible title from OpenCode when readable; preserved saved title or session ID is fallback. Opt-in button remains on session. UI localization for supported languages was updated. **Known limitation to verify:** server-side search matches stored title/directory/alias/ID, while the freshly read title appears only after the matched row was selected for the page. Old subscriptions with no saved title can be found by directory/ID, not necessarily by newly renamed title.
+4. **Single selected sender and fallback, not two parallel implementations:** config field `sender: legacy | paused | sdk` defaults to **legacy**; legacy watcher and SDK notifier delivery are owner-gated. UI-auth `GET/POST /api/notifications/telegram/sender` supports explicit opt-in cutover and rollback. Cutover sets `paused`, compares each subscription to a known quiescent legacy checkpoint, seeds idle baselines, confirms SDK readiness and moves owner to SDK; rejection/exception reverts legacy and reconciliation. **Currently excludes subscriptions in isolated spaces**, so this path cannot claim full cross-space parity. It is code for controlled *test* switchover, **not a production cutover**. There is no Telegram bot interaction or management command.
+5. **Attention catch-up and no duplicate after restart:** the SDK notifier enumerates current form/permission/page waits through host, reconfirms before sending, and maintains shared `delivery_unknown` semantics via existing host ledger. The extension holds no secrets. Tests cover fail-closed proof, gated delivery, double-check, baseline exclusion and reconciliation from missing SDK events. Need **isolated host drop/reconnect, pending work, in-flight request and rollback tests** beyond source unit coverage. Do not assert absolute zero duplicates on Telegram timeouts: outcomes may be unknown.
+
+### Outstanding gates — NOT COMPLETE
+
+- **CI exact source SHA:** wait for final `tests` job, read logs and fix verified failures; collect a single exact-source PASS for tests/typecheck/lint/build/RU. Old `5b347025` PASS is only historic.
+- **Host runtime + delivery acceptance:** install/approve `telegram-notifier` in an isolated real OpenChamber 2.7.1 host; validate auth/lease revocation, SDK strict ACK, 60s lost event catch-up, child / shell / dispatch / Goal / page questions, external Telegram send with disposable credentials and safe ambiguous outcome handling. No live credentials in GitHub/chat.
+- **Cutover + rollback rehearsal:** quiescent snapshot/old subscription and `delivery_unknown` consistency, single-owner under concurrent send, restart while `paused` (safe recovery still needs explicit testing), turn/resubscribe during transition, previous owner resume; cross-space limitation must be resolved or explicitly deferred before product-wide SDK activation. No production activation.
+- **UI smoke:** names reflect rename; archived/long-running/old sessions persist in list; unsubscribe actually prevents in-flight notifications, across projects/worktrees; page/search states and RU/EN text; notification-only bot remains outbound.
+- **Separate my-opencode A3/C1/C2/D tests:** complete isolated Node24/Bun1.4.4/tsx checkout, installer rollback, user model preservation, PLAN/RUN/GateRunner, CodeReviewer. NO my-opencode GitHub Actions as a substitute.
+- **OpenChamber existing preserved fork runtime smoke:** worktrees/sessions, Markdown full export, updater/windows, mobile release not executed.
+
+**No main merge, no release, no deployment, no SSH or production work.** Previous ledger sections are historical evidence; on resume compare exact HEAD/code SHA and CI, then update both ledger and master plan. The SDK implementation has been added but **overall task is not accepted**.
