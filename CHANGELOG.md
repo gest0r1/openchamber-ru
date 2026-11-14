@@ -491,6 +491,29 @@
 - Git library updated past four published security advisories.
 - Desktop: Help > Suggest a Feature opens a feature request.
 
+## [2.5.2.2] - 2026-10-28
+
+### Fixes
+
+- Restored automatic Telegram alerts for completed work, errors and requests for user input when the public tunnel is unavailable.
+
+## [2.5.2.1] - 2026-10-27
+
+### New
+
+- Upstream 2.5.1: Gitea, Forgejo and Gerrit as Git hosts; stacked pull requests; switching accounts or moving to a fallback model when a provider's usage limit stops a session; Tailscale Serve and Funnel for the external tunnel; GitHub Discussions on the board.
+- Upstream 2.5.2: the sidebar lists works; archiving a worktree keeps its branch, sessions and changes; the app asks before OpenCode runs a folder's plugins and commands; `@` mentions of other sessions; agent workflows that fan a task out to many agents, behind a feature flag.
+- Telegram notifications for sessions, with approval before an explicit send.
+
+### Fixes
+
+- Upstream 2.5.1 and 2.5.2 fixes for the composer, files, skills, Git, GitHub and settings. The full lists are in the 2.5.1 and 2.5.2 notes.
+
+### Misc
+
+- Bundled OpenCode updated to 2.1.4.
+- Fork changes kept: the Russian interface, now covering every new upstream string; linked GitHub issue refs in the prompt, now read through the Git host registry; the subagent name and colour; full Markdown export; fork releases for Windows x64, Linux x64 and Android. The upstream nix and bot workflows stay out of the fork.
+
 ## [2.5.2] - 2026-10-26
 
 ### New
@@ -691,6 +714,22 @@
 - Contributors: the repository and the Docker images move to Bun 1.4.4, and type-check runs `bun check`, which checks the whole repository in about a second. Run `bun upgrade` to get it locally.
 - Self-hosted relay: the Cloudflare version stays asleep when a phone or computer drops off the network, which cut the cost of our hosted relay about 15 times. To get it, pull the latest `openchamber-relay` and run `npx wrangler deploy` again.
 
+## [2.5.0.1] - 2026-10-21
+
+### New
+
+- Upstream 2.4.0: an agent can show a page with options and wait for your choice in the same turn; a diagnostics timeline opens with Cmd/Ctrl+Shift+L; an integrations catalog with one-click MCP servers; find in file contents from the sidebar; Resource Monitor in the extensions catalog.
+- Upstream 2.5.0: chosen sessions can stay warm for 30 minutes to 3 hours; scheduled tasks are their own agent tool; find in the Changes panel; pages an agent shows can be annotated; the retry status says when a rate limit resets.
+
+### Fixes
+
+- Upstream 2.4.0 and 2.5.0 fixes for chat, the sidebar, Git, GitLab, worktrees, terminal, mobile and the desktop app. The full lists are in the 2.4.0 and 2.5.0 notes.
+
+### Misc
+
+- Bundled OpenCode updated to 2.0.32.
+- Fork changes kept: the Russian interface, the Server Browser extension in the catalog next to Excalidraw and Resource Monitor, and fork releases for Windows x64, Linux x64 and Android. The upstream nix workflows stay out of the fork.
+
 ## [2.5.0] - 2026-10-19
 
 ### New
@@ -864,6 +903,22 @@
 - Bundled OpenCode updated to 2.0.32.
 - Linux: the desktop app uses the cube icon from Windows (thanks to @yulia-ivashko).
 
+## [2.3.3.1] - 2026-10-15
+
+### New
+
+- Upstream 2.3.2: agents read and change the project's notes, todos and plans; issue and pull request links from chat open on the issues board; Linux .deb and .rpm packages for x64 next to the AppImage; a Mini Chat window that stays on top.
+- Upstream 2.3.3: an agent can show a chart, table, diagram or interface mockup above its answer; review threads on the issues board; videos play in chat; the Plans tab shows how many steps are done.
+
+### Fixes
+
+- Upstream 2.3.2 and 2.3.3 fixes for the sidebar, chat, Git, GitLab, worktrees and Settings → Providers. The full lists are in the 2.3.2 and 2.3.3 notes.
+
+### Misc
+
+- Bundled OpenCode updated to 2.0.29.
+- Fork changes kept: the Russian interface, subagent rows named after their agent in the agent's colour, Full Markdown session export (2.3.1.5), and fork releases for Windows x64, Linux x64 and Android.
+
 ## [2.3.3] - 2026-10-14
 
 ### New
@@ -949,6 +1004,25 @@
 ### Misc
 
 - Bundled OpenCode updated to 2.0.28.
+
+## [2.3.1.5] - 2026-10-15
+
+### Improvements
+
+- Sessions: added a Full Markdown export that includes the root session, recursively discovered subagent sessions, and tool input, result, and error details.
+- Sessions: partial export failures no longer discard healthy sibling branches; incomplete branches are marked in the generated Markdown.
+
+## [2.3.1.4] - 2026-10-13
+
+### Improvements
+
+- Chat: the agent name on a subagent row uses the colour saved for that agent, the same colour the agent picker shows.
+
+## [2.3.1.3] - 2026-10-13
+
+### Improvements
+
+- Chat: a subagent row shows the agent it runs (for example "CoderAgent") instead of the generic "Agent Task", so parallel subagents are easy to tell apart.
 
 ## [2.3.1] - 2026-10-13
 
