@@ -2361,7 +2361,12 @@ onGuestServiceEnded((guestId) => {
 });
 
 const serviceHostApi = createServiceHostApi({
-  telegramNotifier: createTelegramNotifierBridge({ telegram: telegramRuntime, config: telegramConfig }),
+  telegramNotifier: createTelegramNotifierBridge({
+    telegram: telegramRuntime, config: telegramConfig, sourceFor: telegramSourceFor,
+    listWaitingPages: (sessionId, spaceId) => !spaceId
+      ? openChamberControlService?.listWaitingPages?.(sessionId) ?? null
+      : null,
+  }),
   completionProof: createSessionCompletionProof({
     sourceFor: telegramSourceFor,
     isGoalActive: async (sessionId, spaceId) => {
