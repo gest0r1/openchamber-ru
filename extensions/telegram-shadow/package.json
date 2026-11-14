@@ -26,8 +26,7 @@
           "turn-failed",
           "permission-asked",
           "question-asked"
-        ],
-        "content": false
+        ]
       }
     }
   },
