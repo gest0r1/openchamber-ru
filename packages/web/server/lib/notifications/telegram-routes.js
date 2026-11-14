@@ -123,7 +123,7 @@ export const registerTelegramRoutes = (app, { telegram, config, watch, approval,
         await telegram.waitForSettledDeliveries();
         await config.update({ sender: 'legacy' });
         paused = false;
-        watch.reconcileAll();
+        await watch.start();
         return res.json({ sender: 'legacy' });
       }
       if (current !== 'legacy' || !await sdkSenderReady() || typeof completionProof !== 'function') {
@@ -164,7 +164,7 @@ export const registerTelegramRoutes = (app, { telegram, config, watch, approval,
         // originally selected sender; the previous ledger remains intact.
         const restore = previous === 'sdk' ? 'sdk' : 'legacy';
         await config.update({ sender: restore });
-        if (restore === 'legacy') watch.reconcileAll();
+        if (restore === 'legacy') await watch.start();
       }
       return res.status(error instanceof TypeError ? 409 : 502).json({
         error: error instanceof TypeError ? error.message : 'Telegram sender cutover failed',
