@@ -9,7 +9,7 @@ export const createTelegramConfig = (filePath) => {
       const raw = z.object({
         version: z.literal(1), enabled: z.boolean(),
         botToken: z.string().optional(), defaultAlias: z.string().optional(),
-        sender: z.enum(['legacy', 'sdk']).optional(),
+        sender: z.enum(['legacy', 'sdk', 'paused']).optional(),
       }).parse(JSON.parse(await readFile(filePath, 'utf8')));
       return { version: 1, enabled: raw.enabled, botToken: raw.botToken || '', defaultAlias: raw.defaultAlias || '', sender: raw.sender || 'legacy' };
     } catch (error) {
