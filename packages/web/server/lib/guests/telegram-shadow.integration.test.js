@@ -98,6 +98,8 @@ describe('Telegram shadow SDK host install and durable lifecycle', () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), 'oc-sdk-telegram-routing-'));
     const persistPath = path.join(root, 'extensions.json');
     let runtime;
+    const fetched = [];
+    const warnings = [];
     try {
       const inspected = await inspectGuestPackage(packageRoot, { openchamberVersion: '2.7.1' });
       expect(inspected).toMatchObject({ ok: true });
@@ -117,8 +119,9 @@ describe('Telegram shadow SDK host install and durable lifecycle', () => {
         getOpenCodeAuthHeaders: () => ({}),
         fetchImpl: async (url) => {
           const endpoint = new URL(url);
+          fetched.push(endpoint.pathname);
           if (endpoint.pathname === '/api/session/active') return Response.json({ data: {} });
-          if (endpoint.pathname === '/api/session') return Response.json({ data: { data: [], cursor: {} } });
+          if (endpoint.pathname === '/api/session') return Response.json({ data: [], cursor: {} });
           if (endpoint.pathname === '/api/session/ses_root') return Response.json({ data: {
             id: 'ses_root', parentID: null, location: { directory: '/isolated/test-project' },
           } });
@@ -126,30 +129,38 @@ describe('Telegram shadow SDK host install and durable lifecycle', () => {
         },
         fetchLastAssistantMessageText: async () => '',
         readSessionMetadata: () => null,
+        warn: (...args) => warnings.push(args.join(' ')),
       });
+      const statePath = path.join(root, 'guest-data', guestId, 'shadow-events-v1.json');
+      const awaitEvents = async (expected) => {
+        const deadline = Date.now() + 6_000;
+        let status;
+        while (Date.now() < deadline) {
+          const response = await serviceRequest({ method: 'GET', path: '/status' });
+          status = JSON.parse(response.body);
+          if (status.observed === expected) return status;
+          await new Promise((resolve) => setTimeout(resolve, 40));
+        }
+        const events = await fs.readFile(statePath, 'utf8').catch(() => '');
+        throw new Error('SDK router failed to deliver expected count ' + expected +
+          '; status=' + JSON.stringify(status) +
+          '; events=' + events.slice(0, 1200) +
+          '; reads=' + JSON.stringify(fetched) +
+          '; warnings=' + JSON.stringify(warnings));
+      };
       runtime.processPayload({
         id: 'evt-start', type: 'session.status',
         properties: { sessionID: 'ses_root', directory: '/isolated/test-project', status: { type: 'busy' } },
       }, '/isolated/test-project');
+      expect(await awaitEvents(1)).toMatchObject({ observed: 1, rootEvents: 1, deliveryEnabled: false });
       runtime.processPayload({
         id: 'evt-idle', type: 'session.idle',
         properties: { sessionID: 'ses_root', directory: '/isolated/test-project' },
       }, '/isolated/test-project');
 
-      // Wait on a precise persisted condition rather than the service spawn timing.
-      const deadline = Date.now() + 12_000;
-      let status;
-      while (Date.now() < deadline) {
-        const response = await serviceRequest({ method: 'GET', path: '/status' });
-        status = JSON.parse(response.body);
-        if (status.observed === 2) break;
-        await new Promise((resolve) => setTimeout(resolve, 40));
-      }
-      expect(status).toMatchObject({
-        ok: true, observed: 2, rootEvents: 2, deliveryEnabled: false,
-      });
-      const events = JSON.parse(await fs.readFile(
-        path.join(root, 'guest-data', guestId, 'shadow-events-v1.json'), 'utf8')).events;
+      const status = await awaitEvents(2);
+      expect(status).toMatchObject({ ok: true, observed: 2, rootEvents: 2, deliveryEnabled: false });
+      const events = JSON.parse(await fs.readFile(statePath, 'utf8')).events;
       expect(events.map((event) => event.type)).toEqual(['turn-started', 'turn-finished']);
       expect(events.every((event) => event.root === true)).toBe(true);
     } finally {
