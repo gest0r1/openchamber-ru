@@ -1605,7 +1605,6 @@ export const sourceBoardI18n = {
     'sourceBoard.list.choose': 'בחר',
     'sourceBoard.list.toggleAria': 'רשימת פריטים, מוצג {item}',
   },
-  ru: {
     'sourceBoard.reply.startThread': 'Начать обсуждение',
     'sourceBoard.reply.startThreadHint': 'Опубликовать как обсуждение, которое кто-то должен закрыть',
     'sourceBoard.reply.toast.threadStarted': 'Начато обсуждение в {reference}',
@@ -1642,6 +1641,7 @@ export const sourceBoardI18n = {
     'sourceBoard.actions.changes': 'Изменения',
     'sourceBoard.actions.merge': 'Слить',
     'sourceBoard.actions.markReady': 'Готово к ревью',
+    'sourceBoard.actions.convertToDraft': "Перевести в черновик",
     'sourceBoard.merge.confirmTitle.pullRequest': 'Слить запрос на слияние {reference}?',
     'sourceBoard.merge.confirmTitle.mergeRequest': 'Слить запрос на слияние {reference}?',
     'sourceBoard.merge.confirmTitle.change': 'Отправить изменение {reference}?',
@@ -1654,6 +1654,8 @@ export const sourceBoardI18n = {
     'sourceBoard.toast.mergeFailed': 'Не удалось слить {reference}',
     'sourceBoard.toast.markedReady': '{reference} готов к ревью',
     'sourceBoard.toast.markReadyFailed': 'Не удалось отметить {reference} как готовый к ревью',
+    'sourceBoard.toast.markedDraft': "{reference} переведён в черновик",
+    'sourceBoard.toast.markDraftFailed': "Не удалось перевести {reference} в черновик",
     'sourceBoard.error.attachFailed': 'Не удалось прикрепить {item}',
     'sourceBoard.toast.statusUpdated': 'Статус задачи обновлён',
     'sourceBoard.toast.statusUpdateFailed': 'Не удалось обновить статус задачи',
@@ -1708,8 +1710,5 @@ export const sourceBoardI18n = {
     'sourceBoard.actions.newWorktreeSession': 'Новая сессия в worktree…',
     'sourceBoard.list.choose': 'Выбрать',
     'sourceBoard.list.toggleAria': 'Список элементов, показано: {item}',
-    'sourceBoard.actions.convertToDraft': "Перевести в черновик",
-    'sourceBoard.toast.markedDraft': "{reference} переведён в черновик",
-    'sourceBoard.toast.markDraftFailed': "Не удалось перевести {reference} в черновик",
   },
 } as const;
