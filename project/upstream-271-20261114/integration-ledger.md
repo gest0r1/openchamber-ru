@@ -103,11 +103,11 @@ Telegram subscription/recovery/delivery ledger; RU i18n и настройки; M
 - [x] `packages/ui/src/lib/i18n/messages/zh-TW.ts` (base `62dfcec6f41e`, fork `92701464ff2e`, upstream `4a9da802b6ea`)
 - [x] `packages/ui/src/lib/i18n/store.ts` (base `5b9e3670fd08`, fork `4dae7ae35ce3`, upstream `76e1aa97fb71`)
 - [x] `packages/ui/src/lib/opencode/model.ts` (base `a3e139615ec5`, fork `b8d8a9827625`, upstream `fc28c5b75480`)
-- [ ] `packages/ui/src/lib/opencode/projection.test.ts` (base `d832c7705152`, fork `47ffa390233d`, upstream `5691a83588f3`)
-- [ ] `packages/ui/src/lib/opencode/projection.ts` (base `4d8ec297b011`, fork `5f61030f3e66`, upstream `0ac31848d9d3`)
+- [x] `packages/ui/src/lib/opencode/projection.test.ts` (base `d832c7705152`, fork `47ffa390233d`, upstream `5691a83588f3`)
+- [x] `packages/ui/src/lib/opencode/projection.ts` (base `4d8ec297b011`, fork `5f61030f3e66`, upstream `0ac31848d9d3`)
 - [x] `packages/ui/src/lib/renderPageAnswer.ts` (base `3ce7cbf7e6a0`, fork `a4413080f708`, upstream `eea3ac507e2f`)
 - [ ] `packages/ui/src/lib/settings/search.ts` (base `9953821e01dc`, fork `a9cdafa14982`, upstream `957b34dd91cd`)
-- [ ] `packages/ui/src/styles/typography.css` (base `c18f200ea0e1`, fork `85da81011148`, upstream `bb69a62721c9`)
+- [x] `packages/ui/src/styles/typography.css` (base `c18f200ea0e1`, fork `85da81011148`, upstream `bb69a62721c9`)
 - [ ] `packages/ui/src/sync/sync-context.tsx` (base `b52881a2c8d9`, fork `ae599805d0e3`, upstream `d75a03d1b671`)
 - [ ] `packages/vscode/CHANGELOG.md` (base `aff6fe7f9cc1`, fork `d7f89fa175f3`, upstream `48b6c8a51f63`)
 - [ ] `packages/web/bin/cli.test.js` (base `421c6fbf47de`, fork `920ce93cee5b`, upstream `b5c831f42a03`)
@@ -125,10 +125,10 @@ Telegram subscription/recovery/delivery ledger; RU i18n и настройки; M
 - [ ] `packages/web/server/lib/opencode/DOCUMENTATION.md` (base `a2c9adf4cec5`, fork `01b6caaeeda6`, upstream `88e35cda0fd0`)
 - [x] `packages/web/server/lib/opencode/session-activity.js` (base `b626dcc8db29`, fork `e935c091afed`, upstream `04ad7339537f`)
 - [x] `packages/web/server/lib/opencode/session-activity.test.js` (base `ddf7c4b232e5`, fork `2e105734729f`, upstream `f9a0b000727a`)
-- [ ] `packages/web/server/lib/opencode/settings-helpers.js` (base `a597b01910b7`, fork `a8d6a10f3de2`, upstream `aa2c78a711a9`)
+- [x] `packages/web/server/lib/opencode/settings-helpers.js` (base `a597b01910b7`, fork `a8d6a10f3de2`, upstream `aa2c78a711a9`)
 - [x] `packages/web/server/lib/opencode/shutdown-runtime.js` (base `5c9ce114c6b5`, fork `ae09ebba4feb`, upstream `83a763df9e30`)
 - [ ] `packages/web/server/lib/terminal/DOCUMENTATION.md` (base `9e5da32bc801`, fork `b89dbeff04ea`, upstream `807ed1c28c76`)
-- [ ] `packages/web/server/lib/terminal/runtime.js` (base `6422ebf174e1`, fork `8685eb08405d`, upstream `e35bdabe9866`)
+- [x] `packages/web/server/lib/terminal/runtime.js` (base `6422ebf174e1`, fork `8685eb08405d`, upstream `e35bdabe9866`)
 
 ## Незавершённые проверки
 - [ ] Разобрать каждый конфликт на уровне строк, а не оставлять fork-версию файла по умолчанию.
@@ -183,3 +183,8 @@ Telegram subscription/recovery/delivery ledger; RU i18n и настройки; M
 - Extended upstream `openchamber-control/service.test.js` with session/path refusal (400), unavailable channel (503), forwarded payload/explicit approval and page wait lifecycle assertions; updated `agent-tool/runtime.test.js` to expect all eight notify params.
 - **Static cross-file assertions: PASS (8/8)** including exact action, handler and service wiring in `server/index.js`. **Node/Bun runtime tests: NOT RUN**, so this is a static-resolution checkpoint, not an acceptance declaration.
 - Commits: `cbab33b`, `e48fa0e`, `bd414b7`, `c58ebf5`, `1b5f0e4`, `c80b294`. **39 overlapping paths remain** (five fewer than previous checkpoint).
+
+## A2 small nonoverlap merge — locale, terminal, projection, typography (2026-11-14)
+
+- **5 overlapping paths reconciled via independent base→fork and base→v2.7.1 line hunks.** Every hunk set was checked for overlap before replaying both deltas; no ambiguous hunk. `settings-helpers.js`: preserve `ru` in UI locale enum while taking upstream settings. `terminal/runtime.js`: preserve injected-environment marker while taking upstream terminal behavior. `projection.ts` / `projection.test.ts`: keep persisted/fallback tool timings and test cases alongside upstream model projection; `typography.css`: preserve eight responsive 80rem width rules alongside upstream typography.
+- Code commits `62ce886`, `eadd077`, `8f74206`, projection-test commit (see branch history), `dff437d`. **Static hunk nonoverlap PASS; Bun/Node24/type-check/layout tests NOT RUN**. Remaining overlap paths **34**.
