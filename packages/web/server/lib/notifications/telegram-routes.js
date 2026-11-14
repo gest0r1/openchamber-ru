@@ -100,6 +100,7 @@ export const registerTelegramRoutes = (app, { telegram, config, watch, approval,
   // Pause before draining the previous sender's live verification and Bot API
   // operations, then validate a quiescent checkpoint before SDK ownership.
   let switchingSender = false;
+  let subscriptionsInFlight = 0;
   app.get('/api/notifications/telegram/sender', asyncRoute(async (_req, res) => {
     res.setHeader('Cache-Control', 'no-store');
     res.json({ sender: (await config.read()).sender, sdkReady: await sdkSenderReady() });
@@ -107,7 +108,7 @@ export const registerTelegramRoutes = (app, { telegram, config, watch, approval,
   app.post('/api/notifications/telegram/sender', asyncRoute(async (req, res) => {
     const mode = asString(req.body?.sender);
     if (!['legacy', 'sdk'].includes(mode)) return res.status(400).json({ error: 'Invalid sender' });
-    if (switchingSender) return res.status(409).json({ error: 'Sender change already in progress' });
+    if (switchingSender || subscriptionsInFlight > 0) return res.status(409).json({ error: 'Sender change or subscription in progress' });
     switchingSender = true;
     let paused = false;
     let previous = 'legacy';
@@ -293,29 +294,40 @@ export const registerTelegramRoutes = (app, { telegram, config, watch, approval,
     } catch (error) { fail(res, error); }
   }));
   app.post('/api/notifications/telegram/subscribe', asyncRoute(async (req, res) => {
+    if (switchingSender) return res.status(409).json({ error: 'Sender cutover in progress' });
+    // Prevent a sender preflight from taking a snapshot while a new opt-in
+    // is between verification and its durable write.
+    subscriptionsInFlight += 1;
     try {
       const item = sessionInput(req.body);
-      if ((await config.read()).sender === 'paused') return res.status(409).json({ error: 'Sender cutover in progress' });
+      const senderAtStart = (await config.read()).sender;
+      if (senderAtStart === 'paused') return res.status(409).json({ error: 'Sender cutover in progress' });
       const record = await verify(item);
       const baseline = await baselineIdleId(item);
-      if ((await config.read()).sender === 'sdk' && baseline === undefined) {
+      if (switchingSender || (await config.read()).sender !== senderAtStart) {
+        return res.status(409).json({ error: 'Sender changed during subscription' });
+      }
+      if (senderAtStart === 'sdk' && baseline === undefined) {
         throw new TypeError('Cannot establish a safe Telegram subscription baseline');
       }
       await telegram.subscribe(item.directory, item.sessionId, req.body?.alias, {
         origin: 'user', spaceId: item.spaceId, title: record.title,
         baselineIdleId: baseline ?? null,
       });
-      try {
-        await watch.track(item);
-      } catch (error) {
-        // A subscription without its durable checkpoint could miss every
-        // subsequent end-of-run after a server restart. Fail the operation.
-        await telegram.unsubscribe(item.directory, item.sessionId);
-        await watch.cancel(item.sessionId, item.directory, item.spaceId);
-        throw error;
+      // Only the selected sender performs tracking. SDK uses its 60s sweep;
+      // legacy checkpoints are recovered from all opt-ins on rollback.
+      if (senderAtStart === 'legacy') {
+        try {
+          await watch.track(item);
+        } catch (error) {
+          await telegram.unsubscribe(item.directory, item.sessionId);
+          await watch.cancel(item.sessionId, item.directory, item.spaceId);
+          throw error;
+        }
       }
       res.json({ subscribed: true });
     } catch (error) { fail(res, error); }
+    finally { subscriptionsInFlight -= 1; }
   }));
   app.post('/api/notifications/telegram/unsubscribe', asyncRoute(async (req, res) => {
     try {
