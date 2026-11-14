@@ -13,6 +13,8 @@ import { guestSessionActions, type GuestActionEntry } from '@/lib/guests/actions
 import { runGuestSessionAction } from '@/lib/guests/session-action';
 import { getChatsRootFromDirectory } from '@/lib/chatDirectories';
 import { useI18n } from '@/lib/i18n';
+import { buildExportFilename, downloadAsMarkdown, getExportRevealLabelKey, revealExportedMarkdown, saveAsMarkdownDesktop } from '@/lib/exportSession';
+import { collectFullSessionExport, formatFullSessionAsMarkdown } from '@/lib/fullSessionExport';
 import { getMultiRunIdentity } from '@/lib/multirun/identity';
 import { useMultiRunMemberIds } from '@/lib/multirun/useMultiRuns';
 import type { Session } from '@/lib/opencode/model';
@@ -163,6 +165,52 @@ export function SessionActionsMenuItems({
   };
 
   const loadExportRecords = useSessionMessageRecordsForExport();
+
+  // This is intentionally distinct from the built-in Markdown export: it
+  // follows the authoritative OpenCode parentID tree and includes tool calls.
+  // Keeping it in the shared menu gives header and sidebar identical behavior.
+  const handleFullMarkdownExport = React.useCallback(async () => {
+    if (!directory) {
+      toast.error(t('sessions.sidebar.session.export.nothingToExport'));
+      return;
+    }
+    const records = await loadExportRecords({ directory, sessionID: session.id }).catch(() => null);
+    if (!records) {
+      toast.error(t('sessions.sidebar.session.export.failedLoadHistory'));
+      return;
+    }
+    if (!records.length) {
+      toast.error(t('sessions.sidebar.session.export.nothingToExport'));
+      return;
+    }
+
+    const fullExport = await collectFullSessionExport(session, records, async (childSession) => {
+      const childDirectory = normalizePath(childSession.directory);
+      if (!childDirectory) throw new Error('Session directory is required for export');
+      return loadExportRecords({ directory: childDirectory, sessionID: childSession.id });
+    });
+    const markdown = formatFullSessionAsMarkdown(fullExport);
+    const filename = buildExportFilename(`${session.title || 'session'}-full`);
+    const savedPath = await saveAsMarkdownDesktop(markdown, filename);
+    if (savedPath) {
+      toast.success(t('sessions.sidebar.session.export.success'), {
+        action: {
+          label: t(getExportRevealLabelKey()),
+          onClick: () => {
+            void revealExportedMarkdown(savedPath).then((revealed) => {
+              if (!revealed) toast.error(t('sessions.sidebar.session.export.failedRevealPath'));
+            });
+          },
+        },
+      });
+    } else {
+      downloadAsMarkdown(markdown, filename);
+      toast.success(t('sessions.sidebar.session.export.success'));
+    }
+    if (fullExport.incompleteCount > 0) {
+      console.warn(`[session-export] full Markdown export contains ${fullExport.incompleteCount} incomplete branch(es)`);
+    }
+  }, [directory, loadExportRecords, session, t]);
   const guestActionEntries = useGuestActions();
   const guestSessionActionEntries = React.useMemo(() => guestSessionActions(guestActionEntries), [guestActionEntries]);
   const runGuestAction = (entry: GuestActionEntry) => {
@@ -474,6 +522,16 @@ export function SessionActionsMenuItems({
     </SessionMenuItemHint>
   );
 
+
+  const fullMarkdownItem = () => (
+    <SessionMenuItemHint hint={t('sessions.sidebar.session.menuHint.exportMarkdown')}>
+      <Item onClick={() => { void handleFullMarkdownExport(); }} className="[&>svg]:me-1">
+        <Icon name="download" className="me-1 h-4 w-4" />
+        Full Markdown export
+      </Item>
+    </SessionMenuItemHint>
+  );
+
   const exportMarkdownItem = (inSubmenu: boolean) => (
     <SessionMenuItemHint hint={t('sessions.sidebar.session.menuHint.exportMarkdown')}>
       <Item onClick={onExport} className="[&>svg]:me-1">
@@ -564,6 +622,7 @@ export function SessionActionsMenuItems({
           </SubTrigger>
           <SubContent className="min-w-[180px]">
             {exportMarkdownItem(true)}
+            {fullMarkdownItem()}
             {guestSessionActionEntries.map((entry) => (
               <Item key={`${entry.guest.id}:${entry.action.id}`} onClick={() => runGuestAction(entry)} className="[&>svg]:me-1">
                 <GuestIcon icon={entry.icon} iconSrc={entry.iconSrc} className="me-1 size-4" />
@@ -572,7 +631,7 @@ export function SessionActionsMenuItems({
             ))}
           </SubContent>
         </Sub>
-      ) : exportMarkdownItem(false)}
+      ) : <>{exportMarkdownItem(false)}{fullMarkdownItem()}</>}
       <SessionMenuItemHint hint={t('sessions.sidebar.session.menuHint.copyId')}>
         <Item onClick={copySessionId} className="[&>svg]:me-1">
           <Icon name="file-copy" className="me-1 h-4 w-4" />
