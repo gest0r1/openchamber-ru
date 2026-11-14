@@ -315,7 +315,7 @@ export const TelegramNotificationSettings: React.FC = () => {
             disabled={!config || busy}
           >
             <SelectTrigger className={SETTINGS_SELECT_ROW_TRIGGER_CLASS}>
-              <SelectValue placeholder={t('settings.notifications.telegram.noAlias')} />
+              <SelectValue>{config?.defaultAlias || t('settings.notifications.telegram.noAlias')}</SelectValue>
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="_none">{t('settings.notifications.telegram.noAlias')}</SelectItem>
@@ -327,7 +327,7 @@ export const TelegramNotificationSettings: React.FC = () => {
           <div className="flex flex-wrap items-center gap-2">
             <Select value={selectedSession || '_none'} onValueChange={(value) => { void chooseSession(value); }}>
               <SelectTrigger className={SETTINGS_SELECT_ROW_TRIGGER_CLASS}>
-                <SelectValue placeholder={t('settings.notifications.telegram.noSessions')} />
+                <SelectValue>{sessions.find((session) => session.id === selectedSession)?.title || t('settings.notifications.telegram.noSessions')}</SelectValue>
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="_none">{t('settings.notifications.telegram.noSessions')}</SelectItem>
@@ -385,7 +385,7 @@ export const TelegramNotificationSettings: React.FC = () => {
             }
           }}>
             <SelectTrigger className={SETTINGS_SELECT_ROW_TRIGGER_CLASS}>
-              <SelectValue />
+              <SelectValue>{t(`settings.notifications.telegram.${draft.kind}`)}</SelectValue>
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="private">{t('settings.notifications.telegram.private')}</SelectItem>
