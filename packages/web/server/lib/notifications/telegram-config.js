@@ -30,9 +30,17 @@ export const createTelegramConfig = (filePath) => {
     writes = task.catch(() => {});
     return task;
   };
+  // A crash can interrupt legacy -> paused -> sdk. An unowned paused state
+  // must never persist across restarts: no SDK sender has been admitted yet.
+  // Restore the previous safe legacy owner before starting its watcher.
+  const recoverInterruptedSwitch = async () => {
+    if ((await read()).sender !== 'paused') return false;
+    await update({ sender: 'legacy' });
+    return true;
+  };
   const publicConfig = async () => {
     const settings = await read();
     return { enabled: settings.enabled, defaultAlias: settings.defaultAlias, hasBotToken: Boolean(settings.botToken), sender: settings.sender };
   };
-  return { read, update, publicConfig };
+  return { read, update, publicConfig, recoverInterruptedSwitch };
 };
