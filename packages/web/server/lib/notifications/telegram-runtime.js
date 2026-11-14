@@ -153,6 +153,7 @@ export const createTelegramRuntime = ({
         opted_in: true, alias: name, scope, created_at: Date.now(), expires_at: expiresAt, origin,
         sessionId, directory, spaceId: options.spaceId ?? null,
         title: typeof options.title === 'string' && options.title.trim() ? options.title.slice(0, 200) : null,
+        baselineIdleId: typeof options.baselineIdleId === 'string' ? options.baselineIdleId : null,
       };
     });
   };
@@ -338,7 +339,8 @@ export const createTelegramRuntime = ({
     return Object.values(data.subscriptions).filter((entry) => entry?.opted_in === true && !isExpired(entry))
       .map((entry) => ({ directory: entry.directory, sessionId: entry.sessionId,
         spaceId: entry.spaceId ?? null, alias: entry.alias, scope: entry.scope,
-        title: entry.title ?? null, createdAt: entry.created_at })).filter((entry) => entry.directory && entry.sessionId);
+        title: entry.title ?? null, createdAt: entry.created_at,
+        baselineIdleId: entry.baselineIdleId ?? null })).filter((entry) => entry.directory && entry.sessionId);
   };
   const hasSubscription = async (directory, sessionId) => {
     const data = await load();
