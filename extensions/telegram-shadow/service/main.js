@@ -49,8 +49,9 @@ const server = http.createServer(async (req, res) => {
   catch (error) { return reply(res, error?.status === 413 ? 413 : 400, { error: 'invalid session event' }); }
   if (!event) return reply(res, 400, { error: 'invalid session event' });
   try {
-    const result = await journal.record(event);
-    return reply(res, 200, { ok: true, ...result });
+    await journal.record(event);
+    // The host validates GuestSessionEventResult strictly: no journal receipt extras.
+    return reply(res, 200, { ok: true });
   } catch {
     // SDK event delivery is at-most-once. Never claim persistence on a disk failure.
     return reply(res, 200, { ok: false, error: 'shadow journal write failed' });
