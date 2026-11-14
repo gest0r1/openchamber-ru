@@ -135,4 +135,13 @@ export const tooltipsTerminalBrowserI18n = {
     'contextTooltips.terminalBrowser.device.schemeLight': '以淺色模式顯示頁面',
     'contextTooltips.terminalBrowser.device.schemeDark': '以深色模式顯示頁面',
   },
+  ru: {
+    'contextTooltips.terminalBrowser.terminal.newTab': "Новая вкладка терминала",
+    'contextTooltips.terminalBrowser.quickKeys.escape': "Отправить клавишу Escape",
+    'contextTooltips.terminalBrowser.quickKeys.holdModifier': "Удерживать {key} для следующей клавиши",
+    'contextTooltips.terminalBrowser.quickKeys.releaseModifier': "Отпустить {key}",
+    'contextTooltips.terminalBrowser.device.schemeSystem': "Использовать системную тему",
+    'contextTooltips.terminalBrowser.device.schemeLight': "Показывать страницу в светлой теме",
+    'contextTooltips.terminalBrowser.device.schemeDark': "Показывать страницу в тёмной теме",
+  },
 };
