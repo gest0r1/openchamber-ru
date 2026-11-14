@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 /** UI-authenticated routes. The server stores all credentials and destinations. */
-export const registerTelegramRoutes = (app, { telegram, config, watch, approval, getSource, dispatchPending, uiAuthController }) => {
+export const registerTelegramRoutes = (app, { telegram, config, watch, approval, getSource, dispatchPending, uiAuthController, completionProof, sdkSenderReady = async () => false }) => {
   // The route that the host asks inside a space must remain accessible over
   // the trusted dispatcher. All user-facing configuration/send routes require
   // a UI session independently of the upstream OpenCode API auth gate.
@@ -96,6 +96,69 @@ export const registerTelegramRoutes = (app, { telegram, config, watch, approval,
       res.json({ delivered: await telegram.retryDelivery(req.body?.key) });
     } catch (error) { fail(res, error); }
   }));
+  // Operator-only rollback fence. The SDK sender is never selected by an
+  // automatic update, plugin install or Telegram chat command.
+  let switchingSender = false;
+  app.get('/api/notifications/telegram/sender', asyncRoute(async (_req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    res.json({ sender: (await config.read()).sender, sdkReady: await sdkSenderReady() });
+  }));
+  app.post('/api/notifications/telegram/sender', asyncRoute(async (req, res) => {
+    const mode = asString(req.body?.sender);
+    if (!['legacy', 'sdk'].includes(mode)) return res.status(400).json({ error: 'Invalid sender' });
+    if (switchingSender) return res.status(409).json({ error: 'Sender change already in progress' });
+    switchingSender = true;
+    let paused = false;
+    try {
+      const current = (await config.read()).sender;
+      if (current === mode) return res.json({ sender: mode });
+      if (mode === 'legacy') {
+        await config.update({ sender: 'legacy' });
+        watch.reconcileAll();
+        return res.json({ sender: 'legacy' });
+      }
+      if (current !== 'legacy' || !await sdkSenderReady() || typeof completionProof !== 'function') {
+        return res.status(409).json({ error: 'Approved and ready SDK notifier required' });
+      }
+      // The transition is only allowed when all legacy subscriptions have
+      // reached a matching, known, quiescent checkpoint. No silent event loss.
+      await config.update({ sender: 'paused' });
+      paused = true;
+      const entries = await telegram.listSubscriptions();
+      const old = await watch.checkpoints();
+      if (entries.some((entry) => entry.spaceId)) {
+        throw new TypeError('Isolated-space page attention is not yet covered by the SDK notifier');
+      }
+      const snapshots = [];
+      for (const item of entries) {
+        const latest = await completionProof(item);
+        const checkpoint = old.find((row) =>
+          row.directory === item.directory && row.sessionId === item.sessionId &&
+          (row.spaceId ?? null) === (item.spaceId ?? null));
+        if (latest.kind !== 'idle' || !latest.idle?.id || !checkpoint ||
+            checkpoint.baselineIdleId !== latest.idle.id || checkpoint.armed ||
+            checkpoint.requireNewIdle) {
+          throw new TypeError('Cannot cut over: legacy subscription has unsettled or unknown work');
+        }
+        snapshots.push({ directory: item.directory, sessionId: item.sessionId,
+          spaceId: item.spaceId, createdAt: item.createdAt, idleId: latest.idle.id });
+      }
+      await telegram.seedBaselines(snapshots);
+      if (!await sdkSenderReady()) throw new TypeError('SDK notifier disconnected during cutover');
+      await config.update({ sender: 'sdk' });
+      paused = false;
+      return res.json({ sender: 'sdk' });
+    } catch (error) {
+      if (paused) {
+        await config.update({ sender: 'legacy' });
+        watch.reconcileAll();
+      }
+      return res.status(error instanceof TypeError ? 409 : 502).json({
+        error: error instanceof TypeError ? error.message : 'Telegram sender cutover failed',
+      });
+    } finally { switchingSender = false; }
+  }));
+
   app.get('/api/notifications/telegram/config', asyncRoute(async (_req, res) => {
     res.json(await config.publicConfig());
   }));
@@ -203,6 +266,7 @@ export const registerTelegramRoutes = (app, { telegram, config, watch, approval,
   app.post('/api/notifications/telegram/subscribe', asyncRoute(async (req, res) => {
     try {
       const item = sessionInput(req.body);
+      if ((await config.read()).sender === 'paused') return res.status(409).json({ error: 'Sender cutover in progress' });
       const record = await verify(item);
       const baseline = await baselineIdleId(item);
       if ((await config.read()).sender === 'sdk' && baseline === undefined) {
