@@ -943,7 +943,6 @@ export const webSearchI18n = {
     'chat.webSearchConsent.notNow': 'Не сейчас',
     'chat.webSearchConsent.settingsHint': 'Позже это можно изменить в Настройки → Веб-поиск.',
     'settings.page.webSearch.title': 'Веб-поиск',
-    'settings.page.webSearch.description': 'Выберите, как агенты ищут информацию в интернете.',
     'settings.webSearch.section.provider': 'Поисковый провайдер',
     'settings.webSearch.section.providerInfo': 'Сохраняется как настройка websearch в конфигурации OpenCode. Конфигурация проекта может её переопределить.',
     'settings.webSearch.option.default': 'По умолчанию',
