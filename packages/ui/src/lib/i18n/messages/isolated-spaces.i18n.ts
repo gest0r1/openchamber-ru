@@ -5400,6 +5400,7 @@ export const isolatedSpacesI18n = {
     'spaces.close.stoppedPlural': '{count} מרחבים מבודדים של {project} נעצרו. הקבצים נשמרו.',
     'spaces.close.stopFailed': "לא ניתן היה לעצור את \"{name}\": {reason}",
   },
+  ru: {
     'contextPanel.browser.spaceTunnelFailedHint': '{url} работает внутри изолированного пространства, и подключиться к нему не удалось. Ничего с вашего компьютера здесь не показывается.',
     'contextPanel.browser.spaceAddress': 'Внутри изолированного пространства',
     'contextPanel.browser.devServers.spaceOnlyDesktop': 'Открывается в настольном приложении',
