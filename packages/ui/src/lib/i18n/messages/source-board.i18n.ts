@@ -1708,5 +1708,8 @@ export const sourceBoardI18n = {
     'sourceBoard.actions.newWorktreeSession': 'Новая сессия в worktree…',
     'sourceBoard.list.choose': 'Выбрать',
     'sourceBoard.list.toggleAria': 'Список элементов, показано: {item}',
+    'sourceBoard.actions.convertToDraft': "Перевести в черновик",
+    'sourceBoard.toast.markedDraft': "{reference} переведён в черновик",
+    'sourceBoard.toast.markDraftFailed': "Не удалось перевести {reference} в черновик",
   },
 } as const;
