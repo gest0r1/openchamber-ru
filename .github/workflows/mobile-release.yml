@@ -167,7 +167,7 @@ jobs:
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ inputs.ref }}
+          ref: ${{ inputs.source_ref || github.sha }}
 
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
 
@@ -220,13 +220,12 @@ jobs:
         if: ${{ !inputs.upload_github_release }}
         uses: actions/upload-artifact@v4
         with:
-          retention-days: 1
+          retention-days: ${{ inputs.retention_days != '' && inputs.retention_days || 1 }}
           name: openchamber-android-${{ needs.resolve-version.outputs.version_name }}-${{ needs.resolve-version.outputs.build_number }}
           path: |
             packages/mobile/android/app/build/outputs/bundle/release/*.aab
             packages/mobile/android/app/build/outputs/apk/release/*.apk
           if-no-files-found: error
-          retention-days: ${{ inputs.retention_days }}
 
       - name: Upload Android artifacts to GitHub Release
         if: inputs.upload_github_release && needs.resolve-version.outputs.release_tag != ''
@@ -312,9 +311,9 @@ jobs:
       # The bundled web app reports this version to the update check, and
       # About shows it.
       - name: Set the app version
-        if: inputs.app_version != ''
+        if: inputs.version_name != ''
         env:
-          APP_VERSION: ${{ inputs.app_version }}
+          APP_VERSION: ${{ inputs.version_name }}
         run: |
           npm pkg set version="$APP_VERSION" \
             --workspace @openchamber/web \
