@@ -221,6 +221,32 @@ const createService = (overrides = {}) => {
 };
 
 describe('OpenChamber control service', () => {
+
+  it('routes Telegram send only with a real calling session and checkout, without bypassing approval', async () => {
+    const telegramSend = vi.fn(async (payload) => ({ status: 'approval_required', sessionId: payload.sessionId }));
+    const { service } = createService({ telegramSend });
+    await expect(service.execute('notify.telegram_send', { text: 'Ping' }, '/repo'))
+      .rejects.toMatchObject({ statusCode: 400 });
+    await expect(service.execute('notify.telegram_send', { text: 'Ping' }, undefined, { contextSessionId: 'ses_1' }))
+      .rejects.toMatchObject({ statusCode: 400 });
+    expect(telegramSend).not.toHaveBeenCalled();
+
+    const response = await service.execute('notify.telegram_send',
+      { alias: 'owner', file: 'report.md', mode: 'document', caption: 'Report' },
+      '/repo', { contextSessionId: 'ses_1' });
+    expect(telegramSend).toHaveBeenCalledTimes(1);
+    expect(telegramSend).toHaveBeenCalledWith({
+      sessionId: 'ses_1', alias: 'owner', text: undefined, file: 'report.md',
+      caption: 'Report', mode: 'document', directory: '/repo',
+    });
+    expect(response.status).toBe('approval_required');
+  });
+
+  it('refuses Telegram when the channel is unavailable instead of silently dropping a send', async () => {
+    const { service } = createService();
+    await expect(service.execute('notify.telegram_send', { text: 'Ping' }, '/repo', { contextSessionId: 'ses_1' }))
+      .rejects.toMatchObject({ statusCode: 503 });
+  });
   it('creates a target task with inherited selection and accepts retargeting on update', async () => {
     const { service, scheduledTaskService } = createService();
     scheduledTaskService.upsert.mockImplementation(async (_project, task) => ({ task }));
@@ -1392,9 +1418,12 @@ describe('render.page', () => {
       const { service } = createService();
       const pending = service.execute('render.page', ask, '/repo', call);
       await settle();
+      expect(service.isPageWaiting('ses_1', 'call_1')).toBe(true);
+      expect(service.isPageWaiting('ses_2', 'call_1')).toBe(false);
 
       expect(service.answerPage({ sessionId: 'ses_1', callId: 'call_1', summary: ' Layout B ', data: { layout: 'b' } })).toEqual({ answered: true });
       const result = await pending;
+      expect(service.isPageWaiting('ses_1', 'call_1')).toBe(false);
 
       expect(result).toMatchObject({ title: 'Pick a layout', answer: { answered: true, summary: 'Layout B', data: { layout: 'b' } } });
       expect(result.note).toContain('answered on the page');
