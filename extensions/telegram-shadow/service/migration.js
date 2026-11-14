@@ -20,7 +20,8 @@ export function prepareLegacySnapshot({ runtime, watch, config, configuredAliase
       !(config.botToken === undefined || typeof config.botToken === 'string') ||
       !(config.defaultAlias === undefined || typeof config.defaultAlias === 'string')) fail('config schema');
   if (!plain(sourceSha256) || !['runtime', 'watch', 'config'].every((name) =>
-      /^[a-f0-9]{64}$/.test(sourceSha256[name]))) fail('source hashes');
+      /^[a-f0-9]{64}$/.test(sourceSha256[name])) ||
+      (configuredAliases !== undefined && !/^[a-f0-9]{64}$/.test(sourceSha256.aliases))) fail('source hashes');
   if (!Number.isSafeInteger(now) || now < 0) fail('snapshot timestamp');
 
   const aliases = Object.create(null);
@@ -94,7 +95,8 @@ export function prepareLegacySnapshot({ runtime, watch, config, configuredAliase
   return {
     version: 1, kind: 'telegram-legacy-prepared', preparedAt: now,
     owner: 'legacy', deliveryEnabled: false, cutoverAllowed: false,
-    sourceSha256: { runtime: sourceSha256.runtime, watch: sourceSha256.watch, config: sourceSha256.config },
+    sourceSha256: { runtime: sourceSha256.runtime, watch: sourceSha256.watch, config: sourceSha256.config,
+      ...(configuredAliases !== undefined ? { aliases: sourceSha256.aliases } : {}) },
     settings: { enabled: config.enabled, defaultAlias: normalizeAlias(config.defaultAlias), botToken: config.botToken ?? '' },
     aliases, subscriptions, deliveries, pending,
   };
@@ -110,7 +112,11 @@ export async function writePreparedSnapshot({ snapshot, destination, fs }) {
   await fs.mkdir(dirname(destination), { recursive: true, mode: 0o700 });
   const serialized = JSON.stringify(snapshot);
   let existing;
-  try { existing = await fs.readFile(destination, 'utf8'); }
+  try {
+    const stat = await fs.lstat(destination);
+    if (!stat.isFile() || (stat.mode & 0o077) !== 0) fail('existing private snapshot has unsafe file mode');
+    existing = await fs.readFile(destination, 'utf8');
+  }
   catch (error) { if (error.code !== 'ENOENT') throw error; }
   if (existing !== undefined) {
     let previous;
@@ -157,6 +163,7 @@ export async function readLegacyInputs({ paths, fs, maxBytes = 16 * 1024 * 1024 
   return {
     runtime: values.runtime, watch: values.watch, config: values.config,
     configuredAliases: values.aliases,
-    sourceSha256: { runtime: sha(bytes.runtime), watch: sha(bytes.watch), config: sha(bytes.config) },
+    sourceSha256: { runtime: sha(bytes.runtime), watch: sha(bytes.watch), config: sha(bytes.config),
+      ...(bytes.aliases !== undefined ? { aliases: sha(bytes.aliases) } : {}) },
   };
 }
