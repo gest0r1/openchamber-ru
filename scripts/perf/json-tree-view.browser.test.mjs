@@ -175,6 +175,19 @@ test('JSON tree stays bounded and its tail remains reachable', { skip: !chrome &
       await settle();
       await evaluate(`document.getElementById('host').style.display = ''`);
       await settle();
+      // ResizeObserver and React may restore the virtualized scroller later
+      // than five animation frames in a throttled headless CI browser.
+      // Wait for the actual DOM condition, not an arbitrary sleep.
+      await evaluate(`new Promise((resolve, reject) => {
+        const deadline = performance.now() + 3000;
+        const probe = () => {
+          const scroller = document.querySelector('#host [dir="ltr"]');
+          if (scroller && scroller.getBoundingClientRect().height > 0) resolve();
+          else if (performance.now() > deadline) reject(new Error('JSON tree did not remount after visibility change'));
+          else requestAnimationFrame(probe);
+        };
+        probe();
+      })`);
       assert.equal((await metrics()).fits, true);
       assert.ok((await metrics()).rows < 200);
       await assertTail(26_000);
