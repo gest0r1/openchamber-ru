@@ -108,3 +108,46 @@ test('unknown completion during cutover restores only the previous legacy owner'
   expect(h.getSender()).toBe('legacy');
   expect(h.trace).toEqual(['sender:paused', 'drain:paused', 'sender:legacy', 'watch:reconcile']);
 });
+
+
+test('tracked-session search finds a renamed older subscription beyond the latest fifty', async () => {
+  const handlers = new Map();
+  const app = {
+    use: () => {},
+    get: (route, handle) => handlers.set('GET ' + route, handle),
+    post: () => {},
+    delete: () => {},
+  };
+  const rows = Array.from({ length: 61 }, (_, i) => ({
+    sessionId: 'ses_' + i, directory: '/project', spaceId: null,
+    title: 'Old title ' + i, alias: 'team', createdAt: 1000 - i,
+  }));
+  registerTelegramRoutes(app, {
+    telegram: { listSubscriptions: async () => rows },
+    config: {}, watch: {}, approval: {},
+    getSource: () => ({
+      buildOpenCodeUrl: (path) => 'http://opencode' + path,
+      getOpenCodeAuthHeaders: () => ({}),
+      fetchImpl: async (url) => {
+        const id = decodeURIComponent(new URL(url).pathname.split('/').pop());
+        return Response.json({ data: {
+          id, title: id === 'ses_60' ? 'Renamed long-running work' : 'Old title',
+          location: { directory: '/project' },
+        } });
+      },
+    }),
+    dispatchPending: async () => [],
+    uiAuthController: { ensureSessionToken: async () => 'test-session' },
+  });
+  const response = await new Promise((resolve, reject) => {
+    const res = { setHeader: () => {}, json: resolve };
+    handlers.get('GET /api/notifications/telegram/subscriptions')(
+      { query: { q: 'renamed long-running', page: '0' } }, res, reject);
+  });
+  expect(response.total).toBe(1);
+  expect(response.subscriptions).toHaveLength(1);
+  expect(response.subscriptions[0]).toMatchObject({
+    sessionId: 'ses_60', title: 'Renamed long-running work',
+  });
+  expect(response.hasMore).toBe(false);
+});
