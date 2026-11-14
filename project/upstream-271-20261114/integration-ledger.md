@@ -362,3 +362,10 @@ Telegram subscription/recovery/delivery ledger; RU i18n и настройки; M
 - Additional pending test in same file \`117ca7bb\`: actual event router => SDK service shadow integration, no Bot API. Protection \`c8c315fd\` and regression \`5e6de6c2\` prevent a false \`turn-finished\` on unreadable child status. No production sender change or unapproved cross-provider adapter.
 - This is the **grouped final candidate CI** trigger after all scoped fixes. Tests must confirm native extension admission, real routing, service restart/grant revocation, and fail-closed negative case alongside regular typecheck/lint/build. No merge/release until exact HEAD green and remaining my-opencode/Telegram parity acceptance.
 
+
+## SDK host real router integration — second bounded checkpoint (2026-11-14)
+
+- PR \`eefefdb839ff6cb93f62ca904c1cd3248f46f3c4\`, run \`43607289584\`: type-check/lint/build PASS, RU i18n PASS, tests **FAIL only new integration** \`telegram-shadow.integration.test.js:148\` (593 passed / 1 failed file). First test (real SDK manifest admission, host service access/grant, root/child durable journal, restart and revoke) PASS. The second test immediately sent busy and idle, then observed 1 persisted event rather than expected 2; logs did not name which one. No production SDK exceptions in other 11,013 tests; newly added fail-closed unit tests passed as part of the suite.
+- Scoped fix \`45afda303\` in **test fixture only**: serialize the scenario as a real turn (verify \`turn-started\` persisted before announcing idle), return OpenCode's native page shape exactly as already used by \`session-events.test.js\` (\`{data:[],cursor:{}}\`), then require \`turn-finished\`; bounded 6s wait per phase. Any failure now logs only synthetic test event types, active/read routes and warnings to diagnose root cause, not secrets or production data. No weakening of expected 2 events, no production source changed.
+- Re-run grouped CI on final source HEAD and read full failure evidence before any further change. Do not mark this test PASS based on other tests. Keep Telegram sender disabled.
+
