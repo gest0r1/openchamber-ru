@@ -223,41 +223,58 @@ export const registerTelegramRoutes = (app, { telegram, config, watch, approval,
       res.json(result);
     } catch (error) { fail(res, error); }
   }));
-  // Includes older subscriptions outside the latest-session chooser. Refresh
-  // titles from the authoritative space when reachable; retain saved title
-  // (or ID) when that session can no longer be read.
+  // Includes every active opt-in, including long-lived and archived sessions.
+  // Search must resolve the *current* title before filtering: a renamed session
+  // may not match its stored name and must still be possible to unsubscribe.
+  const subscriptionLiveTitle = async (item) => {
+    let title = item.title || item.sessionId;
+    const source = getSource(item.spaceId);
+    if (source) {
+      try {
+        const url = source.buildOpenCodeUrl('/api/session/' + encodeURIComponent(item.sessionId), '');
+        const answer = await source.fetchImpl(url, {
+          method: 'GET', headers: { accept: 'application/json', ...source.getOpenCodeAuthHeaders() },
+          signal: AbortSignal.timeout(4000),
+        });
+        if (answer.ok) {
+          const data = await answer.json();
+          const row = data?.data ?? data;
+          if (row?.id === item.sessionId && row?.location?.directory === item.directory &&
+              typeof row.title === 'string' && row.title.trim()) title = row.title.slice(0, 200);
+        }
+      } catch { /* An inaccessible session retains its saved title or ID. */ }
+    }
+    return { ...item, title };
+  };
+  const refreshTitles = async (items) => {
+    let cursor = 0;
+    const rows = new Array(items.length);
+    const worker = async () => {
+      while (cursor < items.length) {
+        const i = cursor++;
+        rows[i] = await subscriptionLiveTitle(items[i]);
+      }
+    };
+    await Promise.all(Array.from({ length: Math.min(6, items.length) }, worker));
+    return rows;
+  };
   app.get('/api/notifications/telegram/subscriptions', asyncRoute(async (req, res) => {
     try {
       const page = Math.max(0, Math.min(100000, Number.parseInt(asString(req.query?.page) || '0', 10) || 0));
       const limit = 30;
       const query = asString(req.query?.q).slice(0, 120).toLocaleLowerCase();
       const entries = (await telegram.listSubscriptions())
-        .filter((item) => !query || [item.title, item.directory, item.sessionId, item.alias]
-          .some((field) => typeof field === 'string' && field.toLocaleLowerCase().includes(query)))
         .sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0));
-      const slice = entries.slice(page * limit, (page + 1) * limit);
-      const subscriptions = await Promise.all(slice.map(async (item) => {
-        let title = item.title || item.sessionId;
-        const source = getSource(item.spaceId);
-        if (source) {
-          try {
-            const url = source.buildOpenCodeUrl('/api/session/' + encodeURIComponent(item.sessionId), '');
-            const answer = await source.fetchImpl(url, {
-              method: 'GET', headers: { accept: 'application/json', ...source.getOpenCodeAuthHeaders() },
-              signal: AbortSignal.timeout(4000),
-            });
-            if (answer.ok) {
-              const data = await answer.json();
-              const row = data?.data ?? data;
-              if (row?.id === item.sessionId && row?.location?.directory === item.directory &&
-                  typeof row.title === 'string' && row.title.trim()) title = row.title.slice(0, 200);
-            }
-          } catch { /* Name lookup must not hide the unsubscribe button. */ }
-        }
-        return { ...item, title };
-      }));
+      // Normal list only reads the current page. Search resolves live titles
+      // for all active opt-ins (bounded concurrency), then applies pagination.
+      const candidates = query ? await refreshTitles(entries) : entries;
+      const matches = candidates.filter((item) => !query ||
+        [item.title, item.directory, item.sessionId, item.alias]
+          .some((field) => typeof field === 'string' && field.toLocaleLowerCase().includes(query)));
+      const slice = matches.slice(page * limit, (page + 1) * limit);
+      const subscriptions = query ? slice : await refreshTitles(slice);
       res.setHeader('Cache-Control', 'no-store');
-      res.json({ subscriptions, total: entries.length, page, hasMore: (page + 1) * limit < entries.length });
+      res.json({ subscriptions, total: matches.length, page, hasMore: (page + 1) * limit < matches.length });
     } catch (error) { fail(res, error); }
   }));
   app.get('/api/notifications/telegram/subscription', asyncRoute(async (req, res) => {
