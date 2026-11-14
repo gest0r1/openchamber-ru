@@ -32,6 +32,6 @@
     }
   },
   "scripts": {
-    "test": "node --test service/state.test.js"
+    "test": "node --test service/state.test.js service/http.test.js"
   }
 }
