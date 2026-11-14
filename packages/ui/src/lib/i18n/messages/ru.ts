@@ -26,6 +26,7 @@ import { fileContentSearchI18n } from './file-content-search.i18n';
 import { htmlRenderI18n } from './html-render.i18n';
 import { sessionNoticesI18n } from './session-notices.i18n';
 import { usageStatsI18n } from './usage-stats.i18n';
+import { openchamberToolsLayoutI18n } from './openchamber-tools-layout.i18n';
 import { webSearchI18n } from './websearch.i18n';
 import { sessionWarmingI18n } from './session-warming.i18n';
 import { isolatedSpacesI18n } from './isolated-spaces.i18n';
@@ -203,6 +204,7 @@ export const dict = {
   ...htmlRenderI18n.ru,
   ...sessionNoticesI18n.ru,
   ...usageStatsI18n.ru,
+  ...openchamberToolsLayoutI18n.ru,
   ...webSearchI18n.ru,
   ...sessionWarmingI18n.ru,
   ...isolatedSpacesI18n.ru,
