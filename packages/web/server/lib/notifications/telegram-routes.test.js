@@ -74,7 +74,8 @@ const senderFixture = (initial = 'legacy', proofResult = { kind: 'idle', idle: {
     watch: {
       checkpoints: async () => [{ directory: '/repo', sessionId: 'ses_1', spaceId: null,
         baselineIdleId: 'idle-old', armed: false, requireNewIdle: null }],
-      reconcileAll: () => trace.push('watch:reconcile'),
+      start: async () => trace.push('watch:start'),
+      reconcileAll: () => trace.push('watch:start'),
     },
     approval: {}, getSource: () => null, dispatchPending: async () => [],
     uiAuthController: { ensureSessionToken: async () => 'test-session' },
@@ -98,7 +99,7 @@ test('quiescent cutover drains legacy before SDK and rollback drains SDK before 
   expect(await h.request({ sender: 'sdk' })).toEqual({ status: 200, body: { sender: 'sdk' } });
   expect(h.trace).toEqual(['sender:paused', 'drain:paused', 'seed:idle-old', 'sender:sdk']);
   expect(await h.request({ sender: 'legacy' })).toEqual({ status: 200, body: { sender: 'legacy' } });
-  expect(h.trace.slice(4)).toEqual(['sender:paused', 'drain:paused', 'sender:legacy', 'watch:reconcile']);
+  expect(h.trace.slice(4)).toEqual(['sender:paused', 'drain:paused', 'sender:legacy', 'watch:start']);
 });
 
 test('unknown completion during cutover restores only the previous legacy owner', async () => {
@@ -106,7 +107,7 @@ test('unknown completion during cutover restores only the previous legacy owner'
   const result = await h.request({ sender: 'sdk' });
   expect(result.status).toBe(409);
   expect(h.getSender()).toBe('legacy');
-  expect(h.trace).toEqual(['sender:paused', 'drain:paused', 'sender:legacy', 'watch:reconcile']);
+  expect(h.trace).toEqual(['sender:paused', 'drain:paused', 'sender:legacy', 'watch:start']);
 });
 
 
@@ -181,6 +182,7 @@ const optInFixture = (initial = 'legacy', holdVerify = false) => {
     },
     watch: {
       track: async () => trace.push('legacy-track'),
+      start: async () => trace.push('watch:start'),
       cancel: async () => {},
       checkpoints: async () => [],
       reconcileAll: () => {},
@@ -223,6 +225,9 @@ test('SDK opt-in relies on notifier sweep and does not create a legacy watcher',
   expect(await h.request('subscribe', { sessionId: 'ses_1', directory: '/repo' }))
     .toEqual({ status: 200, body: { subscribed: true } });
   expect(h.trace).toEqual(['subscribed']);
+  expect(await h.request('sender', { sender: 'legacy' }))
+    .toEqual({ status: 200, body: { sender: 'legacy' } });
+  expect(h.trace).toEqual(['subscribed', 'sender:paused', 'sender:legacy', 'watch:start']);
 });
 
 test('ongoing subscription blocks a concurrent sender cutover until checkpoint is durable', async () => {
