@@ -1,14 +1,14 @@
-# OpenChamber v2.7.1 — промежуточная upstream-first интеграция
+# OpenChamber v2.7.1 — upstream-first интеграция и журнал приёмки
 
-**Статус: WIP, не протестировано, не предназначено для выпуска или merge в main.**
+**Актуальный статус на 2026-11-14:** кодовая точка `5b347025bd912227b9f2f0624f3ff4135cb10083` прошла полный [PR CI 43610434909](https://github.com/gest0r1/openchamber-ru/actions/runs/43610434909) и [RU i18n 43610434910](https://github.com/gest0r1/openchamber-ru/actions/runs/43610434910) — **PASS**. PR #27 остаётся DRAFT; **Telegram cutover, реальный host smoke, my-opencode runtime acceptance и release/deploy NOT RUN/NOT ACCEPTED.** Последняя точка восстановления — раздел «LATEST HANDOFF» **в конце документа**; все SHA/статусы ниже до этого раздела исторические.
 
-## Фактические SHA
+## Исходные SHA на старте работ (исторический baseline)
 - Общий предок 2.6.1: `ce853f415704d1bfe8d076a5cfb2caabac00fffd`
 - Fork main до интеграции: `1316bfe99a1de02746fefd1a00e556d0aac23b3c`
 - Upstream 2.7.1: `f31748c92aaf1ddb8f177e915c1d92a2a418251f`
 - Верифицированное промежуточное дерево: `dae79fb64220a74cb6d9a8c712911190d500d390`.
 
-## Политика сборки WIP
+## Исходная политика сборки WIP (историческая, позже исправлена)
 - Только upstream изменил: **2181** файлов — применён upstream.
 - Только fork изменил: **135** файлов — сохранён fork.
 - Оба изменили: **109** файлов — временно сохранён fork-файл целиком; upstream изменения внутри этих файлов **ещё не адаптированы**.
@@ -18,7 +18,7 @@
 ## Неприкосновенные функции до эквивалентности
 Telegram subscription/recovery/delivery ledger; RU i18n и настройки; Markdown full export/per-tool timing; PR-watch; SHA-bound x64-only publishing и installer/rollback; model/credential/variant continuity; owner permissions.
 
-## Пересечение: требуется diff3/ручная семантическая проверка
+## Исторический список пересечений diff3 (все пункты пройдены; см. финальный handoff)
 
 - [x] `.agents/skills/opencode-v2/SKILL.md` (base `37ba6c337960`, fork `f90cadbcb759`, upstream `99593e0fb30b`)
 - [x] `.github/workflows/build-macos-arm64-dmg.yml` (base `f8a0ed970215`, fork `∅`, upstream `14677cf2001c`)
