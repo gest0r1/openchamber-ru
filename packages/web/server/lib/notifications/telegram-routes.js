@@ -135,7 +135,10 @@ export const registerTelegramRoutes = (app, { telegram, config, watch, approval,
     try {
       const page = Math.max(0, Math.min(100000, Number.parseInt(asString(req.query?.page) || '0', 10) || 0));
       const limit = 30;
+      const query = asString(req.query?.q).slice(0, 120).toLocaleLowerCase();
       const entries = (await telegram.listSubscriptions())
+        .filter((item) => !query || [item.title, item.directory, item.sessionId, item.alias]
+          .some((field) => typeof field === 'string' && field.toLocaleLowerCase().includes(query)))
         .sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0));
       const slice = entries.slice(page * limit, (page + 1) * limit);
       const subscriptions = await Promise.all(slice.map(async (item) => {
