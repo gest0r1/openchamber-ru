@@ -1,3 +1,4 @@
+import { upstream271ReuseRu } from './ru.upstream-271-reuse';
 import { dict as enDict } from './en';
 import { guestStatusViewI18n } from './guest-status-view.i18n';
 import { sessionReferencesI18n } from './session-references.i18n';
@@ -4391,4 +4392,5 @@ export const dict = {
   "updateDialog.changelog.showLess": "Показать меньше",
   "updateDialog.changelog.showMore": "Показать ещё {count}",
 
+  ...upstream271ReuseRu,
 };
