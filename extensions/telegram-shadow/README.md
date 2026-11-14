@@ -23,7 +23,7 @@ and latest-idle equivalence to the incumbent watcher has not been proven.
 
 ## Verification
 
-`node --test service/state.test.js` (no Bun, network or Telegram needed).
+`npm test` (runs `node --test service/state.test.js service/http.test.js`; HTTP tests use a temporary loopback server, no Bun, external network or Telegram needed).
 The package intentionally does not declare `provides: ["notifications"]`;
 installing it alongside the old Telegram watcher cannot create a second sender.
 
