@@ -1489,6 +1489,7 @@ export const createOpenChamberControlService = (dependencies) => {
     resolveSessionDirectory,
     answerPage: pageAnswers.answer,
     isPageWaiting: pageAnswers.isWaiting,
+    listWaitingPages: pageAnswers.listWaiting,
     answerSecret: secretRequests.answer,
     secretFields: secretRequests.fields,
     releaseAnswerWaits,
