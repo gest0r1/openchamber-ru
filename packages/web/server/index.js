@@ -134,6 +134,7 @@ import { createPrWatchRuntime } from './lib/pr-watch/runtime.js';
 import { createTelegramRuntime } from './lib/notifications/telegram-runtime.js';
 import { createTelegramPublicOrigin } from './lib/notifications/telegram-origin.js';
 import { createTelegramWatch } from './lib/notifications/telegram-watch.js';
+import { createSessionCompletionProof } from './lib/guests/session-completion-proof.js';
 import { createTelegramConfig } from './lib/notifications/telegram-config.js';
 import { createTelegramApproval } from './lib/notifications/telegram-approval.js';
 import { registerTelegramRoutes } from './lib/notifications/telegram-routes.js';
@@ -2355,6 +2356,40 @@ onGuestServiceEnded((guestId) => {
 });
 
 const serviceHostApi = createServiceHostApi({
+  completionProof: createSessionCompletionProof({
+    sourceFor: telegramSourceFor,
+    isGoalActive: async (sessionId, spaceId) => {
+      try {
+        if (!spaceId) {
+          const metadata = await readStoredSessionMetadata(sessionId);
+          return metadata?.openchamber?.goal?.status === 'active';
+        }
+        const source = telegramSourceFor(spaceId);
+        if (!source) return null;
+        const response = await source.fetchImpl('http://space/api/session/' + encodeURIComponent(sessionId), {
+          method: 'GET', signal: AbortSignal.timeout(10000),
+        });
+        if (!response.ok) return null;
+        const body = await response.json();
+        return (body?.data ?? body)?.metadata?.openchamber?.goal?.status === 'active';
+      } catch { return null; }
+    },
+    dispatchPending: async (spaceId, sessionId) => {
+      if (!spaceId) {
+        await dispatchResultsRuntime.load();
+        return dispatchResultsRuntime.pending();
+      }
+      const source = telegramSourceFor(spaceId);
+      if (!source) return null;
+      try {
+        const response = await source.fetchImpl('http://space/api/notifications/telegram/pending?sessionId=' + encodeURIComponent(sessionId), {
+          method: 'GET', signal: AbortSignal.timeout(10000),
+        });
+        if (!response.ok) return null;
+        return (await response.json())?.pending === false ? [] : [{ parentSessionId: sessionId }];
+      } catch { return null; }
+    },
+  }),
   listGuests: () => listInstalledGuests({ persistPath: extensionsPersistPath(OPENCHAMBER_DATA_DIR) }),
   control: {
     execute: (...args) => openChamberControlService.execute(...args),
