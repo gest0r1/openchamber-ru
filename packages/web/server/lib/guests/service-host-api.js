@@ -59,7 +59,7 @@ const SERVICE_STATUS_CHANGES_PER_MINUTE = 30;
  *   now?: () => number,
  * }} deps
  */
-export const createServiceHostApi = ({ listGuests, control, instructions, readSettings, emitToFrames, setConfigurationNote, marks, completionProof, guestIdOfToken = guestIdOfServiceToken, now = Date.now }) => {
+export const createServiceHostApi = ({ listGuests, control, instructions, readSettings, emitToFrames, setConfigurationNote, marks, completionProof, telegramNotifier, guestIdOfToken = guestIdOfServiceToken, now = Date.now }) => {
   /** Per guest: the current one-second window of panel events. */
   const emitWindows = new Map();
 
@@ -152,6 +152,28 @@ export const createServiceHostApi = ({ listGuests, control, instructions, readSe
         }
         if (typeof completionProof !== 'function') return fail(503, 'UNAVAILABLE', 'Completion proof unavailable.');
         return ok(await completionProof(input));
+      }
+      case 'telegram.subscriptions': {
+        if (guest.id !== 'telegram-notifier' || !guest.service?.provides?.includes('opencode') ||
+            !Array.isArray(guest.sessionEvents?.events)) {
+          return fail(403, 'NOT_GRANTED', 'Only the installed Telegram notification extension can read its subscriptions.');
+        }
+        const refused = needs(guest, 'opencode');
+        if (refused) return refused;
+        if (!telegramNotifier) return fail(503, 'UNAVAILABLE', 'Telegram notifier unavailable.');
+        return ok(await telegramNotifier.subscriptions());
+      }
+      case 'telegram.deliver': {
+        if (guest.id !== 'telegram-notifier' || !guest.service?.provides?.includes('opencode') ||
+            !Array.isArray(guest.sessionEvents?.events)) {
+          return fail(403, 'NOT_GRANTED', 'Only the installed Telegram notification extension can request delivery.');
+        }
+        const refused = needs(guest, 'opencode');
+        if (refused) return refused;
+        if (!telegramNotifier || typeof completionProof !== 'function') {
+          return fail(503, 'UNAVAILABLE', 'Telegram completion verification unavailable.');
+        }
+        return ok(await telegramNotifier.deliver(input, completionProof));
       }
       case 'sessions.lastReply': {
         // `transcript` also covers `sessionEvents.content`; reading replies is asked for here.
