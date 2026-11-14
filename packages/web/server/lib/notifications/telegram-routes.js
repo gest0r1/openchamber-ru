@@ -314,16 +314,16 @@ export const registerTelegramRoutes = (app, { telegram, config, watch, approval,
         origin: 'user', spaceId: item.spaceId, title: record.title,
         baselineIdleId: baseline ?? null,
       });
-      // Only the selected sender performs tracking. SDK uses its 60s sweep;
-      // legacy checkpoints are recovered from all opt-ins on rollback.
-      if (senderAtStart === 'legacy') {
-        try {
-          await watch.track(item);
-        } catch (error) {
-          await telegram.unsubscribe(item.directory, item.sessionId);
-          await watch.cancel(item.sessionId, item.directory, item.spaceId);
-          throw error;
-        }
+      // Passive legacy checkpoint is kept for crash/rollback recovery even
+      // during SDK ownership. readSettings() forbids legacy delivery under SDK,
+      // so there is always only one sender; this snapshot prevents missed
+      // completions when an SDK subscription is rolled back immediately.
+      try {
+        await watch.track(item);
+      } catch (error) {
+        await telegram.unsubscribe(item.directory, item.sessionId);
+        await watch.cancel(item.sessionId, item.directory, item.spaceId);
+        throw error;
       }
       res.json({ subscribed: true });
     } catch (error) { fail(res, error); }
