@@ -352,7 +352,6 @@ export const extensionsSettingsI18n = {
     'settings.extensions.request.noResponse': 'HTTP-ответ не получен. Проверьте соединение с этим экземпляром.',
     'settings.extensions.request.invalidResponse': 'Неожиданный ответ сервера (HTTP {status}).',
     'settings.page.extensions.title': 'Расширения',
-    'settings.page.extensions.description': 'Расширения из папки, ZIP или Git-URL — панели, меню прикрепления, интеграции и локальные сервисы. Не плагины OpenCode.',
     'settings.extensions.section.installed': 'Установленные',
     'settings.extensions.empty': 'Расширения не загружены.',
     'settings.extensions.unsupported': 'Гостевые расширения работают в OpenChamber Web и Desktop. VS Code и мобильная версия пока их не загружают.',
