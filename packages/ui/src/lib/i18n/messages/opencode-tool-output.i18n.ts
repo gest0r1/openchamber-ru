@@ -646,7 +646,7 @@ export const opencodeToolOutputI18n = {
     'chat.toolPart.opencode.schedule.in': "Через {value}",
     'chat.toolPart.opencode.schedule.at': "В {value}",
     'chat.toolPart.opencode.schedule.every': "Каждые {value}",
-    'chat.toolPart.opencode.schedule.cron': "Cron {value}",
+    'chat.toolPart.opencode.schedule.cron': "По cron: {value}",
     'chat.toolPart.opencode.schedule.done': "Завершено",
     'chat.toolPart.opencode.worktree.root': "Папка проекта",
     'chat.toolPart.opencode.mcp.resources': "Ресурсы",
