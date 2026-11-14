@@ -50,6 +50,7 @@ describe('global sessions polling lifecycle', () => {
       () => { initialLoads += 1; return pending; },
       async () => { refreshes += 1; return true; },
       clock.schedule, clock.clear,
+      undefined, undefined, undefined, () => 0, // use a deterministic clock for exact interval assertions
     );
     expect(initialLoads).toBe(1);
     expect(clock.pending.size).toBe(0);
