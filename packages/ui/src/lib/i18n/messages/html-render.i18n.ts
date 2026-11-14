@@ -299,6 +299,5 @@ export const htmlRenderI18n = {
     'settings.openchamber.tools.field.agentRenderTool': 'Инструмент отображения для агентов',
     'settings.openchamber.tools.field.agentRenderToolAria': 'Инструмент отображения для агентов',
     'settings.openchamber.tools.field.agentRenderToolSummary': 'Разрешить агентам показывать графики, таблицы и диаграммы прямо в чате.',
-    'settings.openchamber.tools.field.agentRenderToolInfo': 'Страницы работают в песочнице без доступа к вашим сессиям и файлам. Ссылки открываются в браузере.',
   },
 } as const;
