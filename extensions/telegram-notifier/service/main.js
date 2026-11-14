@@ -9,7 +9,7 @@ if (!Number.isInteger(port) || port < 1 || port > 65535 || !token || !callback) 
   throw new Error('This service must run through the approved OpenChamber SDK host');
 }
 const call = async (method, input) => {
-  const response = await fetch(callback.replace(/\\/+$/, '') + '/service/call', {
+  const response = await fetch(callback.replace(/[/]+$/, '') + '/service/call', {
     method: 'POST',
     headers: { 'authorization': 'Bearer ' + token, 'content-type': 'application/json' },
     body: JSON.stringify({ method, input }), signal: AbortSignal.timeout(30000),
