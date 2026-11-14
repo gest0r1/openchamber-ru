@@ -1,6 +1,6 @@
 # OpenChamber v2.7.1 — upstream-first интеграция и журнал приёмки
 
-**Актуальный статус на 2026-11-14:** кодовая точка `5b347025bd912227b9f2f0624f3ff4135cb10083` прошла полный [PR CI 43610434909](https://github.com/gest0r1/openchamber-ru/actions/runs/43610434909) и [RU i18n 43610434910](https://github.com/gest0r1/openchamber-ru/actions/runs/43610434910) — **PASS**. PR #27 остаётся DRAFT; **Telegram cutover, реальный host smoke, my-opencode runtime acceptance и release/deploy NOT RUN/NOT ACCEPTED.** Последняя точка восстановления — раздел «LATEST HANDOFF» **в конце документа**; все SHA/статусы ниже до этого раздела исторические.
+**Актуальный статус на 2026-11-14:** последний проверенный **SOURCE SHA `e3489d7fb53d05b7f01e82ef8ec9d9719c6a5679`** прошёл полный [PR CI 43634139182](https://github.com/gest0r1/openchamber-ru/actions/runs/43634139182) (`tests/type-check/lint/build` **PASS**) и [RU i18n 43634139212](https://github.com/gest0r1/openchamber-ru/actions/runs/43634139212) (**PASS**). PR #27 **DRAFT**, не слит. SDK notifier/host и controlled sender-source реализованы и покрыты изолированными контрактными тестами; **живые Bot API, ручной SDK UI, cross-space parity, полный rollback в real host, my-opencode runtime и release/deploy NOT RUN/NOT ACCEPTED**. Полная актуальная запись — в **последнем разделе документа**. Последняя точка восстановления — раздел «LATEST HANDOFF» **в конце документа**; все SHA/статусы ниже до этого раздела исторические.
 
 ## Исходные SHA на старте работ (исторический baseline)
 - Общий предок 2.6.1: `ce853f415704d1bfe8d076a5cfb2caabac00fffd`
@@ -437,3 +437,32 @@ Telegram subscription/recovery/delivery ledger; RU i18n и настройки; M
 - **OpenChamber existing preserved fork runtime smoke:** worktrees/sessions, Markdown full export, updater/windows, mobile release not executed.
 
 **No main merge, no release, no deployment, no SSH or production work.** Previous ledger sections are historical evidence; on resume compare exact HEAD/code SHA and CI, then update both ledger and master plan. The SDK implementation has been added but **overall task is not accepted**.
+
+
+## LATEST ACCEPTANCE CHECKPOINT — exact source e3489d7 (2026-11-14)
+
+| Entity | Verified state |
+| --- | --- |
+| Repo/branch | `gest0r1/openchamber-ru`, `feature/upstream-271-fork-reconciliation-20261114` |
+| **Source SHA tested** | **`e3489d7fb53d05b7f01e82ef8ec9d9719c6a5679`** |
+| [PR #27](https://github.com/gest0r1/openchamber-ru/pull/27) | OPEN/DRAFT, mergeable, **not merged** |
+| [Grouped CI 43634139182](https://github.com/gest0r1/openchamber-ru/actions/runs/43634139182) | **PASS** on exact SHA: `tests`, `type-check`, `lint`, `build` |
+| [RU CI 43634139212](https://github.com/gest0r1/openchamber-ru/actions/runs/43634139212) | **PASS** on exact source SHA |
+| my-opencode | Separate `feature/upstream-227-telegram-review-value-plan-20261113`; full Node24/Bun1.4.4 runtime/installer/PLAN/RUN acceptance **NOT RUN** |
+
+### Closed since old shadow-only green checkpoint
+
+1. `extensions/telegram-notifier` is a standalone SDK host service. Outbound-only Telegram, token/alias/content stays in host, SDK events wake a 60s reconciliation; host read-only `sessions.completion` checks root/children/shells/Goal/requests/dispatch fail-closed. `sender=legacy|paused|sdk` defaults legacy.
+2. Settings → Notifications → Telegram contains **Отслеживаемые сессии**, direct disable, 30-row pagination, project/worktree, recipient, saved fallback and live current title. **Search by renamed title** now resolves live titles across all active opt-ins before filtering/pagination, concurrency bound to 6; regression includes a renamed subscription outside latest 50.
+3. The sender owner switch pauses and drains in-flight verification/send before cutover or rollback; SDK preflight only admits matched quiescent legacy checkpoints, rejects unknown/active and isolated-space cases. An interrupted persisted `paused` on restart is restored to legacy before watcher startup. The existing delivery ledger still owns `reserved/sent/rejected/delivery_unknown`.
+4. A concurrent subscribe blocks cutover until the new opt-in checkpoint is durable. A **passive** legacy checkpoint is retained for SDK opt-ins solely for safe rollback; only selected sender delivers. Rollback uses `await watch.start()`, not just `reconcileAll()`, to restore missing watcher records. Regression covers drain, timed out drain, crash restore, successful switch, unknown rejection, concurrent opt-in, and SDK rollback.
+5. New `telegram-notifier.integration.test.js` runs the **real SDK service admission** with a safe isolated stub `OpenCodeProvider`: manifest, grant denial, service/opencode approval, strict event ACK, restart and revocation. Previous 1-failure run `43633138176` was caused by the test fixture omitting `configureGuestOpenCodeProvider`, not by production logic; fixed in `e3489d7` and now part of full green CI. Earlier `5b347025`, `ba833b7`, `3e058a1` green checkpoints do not supersede this latest source proof.
+
+### Remaining before owner approves installation
+
+- **Real isolated host and disposable Telegram Bot API:** installation/approval/revoke, restart/drop/reconnect, lost-event sweep, actual completion/attention/error sends (root+children+shells+Goal+dispatch+form/permission/page), ambiguous delivery, opt-out during in-flight send, and quiescent cutover/rollback under real event streams. Existing CI mocks do **not** prove physical delivery.
+- **Cross-space limitation:** SDK cutover explicitly rejects isolated-space subscriptions. Keep legacy as fallback for them until parity is designed/tested or a separately approved scoped exclusion is recorded. No automatic production cutover.
+- **UI/release manual smoke:** old/archived/renamed sessions, 50+ history, mixed projects/worktrees, direct unsubscribe, Markdown full export, model/credential continuity, Windows updater and other preserved fork behavior. Mobile release execution and production packaging not confirmed.
+- **my-opencode** independent Node24/Bun1.4.4 frozen install, `GateRunner` permissions, PLAN/RUN class-review and optional-only CodeReviewer, installer rollback/#18 end-to-end **NOT RUN**. The exact `preserve-agent-colors.mjs` blob passed a narrow Node22 fixture; it is not a full installer test.
+
+**Policy/continuation:** update the master [handover](https://github.com/gest0r1/my-opencode/blob/feature/upstream-227-telegram-review-value-plan-20261113/project/upstream-227-telegram-review-value-plan-20261113.md) after EVERY completed action, with exact SHA/PASS/FAIL/NOT RUN/next step. Keep this ledger in sync without interrupting active CI. This update is **documentation-only** after source `e3489d7`; use the tested source SHA for evidence, not the ensuing doc HEAD. **No main merge, SSH, release or production deploy.**
