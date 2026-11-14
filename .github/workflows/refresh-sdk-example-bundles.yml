@@ -1,0 +1,57 @@
+name: Temporary refresh SDK example bundles (feature branch only)
+
+on:
+  push:
+    branches: ['feature/upstream-271-fork-reconciliation-20261114']
+    paths: ['.github/workflows/refresh-sdk-example-bundles.yml']
+
+permissions:
+  contents: write
+
+concurrency:
+  group: refresh-sdk-example-bundles-feature
+  cancel-in-progress: true
+
+jobs:
+  generate:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '26'
+      - run: bun install --frozen-lockfile
+      - name: Rebuild only checked-in SDK example bundles
+        shell: bash
+        run: |
+          set -euo pipefail
+          for entry in \
+            hello-kit/panel/main hello-kit/background/main github-token/panel/main \
+            config-editor/panel/main service-echo/panel/main service-echo/service/main \
+            browser-provider-stub/service/main browser-provider-stub/panel/main tools-only/mcp \
+            tasks-demo/panel/main tasks-demo/panel/attach tasks-demo/panel/page \
+            git-graph-status/status/main git-graph-status/service/main checklist-editor/editor/main \
+            source-control-provider/service/main session-events-log/service/main \
+            notification-webhook/service/main tracker-provider/service/main quota-provider/service/main \
+            wait-kit/service/main opencode-plugin/plugin/index agent-desk/panel/main \
+            agent-desk/panel/background agent-desk/blocks/chart agent-desk/service/main
+          do
+            flags=()
+            if [[ "$entry" == *"/service/"* || "$entry" == "tools-only/mcp" || "$entry" == "opencode-plugin/plugin/index" ]]; then
+              flags=(--node)
+            fi
+            bun packages/sdk/scripts/bundle-guest.ts "${flags[@]}" \
+              "packages/sdk/examples/${entry}.ts" "packages/sdk/examples/${entry}.js"
+          done
+      - name: Commit generated artifacts only to this feature branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add packages/sdk/examples/
+          if ! git diff --cached --quiet; then
+            git commit -m 'chore(sdk): regenerate checked-in example bundles for host contract'
+            git push origin "HEAD:${GITHUB_REF_NAME}"
+          fi
