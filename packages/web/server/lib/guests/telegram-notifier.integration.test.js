@@ -7,8 +7,8 @@ import { fileURLToPath } from 'node:url';
 import { inspectGuestPackage } from './catalog.js';
 import { setCapabilityGrants, writeExtensionStore } from './persist.js';
 import {
-  beginGuestServiceHost, getServiceStatus, proxyGuestServiceRequest,
-  stopAllGuestServices, stopGuestService,
+  beginGuestServiceHost, configureGuestOpenCodeProvider, getServiceStatus,
+  proxyGuestServiceRequest, stopAllGuestServices, stopGuestService,
 } from './service.js';
 
 // Exercise the actual distributable SDK notifier package and service host.
@@ -16,7 +16,17 @@ import {
 const packageRoot = fileURLToPath(new URL('../../../../../extensions/telegram-notifier/', import.meta.url));
 const guestId = 'telegram-notifier';
 
-beforeEach(() => beginGuestServiceHost());
+beforeEach(() => {
+  beginGuestServiceHost();
+  // The real service host refuses provides:opencode without an installed
+  // OpenCode provider. The service uses no OpenCode credentials in this test.
+  configureGuestOpenCodeProvider({
+    environmentFor: async () => ({}),
+    revokeGuest: () => {},
+    revokeAll: () => {},
+    stop: async () => {},
+  });
+});
 afterEach(async () => stopAllGuestServices());
 
 test('Telegram notifier SDK service needs explicit grants, accepts events and can restart and revoke', async () => {
