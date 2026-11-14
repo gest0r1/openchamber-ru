@@ -96,8 +96,9 @@ export const registerTelegramRoutes = (app, { telegram, config, watch, approval,
       res.json({ delivered: await telegram.retryDelivery(req.body?.key) });
     } catch (error) { fail(res, error); }
   }));
-  // Operator-only rollback fence. The SDK sender is never selected by an
-  // automatic update, plugin install or Telegram chat command.
+  // UI-auth operator change; exactly one sender may own automatic delivery.
+  // Pause before draining the previous sender's live verification and Bot API
+  // operations, then validate a quiescent checkpoint before SDK ownership.
   let switchingSender = false;
   app.get('/api/notifications/telegram/sender', asyncRoute(async (_req, res) => {
     res.setHeader('Cache-Control', 'no-store');
@@ -109,21 +110,29 @@ export const registerTelegramRoutes = (app, { telegram, config, watch, approval,
     if (switchingSender) return res.status(409).json({ error: 'Sender change already in progress' });
     switchingSender = true;
     let paused = false;
+    let previous = 'legacy';
     try {
       const current = (await config.read()).sender;
+      previous = current;
       if (current === mode) return res.json({ sender: mode });
       if (mode === 'legacy') {
+        // Also supports explicit recovery from a persisted paused state.
+        await config.update({ sender: 'paused' });
+        paused = true;
+        await telegram.waitForSettledDeliveries();
         await config.update({ sender: 'legacy' });
+        paused = false;
         watch.reconcileAll();
         return res.json({ sender: 'legacy' });
       }
       if (current !== 'legacy' || !await sdkSenderReady() || typeof completionProof !== 'function') {
         return res.status(409).json({ error: 'Approved and ready SDK notifier required' });
       }
-      // The transition is only allowed when all legacy subscriptions have
-      // reached a matching, known, quiescent checkpoint. No silent event loss.
       await config.update({ sender: 'paused' });
       paused = true;
+      await telegram.waitForSettledDeliveries();
+      // Legacy subscriptions must match a known, quiescent checkpoint.
+      // None of the already-recorded ambiguous deliveries may be replayed.
       const entries = await telegram.listSubscriptions();
       const old = await watch.checkpoints();
       if (entries.some((entry) => entry.spaceId)) {
@@ -150,8 +159,11 @@ export const registerTelegramRoutes = (app, { telegram, config, watch, approval,
       return res.json({ sender: 'sdk' });
     } catch (error) {
       if (paused) {
-        await config.update({ sender: 'legacy' });
-        watch.reconcileAll();
+        // Failed cutover must not create a second owner. Restore only the
+        // originally selected sender; the previous ledger remains intact.
+        const restore = previous === 'sdk' ? 'sdk' : 'legacy';
+        await config.update({ sender: restore });
+        if (restore === 'legacy') watch.reconcileAll();
       }
       return res.status(error instanceof TypeError ? 409 : 502).json({
         error: error instanceof TypeError ? error.message : 'Telegram sender cutover failed',
