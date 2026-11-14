@@ -342,6 +342,21 @@ export const createTelegramRuntime = ({
         title: entry.title ?? null, createdAt: entry.created_at,
         baselineIdleId: entry.baselineIdleId ?? null })).filter((entry) => entry.directory && entry.sessionId);
   };
+  // Take over only from an observed legacy idle checkpoint. Atomic with
+  // subscription identity validation; never reset an opt-in created later.
+  const seedBaselines = async (snapshots) => mutate((data) => {
+    for (const item of snapshots) {
+      const record = data.subscriptions[keyOf(item.directory, item.sessionId)];
+      if (!record?.opted_in || record.created_at !== item.createdAt ||
+          (record.spaceId ?? null) !== (item.spaceId ?? null) ||
+          typeof item.idleId !== 'string' || !item.idleId) {
+        throw new Error('Telegram cutover snapshot no longer matches subscriptions');
+      }
+    }
+    for (const item of snapshots) {
+      data.subscriptions[keyOf(item.directory, item.sessionId)].baselineIdleId = item.idleId;
+    }
+  });
   const hasSubscription = async (directory, sessionId) => {
     const data = await load();
     const key = keyOf(directory, sessionId);
@@ -486,5 +501,5 @@ export const createTelegramRuntime = ({
       type: entry.type, eventKey: entry.eventKey, manualRetry: true, sender: await getSender() });
   };
   return { configureAlias, deleteAlias, subscribe, unsubscribe, sendText, sendDocument, sendContent,
-    notify, hasSubscription, getSubscription, listSubscriptions, listAliases, listAliasDetails, hasBotToken, listDeliveryIssues, retryDelivery };
+    notify, hasSubscription, getSubscription, listSubscriptions, seedBaselines, listAliases, listAliasDetails, hasBotToken, listDeliveryIssues, retryDelivery };
 };
