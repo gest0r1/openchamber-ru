@@ -158,6 +158,13 @@ test('CLI performs offline prepare with secret-free stdout, leaves all legacy in
   assert.equal(JSON.parse(second.stdout).created, false);
   assert.equal(first.stdout.includes('dummy_secret'), false);
   assert.equal(second.stderr.includes('dummy_secret'), false);
+  const sourceDir = new URL('../', import.meta.url).pathname;
+  const rejected = spawnSync(process.execPath, [new URL('./prepare-legacy.js', import.meta.url).pathname,
+    '--runtime', paths.runtime, '--watch', paths.watch, '--config', paths.config,
+    '--aliases', paths.aliases, '--data-dir', sourceDir], { encoding: 'utf8' });
+  assert.notEqual(rejected.status, 0);
+  assert.match(rejected.stderr, /private data dir must be outside extension source/);
+
   for (const [key, value] of Object.entries({ runtime: s.runtime, watch: s.watch, config: s.config, aliases: s.configuredAliases })) {
     assert.equal(await fs.readFile(paths[key], 'utf8'), JSON.stringify(value));
   }
