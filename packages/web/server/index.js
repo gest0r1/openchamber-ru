@@ -1534,6 +1534,7 @@ const telegramRuntime = createTelegramRuntime({
   getDefaultAlias: async () => (await telegramConfig.read()).defaultAlias,
   getPublicOrigin: telegramPublicOrigin.getPublicOrigin,
   enabled: async () => (await telegramConfig.read()).enabled === true,
+  getSender: async () => (await telegramConfig.read()).sender,
 });
 const telegramSourceFor = (spaceId) => {
   if (!spaceId) return { buildOpenCodeUrl, getOpenCodeAuthHeaders, fetchImpl: fetch };
@@ -1578,7 +1579,10 @@ const telegramWatch = createTelegramWatch({
         ? (state.pending ? [{ parentSessionId: sessionId }] : []) : null;
     } catch { return null; }
   },
-  readSettings: async () => ({ telegramEnabled: (await telegramConfig.read()).enabled }),
+  readSettings: async () => {
+    const settings = await telegramConfig.read();
+    return { telegramEnabled: settings.enabled && settings.sender === 'legacy' };
+  },
 });
 void telegramWatch.start().catch((error) => console.warn('[Telegram] Watch restore failed:', error?.message ?? error));
 const unsubscribeTelegramReconnect = globalMessageStreamHub.subscribeStatus((status) => {
