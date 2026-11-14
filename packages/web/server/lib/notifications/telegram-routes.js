@@ -45,6 +45,7 @@ export const registerTelegramRoutes = (app, { telegram, config, watch, approval,
     if (record?.id !== item.sessionId || actual !== item.directory || record?.parentID) {
       throw new TypeError('Only a root session in its actual location can be subscribed');
     }
+    return record;
   };
 
   // The host reads this status inside an isolated space over its authenticated
@@ -127,6 +128,40 @@ export const registerTelegramRoutes = (app, { telegram, config, watch, approval,
       res.json(result);
     } catch (error) { fail(res, error); }
   }));
+  // Includes older subscriptions outside the latest-session chooser. Refresh
+  // titles from the authoritative space when reachable; retain saved title
+  // (or ID) when that session can no longer be read.
+  app.get('/api/notifications/telegram/subscriptions', asyncRoute(async (req, res) => {
+    try {
+      const page = Math.max(0, Math.min(100000, Number.parseInt(asString(req.query?.page) || '0', 10) || 0));
+      const limit = 30;
+      const entries = (await telegram.listSubscriptions())
+        .sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0));
+      const slice = entries.slice(page * limit, (page + 1) * limit);
+      const subscriptions = await Promise.all(slice.map(async (item) => {
+        let title = item.title || item.sessionId;
+        const source = getSource(item.spaceId);
+        if (source) {
+          try {
+            const url = source.buildOpenCodeUrl('/api/session/' + encodeURIComponent(item.sessionId), '');
+            const answer = await source.fetchImpl(url, {
+              method: 'GET', headers: { accept: 'application/json', ...source.getOpenCodeAuthHeaders() },
+              signal: AbortSignal.timeout(4000),
+            });
+            if (answer.ok) {
+              const data = await answer.json();
+              const row = data?.data ?? data;
+              if (row?.id === item.sessionId && row?.location?.directory === item.directory &&
+                  typeof row.title === 'string' && row.title.trim()) title = row.title.slice(0, 200);
+            }
+          } catch { /* Name lookup must not hide the unsubscribe button. */ }
+        }
+        return { ...item, title };
+      }));
+      res.setHeader('Cache-Control', 'no-store');
+      res.json({ subscriptions, total: entries.length, page, hasMore: (page + 1) * limit < entries.length });
+    } catch (error) { fail(res, error); }
+  }));
   app.get('/api/notifications/telegram/subscription', asyncRoute(async (req, res) => {
     try {
       const item = sessionInput(req.query);
@@ -145,8 +180,10 @@ export const registerTelegramRoutes = (app, { telegram, config, watch, approval,
   app.post('/api/notifications/telegram/subscribe', asyncRoute(async (req, res) => {
     try {
       const item = sessionInput(req.body);
-      await verify(item);
-      await telegram.subscribe(item.directory, item.sessionId, req.body?.alias, { origin: 'user', spaceId: item.spaceId });
+      const record = await verify(item);
+      await telegram.subscribe(item.directory, item.sessionId, req.body?.alias, {
+        origin: 'user', spaceId: item.spaceId, title: record.title,
+      });
       try {
         await watch.track(item);
       } catch (error) {
