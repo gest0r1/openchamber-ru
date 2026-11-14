@@ -55,6 +55,7 @@ export const serviceHostCallSchema = z.discriminatedUnion('method', [
   z.object({ method: z.literal('sessions.send'), input: z.object({ sessionId, prompt }).strict() }).strict(),
   z.object({ method: z.literal('sessions.retry'), input: z.object({ sessionId }).strict() }).strict(),
   z.object({ method: z.literal('sessions.status'), input: z.object({ sessionId }).strict() }).strict(),
+  z.object({ method: z.literal('sessions.completion'), input: z.object({ sessionId, directory, spaceId: sessionId.optional() }).strict() }).strict(),
   z.object({ method: z.literal('sessions.lastReply'), input: z.object({ sessionId }).strict() }).strict(),
   z.object({ method: z.literal('sessions.stop'), input: z.object({ sessionId }).strict() }).strict(),
   z.object({
