@@ -185,6 +185,11 @@ export type ServiceTelegramProofSend = {
   idleId: string; outcome: 'succeeded' | 'failed';
 };
 
+export type ServiceTelegramAttention = { kind: 'form' | 'permission' | 'page'; id: string };
+export type ServiceTelegramAttentionSend = {
+  sessionId: string; directory: string; spaceId?: string; kind: 'form' | 'permission' | 'page'; id: string;
+};
+
 export type ServiceHostCalls = {
   'sessions.start': { input: ServiceSessionStart; result: ServiceSessionStarted };
   'sessions.send': { input: { sessionId: string; prompt: string }; result: ServiceSessionSent };
@@ -193,6 +198,8 @@ export type ServiceHostCalls = {
   'sessions.completion': { input: { sessionId: string; directory: string; spaceId?: string }; result: ServiceSessionCompletion };
   'telegram.subscriptions': { input: Record<string, never>; result: { subscriptions: ServiceTelegramSubscription[]; active: boolean } };
   'telegram.deliver': { input: ServiceTelegramProofSend; result: { delivered: boolean } };
+  'telegram.attention': { input: { sessionId: string; directory: string; spaceId?: string }; result: { known: boolean; items: ServiceTelegramAttention[] } };
+  'telegram.deliverAttention': { input: ServiceTelegramAttentionSend; result: { delivered: boolean } };
   'sessions.lastReply': { input: { sessionId: string }; result: ServiceSessionReply };
   'sessions.stop': { input: { sessionId: string }; result: ServiceSessionStopped };
   'sessions.answerPermission': { input: { sessionId: string; requestId: string } & ServicePermissionAnswer; result: ServiceAnswered };
@@ -209,7 +216,7 @@ export type ServiceHostMethod = keyof ServiceHostCalls;
 export const SERVICE_HOST_METHODS = [
   'sessions.start', 'sessions.send', 'sessions.retry', 'sessions.status', 'sessions.lastReply',
   'sessions.stop', 'sessions.answerPermission', 'sessions.answerForm', 'sessions.completion',
-  'telegram.subscriptions', 'telegram.deliver',
+  'telegram.subscriptions', 'telegram.deliver', 'telegram.attention', 'telegram.deliverAttention',
   'instructions.set', 'panels.emit', 'settings.read', 'status.set', 'marks.set',
 ] as const satisfies readonly ServiceHostMethod[];
 
@@ -257,6 +264,8 @@ export type ServiceHost = {
   telegram: {
     subscriptions: () => Promise<ServiceHostCalls['telegram.subscriptions']['result']>;
     deliver: (input: ServiceTelegramProofSend) => Promise<{ delivered: boolean }>;
+    attention: (sessionId: string, directory: string, spaceId?: string) => Promise<ServiceHostCalls['telegram.attention']['result']>;
+    deliverAttention: (input: ServiceTelegramAttentionSend) => Promise<{ delivered: boolean }>;
   };
   setInstructions: (directory: string | null, text: string) => Promise<{ saved: true }>;
   /** Sends `data` to the extension's open frames, which hear it through `host.onServiceEvent`. */
@@ -316,6 +325,8 @@ export const createServiceHost = ({ env }: { env: ServiceHostEnv }): ServiceHost
     telegram: {
       subscriptions: () => call('telegram.subscriptions', {}),
       deliver: (input) => call('telegram.deliver', input),
+      attention: (sessionId, directory, spaceId) => call('telegram.attention', { sessionId, directory, ...(spaceId ? { spaceId } : {}) }),
+      deliverAttention: (input) => call('telegram.deliverAttention', input),
     },
     setInstructions: (directory, text) => call('instructions.set', { directory, text }),
     emit: (topic, data) => call('panels.emit', { topic, data }),
