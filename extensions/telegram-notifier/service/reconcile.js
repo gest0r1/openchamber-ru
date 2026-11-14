@@ -18,6 +18,16 @@ export const createNotifierReconciler = ({ host, onError = () => {} }) => {
         while (offset < subscriptions.length) {
           const item = subscriptions[offset++];
           try {
+            // Unanswered forms and permissions can be reconstructed even after
+            // an event-stream gap or service restart.
+            const waiting = await host.attention(item);
+            if (waiting?.known && Array.isArray(waiting.items)) {
+              for (const request of waiting.items) await host.deliverAttention({
+                sessionId: item.sessionId, directory: item.directory,
+                ...(item.spaceId ? { spaceId: item.spaceId } : {}),
+                kind: request.kind, id: request.id,
+              });
+            }
             const proof = await host.completion(item);
             if (proof?.kind !== 'idle' || !proof.idle || proof.idle.id === item.baselineIdleId) continue;
             if (!['succeeded', 'failed'].includes(proof.idle.outcome)) continue;
