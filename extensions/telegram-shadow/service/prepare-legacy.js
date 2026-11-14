@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import fs from 'node:fs/promises';
-import { isAbsolute, join } from 'node:path';
+import { isAbsolute, join, resolve, sep } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { prepareLegacySnapshot, readLegacyInputs, writePreparedSnapshot } from './migration.js';
 
 const flags = new Map();
@@ -17,6 +18,11 @@ if (process.exitCode !== 2) {
   try {
     const dataDir = flags.get('--data-dir');
     if (!dataDir || !isAbsolute(dataDir)) throw new Error('Absolute private service data dir required');
+    const packageRoot = fileURLToPath(new URL('../', import.meta.url));
+    const destinationRoot = resolve(dataDir);
+    if (destinationRoot === resolve(packageRoot) || destinationRoot.startsWith(resolve(packageRoot) + sep)) {
+      throw new Error('MIGRATION_REJECTED: private data dir must be outside extension source');
+    }
     const paths = Object.fromEntries(['runtime', 'watch', 'config', 'aliases'].map((key) =>
       [key, flags.get('--' + key)]));
     const inputs = await readLegacyInputs({ paths, fs });
