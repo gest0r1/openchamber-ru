@@ -48,7 +48,7 @@ Telegram subscription/recovery/delivery ledger; RU i18n и настройки; M
 - [x] `packages/ui/src/components/sections/extensions/ExtensionsPage.tsx` (base `c03c651221b5`, fork `abd59b2cd279`, upstream `f00b93d101bb`)
 - [x] `packages/ui/src/components/sections/integrations/CatalogExtensionsSection.tsx` (base `d6bf3215588b`, fork `f573a8ba375c`, upstream `a330fb2ed636`)
 - [x] `packages/ui/src/components/sections/openchamber/NotificationSettings.tsx` (base `bf9e8d9a2f19`, fork `b4c300b8e9ce`, upstream `c4451e668269`)
-- [ ] `packages/ui/src/components/session/sidebar/sessions/SessionNodeItem.tsx` (base `76e4f798f242`, fork `91301e88ed72`, upstream `24ab9844e3ed`)
+- [x] `packages/ui/src/components/session/sidebar/sessions/SessionNodeItem.tsx` (base `76e4f798f242`, fork `91301e88ed72`, upstream `24ab9844e3ed`)
 - [x] `packages/ui/src/lib/i18n/messages.test.ts` (base `f89bfa57a3e4`, fork `25787893a715`, upstream `e25f752dc538`)
 - [x] `packages/ui/src/lib/i18n/messages/ar.settings.ts` (base `11d7b88afc8e`, fork `2d47ff55fbf6`, upstream `4dd480209c73`)
 - [x] `packages/ui/src/lib/i18n/messages/ar.ts` (base `31c45fe978de`, fork `20074d0e8f31`, upstream `d248ff1dd795`)
@@ -217,3 +217,9 @@ Telegram subscription/recovery/delivery ledger; RU i18n и настройки; M
 - **Release workflow: preserve fork graph intentionally** (unchanged file, decision now resolved): upstream 2.7.1's seven deltas to `.github/workflows/release.yml` concern Node 26 runner changes, macOS notarization retry and R2 mirror publication sequencing. MacOS/R2/other new publishing targets are **excluded by explicit fork release policy**; Node 26 is not required by checked `engines.node >=24.14.0`. Fork SHA-bound, x64 Windows/Linux, Android, verified web package reuse, draft finalizer kept exactly. See `scripts/check-fork-release-policy.mjs`. No additional Actions minutes or target expansion.
 - Static inspected: `startService === false` branches before systemd restart; no-start reports `startDeferred`; Windows helper and unit PID logic retained; release contains x64+Android and no macOS/npm publishing. **Static PASS.** Full Bun/Node24 tests, installer/rollback, YAML parse, actual release simulation **NOT RUN**.
 - **8 overlapping paths remain**. Remaining: session sidebar full Markdown export; documentation/CHANGELOG reconciliation; typecheck and CI.
+
+## A2 shared full Markdown export (2026-11-14)
+
+- **SessionNodeItem.tsx: CLOSED STATICALLY.** Accepted upstream v2.7.1 SessionNodeItem (menu, worktree and selection extraction), removed the old fork's three overlapping custom patches. **Preserved the separate full Markdown export** by moving the call into the existing shared `SessionActionsMenuItems.tsx`, used by both sidebar and header. This reuses the upstream menu instead of maintaining an obsolete duplicate in SessionNodeItem.
+- The new option invokes unchanged fork `collectFullSessionExport` and `formatFullSessionAsMarkdown` (authoritative parentID pagination, tool calls and partial branch warnings); each child's records use that child's own directory. Existing built-in standard Markdown export stays unchanged. Added a menu presence test to `HeaderSessionActionsMenuItems.test.tsx`. Commits `568d090`, `adf8adc`, `7527aee`.
+- Static selection/exports checks **PASS**; Bun/React full run **NOT RUN**. **7 overlaps remain**; no production changes.
