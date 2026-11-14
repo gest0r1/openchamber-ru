@@ -374,3 +374,40 @@ describe('sidebar marks', () => {
     expect(marks.list('desk')).toEqual([]);
   });
 });
+
+
+describe('SDK read-only terminal proof approval', () => {
+  const guest = row({
+    service: { entry: 'service/main.js', runtime: 'host', provides: ['opencode'] },
+    sessionEvents: { events: ['turn-finished'] },
+    capabilityGrants: ['service', 'opencode'],
+  });
+  test('approved extension can read a scoped conservative result', async () => {
+    const completionProof = vi.fn(async () => ({ kind: 'unknown', reason: 'shells-unavailable', title: 'Work' }));
+    const { call } = harness(guest, { completionProof });
+    expect(await call('sessions.completion', { sessionId: 'ses_1', directory: '/repo' }))
+      .toEqual({ status: 200, body: { result: { kind: 'unknown', reason: 'shells-unavailable', title: 'Work' } } });
+    expect(completionProof).toHaveBeenCalledWith({ sessionId: 'ses_1', directory: '/repo' });
+  });
+  test('ungranted OpenCode access is refused without a host read', async () => {
+    const completionProof = vi.fn();
+    const { call } = harness({ ...guest, capabilityGrants: ['service'] }, { completionProof });
+    expect(await call('sessions.completion', { sessionId: 'ses_1', directory: '/repo' }))
+      .toMatchObject({ status: 403 });
+    expect(completionProof).not.toHaveBeenCalled();
+  });
+  test('manifest without the declared source and events cannot use the proof', async () => {
+    const completionProof = vi.fn();
+    const { call } = harness({ ...guest, sessionEvents: undefined }, { completionProof });
+    expect(await call('sessions.completion', { sessionId: 'ses_1', directory: '/repo' }))
+      .toMatchObject({ status: 403 });
+    expect(completionProof).not.toHaveBeenCalled();
+  });
+  test('wrong input shape is rejected before backend reads', async () => {
+    const completionProof = vi.fn();
+    const { call } = harness(guest, { completionProof });
+    expect(await call('sessions.completion', { sessionId: 'ses_1', directory: '' }))
+      .toMatchObject({ status: 400 });
+    expect(completionProof).not.toHaveBeenCalled();
+  });
+});
