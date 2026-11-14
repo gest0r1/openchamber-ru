@@ -134,6 +134,7 @@ import { createPrWatchRuntime } from './lib/pr-watch/runtime.js';
 import { createTelegramRuntime } from './lib/notifications/telegram-runtime.js';
 import { createTelegramPublicOrigin } from './lib/notifications/telegram-origin.js';
 import { createTelegramWatch } from './lib/notifications/telegram-watch.js';
+import { createTelegramNotifierBridge } from './lib/notifications/telegram-notifier-bridge.js';
 import { createSessionCompletionProof } from './lib/guests/session-completion-proof.js';
 import { createTelegramConfig } from './lib/notifications/telegram-config.js';
 import { createTelegramApproval } from './lib/notifications/telegram-approval.js';
@@ -2360,6 +2361,7 @@ onGuestServiceEnded((guestId) => {
 });
 
 const serviceHostApi = createServiceHostApi({
+  telegramNotifier: createTelegramNotifierBridge({ telegram: telegramRuntime, config: telegramConfig }),
   completionProof: createSessionCompletionProof({
     sourceFor: telegramSourceFor,
     isGoalActive: async (sessionId, spaceId) => {
