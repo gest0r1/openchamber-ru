@@ -116,12 +116,12 @@ Telegram subscription/recovery/delivery ledger; RU i18n и настройки; M
 - [x] `packages/web/package.json` (base `636c1d91368c`, fork `2061c2b478f9`, upstream `8b2b1a1059e2`)
 - [x] `packages/web/server/index.js` (base `d31d7cddd1a9`, fork `7695211dd5f2`, upstream `72f759be2640`)
 - [ ] `packages/web/server/lib/agent-tool/DOCUMENTATION.md` (base `569fb28ad17f`, fork `5411966a396b`, upstream `652fe02db6c6`)
-- [ ] `packages/web/server/lib/agent-tool/runtime.js` (base `561d6ec565da`, fork `2a8df0714f87`, upstream `b30176342543`)
-- [ ] `packages/web/server/lib/agent-tool/runtime.test.js` (base `b0573e51f693`, fork `f0d646020114`, upstream `6721b408dc58`)
+- [x] `packages/web/server/lib/agent-tool/runtime.js` (base `561d6ec565da`, fork `2a8df0714f87`, upstream `b30176342543`)
+- [x] `packages/web/server/lib/agent-tool/runtime.test.js` (base `b0573e51f693`, fork `f0d646020114`, upstream `6721b408dc58`)
 - [ ] `packages/web/server/lib/notifications/DOCUMENTATION.md` (base `c79b12382389`, fork `f1065b831ce0`, upstream `d3576ed3a687`)
-- [ ] `packages/web/server/lib/openchamber-control/actions.js` (base `3c01cb653404`, fork `2ded16f4a5eb`, upstream `f02eaf510def`)
-- [ ] `packages/web/server/lib/openchamber-control/render-page.js` (base `c079c7365cb2`, fork `e27b9daa1fc8`, upstream `42d3487ba45d`)
-- [ ] `packages/web/server/lib/openchamber-control/service.js` (base `254a8d954c0f`, fork `0c3c36940c34`, upstream `522d42420e03`)
+- [x] `packages/web/server/lib/openchamber-control/actions.js` (base `3c01cb653404`, fork `2ded16f4a5eb`, upstream `f02eaf510def`)
+- [x] `packages/web/server/lib/openchamber-control/render-page.js` (base `c079c7365cb2`, fork `e27b9daa1fc8`, upstream `42d3487ba45d`)
+- [x] `packages/web/server/lib/openchamber-control/service.js` (base `254a8d954c0f`, fork `0c3c36940c34`, upstream `522d42420e03`)
 - [ ] `packages/web/server/lib/opencode/DOCUMENTATION.md` (base `a2c9adf4cec5`, fork `01b6caaeeda6`, upstream `88e35cda0fd0`)
 - [x] `packages/web/server/lib/opencode/session-activity.js` (base `b626dcc8db29`, fork `e935c091afed`, upstream `04ad7339537f`)
 - [x] `packages/web/server/lib/opencode/session-activity.test.js` (base `ddf7c4b232e5`, fork `2e105734729f`, upstream `f9a0b000727a`)
@@ -175,3 +175,11 @@ Telegram subscription/recovery/delivery ledger; RU i18n и настройки; M
 - `shutdown-runtime.js`: retain stop of Telegram watcher, approval and reconnect subscription; adopt upstream session todos, extension waits and service lifetime cleanup.
 - Static checks: one Telegram route, one embedded Telegram sender, one watcher start, one watcher event subscription; upstream lifecycle handlers and fork completion guards exist in exact branch blobs. **PASS (static)**; no Node/Bun runtime, endpoint contracts, typecheck, or CI executed: **NOT RUN**. Separate interactions with `openchamber-control/service.js`, `agent-tool/runtime.js`, UI forms and new OpenCode 2.2.7 require full integration tests before certifying this subblock.
 - Code commits: `407c594`, `e336b74`, `596e5fd`, `206e538`. **44 unresolved file-level overlaps remain.**
+
+## A2 control/agent-tool runtime + Telegram compatibility (2026-11-14)
+
+- **5 overlap paths resolved statically:** `openchamber-control/actions.js`, `render-page.js`, `service.js`, `agent-tool/runtime.js`, `agent-tool/runtime.test.js`. Rebased on complete upstream v2.7.1, restored only existing fork `notify.telegram_send`, schema parameters and page `isWaiting` contract.
+- Preserved upstream `releaseAnswerWaits` cleanup, `secretFields`, `stopSession`, `answerPermission`, `answerForm`, and `dismissOpenForms`. No second automatic Telegram sender introduced. Existing Telegram send still requires callback, actual session+checkout and incumbent confirmation runtime. No changes to persisted delivery keys.
+- Extended upstream `openchamber-control/service.test.js` with session/path refusal (400), unavailable channel (503), forwarded payload/explicit approval and page wait lifecycle assertions; updated `agent-tool/runtime.test.js` to expect all eight notify params.
+- **Static cross-file assertions: PASS (8/8)** including exact action, handler and service wiring in `server/index.js`. **Node/Bun runtime tests: NOT RUN**, so this is a static-resolution checkpoint, not an acceptance declaration.
+- Commits: `cbab33b`, `e48fa0e`, `bd414b7`, `c58ebf5`, `1b5f0e4`, `c80b294`. **39 overlapping paths remain** (five fewer than previous checkpoint).
