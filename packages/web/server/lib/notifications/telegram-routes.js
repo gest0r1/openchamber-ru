@@ -48,6 +48,26 @@ export const registerTelegramRoutes = (app, { telegram, config, watch, approval,
     return record;
   };
 
+  // Capture a pre-opt-in terminal checkpoint. If unreadable, the SDK sender
+  // must not start from an arbitrary old completion.
+  const baselineIdleId = async (item) => {
+    const source = getSource(item.spaceId);
+    if (!source) return undefined;
+    try {
+      const url = source.buildOpenCodeUrl('/api/session/' + encodeURIComponent(item.sessionId) + '/message', '');
+      const response = await source.fetchImpl(url + '?limit=1&order=desc&type=idle', {
+        method: 'GET', headers: { accept: 'application/json', ...source.getOpenCodeAuthHeaders() },
+        signal: AbortSignal.timeout(10000),
+      });
+      if (!response.ok) return undefined;
+      const body = await response.json();
+      const rows = Array.isArray(body) ? body : body?.data;
+      if (!Array.isArray(rows)) return undefined;
+      const idle = rows.find((row) => row?.type === 'idle' && typeof row.id === 'string');
+      return idle?.id ?? null;
+    } catch { return undefined; }
+  };
+
   // The host reads this status inside an isolated space over its authenticated
   // dispatcher. The external space proxy refuses /api/notifications routes.
   app.get('/api/notifications/telegram/pending', asyncRoute(async (req, res) => {
@@ -184,8 +204,13 @@ export const registerTelegramRoutes = (app, { telegram, config, watch, approval,
     try {
       const item = sessionInput(req.body);
       const record = await verify(item);
+      const baseline = await baselineIdleId(item);
+      if ((await config.read()).sender === 'sdk' && baseline === undefined) {
+        throw new TypeError('Cannot establish a safe Telegram subscription baseline');
+      }
       await telegram.subscribe(item.directory, item.sessionId, req.body?.alias, {
         origin: 'user', spaceId: item.spaceId, title: record.title,
+        baselineIdleId: baseline ?? null,
       });
       try {
         await watch.track(item);
