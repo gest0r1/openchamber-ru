@@ -483,6 +483,18 @@ export const createTelegramRuntime = ({
       z.object({ status: z.enum(['reserved', 'delivery_unknown', 'rejected']) }).passthrough().safeParse(entry).success)
       .slice(-100).map(([key, entry]) => ({ key, ...entry }));
   };
+  // Changing sender must not overlap a Bot API request already begun by the
+  // previous owner. Pause first, then drain both completion probes and sends.
+  // A timeout is an unsafe cutover, never evidence that delivery finished.
+  const waitForSettledDeliveries = async ({ timeoutMs = 30_000 } = {}) => {
+    const deadline = Date.now() + timeoutMs;
+    while (inflightVerification.size || inflightDelivery.size) {
+      if (Date.now() >= deadline) {
+        throw new Error('Telegram delivery remains in flight; sender switch refused');
+      }
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+  };
   const retryDelivery = async (key) => {
     if (!z.string().safeParse(key).success) throw new TypeError('Delivery key is required');
     const data = await load();
@@ -501,5 +513,5 @@ export const createTelegramRuntime = ({
       type: entry.type, eventKey: entry.eventKey, manualRetry: true, sender: await getSender() });
   };
   return { configureAlias, deleteAlias, subscribe, unsubscribe, sendText, sendDocument, sendContent,
-    notify, hasSubscription, getSubscription, listSubscriptions, seedBaselines, listAliases, listAliasDetails, hasBotToken, listDeliveryIssues, retryDelivery };
+    notify, hasSubscription, getSubscription, listSubscriptions, seedBaselines, waitForSettledDeliveries, listAliases, listAliasDetails, hasBotToken, listDeliveryIssues, retryDelivery };
 };
