@@ -281,7 +281,6 @@ export const routingI18n = {
     'routing.safetyKind.unknown': 'неясное воздействие',
     'routing.toast.safetySkipped': 'Защитный контур не смог проверить действие, поэтому автопринятие продолжилось',
     'settings.page.routing.title': 'Маршрутизация',
-    'settings.page.routing.description': 'Автоматически выбирайте подходящую модель для каждого запроса и получайте подтверждение перед рискованными действиями в сессиях с автопринятием.',
     'settings.routing.loadError': 'Не удалось загрузить настройки маршрутизации: {error}',
     'settings.routing.unavailable': 'Маршрутизация недоступна на этом сервере.',
     'settings.routing.token.label': 'API-ключ',
