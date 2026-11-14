@@ -378,6 +378,10 @@ describe('sidebar marks', () => {
 
 describe('SDK read-only terminal proof approval', () => {
   const guest = row({
+    // The notifier is read-only: do not inherit row()'s sessionControl,
+    // transcript or instructions requests, which would require separate grants.
+    sessionControl: undefined,
+    instructions: undefined,
     service: { entry: 'service/main.js', runtime: 'host', provides: ['opencode'] },
     sessionEvents: { events: ['turn-finished'] },
     capabilityGrants: ['service', 'opencode'],
