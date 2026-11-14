@@ -136,6 +136,13 @@ export type ServiceSessionStarted = { sessionId: string; directory: string | nul
 export type ServiceSessionSent = { sent: true };
 /** `waiting` is a session only the user can move on. */
 export type ServiceSessionStatus = { status: 'idle' | 'busy' | 'waiting' };
+/** Conservative host proof, including descendants, shells, waiting requests and dispatch. */
+export type ServiceSessionCompletion = {
+  kind: 'idle' | 'working' | 'unknown';
+  reason: string;
+  title: string | null;
+  idle?: { id: string; outcome: 'succeeded' | 'failed' | 'interrupted' };
+};
 /** The agent's last answer, `null` before it gave one. */
 export type ServiceSessionReply = { reply: string | null };
 /** `stopped` is false when the session had no turn running. */
@@ -173,6 +180,7 @@ export type ServiceHostCalls = {
   'sessions.send': { input: { sessionId: string; prompt: string }; result: ServiceSessionSent };
   'sessions.retry': { input: { sessionId: string }; result: ServiceSessionSent };
   'sessions.status': { input: { sessionId: string }; result: ServiceSessionStatus };
+  'sessions.completion': { input: { sessionId: string; directory: string; spaceId?: string }; result: ServiceSessionCompletion };
   'sessions.lastReply': { input: { sessionId: string }; result: ServiceSessionReply };
   'sessions.stop': { input: { sessionId: string }; result: ServiceSessionStopped };
   'sessions.answerPermission': { input: { sessionId: string; requestId: string } & ServicePermissionAnswer; result: ServiceAnswered };
@@ -188,7 +196,7 @@ export type ServiceHostMethod = keyof ServiceHostCalls;
 
 export const SERVICE_HOST_METHODS = [
   'sessions.start', 'sessions.send', 'sessions.retry', 'sessions.status', 'sessions.lastReply',
-  'sessions.stop', 'sessions.answerPermission', 'sessions.answerForm',
+  'sessions.stop', 'sessions.answerPermission', 'sessions.answerForm', 'sessions.completion',
   'instructions.set', 'panels.emit', 'settings.read', 'status.set', 'marks.set',
 ] as const satisfies readonly ServiceHostMethod[];
 
@@ -214,6 +222,8 @@ export type ServiceHost = {
     /** Sends the session's last message again, for a turn that failed. */
     retry: (sessionId: string) => Promise<ServiceSessionSent>;
     status: (sessionId: string) => Promise<ServiceSessionStatus>;
+    /** Read-only; needs approved service.provides opencode + sessionEvents. */
+    completion: (sessionId: string, directory: string, spaceId?: string) => Promise<ServiceSessionCompletion>;
     /** Needs `sessionControl.content`. */
     lastReply: (sessionId: string) => Promise<ServiceSessionReply>;
     /** Stops the turn the session is running, as the stop button does. */
@@ -280,6 +290,7 @@ export const createServiceHost = ({ env }: { env: ServiceHostEnv }): ServiceHost
       send: (sessionId, prompt) => call('sessions.send', { sessionId, prompt }),
       retry: (sessionId) => call('sessions.retry', { sessionId }),
       status: (sessionId) => call('sessions.status', { sessionId }),
+      completion: (sessionId, directory, spaceId) => call('sessions.completion', { sessionId, directory, ...(spaceId ? { spaceId } : {}) }),
       lastReply: (sessionId) => call('sessions.lastReply', { sessionId }),
       stop: (sessionId) => call('sessions.stop', { sessionId }),
       answerPermission: (sessionId, requestId, answer) => call('sessions.answerPermission', { sessionId, requestId, ...answer }),
