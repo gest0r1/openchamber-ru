@@ -8,7 +8,7 @@ import test from 'node:test';
 import { prepareLegacySnapshot, readLegacyInputs, writePreparedSnapshot } from './migration.js';
 
 const sha = (s) => createHash('sha256').update(s).digest('hex');
-const digest = { runtime: 'a'.repeat(64), watch: 'b'.repeat(64), config: 'c'.repeat(64) };
+const digest = { runtime: 'a'.repeat(64), watch: 'b'.repeat(64), config: 'c'.repeat(64), aliases: 'd'.repeat(64) };
 const session = ['/project', 'ses_one'];
 const subKey = sha(JSON.stringify(session));
 const deliveryKey = JSON.stringify([...session, 'completed', 'idle:some-id']);
@@ -89,6 +89,7 @@ test('source-file loader uses explicit files, validates JSON, retains hashes and
   }
   const read = await readLegacyInputs({ paths, fs });
   assert.equal(read.sourceSha256.runtime, sha(JSON.stringify(s.runtime)));
+  assert.equal(read.sourceSha256.aliases, sha(JSON.stringify(s.configuredAliases)));
   assert.equal(read.configuredAliases[0].name, 'Team Ops');
   const changedReads = { ...fs, readFile: async (name, opts) => {
     if (name === paths.config) return '{"version":1,"enabled":false}' + String(Math.random());
