@@ -36,6 +36,9 @@ import { tooltipsTrackerI18n } from './tooltips-tracker.i18n';
 import { tooltipsWorkspaceI18n } from './tooltips-workspace.i18n';
 import { tooltipsPanelI18n } from './tooltips-panel.i18n';
 import { tooltipsChatI18n } from './tooltips-chat.i18n';
+import { agentStatusI18n } from './agent-status.i18n';
+import { openchamberToolOutputI18n } from './openchamber-tool-output.i18n';
+import { opencodeToolOutputI18n } from './opencode-tool-output.i18n';
 import { webSearchI18n } from './websearch.i18n';
 import { sessionWarmingI18n } from './session-warming.i18n';
 import { isolatedSpacesI18n } from './isolated-spaces.i18n';
@@ -223,6 +226,9 @@ export const dict = {
   ...tooltipsWorkspaceI18n.ru,
   ...tooltipsPanelI18n.ru,
   ...tooltipsChatI18n.ru,
+  ...agentStatusI18n.ru,
+  ...openchamberToolOutputI18n.ru,
+  ...opencodeToolOutputI18n.ru,
   ...webSearchI18n.ru,
   ...sessionWarmingI18n.ru,
   ...isolatedSpacesI18n.ru,
