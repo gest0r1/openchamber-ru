@@ -1605,6 +1605,7 @@ export const sourceBoardI18n = {
     'sourceBoard.list.choose': 'בחר',
     'sourceBoard.list.toggleAria': 'רשימת פריטים, מוצג {item}',
   },
+  ru: {
     'sourceBoard.reply.startThread': 'Начать обсуждение',
     'sourceBoard.reply.startThreadHint': 'Опубликовать как обсуждение, которое кто-то должен закрыть',
     'sourceBoard.reply.toast.threadStarted': 'Начато обсуждение в {reference}',
