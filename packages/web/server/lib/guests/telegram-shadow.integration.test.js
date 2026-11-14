@@ -39,7 +39,7 @@ describe('Telegram shadow SDK host install and durable lifecycle', () => {
       const guest = inspected.guest;
       expect(guest.id).toBe(guestId);
       expect(guest.service?.keepRunning).toBe(true);
-      expect(guest.sessionEvents?.content).toBe(false);
+      expect(guest.sessionEvents?.content).toBeUndefined();
       expect(guest.sessionEvents?.events).toContain('turn-finished');
       expect(guest.service?.provides).toBeUndefined();
 
