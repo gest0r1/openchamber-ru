@@ -37,12 +37,12 @@ Telegram subscription/recovery/delivery ledger; RU i18n и настройки; M
 - [x] `packages/electron/package.json` (base `4ee6ca77a2ca`, fork `228ac8c9e0d8`, upstream `425531bb116e`)
 - [x] `packages/electron/updater-feed.mjs` (base `2f906fda5d2f`, fork `fd5c3c07fc21`, upstream `4eee6e79ee1f`)
 - [x] `packages/electron/updater-feed.test.mjs` (base `fe6c975ac8a5`, fork `00ada6b5dbbe`, upstream `66fa2d772c97`)
-- [ ] `packages/ui/src/components/chat/ChatContainer.tsx` (base `cd648023bf29`, fork `659732fa21ce`, upstream `02538157ff65`)
-- [ ] `packages/ui/src/components/chat/ChatInput.tsx` (base `81f4ef4644c5`, fork `d50a7dac2e23`, upstream `bc18c7f77c8d`)
+- [x] `packages/ui/src/components/chat/ChatContainer.tsx` (base `cd648023bf29`, fork `659732fa21ce`, upstream `02538157ff65`)
+- [x] `packages/ui/src/components/chat/ChatInput.tsx` (base `81f4ef4644c5`, fork `d50a7dac2e23`, upstream `bc18c7f77c8d`)
 - [ ] `packages/ui/src/components/chat/message/parts/DOCUMENTATION.md` (base `2d7fc6501138`, fork `8f09137e98b2`, upstream `d42e33e2ac81`)
 - [x] `packages/ui/src/components/chat/message/parts/HtmlRenderFrame.tsx` (base `c9cca4ad2b42`, fork `ad8b8fff5d7d`, upstream `a5d8c9b03fc6`)
 - [x] `packages/ui/src/components/chat/message/parts/ToolPart.subagent-row.test.tsx` (base `5e9474e50c07`, fork `486ba6b693e2`, upstream `7ca2f0ec491a`)
-- [ ] `packages/ui/src/components/chat/message/parts/ToolPart.tsx` (base `e850fda1ffe4`, fork `5a5e7032d8a8`, upstream `dbbbfe8fba8b`)
+- [x] `packages/ui/src/components/chat/message/parts/ToolPart.tsx` (base `e850fda1ffe4`, fork `5a5e7032d8a8`, upstream `dbbbfe8fba8b`)
 - [x] `packages/ui/src/components/chat/message/parts/UiPageFrame.tsx` (base `c6f4f6c21f0e`, fork `19ba370c6994`, upstream `f2081739eabc`)
 - [ ] `packages/ui/src/components/chat/work-status/DOCUMENTATION.md` (base `7a25d516a8ab`, fork `f9f54f5ee8b7`, upstream `ab28d2e8ecbc`)
 - [ ] `packages/ui/src/components/sections/extensions/ExtensionsPage.tsx` (base `c03c651221b5`, fork `abd59b2cd279`, upstream `f00b93d101bb`)
@@ -108,7 +108,7 @@ Telegram subscription/recovery/delivery ledger; RU i18n и настройки; M
 - [x] `packages/ui/src/lib/renderPageAnswer.ts` (base `3ce7cbf7e6a0`, fork `a4413080f708`, upstream `eea3ac507e2f`)
 - [x] `packages/ui/src/lib/settings/search.ts` (base `9953821e01dc`, fork `a9cdafa14982`, upstream `957b34dd91cd`)
 - [x] `packages/ui/src/styles/typography.css` (base `c18f200ea0e1`, fork `85da81011148`, upstream `bb69a62721c9`)
-- [ ] `packages/ui/src/sync/sync-context.tsx` (base `b52881a2c8d9`, fork `ae599805d0e3`, upstream `d75a03d1b671`)
+- [x] `packages/ui/src/sync/sync-context.tsx` (base `b52881a2c8d9`, fork `ae599805d0e3`, upstream `d75a03d1b671`)
 - [ ] `packages/vscode/CHANGELOG.md` (base `aff6fe7f9cc1`, fork `d7f89fa175f3`, upstream `48b6c8a51f63`)
 - [ ] `packages/web/bin/cli.test.js` (base `421c6fbf47de`, fork `920ce93cee5b`, upstream `b5c831f42a03`)
 - [ ] `packages/web/bin/lib/DOCUMENTATION.md` (base `71f9cc3162d2`, fork `3954d82bbb4e`, upstream `645848442784`)
@@ -202,3 +202,10 @@ Telegram subscription/recovery/delivery ledger; RU i18n и настройки; M
 - **Three content overlaps statically reconciled** from nonoverlapping base/fork/upstream hunks: `oc-review.yml` retains four fork GitHub-hosted jobs and explicit release-policy tests; `mobile-release.yml` preserves exact `source_ref`, Android release + build number, and disabled-by-default iOS while incorporating upstream updates; `README.md` retains fork installer and release policy alongside new upstream prose.
 - Static guard **7/7 PASS**: all eight deleted workflows remain absent, no release workflow call requires them, fork checks in PR CI, four CI jobs present, mobile source SHA authoritative, iOS default false, release still x64-only. **GitHub Actions, package tests, YAML parse, release dry-run NOT RUN.** Authoritative rollout still waits for `.github/workflows/release.yml` semantic resolution and CI.
 - Commits `oc-review` see branch history; `mobile-release` `6a9edc1`, `README` `5188b7e`. **17 overlapping paths remain**.
+
+## A2 main chat, Composer, ToolPart and sync-context (2026-11-14)
+
+- **Four overlapping implementation paths reconciled:** `ChatContainer.tsx` rebased with TelegramSessionButton and upstream chat changes; `ChatInput.tsx` rebased manually (upstream now has repository URL matcher, pasted issue chips and reference recording): reused existing upstream `repositoryUrls` and `linkedReferencesToSend` instead of adding a duplicate matcher; kept fork `buildLinkedGitHubIssueRefsContext` for already-linked and newly attached GitHub issues, excluding `/btw`.
+- `ToolPart.tsx`: upstream localized tool display name, background task/session lifecycle and new rendering retained; fork subagent agent-name and chosen color reintroduced as optional header fields, error title color still takes precedence. Existing fork subagent-row tests updated earlier. `sync-context.tsx`: the isolated fork interruption-observed timing block merged with upstream session synchronization.
+- Static symbol/contracts check **PASS** (single new issue context injection, upstream reference resolver preserved, subagent title/color logic, background behavior and Telegram button retained); **TypeScript/Bun/browser tests NOT RUN**. Need runner validation especially React hooks and OpenCode 2.2.7 message projection.
+- Commits: `236939b` ChatInput, `0e32528` ChatContainer, `e08b300` sync-context, `e749ed2` ToolPart. **13 overlaps remain.**
