@@ -163,6 +163,26 @@ export const createServiceHostApi = ({ listGuests, control, instructions, readSe
         if (!telegramNotifier) return fail(503, 'UNAVAILABLE', 'Telegram notifier unavailable.');
         return ok(await telegramNotifier.subscriptions());
       }
+      case 'telegram.attention': {
+        if (guest.id !== 'telegram-notifier' || !guest.service?.provides?.includes('opencode') ||
+            !Array.isArray(guest.sessionEvents?.events)) {
+          return fail(403, 'NOT_GRANTED', 'Only the installed Telegram notification extension can read pending input.');
+        }
+        const refused = needs(guest, 'opencode');
+        if (refused) return refused;
+        if (!telegramNotifier) return fail(503, 'UNAVAILABLE', 'Telegram notifier unavailable.');
+        return ok(await telegramNotifier.attention(input));
+      }
+      case 'telegram.deliverAttention': {
+        if (guest.id !== 'telegram-notifier' || !guest.service?.provides?.includes('opencode') ||
+            !Array.isArray(guest.sessionEvents?.events)) {
+          return fail(403, 'NOT_GRANTED', 'Only the installed Telegram notification extension can send attention requests.');
+        }
+        const refused = needs(guest, 'opencode');
+        if (refused) return refused;
+        if (!telegramNotifier) return fail(503, 'UNAVAILABLE', 'Telegram notifier unavailable.');
+        return ok(await telegramNotifier.deliverAttention(input));
+      }
       case 'telegram.deliver': {
         if (guest.id !== 'telegram-notifier' || !guest.service?.provides?.includes('opencode') ||
             !Array.isArray(guest.sessionEvents?.events)) {
