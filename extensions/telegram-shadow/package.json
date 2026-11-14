@@ -1,0 +1,37 @@
+{
+  "name": "@gest0r1/openchamber-telegram-shadow",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "openchamber": {
+    "apiVersion": 1,
+    "engines": {
+      "openchamber": ">=2.7.1"
+    },
+    "contributes": {
+      "panel": {
+        "id": "telegram-shadow",
+        "name": "Telegram Shadow",
+        "icon": "notification-3"
+      },
+      "service": {
+        "entry": "service/main.js",
+        "runtime": "host",
+        "keepRunning": true
+      },
+      "sessionEvents": {
+        "events": [
+          "turn-started",
+          "turn-finished",
+          "turn-failed",
+          "permission-asked",
+          "question-asked"
+        ],
+        "content": false
+      }
+    }
+  },
+  "scripts": {
+    "test": "node --test service/state.test.js"
+  }
+}

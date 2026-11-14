@@ -124,6 +124,11 @@ const technicalTermAllowlist = new Set([
   'settings.mcp.page.advanced.oauth',
   'settings.mcp.page.advanced.oauthMetadataUrlPlaceholder',
   'usageStats.tokens.legendValue',
+  // Protocol/host examples and non-linguistic templates are intentionally locale-neutral.
+  'settings.sourceControl.field.aliases.placeholder',
+  'sessions.sidebar.session.guestMark.label',
+  'releaseNotes.group.sdk',
+  'search.omni.result.authorPrefix',
   'multirun.overview.card.diff',
 ]);
 

@@ -255,6 +255,8 @@ export type CompactionMessage = MessageBase & {
   status: "running" | "completed" | "failed"
   reason: "auto" | "manual"
   summary: string
+  /** The model that wrote this summary, not the session's current model. */
+  model?: ModelRef
   error?: StructuredError
   cost?: number
   tokens?: TokenUsageInfo
@@ -395,7 +397,7 @@ export type ToolPart = PartBase & {
   state: ToolState
   /** The provider actually executed the call (false for replayed/synthetic calls). */
   executed?: boolean
-  /** Whether persisted tool timestamps came from execution events, not wire fallbacks. */
+  /** Timestamps derived from actual execution events, not wire or replay fallbacks. */
   timing?: { startMeasured: boolean; endMeasured: boolean; endSource?: 'persisted' | 'fallback' | 'interruption_observed' }
 }
 

@@ -2,6 +2,7 @@ import { create } from 'zustand';
 
 import { dict as enDict, type I18nKey } from './messages/en';
 import { DEFAULT_LOCALE, detectInitialLocale, type Locale, writeStoredLocale } from './runtime';
+import { hasRightToLeftText, isolateInsertedText } from './textDirection';
 
 export type I18nParams = Record<string, string | number | boolean | null | undefined>;
 export type I18nDictionary = Record<I18nKey, string>;
@@ -27,29 +28,29 @@ async function loadDictionary(locale: Locale): Promise<I18nDictionary> {
   }
 
   const mod = locale === 'zh-CN'
-    ? await import('./messages/zh-CN')
+    ? await import('./messages/zh-CN') as { dict: I18nDictionary }
     : locale === 'fr'
-      ? await import('./messages/fr')
+      ? await import('./messages/fr') as { dict: I18nDictionary }
       : locale === 'nl'
-        ? await import('./messages/nl')
+        ? await import('./messages/nl') as { dict: I18nDictionary }
     : locale === 'zh-TW'
-      ? await import('./messages/zh-TW')
+      ? await import('./messages/zh-TW') as { dict: I18nDictionary }
       : locale === 'es'
-        ? await import('./messages/es')
+        ? await import('./messages/es') as { dict: I18nDictionary }
         : locale === 'pt-BR'
-          ? await import('./messages/pt-BR')
+          ? await import('./messages/pt-BR') as { dict: I18nDictionary }
           : locale === 'uk'
-            ? await import('./messages/uk')
+            ? await import('./messages/uk') as { dict: I18nDictionary }
             : locale === 'ko'
-              ? await import('./messages/ko')
+              ? await import('./messages/ko') as { dict: I18nDictionary }
               : locale === 'pl'
-                ? await import('./messages/pl')
+                ? await import('./messages/pl') as { dict: I18nDictionary }
                 : locale === 'de'
-                  ? await import('./messages/de')
+                  ? await import('./messages/de') as { dict: I18nDictionary }
                   : locale === 'ja'
-                    ? await import('./messages/ja')
+                    ? await import('./messages/ja') as { dict: I18nDictionary }
                     : locale === 'tr'
-                      ? await import('./messages/tr')
+                      ? await import('./messages/tr') as { dict: I18nDictionary }
                       : locale === 'ar'
                         ? await import('./messages/ar')
                         : locale === 'he'
@@ -108,9 +109,14 @@ export function formatMessage(dictionary: I18nDictionary, key: I18nKey, params?:
     return template;
   }
 
+  const sentenceHasRightToLeft = hasRightToLeftText(template);
   return template.replace(/\{([^{}]+)\}/g, (match, rawKey) => {
     const value = params[rawKey.trim()];
-    return value === null || value === undefined ? match : String(value);
+    if (value === null || value === undefined) return match;
+    // Numbers have no direction of their own, even written as 1e-7 or NaN;
+    // only strings come back from String() unchanged.
+    const text = String(value);
+    return text === value ? isolateInsertedText(text, sentenceHasRightToLeft) : text;
   });
 }
 
