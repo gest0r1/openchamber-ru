@@ -1585,7 +1585,14 @@ const telegramWatch = createTelegramWatch({
     return { telegramEnabled: settings.enabled && settings.sender === 'legacy' };
   },
 });
-void telegramWatch.start().catch((error) => console.warn('[Telegram] Watch restore failed:', error?.message ?? error));
+void (async () => {
+  // Recover an interrupted, unowned cutover before restoring any watcher.
+  // The durable delivery ledger remains unchanged; ambiguous sends stay blocked.
+  if (await telegramConfig.recoverInterruptedSwitch()) {
+    console.warn('[Telegram] Recovered interrupted sender switch to legacy');
+  }
+  await telegramWatch.start();
+})().catch((error) => console.warn('[Telegram] Watch restore failed:', error?.message ?? error));
 const unsubscribeTelegramReconnect = globalMessageStreamHub.subscribeStatus((status) => {
   if (status?.type === 'connect') telegramWatch.reconcileAll();
 });
