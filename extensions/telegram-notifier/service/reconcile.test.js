@@ -12,6 +12,8 @@ const setup = (options = {}) => {
     subscriptions: async () => ({ active: options.active !== false, subscriptions: options.subscriptions ?? [root()] }),
     completion: async (entry) => { completed.push(entry.sessionId); return options.proof ?? { kind: 'idle', idle: { id: 'idle_new', outcome: 'succeeded' } }; },
     deliver: async (entry) => { deliveries.push(entry); return { delivered: true }; },
+    attention: async () => ({ known: true, items: [] }),
+    deliverAttention: async () => ({ delivered: true }),
   };
   return { notifier: createNotifierReconciler({ host }), deliveries, completed };
 };
@@ -51,6 +53,8 @@ test('one unreadable subscription does not prevent other sessions from reconcili
       return { kind: 'idle', idle: { id: 'new', outcome: 'succeeded' } };
     },
     deliver: async (entry) => { delivered.push(entry.sessionId); return { delivered: true }; },
+    attention: async () => ({ known: true, items: [] }),
+    deliverAttention: async () => ({ delivered: true }),
   };
   await createNotifierReconciler({ host, onError: (e) => errors.push(e.message) }).reconcile();
   assert.deepEqual(errors, ['read unavailable']);
