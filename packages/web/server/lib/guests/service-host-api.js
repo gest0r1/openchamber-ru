@@ -59,7 +59,7 @@ const SERVICE_STATUS_CHANGES_PER_MINUTE = 30;
  *   now?: () => number,
  * }} deps
  */
-export const createServiceHostApi = ({ listGuests, control, instructions, readSettings, emitToFrames, setConfigurationNote, marks, guestIdOfToken = guestIdOfServiceToken, now = Date.now }) => {
+export const createServiceHostApi = ({ listGuests, control, instructions, readSettings, emitToFrames, setConfigurationNote, marks, completionProof, guestIdOfToken = guestIdOfServiceToken, now = Date.now }) => {
   /** Per guest: the current one-second window of panel events. */
   const emitWindows = new Map();
 
@@ -142,6 +142,16 @@ export const createServiceHostApi = ({ listGuests, control, instructions, readSe
         if (refused) return refused;
         const { sessionStatus } = await readSession(control, 'session.status', input);
         return ok({ status: sessionStatus?.type ?? 'idle' });
+      }
+      case 'sessions.completion': {
+        // Read-only, opt-in service subscription. No sessionControl (write) grant.
+        const refused = needs(guest, 'opencode');
+        if (refused) return refused;
+        if (!guest.service?.provides?.includes('opencode') || !Array.isArray(guest.sessionEvents?.events)) {
+          return fail(403, 'NOT_GRANTED', 'Completion proof needs a declared OpenCode service and session events.');
+        }
+        if (typeof completionProof !== 'function') return fail(503, 'UNAVAILABLE', 'Completion proof unavailable.');
+        return ok(await completionProof(input));
       }
       case 'sessions.lastReply': {
         // `transcript` also covers `sessionEvents.content`; reading replies is asked for here.
