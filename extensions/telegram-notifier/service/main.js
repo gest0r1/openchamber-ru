@@ -27,6 +27,11 @@ const host = {
     ...(entry.spaceId ? { spaceId: entry.spaceId } : {}),
   }),
   deliver: (entry) => call('telegram.deliver', entry),
+  attention: (entry) => call('telegram.attention', {
+    sessionId: entry.sessionId, directory: entry.directory,
+    ...(entry.spaceId ? { spaceId: entry.spaceId } : {}),
+  }),
+  deliverAttention: (entry) => call('telegram.deliverAttention', entry),
 };
 const notifier = createNotifierReconciler({ host, onError: () => {
   // No secrets, user messages or destination identifiers in logs.
