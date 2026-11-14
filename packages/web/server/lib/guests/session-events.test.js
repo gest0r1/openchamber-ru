@@ -215,6 +215,27 @@ describe('turn-finished', () => {
     expect(h.fetched).toHaveLength(0);
   });
 
+  test('unavailable child activity cannot claim a successful terminal turn', async () => {
+    // An OpenCode read error is unknown, not evidence that every child has stopped.
+    for (const failedPath of ['/api/session/active', '/api/session']) {
+      const h = harness({
+        beforeFetch: async (url) => {
+          if (new URL(url).pathname === failedPath) throw new Error('OpenCode read failed');
+        },
+      });
+      h.runtime.processPayload(idle('ses_1'));
+      await settle();
+      expect(h.bodies().filter((wire) => wire.event.type === 'turn-finished')).toEqual([]);
+    }
+
+    // A separate healthy read still emits an event: fail-closed is not a
+    // permanent blanket ban on completion notifications.
+    const healthy = harness();
+    healthy.runtime.processPayload(idle('ses_1'));
+    await settle();
+    expect(healthy.bodies().map((wire) => wire.event.type)).toEqual(['turn-finished']);
+  });
+
   test('a stopped turn, a second idle of the same turn, a child still working, a goal step and an auto-review step announce nothing', async () => {
     const h = harness({ active: { ses_child: { type: 'busy' } }, children: { ses_1: ['ses_child'] } });
     h.runtime.processPayload(idle('ses_1', { aborted: true }));
