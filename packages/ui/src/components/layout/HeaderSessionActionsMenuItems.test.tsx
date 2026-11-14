@@ -115,6 +115,14 @@ const renderMenuItem = async () => {
   return button;
 };
 
+test('header and sidebar shared menu exposes both normal and full Markdown export', async () => {
+  useGlobalSessionsStore.getState().upsertSession(session('target'));
+  await renderMenu();
+  const labels = [...document.querySelectorAll('button')].map((button) => button.textContent ?? '');
+  expect(labels.some((label) => label.includes('Full Markdown export'))).toBe(true);
+  expect(labels.some((label) => label.includes('Export') && !label.includes('Full Markdown export'))).toBe(true);
+});
+
 test('archive hint follows rebindings and appears only for the current active session', async () => {
   useGlobalSessionsStore.getState().upsertSession(session('target'));
   useSessionUIStore.setState({ currentSessionId: 'target' });
