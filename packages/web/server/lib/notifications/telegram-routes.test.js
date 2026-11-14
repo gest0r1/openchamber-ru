@@ -220,14 +220,14 @@ const optInFixture = (initial = 'legacy', holdVerify = false) => {
   return { request, trace, verifying, releaseVerify, getSender: () => sender };
 };
 
-test('SDK opt-in relies on notifier sweep and does not create a legacy watcher', async () => {
+test('SDK opt-in keeps a passive rollback checkpoint; rollback restores its legacy watcher', async () => {
   const h = optInFixture('sdk');
   expect(await h.request('subscribe', { sessionId: 'ses_1', directory: '/repo' }))
     .toEqual({ status: 200, body: { subscribed: true } });
-  expect(h.trace).toEqual(['subscribed']);
+  expect(h.trace).toEqual(['subscribed', 'legacy-track']);
   expect(await h.request('sender', { sender: 'legacy' }))
     .toEqual({ status: 200, body: { sender: 'legacy' } });
-  expect(h.trace).toEqual(['subscribed', 'sender:paused', 'sender:legacy', 'watch:start']);
+  expect(h.trace).toEqual(['subscribed', 'legacy-track', 'sender:paused', 'sender:legacy', 'watch:start']);
 });
 
 test('ongoing subscription blocks a concurrent sender cutover until checkpoint is durable', async () => {
