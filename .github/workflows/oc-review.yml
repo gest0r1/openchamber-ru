@@ -49,6 +49,8 @@ jobs:
           node-version: '26'
       - name: Install dependencies
         run: bun install --frozen-lockfile
+      - name: Telegram SDK shadow Node service contracts
+        run: node --test extensions/telegram-shadow/service/state.test.js extensions/telegram-shadow/service/http.test.js
       - name: Tests
         run: bun run test
       - name: Fork release and agent entrypoint contracts
