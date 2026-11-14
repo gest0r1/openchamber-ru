@@ -39,12 +39,12 @@ Telegram subscription/recovery/delivery ledger; RU i18n и настройки; M
 - [x] `packages/electron/updater-feed.test.mjs` (base `fe6c975ac8a5`, fork `00ada6b5dbbe`, upstream `66fa2d772c97`)
 - [x] `packages/ui/src/components/chat/ChatContainer.tsx` (base `cd648023bf29`, fork `659732fa21ce`, upstream `02538157ff65`)
 - [x] `packages/ui/src/components/chat/ChatInput.tsx` (base `81f4ef4644c5`, fork `d50a7dac2e23`, upstream `bc18c7f77c8d`)
-- [ ] `packages/ui/src/components/chat/message/parts/DOCUMENTATION.md` (base `2d7fc6501138`, fork `8f09137e98b2`, upstream `d42e33e2ac81`)
+- [x] `packages/ui/src/components/chat/message/parts/DOCUMENTATION.md` (base `2d7fc6501138`, fork `8f09137e98b2`, upstream `d42e33e2ac81`)
 - [x] `packages/ui/src/components/chat/message/parts/HtmlRenderFrame.tsx` (base `c9cca4ad2b42`, fork `ad8b8fff5d7d`, upstream `a5d8c9b03fc6`)
 - [x] `packages/ui/src/components/chat/message/parts/ToolPart.subagent-row.test.tsx` (base `5e9474e50c07`, fork `486ba6b693e2`, upstream `7ca2f0ec491a`)
 - [x] `packages/ui/src/components/chat/message/parts/ToolPart.tsx` (base `e850fda1ffe4`, fork `5a5e7032d8a8`, upstream `dbbbfe8fba8b`)
 - [x] `packages/ui/src/components/chat/message/parts/UiPageFrame.tsx` (base `c6f4f6c21f0e`, fork `19ba370c6994`, upstream `f2081739eabc`)
-- [ ] `packages/ui/src/components/chat/work-status/DOCUMENTATION.md` (base `7a25d516a8ab`, fork `f9f54f5ee8b7`, upstream `ab28d2e8ecbc`)
+- [x] `packages/ui/src/components/chat/work-status/DOCUMENTATION.md` (base `7a25d516a8ab`, fork `f9f54f5ee8b7`, upstream `ab28d2e8ecbc`)
 - [x] `packages/ui/src/components/sections/extensions/ExtensionsPage.tsx` (base `c03c651221b5`, fork `abd59b2cd279`, upstream `f00b93d101bb`)
 - [x] `packages/ui/src/components/sections/integrations/CatalogExtensionsSection.tsx` (base `d6bf3215588b`, fork `f573a8ba375c`, upstream `a330fb2ed636`)
 - [x] `packages/ui/src/components/sections/openchamber/NotificationSettings.tsx` (base `bf9e8d9a2f19`, fork `b4c300b8e9ce`, upstream `c4451e668269`)
@@ -109,25 +109,25 @@ Telegram subscription/recovery/delivery ledger; RU i18n и настройки; M
 - [x] `packages/ui/src/lib/settings/search.ts` (base `9953821e01dc`, fork `a9cdafa14982`, upstream `957b34dd91cd`)
 - [x] `packages/ui/src/styles/typography.css` (base `c18f200ea0e1`, fork `85da81011148`, upstream `bb69a62721c9`)
 - [x] `packages/ui/src/sync/sync-context.tsx` (base `b52881a2c8d9`, fork `ae599805d0e3`, upstream `d75a03d1b671`)
-- [ ] `packages/vscode/CHANGELOG.md` (base `aff6fe7f9cc1`, fork `d7f89fa175f3`, upstream `48b6c8a51f63`)
+- [x] `packages/vscode/CHANGELOG.md` (base `aff6fe7f9cc1`, fork `d7f89fa175f3`, upstream `48b6c8a51f63`)
 - [x] `packages/web/bin/cli.test.js` (base `421c6fbf47de`, fork `920ce93cee5b`, upstream `b5c831f42a03`)
 - [x] `packages/web/bin/lib/DOCUMENTATION.md` (base `71f9cc3162d2`, fork `3954d82bbb4e`, upstream `645848442784`)
 - [x] `packages/web/bin/lib/cli-startup.js` (base `c13f42e65aca`, fork `9775b6debb73`, upstream `af1b51bd38d3`)
 - [x] `packages/web/package.json` (base `636c1d91368c`, fork `2061c2b478f9`, upstream `8b2b1a1059e2`)
 - [x] `packages/web/server/index.js` (base `d31d7cddd1a9`, fork `7695211dd5f2`, upstream `72f759be2640`)
-- [ ] `packages/web/server/lib/agent-tool/DOCUMENTATION.md` (base `569fb28ad17f`, fork `5411966a396b`, upstream `652fe02db6c6`)
+- [x] `packages/web/server/lib/agent-tool/DOCUMENTATION.md` (base `569fb28ad17f`, fork `5411966a396b`, upstream `652fe02db6c6`)
 - [x] `packages/web/server/lib/agent-tool/runtime.js` (base `561d6ec565da`, fork `2a8df0714f87`, upstream `b30176342543`)
 - [x] `packages/web/server/lib/agent-tool/runtime.test.js` (base `b0573e51f693`, fork `f0d646020114`, upstream `6721b408dc58`)
-- [ ] `packages/web/server/lib/notifications/DOCUMENTATION.md` (base `c79b12382389`, fork `f1065b831ce0`, upstream `d3576ed3a687`)
+- [x] `packages/web/server/lib/notifications/DOCUMENTATION.md` (base `c79b12382389`, fork `f1065b831ce0`, upstream `d3576ed3a687`)
 - [x] `packages/web/server/lib/openchamber-control/actions.js` (base `3c01cb653404`, fork `2ded16f4a5eb`, upstream `f02eaf510def`)
 - [x] `packages/web/server/lib/openchamber-control/render-page.js` (base `c079c7365cb2`, fork `e27b9daa1fc8`, upstream `42d3487ba45d`)
 - [x] `packages/web/server/lib/openchamber-control/service.js` (base `254a8d954c0f`, fork `0c3c36940c34`, upstream `522d42420e03`)
-- [ ] `packages/web/server/lib/opencode/DOCUMENTATION.md` (base `a2c9adf4cec5`, fork `01b6caaeeda6`, upstream `88e35cda0fd0`)
+- [x] `packages/web/server/lib/opencode/DOCUMENTATION.md` (base `a2c9adf4cec5`, fork `01b6caaeeda6`, upstream `88e35cda0fd0`)
 - [x] `packages/web/server/lib/opencode/session-activity.js` (base `b626dcc8db29`, fork `e935c091afed`, upstream `04ad7339537f`)
 - [x] `packages/web/server/lib/opencode/session-activity.test.js` (base `ddf7c4b232e5`, fork `2e105734729f`, upstream `f9a0b000727a`)
 - [x] `packages/web/server/lib/opencode/settings-helpers.js` (base `a597b01910b7`, fork `a8d6a10f3de2`, upstream `aa2c78a711a9`)
 - [x] `packages/web/server/lib/opencode/shutdown-runtime.js` (base `5c9ce114c6b5`, fork `ae09ebba4feb`, upstream `83a763df9e30`)
-- [ ] `packages/web/server/lib/terminal/DOCUMENTATION.md` (base `9e5da32bc801`, fork `b89dbeff04ea`, upstream `807ed1c28c76`)
+- [x] `packages/web/server/lib/terminal/DOCUMENTATION.md` (base `9e5da32bc801`, fork `b89dbeff04ea`, upstream `807ed1c28c76`)
 - [x] `packages/web/server/lib/terminal/runtime.js` (base `6422ebf174e1`, fork `8685eb08405d`, upstream `e35bdabe9866`)
 
 ## Незавершённые проверки
@@ -223,3 +223,10 @@ Telegram subscription/recovery/delivery ledger; RU i18n и настройки; M
 - **SessionNodeItem.tsx: CLOSED STATICALLY.** Accepted upstream v2.7.1 SessionNodeItem (menu, worktree and selection extraction), removed the old fork's three overlapping custom patches. **Preserved the separate full Markdown export** by moving the call into the existing shared `SessionActionsMenuItems.tsx`, used by both sidebar and header. This reuses the upstream menu instead of maintaining an obsolete duplicate in SessionNodeItem.
 - The new option invokes unchanged fork `collectFullSessionExport` and `formatFullSessionAsMarkdown` (authoritative parentID pagination, tool calls and partial branch warnings); each child's records use that child's own directory. Existing built-in standard Markdown export stays unchanged. Added a menu presence test to `HeaderSessionActionsMenuItems.test.tsx`. Commits `568d090`, `adf8adc`, `7527aee`.
 - Static selection/exports checks **PASS**; Bun/React full run **NOT RUN**. **7 overlaps remain**; no production changes.
+
+## A2 documentation and changelog reconciliation (2026-11-14)
+
+- **7/7 remaining file-level overlaps statically reconciled; overlap checklist now 0.** 5 independent source doc changes merged through verified disjoint 3-way hunks: chat parts (`useAgentColors`/scoped page submission), work-status (linked GitHub issue context), agent-tool (`notify.telegram_send`), notifications (legacy Telegram watcher + upstream SDK notification channels), terminal (injected terminal env marker). Commits `65bf251`, `6bcf26e`, `6e85b0f`, `16295b7`, `bd5fec2`.
+- `packages/web/server/lib/opencode/DOCUMENTATION.md` merged manually at the one overlapping sentence to document both upstream OpenCode 2.2.7 global `job.list` behavior and preserved fork `hasRunningShells` / `fetchRunningShells` fail-closed fallback. Verified both symbols exist in candidate `session-activity.js`. Commit `d840589`.
+- `packages/vscode/CHANGELOG.md`: original fork-only 2.5.0.1/2.3.3.1/2.3.1.5 historical headings combined with upstream 2.7.1/2.7.0 entries via disjoint hunks. Commit `bb136cc`. Release-generator verification **NOT RUN**; regenerated outputs must be checked against `changelog/` sources prior to accepting a release.
+- **This closes source-path classification, NOT architecture acceptance**: all content overlaps have a proposed resolution, but source is not typechecked/tested, release artifacts not built, and no upstream two-parent merge commit has been made. Run `bun run check:changed`, pinned `opencode:pins`, tests, lint, builds and fork policy contract checks on the exact candidate SHA. Only after validation/acceptance record a proper Git merge ancestry. No production update.
