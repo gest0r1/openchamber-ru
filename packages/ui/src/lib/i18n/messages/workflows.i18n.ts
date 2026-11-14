@@ -1188,7 +1188,6 @@ export const workflowsI18n = {
     'settings.openchamber.tools.field.agentWorkflowTool': 'Инструмент workflow',
     'settings.openchamber.tools.field.agentWorkflowToolAria': 'Инструмент workflow',
     'settings.openchamber.tools.field.agentWorkflowToolSummary': 'Раздавать большие задачи многим агентам в фоне.',
-    'settings.openchamber.tools.field.agentWorkflowToolInfo': 'Агент пишет скрипт, который запускает много агентов. Каждый запуск вы подтверждаете в чате, а отчёт возвращается в сессию.',
     'contextPanel.mode.workflows': 'Workflow',
     'contextRail.surface.workflows.description': 'Запуски workflow этой сессии: агенты, журнал и результат',
     'workflows.panel.runPicker': 'Запуск workflow',
