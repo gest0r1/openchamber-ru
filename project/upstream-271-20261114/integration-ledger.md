@@ -28,7 +28,7 @@ Telegram subscription/recovery/delivery ledger; RU i18n и настройки; M
 - [x] `.github/workflows/pr-intake.yml` (base `70bd7f0487bf`, fork `∅`, upstream `956fd120a277`)
 - [x] `.github/workflows/pr-review.yml` (base `275d46f0fb2b`, fork `∅`, upstream `4578d6d2d7e7`)
 - [x] `.github/workflows/release-desktop-smoke.yml` (base `21efa0ef9fa3`, fork `∅`, upstream `7fac6390a4ce`)
-- [ ] `.github/workflows/release.yml` (base `f1d5ebf374fe`, fork `5154974cd878`, upstream `feae336d3824`)
+- [x] `.github/workflows/release.yml` (base `f1d5ebf374fe`, fork `5154974cd878`, upstream `feae336d3824`)
 - [x] `.github/workflows/sdk-preview.yml` (base `afeb8b9919d5`, fork `∅`, upstream `b16b9f1d3bf5`)
 - [x] `.github/workflows/stale.yml` (base `ac1b4b358bc1`, fork `∅`, upstream `1e82fc068342`)
 - [x] `.github/workflows/vscode-extension.yml` (base `8f51aade1a4d`, fork `∅`, upstream `fb23b34d0177`)
@@ -45,7 +45,7 @@ Telegram subscription/recovery/delivery ledger; RU i18n и настройки; M
 - [x] `packages/ui/src/components/chat/message/parts/ToolPart.tsx` (base `e850fda1ffe4`, fork `5a5e7032d8a8`, upstream `dbbbfe8fba8b`)
 - [x] `packages/ui/src/components/chat/message/parts/UiPageFrame.tsx` (base `c6f4f6c21f0e`, fork `19ba370c6994`, upstream `f2081739eabc`)
 - [ ] `packages/ui/src/components/chat/work-status/DOCUMENTATION.md` (base `7a25d516a8ab`, fork `f9f54f5ee8b7`, upstream `ab28d2e8ecbc`)
-- [ ] `packages/ui/src/components/sections/extensions/ExtensionsPage.tsx` (base `c03c651221b5`, fork `abd59b2cd279`, upstream `f00b93d101bb`)
+- [x] `packages/ui/src/components/sections/extensions/ExtensionsPage.tsx` (base `c03c651221b5`, fork `abd59b2cd279`, upstream `f00b93d101bb`)
 - [x] `packages/ui/src/components/sections/integrations/CatalogExtensionsSection.tsx` (base `d6bf3215588b`, fork `f573a8ba375c`, upstream `a330fb2ed636`)
 - [x] `packages/ui/src/components/sections/openchamber/NotificationSettings.tsx` (base `bf9e8d9a2f19`, fork `b4c300b8e9ce`, upstream `c4451e668269`)
 - [ ] `packages/ui/src/components/session/sidebar/sessions/SessionNodeItem.tsx` (base `76e4f798f242`, fork `91301e88ed72`, upstream `24ab9844e3ed`)
@@ -110,9 +110,9 @@ Telegram subscription/recovery/delivery ledger; RU i18n и настройки; M
 - [x] `packages/ui/src/styles/typography.css` (base `c18f200ea0e1`, fork `85da81011148`, upstream `bb69a62721c9`)
 - [x] `packages/ui/src/sync/sync-context.tsx` (base `b52881a2c8d9`, fork `ae599805d0e3`, upstream `d75a03d1b671`)
 - [ ] `packages/vscode/CHANGELOG.md` (base `aff6fe7f9cc1`, fork `d7f89fa175f3`, upstream `48b6c8a51f63`)
-- [ ] `packages/web/bin/cli.test.js` (base `421c6fbf47de`, fork `920ce93cee5b`, upstream `b5c831f42a03`)
-- [ ] `packages/web/bin/lib/DOCUMENTATION.md` (base `71f9cc3162d2`, fork `3954d82bbb4e`, upstream `645848442784`)
-- [ ] `packages/web/bin/lib/cli-startup.js` (base `c13f42e65aca`, fork `9775b6debb73`, upstream `af1b51bd38d3`)
+- [x] `packages/web/bin/cli.test.js` (base `421c6fbf47de`, fork `920ce93cee5b`, upstream `b5c831f42a03`)
+- [x] `packages/web/bin/lib/DOCUMENTATION.md` (base `71f9cc3162d2`, fork `3954d82bbb4e`, upstream `645848442784`)
+- [x] `packages/web/bin/lib/cli-startup.js` (base `c13f42e65aca`, fork `9775b6debb73`, upstream `af1b51bd38d3`)
 - [x] `packages/web/package.json` (base `636c1d91368c`, fork `2061c2b478f9`, upstream `8b2b1a1059e2`)
 - [x] `packages/web/server/index.js` (base `d31d7cddd1a9`, fork `7695211dd5f2`, upstream `72f759be2640`)
 - [ ] `packages/web/server/lib/agent-tool/DOCUMENTATION.md` (base `569fb28ad17f`, fork `5411966a396b`, upstream `652fe02db6c6`)
@@ -209,3 +209,11 @@ Telegram subscription/recovery/delivery ledger; RU i18n и настройки; M
 - `ToolPart.tsx`: upstream localized tool display name, background task/session lifecycle and new rendering retained; fork subagent agent-name and chosen color reintroduced as optional header fields, error title color still takes precedence. Existing fork subagent-row tests updated earlier. `sync-context.tsx`: the isolated fork interruption-observed timing block merged with upstream session synchronization.
 - Static symbol/contracts check **PASS** (single new issue context injection, upstream reference resolver preserved, subagent title/color logic, background behavior and Telegram button retained); **TypeScript/Bun/browser tests NOT RUN**. Need runner validation especially React hooks and OpenCode 2.2.7 message projection.
 - Commits: `236939b` ChatInput, `0e32528` ChatContainer, `e08b300` sync-context, `e749ed2` ToolPart. **13 overlaps remain.**
+
+## A2 CLI/startup, extensions, release graph disposition (2026-11-14)
+
+- **CLI startup**: merged disjoint fork/upstream hunks in `packages/web/bin/lib/cli-startup.js`. Fork custom absolute `OPENCHAMBER_STARTUP_LAUNCHER`, managed drop-in migration only with marker, `startup --no-start` and explicit systemd restart preserved. Upstream 2.7.1 `findStartupServiceInstance`, Windows restart helper, PATH/systemd improvements preserved. Companion `packages/web/bin/cli.test.js` contains both upstream tests and fork no-start/deferred tests. `packages/web/bin/lib/DOCUMENTATION.md` merged semantically: fork startup rules + injected-env marker and upstream PATH/Windows restart. Commits `f5aa013`, `aef4efc`, `c365683`.
+- **ExtensionsPage.tsx**: fork RU locale registration retained on upstream 2.7.1, disjoint line diff. Commit `980d077`.
+- **Release workflow: preserve fork graph intentionally** (unchanged file, decision now resolved): upstream 2.7.1's seven deltas to `.github/workflows/release.yml` concern Node 26 runner changes, macOS notarization retry and R2 mirror publication sequencing. MacOS/R2/other new publishing targets are **excluded by explicit fork release policy**; Node 26 is not required by checked `engines.node >=24.14.0`. Fork SHA-bound, x64 Windows/Linux, Android, verified web package reuse, draft finalizer kept exactly. See `scripts/check-fork-release-policy.mjs`. No additional Actions minutes or target expansion.
+- Static inspected: `startService === false` branches before systemd restart; no-start reports `startDeferred`; Windows helper and unit PID logic retained; release contains x64+Android and no macOS/npm publishing. **Static PASS.** Full Bun/Node24 tests, installer/rollback, YAML parse, actual release simulation **NOT RUN**.
+- **8 overlapping paths remain**. Remaining: session sidebar full Markdown export; documentation/CHANGELOG reconciliation; typecheck and CI.
