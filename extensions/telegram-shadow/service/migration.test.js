@@ -76,6 +76,9 @@ test('writing is exclusive, mode 0600, idempotent by source/content, never chang
   const changed = sample(); changed.config.botToken = '222:different';
   await assert.rejects(writePreparedSnapshot({ snapshot: prepareLegacySnapshot(changed), destination, fs }), /snapshot already exists/);
   assert.equal(await fs.readFile(destination, 'utf8'), original);
+  await fs.chmod(destination, 0o644);
+  await assert.rejects(writePreparedSnapshot({ snapshot: a, destination, fs }), /unsafe file mode/);
+  await fs.chmod(destination, 0o600);
   await assert.rejects(writePreparedSnapshot({ snapshot: { ...a, deliveryEnabled: true }, destination: path.join(dir, 'unsafe'), fs }), /unsafe/);
 });
 
@@ -91,11 +94,13 @@ test('source-file loader uses explicit files, validates JSON, retains hashes and
   assert.equal(read.sourceSha256.runtime, sha(JSON.stringify(s.runtime)));
   assert.equal(read.sourceSha256.aliases, sha(JSON.stringify(s.configuredAliases)));
   assert.equal(read.configuredAliases[0].name, 'Team Ops');
+  let configReads = 0;
   const changedReads = { ...fs, readFile: async (name, opts) => {
-    if (name === paths.config) return '{"version":1,"enabled":false}' + String(Math.random());
+    if (name === paths.config && ++configReads === 2)
+      return JSON.stringify({ version: 1, enabled: false, botToken: '', defaultAlias: '' });
     return fs.readFile(name, opts);
   } };
-  await assert.rejects(readLegacyInputs({ paths, fs: changedReads }), /invalid JSON/);
+  await assert.rejects(readLegacyInputs({ paths, fs: changedReads }), /input changed during snapshot/);
 });
 
 test('CLI performs offline prepare with secret-free stdout, leaves all legacy inputs byte-identical', async (t) => {
