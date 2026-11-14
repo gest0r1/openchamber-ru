@@ -5,6 +5,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { inspectGuestPackage } from './catalog.js';
+import { createExtensionSessionEvents } from './session-events.js';
 import { setCapabilityGrants, writeExtensionStore } from './persist.js';
 import {
   beginGuestServiceHost, getServiceStatus, proxyGuestServiceRequest,
@@ -93,4 +94,69 @@ describe('Telegram shadow SDK host install and durable lifecycle', () => {
       await fs.rm(root, { recursive: true, force: true });
     }
   });
+  test('actual host session-event router delivers a busy/idle pair into the SDK service', async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), 'oc-sdk-telegram-routing-'));
+    const persistPath = path.join(root, 'extensions.json');
+    let runtime;
+    try {
+      const inspected = await inspectGuestPackage(packageRoot, { openchamberVersion: '2.7.1' });
+      expect(inspected.ok).toBe(true);
+      if (!inspected.ok) throw new Error('Telegram shadow extension is not installable');
+      const guest = { ...inspected.guest, enabled: true, capabilityGrants: ['service'] };
+      await writeExtensionStore(persistPath, {
+        paths: [packageRoot], sources: {}, capabilityGrants: { [guestId]: ['service'] },
+      });
+      const serviceRequest = (options) => proxyGuestServiceRequest({
+        guestId, packageRoot, service: guest.service, granted: ['service'], persistPath, ...options,
+      });
+      runtime = createExtensionSessionEvents({
+        listGuests: async () => [guest],
+        proxyServiceRequest: (options) => proxyGuestServiceRequest(options),
+        persistPath,
+        buildOpenCodeUrl: (route) => 'http://opencode' + route,
+        getOpenCodeAuthHeaders: () => ({}),
+        fetchImpl: async (url) => {
+          const endpoint = new URL(url);
+          if (endpoint.pathname === '/api/session/active') return Response.json({ data: {} });
+          if (endpoint.pathname === '/api/session') return Response.json({ data: { data: [], cursor: {} } });
+          if (endpoint.pathname === '/api/session/ses_root') return Response.json({ data: {
+            id: 'ses_root', parentID: null, location: { directory: '/isolated/test-project' },
+          } });
+          return new Response('', { status: 404 });
+        },
+        fetchLastAssistantMessageText: async () => '',
+        readSessionMetadata: () => null,
+      });
+      runtime.processPayload({
+        id: 'evt-start', type: 'session.status',
+        properties: { sessionID: 'ses_root', directory: '/isolated/test-project', status: { type: 'busy' } },
+      }, '/isolated/test-project');
+      runtime.processPayload({
+        id: 'evt-idle', type: 'session.idle',
+        properties: { sessionID: 'ses_root', directory: '/isolated/test-project' },
+      }, '/isolated/test-project');
+
+      // Wait on a precise persisted condition rather than the service spawn timing.
+      const deadline = Date.now() + 12_000;
+      let status;
+      while (Date.now() < deadline) {
+        const response = await serviceRequest({ method: 'GET', path: '/status' });
+        status = JSON.parse(response.body);
+        if (status.observed === 2) break;
+        await new Promise((resolve) => setTimeout(resolve, 40));
+      }
+      expect(status).toMatchObject({
+        ok: true, observed: 2, rootEvents: 2, deliveryEnabled: false,
+      });
+      const events = JSON.parse(await fs.readFile(
+        path.join(root, 'guest-data', guestId, 'shadow-events-v1.json'), 'utf8')).events;
+      expect(events.map((event) => event.type)).toEqual(['turn-started', 'turn-finished']);
+      expect(events.every((event) => event.root === true)).toBe(true);
+    } finally {
+      runtime?.stop();
+      await stopGuestService(guestId);
+      await fs.rm(root, { recursive: true, force: true });
+    }
+  });
+
 });
