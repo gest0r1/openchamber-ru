@@ -242,7 +242,10 @@ export const createPageAnswers = ({ onWaitChange = () => {} } = {}) => {
     }
   };
 
-  return { wait, answer, release, isWaiting: (sessionId, callId) => waiting.has(pageKey(sessionId, callId)) };
+  const listWaiting = (sessionId) => [...waiting.keys()]
+    .filter((key) => key.startsWith(pageKey(sessionId, '')))
+    .map((key) => key.slice(pageKey(sessionId, '').length));
+  return { wait, answer, release, isWaiting: (sessionId, callId) => waiting.has(pageKey(sessionId, callId)), listWaiting };
 };
 
 /**
