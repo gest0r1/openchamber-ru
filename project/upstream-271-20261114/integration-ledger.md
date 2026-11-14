@@ -254,3 +254,8 @@ Telegram subscription/recovery/delivery ledger; RU i18n и настройки; M
 - On current fork branch retired 61 stale RU-only entries from `ru.ts`, 32 from `ru.settings.ts`, and seven from RU locale sections of `mcp-grid`, `html-render`, `workflows`, `extensions.settings`, `routing`, `websearch`, `providers`. No EN or other locale values modified. The exact original 100 keys and their contexts remain recoverable from PR #27 CI run `43559716245` and the parent Git objects. **Static check**: none of the 100 remain in their original RU runtime sources. Treat these as upstream-retired dictionary entries, not proven unreachable dynamic UI; CI/browser runtime must validate impact before acceptance.
 - Current static RU coverage of initial 829 fallback strings: 377 explicit RU strings + 452 strings in RU dictionaries, including nine tooltip dictionaries, three agent/tool-output dictionaries, eight previously updated locale dictionaries. Four locale-neutral tokens kept with narrow explicit allowlist in `ru-coverage.test.ts`; compare placeholders unchanged. **Not yet confirmed by new CI.**
 - Next: single combined CI rerun on feature PR #27; inspect all jobs and fix new, verifiable failures before any merge/deploy.
+
+## PR #27 verification requested on repaired candidate
+
+- Requested one grouped PR verification after source, i18n and generated-changelog corrections; this commit intentionally does **not** contain `[skip ci]`.
+- Acceptance still requires actual PASS for relevant build/typecheck/lint/tests/RU coverage on the exact head SHA. No merge or publication permitted from this request alone.
