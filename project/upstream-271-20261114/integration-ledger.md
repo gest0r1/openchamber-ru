@@ -21,18 +21,18 @@ Telegram subscription/recovery/delivery ledger; RU i18n и настройки; M
 ## Пересечение: требуется diff3/ручная семантическая проверка
 
 - [x] `.agents/skills/opencode-v2/SKILL.md` (base `37ba6c337960`, fork `f90cadbcb759`, upstream `99593e0fb30b`)
-- [ ] `.github/workflows/build-macos-arm64-dmg.yml` (base `f8a0ed970215`, fork `∅`, upstream `14677cf2001c`)
-- [ ] `.github/workflows/mobile-ci.yml` (base `167ac672a303`, fork `∅`, upstream `db1d46b420d9`)
-- [ ] `.github/workflows/mobile-release.yml` (base `6ff263738be4`, fork `59cfe362138d`, upstream `b2d1521e2f63`)
-- [ ] `.github/workflows/oc-review.yml` (base `99cdd4484e45`, fork `ed6c975a75b3`, upstream `6f8224d956bb`)
-- [ ] `.github/workflows/pr-intake.yml` (base `70bd7f0487bf`, fork `∅`, upstream `956fd120a277`)
-- [ ] `.github/workflows/pr-review.yml` (base `275d46f0fb2b`, fork `∅`, upstream `4578d6d2d7e7`)
-- [ ] `.github/workflows/release-desktop-smoke.yml` (base `21efa0ef9fa3`, fork `∅`, upstream `7fac6390a4ce`)
+- [x] `.github/workflows/build-macos-arm64-dmg.yml` (base `f8a0ed970215`, fork `∅`, upstream `14677cf2001c`)
+- [x] `.github/workflows/mobile-ci.yml` (base `167ac672a303`, fork `∅`, upstream `db1d46b420d9`)
+- [x] `.github/workflows/mobile-release.yml` (base `6ff263738be4`, fork `59cfe362138d`, upstream `b2d1521e2f63`)
+- [x] `.github/workflows/oc-review.yml` (base `99cdd4484e45`, fork `ed6c975a75b3`, upstream `6f8224d956bb`)
+- [x] `.github/workflows/pr-intake.yml` (base `70bd7f0487bf`, fork `∅`, upstream `956fd120a277`)
+- [x] `.github/workflows/pr-review.yml` (base `275d46f0fb2b`, fork `∅`, upstream `4578d6d2d7e7`)
+- [x] `.github/workflows/release-desktop-smoke.yml` (base `21efa0ef9fa3`, fork `∅`, upstream `7fac6390a4ce`)
 - [ ] `.github/workflows/release.yml` (base `f1d5ebf374fe`, fork `5154974cd878`, upstream `feae336d3824`)
-- [ ] `.github/workflows/sdk-preview.yml` (base `afeb8b9919d5`, fork `∅`, upstream `b16b9f1d3bf5`)
-- [ ] `.github/workflows/stale.yml` (base `ac1b4b358bc1`, fork `∅`, upstream `1e82fc068342`)
-- [ ] `.github/workflows/vscode-extension.yml` (base `8f51aade1a4d`, fork `∅`, upstream `fb23b34d0177`)
-- [ ] `README.md` (base `911f1eb3d2fb`, fork `5ecca4a185d8`, upstream `183c364fa7b8`)
+- [x] `.github/workflows/sdk-preview.yml` (base `afeb8b9919d5`, fork `∅`, upstream `b16b9f1d3bf5`)
+- [x] `.github/workflows/stale.yml` (base `ac1b4b358bc1`, fork `∅`, upstream `1e82fc068342`)
+- [x] `.github/workflows/vscode-extension.yml` (base `8f51aade1a4d`, fork `∅`, upstream `fb23b34d0177`)
+- [x] `README.md` (base `911f1eb3d2fb`, fork `5ecca4a185d8`, upstream `183c364fa7b8`)
 - [x] `package.json` (base `a705fd207702`, fork `5ddaf6bed8ae`, upstream `b21b3ed78704`)
 - [x] `packages/electron/package.json` (base `4ee6ca77a2ca`, fork `228ac8c9e0d8`, upstream `425531bb116e`)
 - [x] `packages/electron/updater-feed.mjs` (base `2f906fda5d2f`, fork `fd5c3c07fc21`, upstream `4eee6e79ee1f`)
@@ -195,3 +195,10 @@ Telegram subscription/recovery/delivery ledger; RU i18n и настройки; M
 - `UiPageFrame.tsx` and `HtmlRenderFrame.tsx`: upstream 2.7.1 decline UI, page actions, accessibility and state retained. Existing fork `useSessionDirectory` lookup now applies to both normal page answer and decline / parser-error submission; shared upstream `usePageDecline.ts` accepts optional directory and forwards it through `answerRenderedPage`. Prevents wrong project-directory routing on remote/multi-project OpenCode. No change to Telegram sender or stored settings.
 - Commits `f9599b0`, `ac49b22`, `a6dcd70`, `4181024`, `f59c4a6`, `b238481`, `ff1a7ae`. Static 3-way hunk check PASS for 5/6 overlaps, explicit manual adaptation for `UiPageFrame` with upstream decline contract. **Bun/Node24/typecheck/tests/browser: NOT RUN**.
 - **28 overlapping paths remain.** Need inspect `sync-context.tsx` hook export and `ToolPart.tsx`/ChatInput lifecycle during remaining A2; full runtime/CI gates remain open.
+
+## A2 CI/workflow pruning + mobile-release compatibility (2026-11-14)
+
+- **Eight workflow deletions preserved on purpose**, not mechanically resurrected from upstream: `build-macos-arm64-dmg.yml`, `mobile-ci.yml`, `pr-intake.yml`, `pr-review.yml`, `release-desktop-smoke.yml`, `sdk-preview.yml`, `stale.yml`, `vscode-extension.yml`. No new Actions jobs/minutes enabled by this integration. This is a preserve-fork-deletion decision, NOT a code merge or assertion that upstream functions are unnecessary.
+- **Three content overlaps statically reconciled** from nonoverlapping base/fork/upstream hunks: `oc-review.yml` retains four fork GitHub-hosted jobs and explicit release-policy tests; `mobile-release.yml` preserves exact `source_ref`, Android release + build number, and disabled-by-default iOS while incorporating upstream updates; `README.md` retains fork installer and release policy alongside new upstream prose.
+- Static guard **7/7 PASS**: all eight deleted workflows remain absent, no release workflow call requires them, fork checks in PR CI, four CI jobs present, mobile source SHA authoritative, iOS default false, release still x64-only. **GitHub Actions, package tests, YAML parse, release dry-run NOT RUN.** Authoritative rollout still waits for `.github/workflows/release.yml` semantic resolution and CI.
+- Commits `oc-review` see branch history; `mobile-release` `6a9edc1`, `README` `5188b7e`. **17 overlapping paths remain**.
