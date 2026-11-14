@@ -69,10 +69,19 @@ const render = async (content: string, options: Options = {}) => {
   });
 };
 const marks = () => Array.from(host.querySelectorAll('[data-oc-guest-link]')).map((element) => element.textContent);
+// First mount can await the locale and Streamdown parser; a settled view must
+// eventually render the claimed identifier, not merely after a second message.
+const waitForGuestMarks = async (expected: string[]) => {
+  for (let attempt = 0; attempt < 30; attempt += 1) {
+    if (JSON.stringify(marks()) === JSON.stringify(expected)) return;
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 10)); });
+  }
+  expect(marks()).toEqual(expected);
+};
 
 test('an identifier an extension claims becomes clickable; code, words and other keys stay text', async () => {
   await render('See DEMO-2, `DEMO-3`, UTF-8, a/DEMO-4 and HR-5.\n\n```\nDEMO-6\n```');
-  expect(marks()).toEqual(['DEMO-2']);
+  await waitForGuestMarks(['DEMO-2']);
   const mark = host.querySelector('[data-oc-guest-link]');
   expect(mark?.hasAttribute('href')).toBe(false);
   const click = new window.MouseEvent('click', { bubbles: true, cancelable: true });
