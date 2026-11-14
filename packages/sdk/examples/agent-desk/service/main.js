@@ -145,10 +145,17 @@ var createServiceHost = ({ env }) => {
       send: (sessionId, prompt) => call("sessions.send", { sessionId, prompt }),
       retry: (sessionId) => call("sessions.retry", { sessionId }),
       status: (sessionId) => call("sessions.status", { sessionId }),
+      completion: (sessionId, directory, spaceId) => call("sessions.completion", { sessionId, directory, ...spaceId ? { spaceId } : {} }),
       lastReply: (sessionId) => call("sessions.lastReply", { sessionId }),
       stop: (sessionId) => call("sessions.stop", { sessionId }),
       answerPermission: (sessionId, requestId, answer) => call("sessions.answerPermission", { sessionId, requestId, ...answer }),
       answerForm: (sessionId, formId, values, message) => call("sessions.answerForm", { sessionId, formId, values, ...message === undefined ? {} : { message } })
+    },
+    telegram: {
+      subscriptions: () => call("telegram.subscriptions", {}),
+      deliver: (input) => call("telegram.deliver", input),
+      attention: (sessionId, directory, spaceId) => call("telegram.attention", { sessionId, directory, ...spaceId ? { spaceId } : {} }),
+      deliverAttention: (input) => call("telegram.deliverAttention", input)
     },
     setInstructions: (directory, text) => call("instructions.set", { directory, text }),
     emit: (topic, data) => call("panels.emit", { topic, data }),
