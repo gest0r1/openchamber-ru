@@ -175,12 +175,24 @@ export type ServiceMark = {
 /** Characters of the note a service sends with a refusal or a dismissed form. */
 export const SERVICE_ANSWER_MESSAGE_MAX = 2_000;
 
+/** Opted-in sessions, without Telegram credentials or destination chat IDs. */
+export type ServiceTelegramSubscription = {
+  sessionId: string; directory: string; spaceId: string | null;
+  createdAt: number; scope: string; baselineIdleId: string | null;
+};
+export type ServiceTelegramProofSend = {
+  sessionId: string; directory: string; spaceId?: string;
+  idleId: string; outcome: 'succeeded' | 'failed';
+};
+
 export type ServiceHostCalls = {
   'sessions.start': { input: ServiceSessionStart; result: ServiceSessionStarted };
   'sessions.send': { input: { sessionId: string; prompt: string }; result: ServiceSessionSent };
   'sessions.retry': { input: { sessionId: string }; result: ServiceSessionSent };
   'sessions.status': { input: { sessionId: string }; result: ServiceSessionStatus };
   'sessions.completion': { input: { sessionId: string; directory: string; spaceId?: string }; result: ServiceSessionCompletion };
+  'telegram.subscriptions': { input: Record<string, never>; result: { subscriptions: ServiceTelegramSubscription[]; active: boolean } };
+  'telegram.deliver': { input: ServiceTelegramProofSend; result: { delivered: boolean } };
   'sessions.lastReply': { input: { sessionId: string }; result: ServiceSessionReply };
   'sessions.stop': { input: { sessionId: string }; result: ServiceSessionStopped };
   'sessions.answerPermission': { input: { sessionId: string; requestId: string } & ServicePermissionAnswer; result: ServiceAnswered };
@@ -197,6 +209,7 @@ export type ServiceHostMethod = keyof ServiceHostCalls;
 export const SERVICE_HOST_METHODS = [
   'sessions.start', 'sessions.send', 'sessions.retry', 'sessions.status', 'sessions.lastReply',
   'sessions.stop', 'sessions.answerPermission', 'sessions.answerForm', 'sessions.completion',
+  'telegram.subscriptions', 'telegram.deliver',
   'instructions.set', 'panels.emit', 'settings.read', 'status.set', 'marks.set',
 ] as const satisfies readonly ServiceHostMethod[];
 
@@ -241,6 +254,10 @@ export type ServiceHost = {
     answerForm: (sessionId: string, formId: string, values: ServiceFormValues | null, message?: string) => Promise<ServiceAnswered>;
   };
   /** Text the agent reads in every session under `directory`, or everywhere with `null`. Empty text removes it. */
+  telegram: {
+    subscriptions: () => Promise<ServiceHostCalls['telegram.subscriptions']['result']>;
+    deliver: (input: ServiceTelegramProofSend) => Promise<{ delivered: boolean }>;
+  };
   setInstructions: (directory: string | null, text: string) => Promise<{ saved: true }>;
   /** Sends `data` to the extension's open frames, which hear it through `host.onServiceEvent`. */
   emit: (topic: string, data?: JsonValue) => Promise<{ delivered: true }>;
@@ -295,6 +312,10 @@ export const createServiceHost = ({ env }: { env: ServiceHostEnv }): ServiceHost
       stop: (sessionId) => call('sessions.stop', { sessionId }),
       answerPermission: (sessionId, requestId, answer) => call('sessions.answerPermission', { sessionId, requestId, ...answer }),
       answerForm: (sessionId, formId, values, message) => call('sessions.answerForm', { sessionId, formId, values, ...(message === undefined ? {} : { message }) }),
+    },
+    telegram: {
+      subscriptions: () => call('telegram.subscriptions', {}),
+      deliver: (input) => call('telegram.deliver', input),
     },
     setInstructions: (directory, text) => call('instructions.set', { directory, text }),
     emit: (topic, data) => call('panels.emit', { topic, data }),
