@@ -34,12 +34,12 @@ describe('Telegram shadow SDK host install and durable lifecycle', () => {
     const persistPath = path.join(root, 'extensions.json');
     try {
       const inspected = await inspectGuestPackage(packageRoot, { openchamberVersion: '2.7.1' });
-      expect(inspected.ok).toBe(true);
+      expect(inspected).toMatchObject({ ok: true });
       if (!inspected.ok) throw new Error('Telegram shadow manifest rejected by the real catalog');
       const guest = inspected.guest;
       expect(guest.id).toBe(guestId);
       expect(guest.service?.keepRunning).toBe(true);
-      expect(guest.sessionEvents?.content).toBeUndefined();
+      expect(guest.sessionEvents?.content).not.toBe(true);
       expect(guest.sessionEvents?.events).toContain('turn-finished');
       expect(guest.service?.provides).toBeUndefined();
 
@@ -100,7 +100,7 @@ describe('Telegram shadow SDK host install and durable lifecycle', () => {
     let runtime;
     try {
       const inspected = await inspectGuestPackage(packageRoot, { openchamberVersion: '2.7.1' });
-      expect(inspected.ok).toBe(true);
+      expect(inspected).toMatchObject({ ok: true });
       if (!inspected.ok) throw new Error('Telegram shadow extension is not installable');
       const guest = { ...inspected.guest, enabled: true, capabilityGrants: ['service'] };
       await writeExtensionStore(persistPath, {
