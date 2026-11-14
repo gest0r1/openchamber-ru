@@ -459,5 +459,14 @@ export const createTelegramWatch = ({
     for (const timer of decisions.values()) clearTimeoutImpl(timer);
     decisions.clear();
   };
-  return { start, stop, reconcileAll, onEvent, track, queue, cancel, pendingCount: () => pending.size };
+  const checkpoints = async () => {
+    await load();
+    return [...pending.values()].map((item) => ({
+      sessionId: item.sessionId, directory: item.directory, spaceId: item.spaceId ?? null,
+      baselineIdleId: item.baselineIdleId ?? null, armed: item.armed === true,
+      requireNewIdle: item.requireNewIdle ?? null,
+    }));
+  };
+  return { start, stop, reconcileAll, onEvent, track, queue, cancel, checkpoints,
+    pendingCount: () => pending.size };
 };
