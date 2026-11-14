@@ -61,6 +61,13 @@ export const serviceHostCallSchema = z.discriminatedUnion('method', [
     sessionId, directory, spaceId: sessionId.optional(),
     idleId: shortText, outcome: z.enum(['succeeded', 'failed']),
   }).strict() }).strict(),
+  z.object({ method: z.literal('telegram.attention'), input: z.object({
+    sessionId, directory, spaceId: sessionId.optional(),
+  }).strict() }).strict(),
+  z.object({ method: z.literal('telegram.deliverAttention'), input: z.object({
+    sessionId, directory, spaceId: sessionId.optional(),
+    id: shortText, kind: z.enum(['form', 'permission', 'page']),
+  }).strict() }).strict(),
   z.object({ method: z.literal('sessions.lastReply'), input: z.object({ sessionId }).strict() }).strict(),
   z.object({ method: z.literal('sessions.stop'), input: z.object({ sessionId }).strict() }).strict(),
   z.object({
