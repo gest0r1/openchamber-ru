@@ -20,7 +20,7 @@ Telegram subscription/recovery/delivery ledger; RU i18n и настройки; M
 
 ## Пересечение: требуется diff3/ручная семантическая проверка
 
-- [ ] `.agents/skills/opencode-v2/SKILL.md` (base `37ba6c337960`, fork `f90cadbcb759`, upstream `99593e0fb30b`)
+- [x] `.agents/skills/opencode-v2/SKILL.md` (base `37ba6c337960`, fork `f90cadbcb759`, upstream `99593e0fb30b`)
 - [ ] `.github/workflows/build-macos-arm64-dmg.yml` (base `f8a0ed970215`, fork `∅`, upstream `14677cf2001c`)
 - [ ] `.github/workflows/mobile-ci.yml` (base `167ac672a303`, fork `∅`, upstream `db1d46b420d9`)
 - [ ] `.github/workflows/mobile-release.yml` (base `6ff263738be4`, fork `59cfe362138d`, upstream `b2d1521e2f63`)
@@ -40,14 +40,14 @@ Telegram subscription/recovery/delivery ledger; RU i18n и настройки; M
 - [ ] `packages/ui/src/components/chat/ChatContainer.tsx` (base `cd648023bf29`, fork `659732fa21ce`, upstream `02538157ff65`)
 - [ ] `packages/ui/src/components/chat/ChatInput.tsx` (base `81f4ef4644c5`, fork `d50a7dac2e23`, upstream `bc18c7f77c8d`)
 - [ ] `packages/ui/src/components/chat/message/parts/DOCUMENTATION.md` (base `2d7fc6501138`, fork `8f09137e98b2`, upstream `d42e33e2ac81`)
-- [ ] `packages/ui/src/components/chat/message/parts/HtmlRenderFrame.tsx` (base `c9cca4ad2b42`, fork `ad8b8fff5d7d`, upstream `a5d8c9b03fc6`)
-- [ ] `packages/ui/src/components/chat/message/parts/ToolPart.subagent-row.test.tsx` (base `5e9474e50c07`, fork `486ba6b693e2`, upstream `7ca2f0ec491a`)
+- [x] `packages/ui/src/components/chat/message/parts/HtmlRenderFrame.tsx` (base `c9cca4ad2b42`, fork `ad8b8fff5d7d`, upstream `a5d8c9b03fc6`)
+- [x] `packages/ui/src/components/chat/message/parts/ToolPart.subagent-row.test.tsx` (base `5e9474e50c07`, fork `486ba6b693e2`, upstream `7ca2f0ec491a`)
 - [ ] `packages/ui/src/components/chat/message/parts/ToolPart.tsx` (base `e850fda1ffe4`, fork `5a5e7032d8a8`, upstream `dbbbfe8fba8b`)
-- [ ] `packages/ui/src/components/chat/message/parts/UiPageFrame.tsx` (base `c6f4f6c21f0e`, fork `19ba370c6994`, upstream `f2081739eabc`)
+- [x] `packages/ui/src/components/chat/message/parts/UiPageFrame.tsx` (base `c6f4f6c21f0e`, fork `19ba370c6994`, upstream `f2081739eabc`)
 - [ ] `packages/ui/src/components/chat/work-status/DOCUMENTATION.md` (base `7a25d516a8ab`, fork `f9f54f5ee8b7`, upstream `ab28d2e8ecbc`)
 - [ ] `packages/ui/src/components/sections/extensions/ExtensionsPage.tsx` (base `c03c651221b5`, fork `abd59b2cd279`, upstream `f00b93d101bb`)
 - [x] `packages/ui/src/components/sections/integrations/CatalogExtensionsSection.tsx` (base `d6bf3215588b`, fork `f573a8ba375c`, upstream `a330fb2ed636`)
-- [ ] `packages/ui/src/components/sections/openchamber/NotificationSettings.tsx` (base `bf9e8d9a2f19`, fork `b4c300b8e9ce`, upstream `c4451e668269`)
+- [x] `packages/ui/src/components/sections/openchamber/NotificationSettings.tsx` (base `bf9e8d9a2f19`, fork `b4c300b8e9ce`, upstream `c4451e668269`)
 - [ ] `packages/ui/src/components/session/sidebar/sessions/SessionNodeItem.tsx` (base `76e4f798f242`, fork `91301e88ed72`, upstream `24ab9844e3ed`)
 - [x] `packages/ui/src/lib/i18n/messages.test.ts` (base `f89bfa57a3e4`, fork `25787893a715`, upstream `e25f752dc538`)
 - [x] `packages/ui/src/lib/i18n/messages/ar.settings.ts` (base `11d7b88afc8e`, fork `2d47ff55fbf6`, upstream `4dd480209c73`)
@@ -106,7 +106,7 @@ Telegram subscription/recovery/delivery ledger; RU i18n и настройки; M
 - [x] `packages/ui/src/lib/opencode/projection.test.ts` (base `d832c7705152`, fork `47ffa390233d`, upstream `5691a83588f3`)
 - [x] `packages/ui/src/lib/opencode/projection.ts` (base `4d8ec297b011`, fork `5f61030f3e66`, upstream `0ac31848d9d3`)
 - [x] `packages/ui/src/lib/renderPageAnswer.ts` (base `3ce7cbf7e6a0`, fork `a4413080f708`, upstream `eea3ac507e2f`)
-- [ ] `packages/ui/src/lib/settings/search.ts` (base `9953821e01dc`, fork `a9cdafa14982`, upstream `957b34dd91cd`)
+- [x] `packages/ui/src/lib/settings/search.ts` (base `9953821e01dc`, fork `a9cdafa14982`, upstream `957b34dd91cd`)
 - [x] `packages/ui/src/styles/typography.css` (base `c18f200ea0e1`, fork `85da81011148`, upstream `bb69a62721c9`)
 - [ ] `packages/ui/src/sync/sync-context.tsx` (base `b52881a2c8d9`, fork `ae599805d0e3`, upstream `d75a03d1b671`)
 - [ ] `packages/vscode/CHANGELOG.md` (base `aff6fe7f9cc1`, fork `d7f89fa175f3`, upstream `48b6c8a51f63`)
@@ -188,3 +188,10 @@ Telegram subscription/recovery/delivery ledger; RU i18n и настройки; M
 
 - **5 overlapping paths reconciled via independent base→fork and base→v2.7.1 line hunks.** Every hunk set was checked for overlap before replaying both deltas; no ambiguous hunk. `settings-helpers.js`: preserve `ru` in UI locale enum while taking upstream settings. `terminal/runtime.js`: preserve injected-environment marker while taking upstream terminal behavior. `projection.ts` / `projection.test.ts`: keep persisted/fallback tool timings and test cases alongside upstream model projection; `typography.css`: preserve eight responsive 80rem width rules alongside upstream typography.
 - Code commits `62ce886`, `eadd077`, `8f74206`, projection-test commit (see branch history), `dff437d`. **Static hunk nonoverlap PASS; Bun/Node24/type-check/layout tests NOT RUN**. Remaining overlap paths **34**.
+
+## A2 UI page responses, Telegram settings and OpenCode guidance (2026-11-14)
+
+- **6 overlapping paths closed statically:** `.agents/skills/opencode-v2/SKILL.md` carries fork cross-repo pin instruction on upstream 2.7.1; `ToolPart.subagent-row.test.tsx` retains agent color test on upstream subagent rendering; `NotificationSettings.tsx` retains legacy Telegram settings section until B migration; `settings/search.ts` retains one searchable Telegram settings entry.
+- `UiPageFrame.tsx` and `HtmlRenderFrame.tsx`: upstream 2.7.1 decline UI, page actions, accessibility and state retained. Existing fork `useSessionDirectory` lookup now applies to both normal page answer and decline / parser-error submission; shared upstream `usePageDecline.ts` accepts optional directory and forwards it through `answerRenderedPage`. Prevents wrong project-directory routing on remote/multi-project OpenCode. No change to Telegram sender or stored settings.
+- Commits `f9599b0`, `ac49b22`, `a6dcd70`, `4181024`, `f59c4a6`, `b238481`, `ff1a7ae`. Static 3-way hunk check PASS for 5/6 overlaps, explicit manual adaptation for `UiPageFrame` with upstream decline contract. **Bun/Node24/typecheck/tests/browser: NOT RUN**.
+- **28 overlapping paths remain.** Need inspect `sync-context.tsx` hook export and `ToolPart.tsx`/ChatInput lifecycle during remaining A2; full runtime/CI gates remain open.
