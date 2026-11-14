@@ -4556,4 +4556,8 @@ export const dict = {
   'chat.fileOpenRequest.toast.openSession': "Открыть сессию",
   'chat.trustPaused.text': "Агенты не смогут работать в {name}, пока вы не разрешите плагины и команды этой папки.",
   'chat.trustPaused.action': "Проверить и разрешить",
+  'filesView.preview.outline.label': "Оглавление",
+  'filesView.preview.outline.placeholder': "Перейти к заголовку…",
+  'filesView.preview.outline.noHeadings': "В документе нет заголовков",
+  'filesView.preview.outline.noMatches': "Подходящие заголовки не найдены",
 };
