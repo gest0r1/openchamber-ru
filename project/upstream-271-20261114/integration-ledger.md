@@ -259,3 +259,10 @@ Telegram subscription/recovery/delivery ledger; RU i18n и настройки; M
 
 - Requested one grouped PR verification after source, i18n and generated-changelog corrections; this commit intentionally does **not** contain `[skip ci]`.
 - Acceptance still requires actual PASS for relevant build/typecheck/lint/tests/RU coverage on the exact head SHA. No merge or publication permitted from this request alone.
+
+## PR #27 CI review and narrow Markdown test fixture repair — 2026-11-14
+
+- PR #27 CI on candidate `2d0fe34` (jobs `43570617753`, `43570617756`): `type-check` PASS (4,278 source files / 7 projects), `lint` PASS, changelog check PASS, web/VSCode/mobile assets build PASS, `tests` FAIL (1355/1360 test files passed), standalone RU coverage FAIL. Final fork release/installer contract tests were skipped after tests failure; **not accepted**.
+- Failures: three Russian coverage modules (`isolated-spaces`, `source-board`, `ru-coverage`); already addressed since that SHA by locale ordering and remaining four `outline preview` translations. Separate failures in `MarkdownRendererImpl.test.ts` and `markdown/guestLinks.render.test.ts` occur during import of upstream `useConfigStore` (`useUIStore.subscribe is not a function`; async home resolution then reports circular initialization). Production `useConfigStore.ts` and `useUIStore.ts` at tested candidate were exact upstream 2.7.1 blobs, so the evidence points to incomplete test mocks, not evidence of a broken live store.
+- Repaired only both Markdown renderer fixtures to add the no-op `useUIStore.subscribe` API; guestLinks mock also exports `normalizeContextPanelDirectoryKey`. Existing component implementations untouched. Commits `151e7ba`, `f8195c5`. May still expose another test initialization issue; **no claim PASS until actual CI confirms**.
+- Request one grouped PR #27 CI verification on the current candidate. Do not merge in main or deploy. Inspect any remaining failures, especially direct RU coverage and Markdown renders; do not broaden product changes without reproduced production regression.
