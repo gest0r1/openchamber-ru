@@ -90,10 +90,10 @@ test('service handles SDK metadata over authenticated loopback and persists no t
   const withContent = { ...event, content: { reply: 'sensitive reply' }, botToken: 'sensitive credential' };
   const first = await post(call, withContent);
   assert.equal(first.status, 200);
-  assert.deepEqual(await first.json(), { ok: true, recorded: true, duplicate: false });
+  assert.deepEqual(await first.json(), { ok: true });
   const replay = await post(call, withContent);
   assert.equal(replay.status, 200);
-  assert.deepEqual(await replay.json(), { ok: true, recorded: false, duplicate: true });
+  assert.deepEqual(await replay.json(), { ok: true });
   const status = await (await call('/status')).json();
   assert.deepEqual(status, { ok: true, version: 1, observed: 1, rootEvents: 1, deliveryEnabled: false });
   const disk = await fs.readFile(statePath, 'utf8');
