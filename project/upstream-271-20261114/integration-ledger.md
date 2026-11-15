@@ -1,3 +1,11 @@
+## MERGE & RELEASE STATUS — 2026-11-15
+
+- **MERGED:** PR [#27](https://github.com/gest0r1/openchamber-ru/pull/27) merged into `main` at `767593b8758f280c717ceecf3a46ed1f001043c4`. App version 2.7.1, fork release request `v2.7.1.1` and generated changelog were included. Code is unchanged from tested source `e3489d7` (five documentation/release files only).
+- Automatic [Linux web package workflow 43686780076](https://github.com/gest0r1/openchamber-ru/actions/runs/43686780076) started from the merge commit; its successful completion should trigger the `Release` workflow. **Publication and artifact integrity NOT YET VERIFIED** at this checkpoint; real Telegram Bot API/host smoke still NOT RUN.
+- **NEXT:** verify immutable web package, release workflow, published GitHub assets/tag and installer manifest; avoid independent production deployment.
+
+---
+
 ## RELEASE HANDOVER — 2026-11-15 / requested by owner
 
 - PR [#27](https://github.com/gest0r1/openchamber-ru/pull/27) moved from DRAFT to ready. Release requested for **v2.7.1.1** (fork revision of OpenChamber app **2.7.1**), not Canary 2.7.3; `.github/release-request.json` was updated in commit `7bb8f27`.
