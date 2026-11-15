@@ -1,5 +1,27 @@
 [
   {
+    "version": "2.7.1.1",
+    "date": "2026-11-15",
+    "title": "Telegram SDK and fork reconciliation",
+    "intro": null,
+    "app": {
+      "new": [
+        "Tracked Telegram sessions can be managed directly in OpenChamber settings, including old and renamed sessions; no need to scroll to the beginning of a conversation.",
+        "Standalone outbound Telegram SDK notifier with an explicit single-sender cutover from legacy delivery and an opt-in rollback path."
+      ],
+      "improvements": [
+        "Reconciled the fork with upstream OpenChamber 2.7.1 while retaining the Russian interface, fork agent display and full Markdown export.",
+        "Added SDK host admission, permission/revocation and completion-proof checks, with explicit fail-closed handling for uncertain completion."
+      ],
+      "fixes": [
+        "Sender changes now drain in-flight deliveries and opt-ins; interrupted cutover recovers its previous owner and retains passive legacy checkpoints for rollback.",
+        "Tracked-session search resolves current titles across the full subscription inventory, not only the latest page."
+      ],
+      "misc": []
+    },
+    "vscode": null
+  },
+  {
     "version": "2.7.1",
     "date": "2026-11-12",
     "title": "Extensions in your pocket",

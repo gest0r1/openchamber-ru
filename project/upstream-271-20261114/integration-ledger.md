@@ -1,3 +1,12 @@
+## RELEASE HANDOVER — 2026-11-15 / requested by owner
+
+- PR [#27](https://github.com/gest0r1/openchamber-ru/pull/27) moved from DRAFT to ready. Release requested for **v2.7.1.1** (fork revision of OpenChamber app **2.7.1**), not Canary 2.7.3; `.github/release-request.json` was updated in commit `7bb8f27`.
+- `changelog/2.7.1.1.md`, generated legacy `CHANGELOG.md` and `changelog/index.json` updated as a single source-consistent commit; VS Code changelog unchanged (no VS Code-specific changes).
+- No merge or published release was completed at the time of this checkpoint. The current feature head must pass `pr checks` and RU i18n before merging; `main` push will trigger `OpenChamber V2 Linux web package`, followed by `Release` workflow_run. Require exact-SHA release and artifact verification.
+- Real Telegram Bot API/SDK host acceptance is **NOT RUN** and remains an explicit test risk despite unit/CI PASS. Owner authorized main merge and release; no SSH or production deployment requested.
+
+---
+
 # OpenChamber v2.7.1 — upstream-first интеграция и журнал приёмки
 
 **Актуальный статус на 2026-11-14:** последний проверенный **SOURCE SHA `e3489d7fb53d05b7f01e82ef8ec9d9719c6a5679`** прошёл полный [PR CI 43634139182](https://github.com/gest0r1/openchamber-ru/actions/runs/43634139182) (`tests/type-check/lint/build` **PASS**) и [RU i18n 43634139212](https://github.com/gest0r1/openchamber-ru/actions/runs/43634139212) (**PASS**). PR #27 **DRAFT**, не слит. SDK notifier/host и controlled sender-source реализованы и покрыты изолированными контрактными тестами; **живые Bot API, ручной SDK UI, cross-space parity, полный rollback в real host, my-opencode runtime и release/deploy NOT RUN/NOT ACCEPTED**. Полная актуальная запись — в **последнем разделе документа**. Последняя точка восстановления — раздел «LATEST HANDOFF» **в конце документа**; все SHA/статусы ниже до этого раздела исторические.
