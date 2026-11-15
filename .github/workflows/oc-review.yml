@@ -18,7 +18,7 @@ jobs:
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: '24'
+          node-version: '26'
       - name: Install dependencies
         run: bun install --frozen-lockfile
       - name: Type check
@@ -31,7 +31,7 @@ jobs:
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: '24'
+          node-version: '26'
       - name: Install dependencies
         run: bun install --frozen-lockfile
       - name: Lint
@@ -46,9 +46,13 @@ jobs:
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: '24'
+          node-version: '26'
       - name: Install dependencies
         run: bun install --frozen-lockfile
+      - name: Telegram SDK shadow Node service contracts
+        run: node --test extensions/telegram-shadow/service/state.test.js extensions/telegram-shadow/service/http.test.js extensions/telegram-shadow/service/migration.test.js
+      - name: Telegram SDK notifier Node service contracts
+        run: node --test extensions/telegram-notifier/service/reconcile.test.js extensions/telegram-notifier/service/http.test.js
       - name: Tests
         run: bun run test
       - name: Fork release and agent entrypoint contracts
@@ -72,7 +76,7 @@ jobs:
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: '24'
+          node-version: '26'
       - name: Install dependencies
         run: bun install --frozen-lockfile
       - name: Build web

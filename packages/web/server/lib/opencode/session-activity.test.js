@@ -120,6 +120,41 @@ describe('queue descendant activity', () => {
   });
 });
 
+describe('running background jobs', () => {
+  const probeAnswering = (response) => createSessionActivityProbe({
+    buildOpenCodeUrl: (route) => `http://opencode.test${route}`,
+    getOpenCodeAuthHeaders: () => ({}),
+    fetchImpl: async () => response(),
+  });
+
+  it('keeps the running jobs of the tree with their owners', async () => {
+    const probe = probeAnswering(() => Response.json({ data: [
+      { kind: 'shell', sessionID: 'child', status: 'running', command: 'bun test', time: { started: 7 } },
+      { kind: 'subagent', sessionID: 'root', status: 'completed', time: { started: 1, completed: 2 } },
+    ] }));
+    expect(await probe.fetchRunningBackgroundJobs('root')).toEqual([
+      { kind: 'shell', sessionID: 'child', command: 'bun test', startedAt: 7 },
+    ]);
+  });
+
+  it('drops an image job past OpenCode\'s 30-minute image timeout, which nothing generates any more', async () => {
+    const now = Date.now();
+    const probe = probeAnswering(() => Response.json({ data: [
+      { kind: 'image', sessionID: 'root', status: 'running', time: { started: now - 40 * 60 * 1000 } },
+      { kind: 'image', sessionID: 'root', status: 'running', time: { started: now - 60 * 1000 } },
+    ] }));
+    expect((await probe.fetchRunningBackgroundJobs('root')).map((job) => job.startedAt)).toEqual([now - 60 * 1000]);
+  });
+
+  it('tells an OpenCode without the route from one that could not answer', async () => {
+    expect(await probeAnswering(() => new Response(null, { status: 404 })).fetchRunningBackgroundJobs('root')).toBeUndefined();
+    const gone = () => Response.json({ _tag: 'SessionNotFoundError', message: 'Session not found' }, { status: 404 });
+    expect(await probeAnswering(gone).fetchRunningBackgroundJobs('root')).toBeNull();
+    expect(await probeAnswering(() => new Response('down', { status: 503 })).fetchRunningBackgroundJobs('root')).toBeNull();
+    expect(await probeAnswering(() => Response.json({ data: {} })).fetchRunningBackgroundJobs('root')).toBeNull();
+  });
+});
+
 describe('running shell activity', () => {
   const createShellProbe = (data) => createSessionActivityProbe({
     buildOpenCodeUrl: (route) => `http://opencode.test${route}`,
@@ -139,5 +174,30 @@ describe('running shell activity', () => {
   it('keeps an unreadable shell list unknown', async () => {
     const probe = createShellProbe([{ status: 'running', command: 'build', metadata: null }]);
     expect(await probe.hasRunningShells('/repo/run')).toBeNull();
+  });
+});
+
+describe('unanswered request activity', () => {
+  const createRequestProbe = (formResponse, permissionResponse) => createSessionActivityProbe({
+    buildOpenCodeUrl: (route) => `http://opencode.test${route}`,
+    getOpenCodeAuthHeaders: () => ({}),
+    fetchImpl: async (url) => {
+      const route = new URL(url).pathname;
+      if (route.endsWith('/form')) return Response.json({ data: formResponse });
+      if (route.endsWith('/permission')) return Response.json({ data: permissionResponse });
+      return new Response(null, { status: 404 });
+    },
+  });
+
+  it('does not report completion with a waiting form or permission', async () => {
+    expect(await createRequestProbe([{ id: 'f-1' }], []).hasBlockingRequests('root', '/repo')).toBe(true);
+    expect(await createRequestProbe([], [{ id: 'p-1' }]).hasBlockingRequests('root', '/repo')).toBe(true);
+    expect(await createRequestProbe([], []).hasBlockingRequests('root', '/repo')).toBe(false);
+  });
+
+  it('keeps malformed and missing request state unknown rather than idle', async () => {
+    expect(await createRequestProbe(null, []).hasBlockingRequests('root', '/repo')).toBeNull();
+    expect(await createRequestProbe([], null).hasBlockingRequests('root', '/repo')).toBeNull();
+    expect(await createRequestProbe([], []).hasBlockingRequests('root', null)).toBeNull();
   });
 });

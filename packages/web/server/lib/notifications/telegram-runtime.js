@@ -16,6 +16,7 @@ const MAX_TEXT = 4000;
 export const createTelegramRuntime = ({
   storePath, getBotToken, getPublicOrigin, fetchImpl = fetch,
   enabled = async () => true,
+  getSender = async () => 'legacy',
   allowedFileRoots = [],
   getConfiguredAliases = null,
   persistAliases = null,
@@ -151,6 +152,8 @@ export const createTelegramRuntime = ({
       data.subscriptions[keyOf(directory, sessionId)] = {
         opted_in: true, alias: name, scope, created_at: Date.now(), expires_at: expiresAt, origin,
         sessionId, directory, spaceId: options.spaceId ?? null,
+        title: typeof options.title === 'string' && options.title.trim() ? options.title.slice(0, 200) : null,
+        baselineIdleId: typeof options.baselineIdleId === 'string' ? options.baselineIdleId : null,
       };
     });
   };
@@ -335,8 +338,25 @@ export const createTelegramRuntime = ({
     const data = await load();
     return Object.values(data.subscriptions).filter((entry) => entry?.opted_in === true && !isExpired(entry))
       .map((entry) => ({ directory: entry.directory, sessionId: entry.sessionId,
-        spaceId: entry.spaceId ?? null })).filter((entry) => entry.directory && entry.sessionId);
+        spaceId: entry.spaceId ?? null, alias: entry.alias, scope: entry.scope,
+        title: entry.title ?? null, createdAt: entry.created_at,
+        baselineIdleId: entry.baselineIdleId ?? null })).filter((entry) => entry.directory && entry.sessionId);
   };
+  // Take over only from an observed legacy idle checkpoint. Atomic with
+  // subscription identity validation; never reset an opt-in created later.
+  const seedBaselines = async (snapshots) => mutate((data) => {
+    for (const item of snapshots) {
+      const record = data.subscriptions[keyOf(item.directory, item.sessionId)];
+      if (!record?.opted_in || record.created_at !== item.createdAt ||
+          (record.spaceId ?? null) !== (item.spaceId ?? null) ||
+          typeof item.idleId !== 'string' || !item.idleId) {
+        throw new Error('Telegram cutover snapshot no longer matches subscriptions');
+      }
+    }
+    for (const item of snapshots) {
+      data.subscriptions[keyOf(item.directory, item.sessionId)].baselineIdleId = item.idleId;
+    }
+  });
   const hasSubscription = async (directory, sessionId) => {
     const data = await load();
     const key = keyOf(directory, sessionId);
@@ -351,9 +371,9 @@ export const createTelegramRuntime = ({
   const listAliases = async () => {
     return Object.keys(await configuredAliases());
   };
-  const notify = async ({ directory, sessionId, type, eventKey = null, aborted = false, canSend = async () => true, manualRetry = false }) => {
+  const notify = async ({ directory, sessionId, type, eventKey = null, aborted = false, canSend = async () => true, manualRetry = false, sender = 'legacy' }) => {
     if (!directory || !sessionId || aborted || !['completed', 'needs_input', 'error'].includes(type)) return false;
-    if (await enabled() !== true) return false;
+    if (await enabled() !== true || await getSender() !== sender) return false;
     const data = await load();
     const subscription = data.subscriptions[keyOf(directory, sessionId)];
     if (isExpired(subscription)) {
@@ -420,7 +440,7 @@ export const createTelegramRuntime = ({
         finalSubscription.alias !== subscription.alias ||
         finalSubscription.scope !== subscription.scope ||
         finalSubscription.expires_at !== subscription.expires_at ||
-        isExpired(finalSubscription) || await enabled() !== true) {
+        isExpired(finalSubscription) || await enabled() !== true || await getSender() !== sender) {
         await mutate((latest) => { delete latest.deliveries[dedupKey]; });
         return false;
       }
@@ -463,6 +483,18 @@ export const createTelegramRuntime = ({
       z.object({ status: z.enum(['reserved', 'delivery_unknown', 'rejected']) }).passthrough().safeParse(entry).success)
       .slice(-100).map(([key, entry]) => ({ key, ...entry }));
   };
+  // Changing sender must not overlap a Bot API request already begun by the
+  // previous owner. Pause first, then drain both completion probes and sends.
+  // A timeout is an unsafe cutover, never evidence that delivery finished.
+  const waitForSettledDeliveries = async ({ timeoutMs = 30_000 } = {}) => {
+    const deadline = Date.now() + timeoutMs;
+    while (inflightVerification.size || inflightDelivery.size) {
+      if (Date.now() >= deadline) {
+        throw new Error('Telegram delivery remains in flight; sender switch refused');
+      }
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+  };
   const retryDelivery = async (key) => {
     if (!z.string().safeParse(key).success) throw new TypeError('Delivery key is required');
     const data = await load();
@@ -478,8 +510,8 @@ export const createTelegramRuntime = ({
     }
     // Manual action from an authenticated user, never background retry.
     return notify({ directory: entry.directory, sessionId: entry.sessionId,
-      type: entry.type, eventKey: entry.eventKey, manualRetry: true });
+      type: entry.type, eventKey: entry.eventKey, manualRetry: true, sender: await getSender() });
   };
   return { configureAlias, deleteAlias, subscribe, unsubscribe, sendText, sendDocument, sendContent,
-    notify, hasSubscription, getSubscription, listSubscriptions, listAliases, listAliasDetails, hasBotToken, listDeliveryIssues, retryDelivery };
+    notify, hasSubscription, getSubscription, listSubscriptions, seedBaselines, waitForSettledDeliveries, listAliases, listAliasDetails, hasBotToken, listDeliveryIssues, retryDelivery };
 };

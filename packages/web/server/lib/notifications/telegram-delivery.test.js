@@ -222,6 +222,34 @@ test('concurrent notifications cannot both pass an asynchronous completion fence
   } finally { await h.cleanup(); }
 });
 
+test('sender cutover waits for in-flight verification and refuses a timed-out drain', async () => {
+  const h = await setup(async () => new Response(JSON.stringify({ ok: true, result: { message_id: 1 } })));
+  try {
+    await h.runtime.configureAlias('team', '123456');
+    await h.runtime.subscribe('/repo', 'session', 'team');
+    let entered;
+    let release;
+    const checked = new Promise((resolve) => { entered = resolve; });
+    const held = new Promise((resolve) => { release = resolve; });
+    const first = h.runtime.notify({
+      directory: '/repo', sessionId: 'session', type: 'completed', eventKey: 'idle:drain',
+      canSend: async () => { entered(); await held; return true; },
+    });
+    await checked;
+    let settled = false;
+    const draining = h.runtime.waitForSettledDeliveries({ timeoutMs: 2000 })
+      .then(() => { settled = true; });
+    await Promise.resolve();
+    expect(settled).toBe(false);
+    await expect(h.runtime.waitForSettledDeliveries({ timeoutMs: 1 }))
+      .rejects.toThrow(/remains in flight/);
+    release();
+    expect(await first).toBe(true);
+    await draining;
+    expect(settled).toBe(true);
+  } finally { await h.cleanup(); }
+});
+
 test('unsubscribe during the final live probe cancels delivery before Bot API', async () => {
   let posts = 0;
   const h = await setup(async () => {

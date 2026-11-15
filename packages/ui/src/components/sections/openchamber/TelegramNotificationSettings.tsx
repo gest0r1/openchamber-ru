@@ -30,6 +30,19 @@ const telegramAliasesSchema = z.object({
 });
 type TelegramConfig = z.infer<typeof telegramConfigSchema>;
 type ListedSession = { id: string; title: string; directory: string; spaceId: string | null };
+type TrackedSubscription = {
+  sessionId: string; directory: string; spaceId: string | null;
+  title: string; alias: string; scope: string; createdAt: number;
+};
+const trackedSchema = z.object({
+  subscriptions: z.array(z.object({
+    sessionId: z.string(), directory: z.string(), spaceId: z.string().nullable(),
+    title: z.string(), alias: z.string(), scope: z.string(),
+    createdAt: z.number(),
+  })),
+  total: z.number(), page: z.number(), hasMore: z.boolean(),
+});
+
 type Approval = { id: string; sessionId: string; alias: string; file: string | null; preview: string; text: string; caption: string; filePreview: string; fileSize: number | null; mode: string };
 type DeliveryIssue = { key: string; status: string; sessionId: string; type: string; at: number; reason?: string };
 type AliasDraft = { name: string; chatId: string; threadId: string; kind: TelegramKind; previousName: string };
@@ -66,6 +79,13 @@ export const TelegramNotificationSettings: React.FC = () => {
   const [selectedSession, setSelectedSession] = React.useState('');
   const [subscribed, setSubscribed] = React.useState(false);
   const [subscriptionBusy, setSubscriptionBusy] = React.useState(false);
+  const [tracked, setTracked] = React.useState<TrackedSubscription[]>([]);
+  const [trackedPage, setTrackedPage] = React.useState(0);
+  const [trackedQuery, setTrackedQuery] = React.useState('');
+  const [trackedTotal, setTrackedTotal] = React.useState(0);
+  const [trackedHasMore, setTrackedHasMore] = React.useState(false);
+  const [trackedLoading, setTrackedLoading] = React.useState(false);
+  const trackedRequest = React.useRef(0);
   const [approvals, setApprovals] = React.useState<Approval[]>([]);
   const [deliveryIssues, setDeliveryIssues] = React.useState<DeliveryIssue[]>([]);
   const [approvalBusy, setApprovalBusy] = React.useState(false);
@@ -110,6 +130,42 @@ export const TelegramNotificationSettings: React.FC = () => {
       setLoadingError(t('settings.notifications.telegram.subscriptionFailed'));
     }
   };
+  const refreshTracked = React.useCallback(async (page = trackedPage, query = trackedQuery) => {
+    const requestId = ++trackedRequest.current;
+    setTrackedLoading(true);
+    try {
+      const params = new URLSearchParams({ page: String(page), q: query });
+      const result = trackedSchema.parse(await telegramRequest('subscriptions?' + params));
+      if (requestId !== trackedRequest.current) return;
+      setTracked(result.subscriptions);
+      setTrackedTotal(result.total);
+      setTrackedHasMore(result.hasMore);
+      setLoadingError('');
+    } catch {
+      if (requestId === trackedRequest.current) setLoadingError(t('settings.notifications.telegram.trackedFailed'));
+    } finally {
+      if (requestId === trackedRequest.current) setTrackedLoading(false);
+    }
+  }, [trackedPage, trackedQuery, t]);
+
+  React.useEffect(() => {
+    const id = window.setTimeout(() => { void refreshTracked(); }, 200);
+    return () => { window.clearTimeout(id); trackedRequest.current += 1; };
+  }, [refreshTracked]);
+
+  const disableTracked = async (item: TrackedSubscription) => {
+    setSubscriptionBusy(true);
+    try {
+      await telegramRequest('unsubscribe', 'POST', {
+        sessionId: item.sessionId, directory: item.directory, spaceId: item.spaceId,
+      });
+      if (item.sessionId === selectedSession) setSubscribed(false);
+      await refreshTracked();
+    } catch {
+      setLoadingError(t('settings.notifications.telegram.subscriptionFailed'));
+    } finally { setSubscriptionBusy(false); }
+  };
+
   const toggleSubscription = async () => {
     const session = sessionFromSelection();
     if (!session) return;
@@ -118,6 +174,7 @@ export const TelegramNotificationSettings: React.FC = () => {
       const action = subscribed ? 'unsubscribe' : 'subscribe';
       await telegramRequest(action, 'POST', { sessionId: session.id, directory: session.directory, spaceId: session.spaceId });
       setSubscribed(!subscribed);
+      await refreshTracked();
       setLoadingError('');
     } catch {
       setLoadingError(t('settings.notifications.telegram.subscriptionFailed'));
@@ -315,7 +372,7 @@ export const TelegramNotificationSettings: React.FC = () => {
             disabled={!config || busy}
           >
             <SelectTrigger className={SETTINGS_SELECT_ROW_TRIGGER_CLASS}>
-              <SelectValue placeholder={t('settings.notifications.telegram.noAlias')} />
+              <SelectValue>{config?.defaultAlias || t('settings.notifications.telegram.noAlias')}</SelectValue>
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="_none">{t('settings.notifications.telegram.noAlias')}</SelectItem>
@@ -327,7 +384,7 @@ export const TelegramNotificationSettings: React.FC = () => {
           <div className="flex flex-wrap items-center gap-2">
             <Select value={selectedSession || '_none'} onValueChange={(value) => { void chooseSession(value); }}>
               <SelectTrigger className={SETTINGS_SELECT_ROW_TRIGGER_CLASS}>
-                <SelectValue placeholder={t('settings.notifications.telegram.noSessions')} />
+                <SelectValue>{sessions.find((session) => session.id === selectedSession)?.title || t('settings.notifications.telegram.noSessions')}</SelectValue>
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="_none">{t('settings.notifications.telegram.noSessions')}</SelectItem>
@@ -341,6 +398,46 @@ export const TelegramNotificationSettings: React.FC = () => {
             </Button>
           </div>
         </SettingsFieldRow>
+        <section aria-label={t('settings.notifications.telegram.trackedTitle')} className="space-y-2">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="typography-ui-label">{t('settings.notifications.telegram.trackedTitle')} ({trackedTotal})</p>
+            <Button size="sm" variant="outline" disabled={trackedLoading || subscriptionBusy}
+              onClick={() => { void refreshTracked(); }}>{t('settings.notifications.telegram.refresh')}</Button>
+          </div>
+          <Input value={trackedQuery} onChange={(event) => {
+            setTrackedQuery(event.target.value); setTrackedPage(0);
+          }} placeholder={t('settings.notifications.telegram.trackedSearch')}
+            aria-label={t('settings.notifications.telegram.trackedSearch')} className="h-8 max-w-[32rem]" />
+          {tracked.length === 0 && !trackedLoading &&
+            <p className="typography-meta text-muted-foreground">{t('settings.notifications.telegram.noTracked')}</p>}
+          {tracked.map((item) => (
+            <div key={item.directory + ':' + item.sessionId}
+              className="flex flex-wrap items-center gap-2 rounded-md border p-3">
+              <div className="min-w-0 flex-1">
+                <p className="typography-ui-label break-words">{item.title}</p>
+                <p className="typography-meta break-all text-muted-foreground">{item.directory}</p>
+                <p className="typography-meta text-muted-foreground">{item.alias} · {item.scope}</p>
+              </div>
+              <Button size="sm" variant="outline" disabled={subscriptionBusy}
+                onClick={() => { void disableTracked(item); }}>
+                {t('settings.notifications.telegram.disableTracked')}
+              </Button>
+            </div>
+          ))}
+          {(trackedPage > 0 || trackedHasMore) && (
+            <div className="flex items-center gap-2">
+              <Button size="sm" variant="outline" disabled={trackedLoading || trackedPage === 0}
+                onClick={() => setTrackedPage((page) => Math.max(0, page - 1))}>
+                {t('settings.notifications.telegram.previous')}
+              </Button>
+              <span className="typography-meta">{trackedPage + 1}</span>
+              <Button size="sm" variant="outline" disabled={trackedLoading || !trackedHasMore}
+                onClick={() => setTrackedPage((page) => page + 1)}>
+                {t('settings.notifications.telegram.next')}
+              </Button>
+            </div>
+          )}
+        </section>
         <p className="typography-meta text-muted-foreground">{t('settings.notifications.telegram.formatHint')}</p>
         {aliases.map((alias) => (
           <div key={alias.name} className="flex flex-wrap items-center gap-2">
@@ -385,7 +482,7 @@ export const TelegramNotificationSettings: React.FC = () => {
             }
           }}>
             <SelectTrigger className={SETTINGS_SELECT_ROW_TRIGGER_CLASS}>
-              <SelectValue />
+              <SelectValue>{t(`settings.notifications.telegram.${draft.kind}`)}</SelectValue>
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="private">{t('settings.notifications.telegram.private')}</SelectItem>
