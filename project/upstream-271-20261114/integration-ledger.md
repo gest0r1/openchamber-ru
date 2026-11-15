@@ -1,3 +1,11 @@
+## RELEASE PUBLISHED — verified 2026-11-15
+
+- Release [v2.7.1.1](https://github.com/gest0r1/openchamber-ru/releases/tag/v2.7.1.1) **PUBLISHED**, not draft, not prerelease; GitHub reports published_at `2026-11-15T07:03:30Z`, tag target/source `767593b8758f280c717ceecf3a46ed1f001043c4`.
+- [Release workflow 43687534106](https://github.com/gest0r1/openchamber-ru/actions/runs/43687534106) **PASS**, 10 assets verified by GitHub list: Linux web tarball, .deb, .rpm, AppImage, Windows installer+blockmap, Android APK+AAB, 2 updater manifests.
+- [Exact-SHA Linux web package workflow 43686780076](https://github.com/gest0r1/openchamber-ru/actions/runs/43686780076) **PASS**. Artifacts released but not yet installed in a real user's OpenCode/Telegram environment; manual SDK cutover and rollback still NOT RUN. No SSH/deploy occurred.
+- No further source changes were made after the release source commit. Main docs-only status update has [skip ci].
+
+---
 ## MERGE & RELEASE STATUS — 2026-11-15
 
 - **MERGED:** PR [#27](https://github.com/gest0r1/openchamber-ru/pull/27) merged into `main` at `767593b8758f280c717ceecf3a46ed1f001043c4`. App version 2.7.1, fork release request `v2.7.1.1` and generated changelog were included. Code is unchanged from tested source `e3489d7` (five documentation/release files only).
