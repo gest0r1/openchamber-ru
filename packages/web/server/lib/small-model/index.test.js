@@ -260,11 +260,11 @@ describe('generateSmallModelText', () => {
     expect(lastGenerate().body.model).toEqual({ id: 'gpt-5.6-luna', providerID: 'openai' });
   });
 
-  it('sends an explicit Claude Code model like any other', async () => {
-    const result = await generateSmallModelText({ prompt: 'hi', model: 'claude-code/haiku', directory: '/proj' });
+  it('sends an explicit Claude Agent model like any other', async () => {
+    const result = await generateSmallModelText({ prompt: 'hi', model: 'claude-agent/haiku', directory: '/proj' });
 
-    expect(result).toMatchObject({ providerID: 'claude-code', modelID: 'haiku', source: 'request' });
-    expect(lastGenerate().body.model).toEqual({ id: 'haiku', providerID: 'claude-code' });
+    expect(result).toMatchObject({ providerID: 'claude-agent', modelID: 'haiku', source: 'request' });
+    expect(lastGenerate().body.model).toEqual({ id: 'haiku', providerID: 'claude-agent' });
   });
 
   it('falls back to the session model when its provider has no small one', async () => {
@@ -378,12 +378,12 @@ describe('generateSmallModelText', () => {
     }
   });
 
-  it('picks Claude Code haiku as the small model like any other provider', async () => {
-    state.models = [MODEL({ id: 'haiku', modelID: 'haiku', providerID: 'claude-code', family: 'claude-haiku' })];
+  it('picks Claude Agent haiku as the small model like any other provider', async () => {
+    state.models = [MODEL({ id: 'haiku', modelID: 'haiku', providerID: 'claude-agent', family: 'claude-haiku' })];
 
-    const result = await generateSmallModelText({ prompt: 'hi', directory: '/proj', preferredProviderID: 'claude-code' });
+    const result = await generateSmallModelText({ prompt: 'hi', directory: '/proj', preferredProviderID: 'claude-agent' });
 
-    expect(result).toMatchObject({ providerID: 'claude-code', modelID: 'haiku', source: 'session-provider-small' });
+    expect(result).toMatchObject({ providerID: 'claude-agent', modelID: 'haiku', source: 'session-provider-small' });
   });
 
   it('ignores a disabled small model and falls back to the session model', async () => {
@@ -968,10 +968,10 @@ describe('listAuthenticatedProviders', () => {
     expect(await listAuthenticatedProviders()).toEqual(['opencode']);
   });
 
-  it('offers Claude Code', async () => {
-    state.models = [MODEL(), MODEL({ id: 'sonnet', modelID: 'sonnet', providerID: 'claude-code' })];
+  it('offers Claude Agent', async () => {
+    state.models = [MODEL(), MODEL({ id: 'sonnet', modelID: 'sonnet', providerID: 'claude-agent' })];
 
-    expect(await listAuthenticatedProviders()).toContain('claude-code');
+    expect(await listAuthenticatedProviders()).toContain('claude-agent');
   });
 
   // OpenCode 2 answers with an empty catalog while it starts; caching that
