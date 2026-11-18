@@ -148,7 +148,7 @@ const isolatedEnv = (dir) => {
     autoshare: false,
     shell: 'zsh',
     lsp: false,
-    disabled_providers: ['claude-code'],
+    disabled_providers: ['claude-agent'],
     // `--auto` approves everything not explicitly denied; file tools stay in the copy.
     // The repository is public: web tools fetched the shipped fix from GitHub.
     permissions: [
