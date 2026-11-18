@@ -14,9 +14,8 @@ import type { UsageProviderGroup, UsageLimitRow } from '@/components/usage/usage
  * Quota provider ids mostly match OpenCode provider ids; these are the ones
  * that do not. Unmatched providers simply produce no headline.
  *
- * `claude-agent` is OpenCode's built-in Claude Agent provider and `claude-code`
- * the one the opencode-claude plugin registers; both bill against the same
- * Claude subscription the `claude` quota reports.
+ * `claude-agent` is OpenCode's built-in Claude Agent provider; its quota
+ * is reported under the `claude` group.
  * `kilocode` / `kilo-code` are the same Kilo Gateway account as `kilo`.
  */
 const QUOTA_PROVIDER_ALIASES = new Map<string, string>([
@@ -24,7 +23,6 @@ const QUOTA_PROVIDER_ALIASES = new Map<string, string>([
   ['chatgpt', 'codex'],
   ['anthropic', 'claude'],
   ['claude-agent', 'claude'],
-  ['claude-code', 'claude'],
   ['gemini', 'google'],
   ['kilocode', 'kilo'],
   ['kilo-code', 'kilo'],
