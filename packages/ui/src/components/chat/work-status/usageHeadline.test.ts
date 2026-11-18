@@ -41,9 +41,8 @@ describe('resolveQuotaProviderId', () => {
     expect(resolveQuotaProviderId('kilo-code')).toBe('kilo');
   });
 
-  test('maps both Claude Code providers onto Claude quota', () => {
+  test('maps native Claude Agent onto Claude quota', () => {
     expect(resolveQuotaProviderId('claude-agent')).toBe('claude');
-    expect(resolveQuotaProviderId('claude-code')).toBe('claude');
   });
 
   test('is case and whitespace tolerant, and rejects empties', () => {
