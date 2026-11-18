@@ -128,24 +128,24 @@ describe('notification template project of the session', () => {
     activeProjectId: 'open',
     projects: [
       { id: 'open', label: 'dotfiles', path: '/work/dotfiles' },
-      { id: 'own', label: 'opencode-claude', path: '/work/opencode-claude' },
+      { id: 'own', label: 'other-project', path: '/work/other-project' },
     ],
   };
   // What runtime.js builds from `session.idle`: no location on the event.
   const turnEnded = { properties: { sessionTitle: 'Fix login', turnEnded: true, info: { sessionID: 'ses_1', role: 'assistant', finish: 'stop' } } };
 
   it('names the session\'s project, not the one open in the UI, when a turn ends', async () => {
-    globalThis.fetch = vi.fn(async () => Response.json({ id: 'ses_1', title: 'Fix login', location: { directory: '/work/opencode-claude' } }));
+    globalThis.fetch = vi.fn(async () => Response.json({ id: 'ses_1', title: 'Fix login', location: { directory: '/work/other-project' } }));
     const runtime = createRuntime(settings);
 
     const variables = await runtime.buildTemplateVariables(turnEnded, 'ses_1');
 
-    expect(variables.project_name).toBe('opencode-claude');
-    expect(variables.worktree).toBe('/work/opencode-claude');
+    expect(variables.project_name).toBe('other-project');
+    expect(variables.worktree).toBe('/work/other-project');
   });
 
   it('reads the session\'s project through the host source runtime.js passes', async () => {
-    globalThis.fetch = vi.fn(async () => Response.json({ id: 'ses_1', title: 'Fix login', location: { directory: '/work/opencode-claude' } }));
+    globalThis.fetch = vi.fn(async () => Response.json({ id: 'ses_1', title: 'Fix login', location: { directory: '/work/other-project' } }));
     const runtime = createRuntime(settings);
     // runtime.js builds its own source for the host; it is not this runtime's internal one.
     const source = {
@@ -156,17 +156,17 @@ describe('notification template project of the session', () => {
 
     const variables = await runtime.buildTemplateVariables(turnEnded, 'ses_1', source);
 
-    expect(variables.project_name).toBe('opencode-claude');
-    expect(variables.worktree).toBe('/work/opencode-claude');
+    expect(variables.project_name).toBe('other-project');
+    expect(variables.worktree).toBe('/work/other-project');
   });
 
   it('takes the directory the event names without reading the session', async () => {
     globalThis.fetch = vi.fn();
     const runtime = createRuntime(settings);
 
-    const variables = await runtime.buildTemplateVariables({ properties: { ...turnEnded.properties, directory: '/work/opencode-claude' } }, 'ses_1');
+    const variables = await runtime.buildTemplateVariables({ properties: { ...turnEnded.properties, directory: '/work/other-project' } }, 'ses_1');
 
-    expect(variables.project_name).toBe('opencode-claude');
+    expect(variables.project_name).toBe('other-project');
     expect(globalThis.fetch).not.toHaveBeenCalled();
   });
 
@@ -181,13 +181,13 @@ describe('notification template project of the session', () => {
   const turnEndedIn = (directory) => ({ properties: { ...turnEnded.properties, directory } });
 
   it('names the project of a worktree the session runs in, and keeps the worktree as {worktree}', async () => {
-    const resolvePrimaryWorktreeRoot = vi.fn(async () => ({ root: '/work/opencode-claude' }));
+    const resolvePrimaryWorktreeRoot = vi.fn(async () => ({ root: '/work/other-project' }));
     const runtime = createRuntimeWith({ resolvePrimaryWorktreeRoot });
 
     const variables = await runtime.buildTemplateVariables(turnEndedIn('/data/worktrees/fix-login'), 'ses_1');
 
     expect(resolvePrimaryWorktreeRoot).toHaveBeenCalledWith('/data/worktrees/fix-login');
-    expect(variables.project_name).toBe('opencode-claude');
+    expect(variables.project_name).toBe('other-project');
     expect(variables.worktree).toBe('/data/worktrees/fix-login');
   });
 
