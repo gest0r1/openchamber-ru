@@ -19,7 +19,7 @@ describe('pluginDisplayName', () => {
   test('a package spec drops its version or tag', () => {
     expect(pluginDisplayName('opencode-wakatime')).toBe('opencode-wakatime');
     expect(pluginDisplayName('opencode-wakatime@1.2.3')).toBe('opencode-wakatime');
-    expect(pluginDisplayName('@openchamber/opencode-claude@^0.4.0')).toBe('@openchamber/opencode-claude');
+    expect(pluginDisplayName('@scope/sample-plugin@^0.4.0')).toBe('@scope/sample-plugin');
     expect(pluginDisplayName('@scope/plugin')).toBe('@scope/plugin');
   });
 

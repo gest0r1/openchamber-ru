@@ -838,7 +838,7 @@ describe('openchamber session routes', () => {
     expect(await create({ lastSelectedModel: 'anthropic/claude-sonnet-5' }))
       .toEqual({ providerID: 'anthropic', modelID: 'claude-sonnet-5' });
     // A model the catalog no longer lists (its provider was removed): skipped.
-    expect(await create({ lastSelectedModel: 'claude-code/opus' }))
+    expect(await create({ lastSelectedModel: 'missing-provider/opus' }))
       .toEqual({ providerID: 'opencode', modelID: 'big-pickle' });
     // A configured default outranks it.
     expect(await create({ lastSelectedModel: 'anthropic/claude-sonnet-5', defaultModel: 'openai/gpt-5.5' }))

@@ -1,7 +1,6 @@
 import React from 'react';
 import { UsageCard } from './UsageCard';
 import { QuotaCredentials } from './QuotaCredentials';
-import { ClaudeCodeSignIn } from './ClaudeCodeSignIn';
 import { ConsoleBudgetsSection } from './ConsoleBudgetsSection';
 import { useQuotaAutoRefresh, useQuotaProviders, useQuotaStore } from '@/stores/useQuotaStore';
 import { updateDesktopSettings } from '@/lib/persistence';
@@ -45,7 +44,6 @@ export const UsagePage: React.FC = () => {
   const results = useQuotaStore((state) => state.results);
   const selectedProviderId = useQuotaStore((state) => state.selectedProviderId);
   const setSelectedProvider = useQuotaStore((state) => state.setSelectedProvider);
-  const fetchProviderQuota = useQuotaStore((state) => state.fetchProviderQuota);
   const isLoading = useQuotaStore((state) => state.isLoading);
   const blink = useWaitingBlink(isLoading);
   const lastUpdated = useQuotaStore((state) => state.lastUpdated);
@@ -216,7 +214,8 @@ export const UsagePage: React.FC = () => {
           {selectedProviderId === 'claude' ? (
             <>
               <p className="typography-ui-label font-medium text-[var(--status-warning)]">{t('settings.usage.page.state.claudeSignedOutTitle')}</p>
-              <ClaudeCodeSignIn onSignedIn={() => void fetchProviderQuota('claude')} />
+              <p className="typography-meta text-[var(--status-warning)]/80 mt-1">{t('settings.usage.page.state.claudeSignInCommand')}</p>
+               <code className="typography-code mt-1.5 block whitespace-pre-wrap break-all rounded bg-muted/50 px-2 py-1.5 text-xs text-foreground">claude auth login</code>
             </>
           ) : (
             <>

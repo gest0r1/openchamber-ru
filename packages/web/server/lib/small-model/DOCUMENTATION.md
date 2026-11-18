@@ -160,10 +160,9 @@ that predates the field, so rollback would break instead of falling back to the
 model default. The pair also matches `defaultModel` and `defaultVariant`, and
 lets the Settings UI clear the effort when the model changes.
 
-Claude Code (`claude-code`, from the opencode-claude plugin) is a provider
-like any other: its generate path runs a clean one-shot turn with no tools and
-no session, so `claude-code/haiku` (family `claude-haiku`) is picked in the
-normal family order.
+The native Claude Agent (`claude-agent`) is a provider like any other:
+its generate path runs a clean one-shot turn with no tools and no session,
+so `claude-agent/haiku` (family `claude-haiku`) is picked in the normal family order.
 
 ## Prompt shape
 
@@ -207,7 +206,7 @@ retry. A blown deadline (not caller cancellation) throws `504` with
 to that message instead of the generic "choose another model" text.
 
 OpenCode 2 can reject an explicit model before its cold catalog finishes loading;
-plugin-provided models (Claude Code) stay unavailable for 20-40 s after OpenCode
+plugin-provided models can stay unavailable for 20-40 s after OpenCode
 starts because plugins for the global location load lazily. Generation waits up
 to 5 s for those plugins, then answers `ServiceUnavailableError` with
 `service: 'plugin'`; a model still missing after them answers
@@ -248,7 +247,7 @@ models that work perfectly in the user's project.
 
 `GET /api/provider` only contributes names. It comes back empty on setups where
 models are perfectly usable, so an empty provider list is never read as "no
-providers". Claude Code is removed from the result for the reason above.
+providers". Providers without authenticated models are excluded from the result.
 
 The field is served as `authenticatedProviders` on `GET /api/small-model`, and
 the route forwards its `?directory=` query to both halves of the answer. The

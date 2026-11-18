@@ -36,8 +36,8 @@ export interface OAuthAttempt {
   paste: boolean;
 }
 
-export const shouldOpenAuthorizationUrl = (providerId: string, url?: string): boolean =>
-  Boolean(url) && providerId !== 'claude-code';
+export const shouldOpenAuthorizationUrl = (_providerId: string, url?: string): boolean =>
+  Boolean(url);
 
 /**
  * Device codes are only carried inside the human-readable instructions
