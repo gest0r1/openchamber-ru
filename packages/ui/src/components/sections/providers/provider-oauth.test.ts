@@ -14,9 +14,10 @@ import {
 } from './provider-oauth';
 
 describe('shouldOpenAuthorizationUrl', () => {
-  test('lets Claude Code CLI own browser launch', () => {
-    expect(shouldOpenAuthorizationUrl('claude-code', 'https://docs.example')).toBe(false);
+  test('opens a provider authorization URL when supplied', () => {
+    expect(shouldOpenAuthorizationUrl('claude-agent', 'https://docs.example')).toBe(true);
     expect(shouldOpenAuthorizationUrl('github-copilot', 'https://github.com/login')).toBe(true);
+    expect(shouldOpenAuthorizationUrl('github-copilot')).toBe(false);
   });
 });
 
