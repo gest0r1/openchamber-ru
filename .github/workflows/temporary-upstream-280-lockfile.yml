@@ -1,0 +1,26 @@
+name: Temporary regenerate Bun lockfile for 2.8
+on:
+  push:
+    branches: [feature/upstream-280-p1-worktree-20261123]
+permissions:
+  contents: write
+jobs:
+  lockfile:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+      - name: Regenerate invalid merged dependency lock
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          bun install --no-frozen-lockfile
+          git add bun.lock
+          if git diff --cached --quiet; then
+            echo 'Lockfile unchanged'
+            exit 0
+          fi
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git config user.name 'github-actions[bot]'
+          git commit -m 'fix(build): regenerate Bun lockfile after upstream 2.8 merge'
+          git push origin HEAD:feature/upstream-280-p1-worktree-20261123
