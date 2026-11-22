@@ -1,10 +1,6 @@
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
-
-const execFileAsync = promisify(execFile);
 const EXECUTION_HOME = '/home/opencode';
 
 /**
@@ -47,5 +43,9 @@ export const makeWorktreeDirectory = async (directory, { leaf = false } = {}) =>
     throw new Error('ROOT_WORKTREE_CHILD_BOUNDARY_MISSING');
   }
   const args = leaf ? ['-m', '0700', '--', directory] : ['-p', '-m', '0700', '--', directory];
-  await execFileAsync('/usr/bin/mkdir', args, { timeout: 30000 });
+  // Resolve only when an isolated root actually needs to create a directory.
+  // Module imports must not require the execFile export from unrelated Git mocks.
+  const { execFile } = await import('node:child_process');
+  const { promisify } = await import('node:util');
+  await promisify(execFile)('/usr/bin/mkdir', args, { timeout: 30000 });
 };
