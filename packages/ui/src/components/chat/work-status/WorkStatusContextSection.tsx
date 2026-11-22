@@ -50,11 +50,8 @@ import { useMobileAppActions } from '@/apps/mobileAppContext';
 
 const EMPTY_PLANS: ProjectPlanLink[] = [];
 
-/**
- * Plans whose work runs in this session: the plan's card in Project knowledge
- * leads here, and this row leads back. Read from the project's knowledge
- * store, kept current through the control stream like the knowledge panel.
- */
+const selectSessionLoadedSkills = (messages: Message[], state: State): LoadedSkill[] => selectLoadedSkills(messages, state.part);
+
 const useSessionLinkedPlans = (sessionId: string | null, projectRef: ProjectRef | null): ProjectPlanLink[] => {
   const contextId = projectRef ? resolveProjectContextId(projectRef) : null;
   const plans = useProjectContextStore((state) => (contextId ? state.entries[contextId]?.plans : undefined) ?? EMPTY_PLANS);
@@ -137,10 +134,6 @@ export const WorkStatusContextSection: React.FC<Props> = ({ sessionId, directory
     void loadProjectContext({ id: draftProject.id, path: draftProject.path });
   }, [draftProject, isDraft, loadProjectContext]);
 
-  // An agent's pin reaches the client as a patch of the session's OpenChamber
-  // metadata, so that is what re-reads the summary. The whole record changes
-  // on every step of a running turn (`time.updated`), which the summary does
-  // not show: keyed on it, the panel asked the server again at each step.
   const openchamberMetadataKey = JSON.stringify(session?.metadata?.openchamber ?? null);
   React.useEffect(() => {
     let cancelled = false;
@@ -191,7 +184,6 @@ export const WorkStatusContextSection: React.FC<Props> = ({ sessionId, directory
   const projectRef = useProjectContextOwner(directory);
   const linkedPlans = useSessionLinkedPlans(sessionId, projectRef);
   const linkedPlanIds = React.useMemo(() => new Set(linkedPlans.map((plan) => plan.id)), [linkedPlans]);
-  // A pinned plan this session works on shows once, as the linked row with its pin.
   const pinnedPlanIds = React.useMemo(() => new Set(visibleKnowledge.plans.map((plan) => plan.id)), [visibleKnowledge.plans]);
   const pinnedOnlyPlans = visibleKnowledge.plans.filter((plan) => !linkedPlanIds.has(plan.id));
   const mobile = useMobileAppActions();
@@ -200,6 +192,27 @@ export const WorkStatusContextSection: React.FC<Props> = ({ sessionId, directory
     if (!projectRef || !directory) return;
     if (mobile) mobile.openPlan({ id: plan.id, title: plan.title, projectRef });
     else openProjectKnowledgePlan(directory, resolveProjectContextId(projectRef), plan.id);
+  };
+
+  const runtimeApis = React.useContext(RuntimeAPIContext);
+  const leaveWorkStatus = useLeaveWorkStatus();
+  const openLoadedSkill = (skill: LoadedSkill) => {
+    const target = resolveLoadedSkillTarget(skill, installedSkills);
+    const ui = useUIStore.getState();
+    if (target.kind === 'settings') {
+      useSkillsStore.getState().setSelectedSkill(target.name);
+      ui.setSettingsPage('skills.installed');
+      ui.setSettingsDialogOpen(true);
+      leaveWorkStatus?.();
+      return;
+    }
+    if (runtimeApis?.editor) {
+      void runtimeApis.editor.openFile(target.path);
+      return;
+    }
+    if (!directory) return;
+    ui.openContextFile(directory, target.path);
+    mobile?.openFiles();
   };
 
   const memoryCount = visibleKnowledge.memory.global + visibleKnowledge.memory.project;
@@ -288,10 +301,10 @@ export const WorkStatusContextSection: React.FC<Props> = ({ sessionId, directory
 
   useReportWorkStatusPresence(
     'context-sources',
-    linked.length > 0 || linkedPlans.length > 0 || skills.length > 0 || mcpCount > 0 || pinnedCount > 0 || memoryCount > 0,
+    linked.length > 0 || linkedPlans.length > 0 || loadedSkills.length > 0 || skills.length > 0 || mcpCount > 0 || pinnedCount > 0 || memoryCount > 0,
   );
 
-  if (linked.length === 0 && linkedPlans.length === 0 && skills.length === 0 && mcpCount === 0 && pinnedCount === 0 && memoryCount === 0) {
+  if (linked.length === 0 && linkedPlans.length === 0 && loadedSkills.length === 0 && skills.length === 0 && mcpCount === 0 && pinnedCount === 0 && memoryCount === 0) {
     return null;
   }
 
@@ -380,13 +393,9 @@ export const WorkStatusContextSection: React.FC<Props> = ({ sessionId, directory
     );
   };
 
-  // The pin is the control, exactly as in the pinned-messages section above:
-  // same icon, same placement, same behaviour. Two pins that look different in
-  // one panel would read as two different things.
   const renderUnpinButton = (unpin: () => void) => (
     <Tooltip>
       <TooltipTrigger asChild>
-        {/* A row turns off pointer events on all but buttons; the span keeps the tooltip on a disabled one. */}
         <span className="pointer-events-auto inline-flex shrink-0">
           <button
             type="button"
@@ -413,8 +422,6 @@ export const WorkStatusContextSection: React.FC<Props> = ({ sessionId, directory
       icon="stack"
       summary={summaryParts.join(' · ')}
     >
-      {/* The plan this session works on, then attached threads: both are
-          specific to this session, while the counts below describe the workspace. */}
       {linkedPlans.map((plan) => (
         <WorkStatusRow
           key={`plan:${plan.id}`}
@@ -469,7 +476,6 @@ export const WorkStatusContextSection: React.FC<Props> = ({ sessionId, directory
               </Tooltip>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  {/* A row turns off pointer events on all but buttons; the span keeps the tooltip on a disabled one. */}
                   <span className="pointer-events-auto inline-flex shrink-0">
                     <button
                       type="button"
@@ -479,7 +485,6 @@ export const WorkStatusContextSection: React.FC<Props> = ({ sessionId, directory
                         event.stopPropagation();
                         unlinkLinkedThread(entry);
                       }}
-                      // A finger needs more than the icon, and a missed copy must not land on unlink.
                       className="shrink-0 rounded p-0.5 text-muted-foreground transition-colors hover:text-foreground disabled:opacity-40 disabled:hover:text-muted-foreground pointer-coarse:p-2"
                     >
                       <Icon name="close" className="size-[13px]" />
@@ -498,7 +503,6 @@ export const WorkStatusContextSection: React.FC<Props> = ({ sessionId, directory
         />
       ))}
 
-      {/* Named individually: a count alone would not identify this session's context. */}
       {visibleKnowledge.notes.map((note) => (
         <WorkStatusRow
           key={note.id}

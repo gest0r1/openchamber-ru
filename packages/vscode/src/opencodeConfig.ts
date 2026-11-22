@@ -31,13 +31,6 @@ import {
 } from '../../web/server/lib/opencode/plugin-switches.js';
 import { readPluginSwitches, setPluginSwitch } from './plugin-switches';
 import {
-  isPluginDenialOverridden,
-  pluginPolicyResource,
-  pluginSwitchState,
-  type PluginSwitchState,
-} from '../../web/server/lib/opencode/plugin-switches.js';
-import { readPluginSwitches, setPluginSwitch } from './plugin-switches';
-import {
   toAgentEntity,
   fromAgentEntity,
   isLegacyAgentFrontmatter,
@@ -846,12 +839,6 @@ const walkSkillMdFiles = (rootDir?: string | null): string[] => {
       return;
     }
 
-    // A directory holding its own SKILL.md is one skill, and hidden directories
-    // and node_modules are skipped, as OpenCode discovers skills. Without this a
-    // dependency's bundled SKILL.md files listed as skills the user installed
-    // (#6708). The web server's walker in packages/web/server/lib/opencode/shared.js
-    // follows the same rule. A SKILL.md that is a link counts, and is collected,
-    // when it resolves to a file; a dangling one is skipped.
     const skillEntry = entries.find((entry) => entry.name === 'SKILL.md');
     let holdsSkill = Boolean(skillEntry?.isFile());
     if (!holdsSkill && skillEntry?.isSymbolicLink()) {
@@ -942,9 +929,6 @@ const deepEqualJsonValue = (a: JsonValue, b: JsonValue): boolean => {
   return false;
 };
 
-// Element edits for an array that only grew at its end or only lost elements;
-// null for any other resize. Removals run from the highest index down, so each
-// one leaves the indices of the next in place.
 const arrayResizeEdits = (current: JsonValue[], next: JsonValue[], basePath: JSONPath): ConfigEdit[] | null => {
   if (next.length > current.length) {
     if (!current.every((item, index) => deepEqualJsonValue(item, next[index]))) return null;
@@ -964,12 +948,6 @@ const arrayResizeEdits = (current: JsonValue[], next: JsonValue[], basePath: JSO
   return removed.reverse().map((index) => ({ type: 'remove', path: [...basePath, index] }));
 };
 
-// Structural diff between the parsed on-disk config and the desired config.
-// Equal-length arrays keep their indices unless a retained value moves between
-// changed positions. An array that only grew at its end or only lost elements
-// gets one edit per element; other resized arrays and scalars are replaced
-// whole. The desired config must already be JSON-normalized, so absent keys
-// signal removals.
 const collectConfigEdits = (
   current: JsonValue,
   next: JsonValue,
@@ -1033,11 +1011,6 @@ const findSeparatorComma = (text: string, start: number, end: number): number =>
   return -1;
 };
 
-// Removes exactly the property node, or the array element, plus one adjacent
-// separator comma. The scanner-based comma lookup keeps comments in the
-// surrounding gaps (including commas inside comments), and avoids
-// jsonc-parser's own removal, which leaves a stray comma after the last
-// property of an object and deletes the comments next to an array element.
 const removeNodeEdits = (text: string, nodePath: JSONPath): Edit[] => {
   const root = parseTree(text, [], { allowTrailingComma: true });
   const valueNode = root ? findNodeAtLocation(root, nodePath) : undefined;
@@ -1072,7 +1045,6 @@ const removeNodeEdits = (text: string, nodePath: JSONPath): Edit[] => {
     commaOffset = findSeparatorComma(text, beforeGapStart, nodeStart);
   }
   const commaBefore = commaOffset !== -1 && commaOffset < nodeStart;
-  // A node alone on its lines leaves with them, so no blank line stays behind.
   const lineStart = text.lastIndexOf('\n', nodeStart - 1) + 1;
   const removedEnd = commaOffset >= nodeEnd ? commaOffset + 1 : nodeEnd;
   const lineEnd = text.indexOf('\n', removedEnd);
@@ -1092,11 +1064,6 @@ const removeNodeEdits = (text: string, nodePath: JSONPath): Edit[] => {
   return edits;
 };
 
-// Adds an element on its own line after the last one, at that element's
-// indentation, so the text of the elements before it stays as written:
-// jsonc-parser's own insertion reformats the whole line it lands on. An empty
-// array, or one whose closing bracket shares a line with an element, goes
-// through jsonc-parser.
 const appendElementEdits = (
   text: string,
   elementPath: JSONPath,
@@ -1368,13 +1335,6 @@ const ensureProjectPluginConfigPath = (workingDirectory?: string | null): string
   return path.join(workingDirectory, '.opencode', 'opencode.json');
 };
 
-/**
- * Every config file OpenCode 2 takes plugins from, in its load order: the
- * global `opencode.json` and `opencode.jsonc`, then `OPENCODE_CONFIG`, then the
- * files found walking up from the project folder. Each file adds its own
- * entries; none replaces another's. A parent folder's file reaches every
- * project below it, so it counts as user scope, like the global file.
- */
 const getPluginConfigSources = (workingDirectory?: string | null): Array<{ scope: PluginScope; path: string; config: Record<string, unknown> }> => {
   const directory = workingDirectory || undefined;
   const layers = readConfigLayers(directory);
@@ -1389,8 +1349,6 @@ const getPluginConfigSources = (workingDirectory?: string | null): Array<{ scope
       ? [{ scope: 'user' as const, path: customPath, config: layers.customConfig }]
       : []),
   ];
-  // A folder file that is also `OPENCODE_CONFIG` stays the user entry, so the
-  // list, edits and duplicate checks all see one declaration.
   const seenFiles = new Set(userSources.map((source) => canonicalPluginPath(source.path)));
   return [
     ...userSources,
@@ -1447,8 +1405,6 @@ const getPluginTarget = (id: string, workingDirectory?: string | null): null | {
     throw codedError('Plugin entry id must use config prefix', 'INVALID_SPEC');
   }
   const { scope, rest: spec } = parsePluginIdValue(decoded.value);
-  // Two files can both declare the spec; the later one is the entry the list
-  // shows, so it is the one edited.
   const source = getPluginConfigSources(workingDirectory).reverse().find((candidate) => (
     candidate.scope === scope && hasPluginSpec(readPluginArray(candidate.config), spec)
   ));
@@ -1465,12 +1421,6 @@ const getPluginTarget = (id: string, workingDirectory?: string | null): null | {
   return { scope, path: source.path, config: source.config, plugin: [...plugin], index, spec };
 };
 
-/**
- * The configs OpenCode loads ahead of the switch denials, earliest first; the
- * earliest-loaded policy wins. The managed file is `OPENCODE_CONFIG`, right after
- * the global files. A user-owned `OPENCODE_CONFIG` moves the denials to
- * `OPENCODE_CONFIG_CONTENT`, which loads after every file.
- */
 const configsAheadOfManagedLayer = (workingDirectory?: string): unknown[] => {
   const layers = readConfigLayers(workingDirectory);
   return layers.paths.customPath
@@ -1507,8 +1457,6 @@ export const listPluginEntries = (workingDirectory?: string, switchDirectory?: s
       entries.push(entry);
     }
   }
-  // A spec in two files of one scope shares one id; the later file's entry is
-  // listed, matching `getPluginTarget`.
   return [...new Map(entries.map((entry) => [entry.id, entry])).values()];
 };
 
@@ -1548,12 +1496,6 @@ export const deletePluginEntry = (id: string, workingDirectory?: string): void =
   writeConfig(writePluginArray(target.config, target.plugin), target.path);
 };
 
-/**
- * Record one switch in the OpenChamber store. The managed config layer the
- * extension's OpenCode reads carries the deny; the user's config keeps the entry
- * and its options untouched. A rule of theirs that would beat the deny refuses
- * the change, so the page never reports a plugin as off while it keeps loading.
- */
 const recordPluginSwitch = (resource: string, enabled: boolean, workingDirectory: string | undefined, switchDirectory: string) => {
   if (!enabled && isPluginDenialOverridden(resource, configsAheadOfManagedLayer(workingDirectory))) {
     throw codedError('A rule in the OpenCode config allows this plugin, so OpenChamber cannot switch it off', 'SWITCH_OVERRIDDEN');
@@ -1624,8 +1566,7 @@ export const listPluginDirFiles = (workingDirectory?: string, switchDirectory?: 
       const absolutePath = path.join(dir, entry.name);
       if (pluginDirEntryKind(entry, absolutePath) !== 'file' || !isExistingPluginFileName(entry.name)) continue;
       try {
-        const fileName = validatePluginFileName(entry.name);
-        const absolutePath = path.join(dir, fileName);
+        const fileName = entry.name;
         const policyResource = `plugin:${absolutePath}`;
         const file: PluginFile = {
           id: encodePluginId('file', `${scope}:${fileName}`),

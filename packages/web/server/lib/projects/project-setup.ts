@@ -26,17 +26,10 @@ const clamp = (value: string, maxLength: number) => (value.length > maxLength ? 
 
 const trimmedString = z.unknown().transform((value) => (isText(value) ? value.trim() : '')).parse;
 
-/**
- * The command that creates a project's worktrees in place of the built-in
- * `git worktree add`: one trimmed string, `''` when the project uses the
- * built-in creation. Personal only: it names a tool installed on this
- * machine, which a teammate who pulls the shared file may not have.
- */
-const sanitizeCreateWorktreeCommand = (value) => clamp(trimmedString(value), SETUP_COMMAND_MAX_LENGTH);
+const sanitizeCreateWorktreeCommand = z.unknown().transform((value) => clamp(trimmedString(value), SETUP_COMMAND_MAX_LENGTH)).parse;
 
-/** Setup commands: non-empty trimmed strings, capped in count and length. */
-export const sanitizeSetupCommands = (value) => {
-  if (!Array.isArray(value)) return [];
+export const sanitizeSetupCommands = z.unknown().transform((value): string[] => {
+  if (!isInputArray(value)) return [];
   const commands = [];
   for (const entry of value) {
     const command = clamp(trimmedString(entry), SETUP_COMMAND_MAX_LENGTH);
@@ -118,8 +111,8 @@ export const projectSetupViewOf = z.unknown().transform((raw): PersonalProjectSe
   const primaryRaw = trimmedString(document.projectActionsPrimaryId);
   return {
     setupWorktree: sanitizeSetupCommands(document['setup-worktree']),
-    setupWorktreeWait: typeof document['setup-worktree-wait'] === 'boolean' ? document['setup-worktree-wait'] : null,
-    setupWorktreeMode: SETUP_WORKTREE_MODES.has(document.setupWorktreeMode) ? document.setupWorktreeMode : 'append',
+    setupWorktreeWait: isBoolean(document['setup-worktree-wait']) ? document['setup-worktree-wait'] : null,
+    setupWorktreeMode: isWorktreeMode(document.setupWorktreeMode) ? document.setupWorktreeMode : 'append',
     teardownWorktree: sanitizeSetupCommands(document.teardownWorktree),
     createWorktreeCommand: sanitizeCreateWorktreeCommand(document.createWorktreeCommand),
     projectActions,
@@ -156,7 +149,7 @@ export const projectSetupPatchToStored = z.unknown().transform((patch): StoredPr
     stored.teardownWorktree = sanitizeSetupCommands(patch.teardownWorktree);
   }
   if ('createWorktreeCommand' in patch) {
-    if (typeof patch.createWorktreeCommand !== 'string') throw new Error('createWorktreeCommand must be a string');
+    if (!isText(patch.createWorktreeCommand)) throw new Error('createWorktreeCommand must be a string');
     stored.createWorktreeCommand = sanitizeCreateWorktreeCommand(patch.createWorktreeCommand) || undefined;
   }
   if ('projectActions' in patch) {
@@ -203,11 +196,6 @@ export const SHARED_CONFIG_RELATIVE_PATH = '.openchamber/project.json';
 export const DEFAULT_PLANS_DIR = '.openchamber/plans';
 export const NOTES_TODOS_RELATIVE_PATH = '.openchamber/notes-todos.json';
 const SHARED_CONFIG_VERSION = 1;
-/**
- * The keys of the shared file the setup writer owns. Every other key
- * (`magicPrompts`, keys from newer builds) belongs to another writer and goes
- * back out exactly as it was read.
- */
 export const SHARED_SETUP_KEYS = Object.freeze(['version', 'setupWorktree', 'setupWorktreeWait', 'teardownWorktree', 'projectActions', 'draftStarters', 'plansDir']);
 const SHARED_SETUP_KEY_SET = new Set(SHARED_SETUP_KEYS);
 
@@ -251,7 +239,7 @@ export const parseSharedProjectConfig = (raw: string): Exclude<SharedProjectRead
   const document = parsed;
   const invalid = (reason: string): Extract<SharedProjectRead<JsonObject>, { status: 'invalid' }> => ({ status: 'invalid', reason, document });
   if ('setupWorktree' in parsed && !Array.isArray(parsed.setupWorktree)) return invalid('setupWorktree must be an array');
-  if ('setupWorktreeWait' in parsed && typeof parsed.setupWorktreeWait !== 'boolean') return invalid('setupWorktreeWait must be a boolean');
+  if ('setupWorktreeWait' in parsed && !isBoolean(parsed.setupWorktreeWait)) return invalid('setupWorktreeWait must be a boolean');
   if ('teardownWorktree' in parsed && !Array.isArray(parsed.teardownWorktree)) return invalid('teardownWorktree must be an array');
   if ('projectActions' in parsed && !Array.isArray(parsed.projectActions)) return invalid('projectActions must be an array');
   if ('draftStarters' in parsed && !Array.isArray(parsed.draftStarters)) return invalid('draftStarters must be an array');
@@ -265,7 +253,7 @@ export const parseSharedProjectConfig = (raw: string): Exclude<SharedProjectRead
     document: parsed,
     config: {
       setupWorktree: sanitizeSetupCommands(parsed.setupWorktree),
-      setupWorktreeWait: typeof parsed.setupWorktreeWait === 'boolean' ? parsed.setupWorktreeWait : null,
+      setupWorktreeWait: isBoolean(parsed.setupWorktreeWait) ? parsed.setupWorktreeWait : null,
       teardownWorktree: sanitizeSetupCommands(parsed.teardownWorktree),
       projectActions: sanitizeProjectActions(parsed.projectActions),
       draftStarters: sanitizeDraftStarters(parsed.draftStarters),
@@ -276,13 +264,7 @@ export const parseSharedProjectConfig = (raw: string): Exclude<SharedProjectRead
 
 const withSource = <Entry extends ProjectAction | DraftStarter>(entries: Entry[], source: 'shared' | 'personal') => entries.map((entry) => ({ ...entry, source }));
 
-/**
- * What a trust answer covers: the shared setup and teardown commands and the
- * shared actions' commands, in a canonical order, hashed. A pull that changes
- * any of them changes the hash, so the prompt returns for the new commands.
- * `null` when the shared config has nothing that executes.
- */
-export const sharedTrustHashOf = (shared) => {
+export const sharedTrustHashOf = (shared: SharedProjectConfig) => {
   const commands = shared.setupWorktree;
   const teardown = shared.teardownWorktree;
   const actions = shared.projectActions
@@ -293,8 +275,6 @@ export const sharedTrustHashOf = (shared) => {
     })
     .sort((left, right) => (left.id < right.id ? -1 : left.id > right.id ? 1 : 0));
   if (commands.length === 0 && teardown.length === 0 && actions.length === 0) return null;
-  // Teardown enters the hash only when there is some, so answers recorded
-  // before teardown commands existed still match.
   const executable = teardown.length > 0
     ? { setupWorktree: commands, projectActions: actions, teardownWorktree: teardown }
     : { setupWorktree: commands, projectActions: actions };
@@ -302,21 +282,7 @@ export const sharedTrustHashOf = (shared) => {
   return `sha256:${digest}`;
 };
 
-/**
- * One merged view from the personal view and the shared read. Rules:
- * - setup commands: shared first, then personal; personal `setupWorktreeMode`
- *   `replace` uses only the personal list;
- * - wait flag: personal when the personal file sets it, else shared, else off;
- * - teardown commands: shared first, then personal; `setupWorktreeMode` does
- *   not apply to them;
- * - actions: union by id, a personal action replaces the shared one with the
- *   same id, hidden shared ids are dropped, primary is personal only;
- * - draft starters: union by `type:name`, shared first.
- * Every merged action and starter carries `source`. The `shared` and
- * `personal` blocks are returned too so a page can edit one without guessing
- * which entries came from where.
- */
-export const mergeProjectSetup = (personal, sharedRead) => {
+export const mergeProjectSetup = (personal: PersonalProjectSetup, sharedRead: SharedProjectRead) => {
   const shared = sharedRead.status === 'ok' ? sharedRead.config : EMPTY_SHARED;
   const hidden = new Set(personal.hiddenSharedActionIds);
   const personalIds = new Set(personal.projectActions.map((action) => action.id));

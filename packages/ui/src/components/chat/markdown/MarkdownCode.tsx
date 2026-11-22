@@ -110,7 +110,10 @@ const MarkdownCodeBody = React.memo(function MarkdownCodeBody({ source, language
   );
 });
 
-// An svg fence with a script or an event handler stays an ordinary code block, so the reader sees what it carries.
+const shownCode = (source: string, language: string): { code: string; language: string } => (
+  language.toLowerCase() === 'ansi' ? { code: stripAnsi(source), language: 'text' } : { code: source, language }
+);
+
 const activeSvg = /<script|\son[a-z]+\s*=/i;
 
 type CodeProps = React.ComponentProps<'code'> & ExtraProps;
@@ -120,7 +123,6 @@ const sourceOf = (node: CodeProps['node']): string => (
   node?.children.map((child) => child.type === 'text' ? child.value : '').join('') ?? ''
 ).replace(/\n$/, '');
 
-// Loaded with the first command block; it keeps the session sync out of the Markdown renderer.
 const useReplyCommandCode = onDemand(() => import('./ReplyCommand').then((module) => module.ReplyCommandCode));
 
 function RunnableCode({ reply, ...props }: CodeProps & { reply: NonNullable<MarkdownPresentation['settledReply']> }) {
@@ -128,7 +130,7 @@ function RunnableCode({ reply, ...props }: CodeProps & { reply: NonNullable<Mark
   const ReplyCommandCode = useReplyCommandCode();
   if (!ReplyCommandCode) return <MarkdownCodeBlock {...props} command={null} />;
   return (
-    <ReplyCommandCode reply={reply} directory={directory} source={sourceOf(props.node)}>
+    <ReplyCommandCode reply={reply} directory={directory} language={languageOf(props.className)} source={sourceOf(props.node)}>
       {(command) => <MarkdownCodeBlock {...props} command={command} />}
     </ReplyCommandCode>
   );
@@ -137,8 +139,6 @@ function RunnableCode({ reply, ...props }: CodeProps & { reply: NonNullable<Mark
 export function MarkdownCode(props: CodeProps) {
   const { settledReply } = useMarkdownPresentation();
   const surface = useChatSurfaceMode();
-  // Only a finished reply on a surface with controls: a command still arriving
-  // could run cut short.
   const runnable = settledReply !== null && surface !== 'peek'
     && isRunnableLanguage(languageOf(props.className)) && sourceOf(props.node).trim().length > 0;
   return runnable ? <RunnableCode {...props} reply={settledReply} /> : <MarkdownCodeBlock {...props} command={null} />;
@@ -151,7 +151,6 @@ function MarkdownCodeBlock({ children, className, node, command, ...props }: Cod
   const incomplete = useIsCodeFenceIncomplete();
   const openFile = useOpenMarkdownFile();
   const [copied, setCopied] = React.useState(false);
-  // The svg source the browser could not draw; a changed source is drawn again.
   const [failedSvg, setFailedSvg] = React.useState<string | null>(null);
   const timer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   React.useEffect(() => () => {
@@ -183,7 +182,7 @@ function MarkdownCodeBlock({ children, className, node, command, ...props }: Cod
     );
   }
 
-  if (language === 'mermaid' || (language === 'openui-lang' && presentation.uiBlocks)) {
+  if (customRenderer) {
     return (
       <defaultComponents.code {...props} node={node} className={className}>
         {children}

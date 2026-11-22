@@ -91,7 +91,6 @@ type Props = {
   depth: number;
   detailed: boolean;
   mixed: boolean;
-  /** Listed in the Pinned section, whose header already says it is pinned. */
   inPinnedZone: boolean;
   collapsed: boolean;
   empty: boolean;
@@ -135,17 +134,8 @@ export function WorktreeWorkRow(props: Props): React.ReactNode {
   } = work;
   const projectNamed = useZoneProjectNames();
   const namesProject = mixed && projectNamed && project !== null && project !== undefined;
-  // Named by its branch, a work has its task's name left for the second line.
-  // Where that line already names the project, the task's name stays in the
-  // tooltip: the user chose the branch as the work's name.
   const lineName = namesProject && secondName === title ? null : secondName;
-  // Extensions' marks (`contributes.marks`) on the work's branch and on its
-  // folder, the branch read as its sessions' rows read it: live Git state
-  // first. A space's row shows none, as its sessions' rows do.
-  const guestMarks = useWorkRowGuestMarks({ space: Boolean(space), projectId: project?.id ?? projectId ?? null, directory, branch });
-  // A mark opens its extension's panel on the work, opened as a click on the
-  // row opens it; an extension without a panel opens the mark's link where
-  // the user is, as the PR mark opens its page, and opens no work.
+  const guestMarks = useWorkRowGuestMarks({ space: Boolean(space), projectId: project?.id ?? projectId ?? null, projectPath: project?.path ?? null, directory, branch });
   const openGuestMark = (mark: RowGuestMark): void => {
     if (!mark.panel) {
       if (mark.url) void openGuestUrl(mark.url, resolveEffectiveDirectory() ?? null, true);
@@ -155,8 +145,6 @@ export function WorktreeWorkRow(props: Props): React.ReactNode {
     openGuestSurface({ mode: pluginModeFromId(mark.guestId), directory: openDirectory, supported: true });
   };
   const marks = guestMarks.length > 0 ? <GuestRowMarks marks={guestMarks} onOpen={openGuestMark} /> : null;
-  // The Pinned section's header already says its works are pinned; anywhere
-  // else the row carries the mark, as a session's does.
   const pinnedLabel = t('sessions.sidebar.session.status.pinned');
   const pinnedMark = pinned && !inPinnedZone ? (
     <RowMarkTooltip label={pinnedLabel}>
@@ -326,10 +314,6 @@ export function WorktreeWorkRow(props: Props): React.ReactNode {
   ) : null;
   const tooltipLinks = refs.prSummary ? refs.prLinks : refs.issueItems;
   const hasWorkAction = workAction;
-  // With a mouse the work's menu is its right-click menu (Shift+F10 from the
-  // keyboard); the ⋯ button shows on touch only: always in touch layouts, on
-  // hover for a touch screen elsewhere. Hover reserves count it only where it
-  // always shows.
   const showMenuButton = alwaysShowActions;
   const hoverButtons = (hasWorkAction ? 1 : 0) + (shiftArchive || canNewChat ? 1 : 0) + (showMenuButton ? 1 : 0);
   const actionsReserve = [undefined, '[--oc-actions-reserve:0.625rem]', '[--oc-actions-reserve:1.75rem]', '[--oc-actions-reserve:2.875rem]'][hoverButtons];
@@ -364,6 +348,7 @@ export function WorktreeWorkRow(props: Props): React.ReactNode {
           onUnpin={() => { void work.setPin(false); }}
         />
       ) : null}
+      {worktree ? <TakeOverWorktreeItem path={directory} Item={Slots.Item} /> : null}
       {canFile ? (
         <Slots.Sub>
           <Slots.SubTrigger>
@@ -554,12 +539,8 @@ export function WorktreeWorkRow(props: Props): React.ReactNode {
         {detailed ? (
           <div className="flex h-4 w-full min-w-0 items-center gap-1">
             {lead}
-            {/* The marks below set the name apart, so it takes no dot. */}
             {namesProject ? <TimelineProjectName project={project} fallback={projectLabel} separated={false} /> : null}
             {mixed && project && space ? workMark('h-3 w-3') : null}
-            {/* A worktree's branch wears the worktree mark: after the project's
-                icon it is what tells the work from a plain session row, whose
-                branch shows no icon. A space's mark is already above. */}
             {mixed && project && !space && lineName && lineName === branch ? workMark('h-3 w-3') : null}
             {lineName ? (
               <span dir="auto" className="min-w-0 truncate typography-micro text-muted-foreground">{lineName}</span>

@@ -151,6 +151,7 @@ export const BranchPullRequestPreview: React.FC<{
                 onOpenStackLayer={(layer) => { showTrackerItem(layer.url, directory); }}
                 onOpenChecks={() => setChecksOpen(true)}
                 onRefresh={refreshFromHost}
+                onSaveText={saveText}
                 stateMenu={reference.state !== 'merged' ? <SourceBoardStateMenuItems item={item} context={context} onChanged={refresh} /> : undefined}
                 commentAttachments={{ onAttach: attachments.attachComment, onAttachAll: attachments.attachComments }}
                 threadActions={threadActions}

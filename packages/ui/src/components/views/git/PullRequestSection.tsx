@@ -969,8 +969,7 @@ export const PullRequestSection: React.FC<{
             : pr.draft
               ? 'sessions.sidebar.group.pr.status.draft'
               : 'sessions.sidebar.group.pr.status.open'),
-        // Whether it can merge is a question for an open one only: GitLab reports
-        // a merged or closed merge request as not mergeable.
+        // external: https://docs.gitlab.com/api/merge_requests/#merge-status Closed and merged merge requests are not mergeable; only open changes need this check.
         pr.state === 'open' && pr.mergeable === false ? t('gitView.pr.notMergeable') : null,
         pr.state === 'open' && typeof pr.mergeableState === 'string' && pr.mergeableState && pr.mergeableState !== 'unknown'
           ? pr.mergeableState
@@ -1079,7 +1078,7 @@ export const PullRequestSection: React.FC<{
                       },
                       context: readContext,
                     });
-                    openContextSurface(directory, 'walkthrough');
+                    openContextPanelTab(directory, { mode: 'walkthrough', targetDirectory: null });
                   }}
                   aria-label={t('walkthrough.action.open')}
                 >

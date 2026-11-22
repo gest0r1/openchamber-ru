@@ -29,7 +29,7 @@ import { markPendingUserSendAnimation } from "@/lib/userSendAnimation"
 import { prepareUserMessageResume } from "./user-message-resume"
 import { normalizePath } from "@/lib/pathNormalization"
 import { descendingId } from "@/lib/opencode/ids"
-import { CHAT_DRAFT_PROJECT_ID, captureChatDirectoryCleanup as captureChatCleanup, createChatDirectory, deleteChatDirectory, getChatsRoot, getChatsRootFromDirectory, isChatDirectoryPath, resolveChatsRootDirectory, warmChatsRootDirectory } from "@/lib/chatDirectories"
+import { CHAT_DRAFT_PROJECT_ID, captureChatDirectoryCleanup as captureChatCleanup, createChatDirectory, deleteChatDirectory, getChatsRoot, isChatDirectoryPath, resolveChatsRootDirectory, warmChatsRootDirectory } from "@/lib/chatDirectories"
 import { isSpaceArchiveDirectory } from "@/lib/spaces/space-archives"
 import { isSpaceDirectory } from "@/lib/spaces/space-route"
 import { isSpaceDirectoryClosedToNewSessions } from "@/lib/spaces/spaces-store"
@@ -78,6 +78,8 @@ import {
   updateSessionTitle as updateSessionTitleAction,
   optimisticSend,
   commitStagedRevert,
+  commitSessionRevert,
+  waitForPendingRevert,
   refetchSessionMessages,
   revertToMessage as revertToMessageAction,
   forkFromMessage as forkFromMessageAction,
@@ -172,24 +174,13 @@ export async function routeMessage(params: Pick<SendMessageOptions, "isCurrentRu
   }
   assertRuntimeCurrent()
   const requestDirectory = params.directory ?? undefined
-  // The request goes to the directory the session lives in when it leaves:
-  // a session created from a draft can end up elsewhere than where its first
-  // message was shown, and its record is there. The record decides, since a
-  // store holding the session proves containment only.
   const sendDirectory = () => getAuthoritativeSessionDirectory(params.sessionId) ?? requestDirectory
-  // The session carries its own model and agent server-side. Sending them on
-  // every turn would switch the session to whatever the composer happens to
-  // show, so only a genuine change travels with the prompt. Resolved when the
-  // request is about to leave: a session created from a draft has its record,
-  // with the model it was created on, only once `ready` settles.
   const sendSelection = () => resolveCheckedSendSelection(params.sessionId, sendDirectory(), {
     providerID: params.providerID,
     modelID: params.modelID,
     variant: params.variant,
     agent: params.agent,
   })
-  // A context item becomes a synthetic message, which carries text only. Any
-  // file it brought rides with the send so the attachment still arrives.
   const contextItems = (params.additionalParts ?? [])
     .filter((part) => part.text.trim().length > 0)
     .map((part) => ({ text: part.text, metadata: part.metadata }))
@@ -262,7 +253,7 @@ export async function routeMessage(params: Pick<SendMessageOptions, "isCurrentRu
         delivery: params.delivery,
         directory: sendDirectory(),
         beforeSend: params.beforeSend,
-        commitRevert: revertStaged ? () => opencodeClient.commitRevert(params.sessionId, sendDirectory()) : undefined,
+        commitRevert: revertStaged ? () => commitSessionRevert(params.sessionId, sendDirectory()) : undefined,
       })
       return 'command'
     }
@@ -285,6 +276,7 @@ export async function routeMessage(params: Pick<SendMessageOptions, "isCurrentRu
     ready: params.ready,
     markBusy: params.markBusy,
     appendSubmissions: params.appendSubmissions,
+    onOptimisticInsert: params.onMessageMinted,
     send: async (messageID, context, commitRevert) => {
       assertRuntimeCurrent()
       const selection = await sendSelection()
@@ -607,9 +599,6 @@ const activateConfigForDirectory = async (
   await useConfigStore.getState().activateDirectory(normalizePath(directory), options)
 }
 
-// A chat draft has no folder of its own yet. It reads the managed Chats root,
-// where its commands and skills come from, so the catalog and defaults it starts
-// on are the ones its folder will have. Null until the server names the root.
 const resolveDraftConfigDirectory = (
   draft: NewSessionDraftState,
   project: { path?: string | null } | null | undefined,
@@ -683,11 +672,9 @@ const applyDraftTargetSelectionDefaults = (
       await activateConfigForDirectory(directory, activationOptions)
     })
     : !configDirectory && draft.target === "chat"
-      // A failed lookup leaves the catalog as it is; the next draft asks again.
       ? resolveChatsRootDirectory().then(async (chatsRoot) => {
         if (!isDraftStillCurrent()) return
         const activated = activateConfigForDirectory(chatsRoot, activationOptions)
-        // The root's saved snapshot can hold another draft's pick; this draft starts on defaults.
         applyDefaults()
         await activated
       }, () => undefined)
@@ -921,18 +908,6 @@ const createSessionWithDraftLifecycle = async (
   }
 }
 
-/**
- * The effort a send should record for its session.
- *
- * A send carries `undefined` both when no effort was ever chosen and when the
- * user explicitly picked "Default", so the sent value alone cannot tell the two
- * apart, and recording it raw clears a real "Default". The live selection can
- * tell them apart, because its `override` keeps `null` for "Default" — but only
- * while it still describes the agent and model being sent to, and only for a
- * send from the main chat, whose composer that selection is: a `/btw` fork or
- * a chat pinned in the side panel keeps its own level on the same agent and
- * model. Otherwise the send's own value is all there is to go on.
- */
 const resolveVariantToRecord = (
   sendsFromMainChat: boolean,
   agentName: string | undefined,
@@ -1064,7 +1039,6 @@ const finishDraftSession = (
 const saveDraftSessionSelection = (sessionId: string, selection: DraftSessionSelection): string | undefined => {
   const configState = useConfigStore.getState()
   const effectiveDraftAgent = trimAgent(selection.agent) ?? configState.currentAgentName
-  // Only the main chat opens a new-session draft.
   const variantOverride = resolveVariantToRecord(
     true,
     effectiveDraftAgent,
@@ -1312,7 +1286,6 @@ export const useSessionUIStore = create<SessionUIState>()((set, get) => ({
       if (resolvedDir && directoryState.currentDirectory !== resolvedDir) {
         directoryState.setDirectory(resolvedDir, { showOverlay: false })
       } else if (resolvedDir && leavesChatDraft) {
-        // A chat draft keeps the app's directory but reads the Chats root's catalog.
         void activateConfigForDirectory(resolvedDir).catch((error) => {
           console.warn("Failed to activate directory after leaving a chat draft:", error)
         })
@@ -1345,8 +1318,6 @@ export const useSessionUIStore = create<SessionUIState>()((set, get) => ({
     }
 
     if (id) {
-      // Opening another session ends the visit in which marks were made, so
-      // they clear the next time their sessions are opened.
       if (previousSessionId !== id) releaseKeptUnreadMarks()
       markSessionViewed(id)
       setActiveSession(resolvedDir ?? "", id)

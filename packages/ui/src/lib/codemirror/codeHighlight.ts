@@ -3,9 +3,7 @@ import type { Extension, Transaction } from '@codemirror/state';
 import { Compartment, RangeSetBuilder } from '@codemirror/state';
 import { Decoration, type DecorationSet, EditorView, ViewPlugin, type ViewUpdate } from '@codemirror/view';
 
-import { isHighlightsLanguage } from '@/components/chat/markdown/highlightsEngine';
-import { highlightTokensInWorker } from '@/components/chat/markdown/markdown-worker';
-import type { CodeTokenTheme, MarkdownTokenRun } from '@/components/chat/markdown/markdown-worker-protocol';
+import { highlightsLanguage, loadHighlights } from '@/components/chat/markdown/highlightsEngine';
 
 
 type CodeHighlightOptions = {
@@ -106,13 +104,14 @@ export const codeHighlightExtension = (options: CodeHighlightOptions): Extension
     private active = true;
 
     constructor(view: EditorView) {
-      highlightsModule ??= import('@pierre/highlights').catch(() => null);
-      void highlightsModule.then((highlights) => {
-        if (!this.active) return;
-        const live = highlights && isHighlightsLanguage(highlights, lang)
-          ? liveHighlightPlugin((code) => new highlights.LiveTokenizer({ code, lang, theme: options.theme.zed, renderRange: visibleLines(view) }))
-          : null;
-        view.dispatch({ effects: engine.reconfigure(live ?? [workerDecorationsField, workerHighlightPlugin(options)]) });
+      void loadHighlights().then((highlights) => {
+        if (!this.active || !highlights) return;
+        const lang = highlightsLanguage(highlights, options.language);
+        view.dispatch({
+          effects: engine.reconfigure(liveHighlightPlugin((code) => (
+            new highlights.LiveTokenizer({ code, lang, theme: options.theme, renderRange: visibleLines(view) })
+          ))),
+        });
       });
     }
 

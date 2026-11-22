@@ -13,12 +13,14 @@ import {
 import { copyTextToClipboard } from '@/lib/clipboard';
 import { useUIStore } from '@/stores/useUIStore';
 import { HoverTooltip } from '@/components/ui/row-tooltip';
-import { useI18n } from '@/lib/i18n';
+import { isRightToLeft, useI18n } from '@/lib/i18n';
 import { useMarkdownPresentation } from './MarkdownPresentationContext';
 import { cn } from '@/lib/utils';
 import { ColumnResizeHandle } from '@/components/ui/ColumnResizeHandle';
 import { ScrollableOverlay } from '@/components/ui/ScrollableOverlay';
 import { loadColumnWidths, saveColumnWidths, type ColumnWidths } from '@/lib/columnWidthMemory';
+import { ChatTranscriptContext } from '../column/ChatTranscriptContext';
+import { useChatTableOverflow } from '@/hooks/useChatTableOverflow';
 
 type TableFormat = 'csv' | 'tsv' | 'md';
 const copyFormats = ['csv', 'tsv', 'md'] as const;
@@ -35,12 +37,34 @@ type TableResize = {
 };
 const TableResizing = React.createContext<TableResize | null>(null);
 
+type ChatTableGeometry = { available: number; offset: number; viewport: HTMLElement };
+
+function chatTableGeometry(tableWrapper: HTMLElement, view: Window): ChatTableGeometry | null {
+  const markdownRoot = tableWrapper.closest('.markdown-content');
+  const nested = tableWrapper.parentElement?.closest('blockquote, li, details');
+  if (!markdownRoot || (nested && markdownRoot.contains(nested))) return null;
+  const viewport = tableWrapper.closest<HTMLElement>('[data-scrollbar="chat"]');
+  if (!viewport) return null;
+  const message = tableWrapper.closest<HTMLElement>('[data-message-id]');
+  const column = message?.querySelector<HTMLElement>('.chat-message-column');
+  if (!column) return null;
+
+  const style = view.getComputedStyle(column);
+  const paddingStart = parseFloat(style.paddingInlineStart) || 0;
+  const paddingEnd = parseFloat(style.paddingInlineEnd) || 0;
+  const available = Math.max(0, viewport.clientWidth - paddingStart - paddingEnd - 2);
+  const viewportLeft = viewport.getBoundingClientRect().left + viewport.clientLeft;
+  const targetLeft = viewportLeft + (isRightToLeft(column) ? paddingEnd : paddingStart);
+  const wrapperRect = tableWrapper.getBoundingClientRect();
+  const frameLeft = isRightToLeft(tableWrapper) ? wrapperRect.right - available : wrapperRect.left;
+  return { available, offset: targetLeft - frameLeft, viewport };
+}
+
 const headingText = (node: Element['children'][number]): string => {
   if (node.type === 'text') return node.value;
   return node.type === 'element' ? node.children.map(headingText).join('') : '';
 };
 
-/** A table is named by its headings: an order number would move with every table added above it. */
 const tableHeadings = (table: Element | undefined): string => {
   const head = table?.children.find((child): child is Element => child.type === 'element' && child.tagName === 'thead');
   return head ? headingText(head) : '';
@@ -142,7 +166,8 @@ function serializeMarkdownTable(table: HTMLTableElement, format: TableFormat): s
 }
 
 export function MarkdownTable({ node, className, children, ...props }: React.ComponentProps<'table'> & ExtraProps) {
-  const { purpose, settled, tableWidthScope } = useMarkdownPresentation();
+  const { purpose, settled, tableWidthScope, chatTableExpansion } = useMarkdownPresentation();
+  const inMainChat = React.useContext(ChatTranscriptContext);
   const wrap = useUIStore((state) => state.tableCellWrap);
   const ref = React.useRef<HTMLTableElement>(null);
   const wrapper = React.useRef<HTMLDivElement>(null);
@@ -209,14 +234,23 @@ export function MarkdownTable({ node, className, children, ...props }: React.Com
       : null;
     if (chatViewport) observer.observe(chatViewport);
     return () => observer.disconnect();
-  }, [node, measured, settled]);
+  }, [node, measured, settled, chatTableExpansion, inMainChat, props.dir]);
   const tableId = tableWidthScope && !purpose ? `${tableWidthScope}#${tableHeadings(node)}` : null;
   const [userWidths, setUserWidths] = React.useState<ColumnWidths>(() => (tableId ? loadColumnWidths(tableId) : {}));
   const [dragged, setDragged] = React.useState<{ column: number; width: number } | null>(null);
-  const fitted = React.useMemo(
-    () => measured ? fitColumns(measured.natural, measured.available, wrap) : null,
-    [measured, wrap],
+  const canExpand = Boolean(
+    chatTableExpansion
+    && inMainChat
+    && settled
+    && measured?.chat
+    && measured.chat.available > measured.available + 48
+    && measured.natural.reduce((sum, width) => sum + width, 0) > measured.available + 1,
   );
+  const isExpanded = expanded && canExpand;
+  const expandedGeometry = isExpanded ? measured?.chat ?? null : null;
+  const fitted = React.useMemo(() => (
+    measured ? fitColumns(measured.natural, expandedGeometry?.available ?? measured.available, wrap) : null
+  ), [measured, expandedGeometry, wrap]);
   const widths = React.useMemo(() => {
     const shown = dragged ? { ...userWidths, [dragged.column]: dragged.width } : userWidths;
     return fitted?.map((width, column) => shown[column] ?? width) ?? null;
@@ -241,6 +275,14 @@ export function MarkdownTable({ node, className, children, ...props }: React.Com
       },
     };
   }, [tableId, fitted, node, userWidths]);
+  const collapsedLayout = React.useMemo(() => {
+    if (!expandedGeometry || !measured) return null;
+    const collapsed = fitColumns(measured.natural, measured.available, wrap).map((width, column) => userWidths[column] ?? width);
+    return {
+      widths: collapsed.join(','),
+      capped: collapsed.map((width, index) => (measured.natural[index] > width ? '1' : '0')).join(''),
+    };
+  }, [expandedGeometry, measured, wrap, userWidths]);
   const columns = widths?.map((width, index) => (
     <col key={index} style={{ width }} />
   ));
@@ -308,6 +350,21 @@ export function MarkdownTable({ node, className, children, ...props }: React.Com
     >
       {!purpose && (
         <div data-streamdown="table-controls" data-export-ignore className="flex items-center justify-end gap-1">
+          {canExpand && (
+            <HoverTooltip label={t(expanded ? 'markdownRenderer.table.actions.fitMessageWidthTitle' : 'markdownRenderer.table.actions.expandTitle')}>
+              <Button
+                variant="ghost"
+                size="xs"
+                data-table-width-toggle=""
+                className={isExpanded ? PRESSED_CLASS : undefined}
+                aria-label={t(isExpanded ? 'markdownRenderer.table.actions.fitMessageWidthTitle' : 'markdownRenderer.table.actions.expandTitle')}
+                aria-pressed={isExpanded}
+                onClick={() => setExpandedTable({ node, expanded: !isExpanded })}
+              >
+                <Icon name="expand-horizontal" className="size-3.5" />
+              </Button>
+            </HoverTooltip>
+          )}
           <HoverTooltip label={t(wrap ? 'markdownRenderer.table.actions.disableWrapTitle' : 'markdownRenderer.table.actions.enableWrapTitle')}>
             <Button
               variant="ghost"

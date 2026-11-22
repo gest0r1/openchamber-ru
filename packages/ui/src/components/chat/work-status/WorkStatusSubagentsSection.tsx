@@ -72,30 +72,12 @@ export const WorkStatusSubagentsSection: React.FC<Props> = ({ sessionId, directo
         {rows.map((row) => {
           const label = row.child.title?.trim() || t('chat.workStatus.subagent.untitled');
           return (
-            <WorkStatusRow
-              key={child.id}
-              onClick={directory ? () => openChildSession(child.id, label) : undefined}
-              ariaLabel={[t('chat.workStatus.action.openSubagent', { name: label }), statusLabel].filter(Boolean).join('. ')}
-              // The smaller status glyph sits centred in the panel's 13px icon
-              // slot, so it lines up under the section icon and the label
-              // starts where every other row's does.
-              leading={(
-                <span className="flex size-[13px] shrink-0 items-center justify-center">
-                  <Icon name={icon} className="size-3" style={iconColor ? { color: iconColor } : undefined} />
-                </span>
-              )}
-              label={label}
-              tooltip={modelName || undefined}
-              value={(
-                <>
-                  {blocked ? (
-                    <WorkStatusValue tone="warning">{t('chat.workStatus.subagent.needsPermission')}</WorkStatusValue>
-                  ) : asked ? (
-                    <WorkStatusValue tone="warning">{t('chat.workStatus.subagent.askedQuestion')}</WorkStatusValue>
-                  ) : busy ? <SubagentDuration sessionId={child.id} /> : null}
-                  {childCost > 0 ? <WorkStatusValue tone="muted">{formatCost(childCost)}</WorkStatusValue> : null}
-                </>
-              )}
+            <SubagentStatusRow
+              key={row.child.id}
+              row={row}
+              directory={directory}
+              onClick={directory ? () => openChildSession(row.child.id, label, row.child.directory) : undefined}
+              ariaLabel={t('chat.workStatus.action.openSubagent', { name: label })}
             />
           );
         })}

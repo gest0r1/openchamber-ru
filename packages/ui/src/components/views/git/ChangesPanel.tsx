@@ -97,7 +97,12 @@ export const ChangesPanel: React.FC<ChangesPanelProps> = ({
 }) => {
   const { t } = useI18n();
   const { isMobile } = useDeviceInfo();
-  const scrollRef = React.useRef<HTMLDivElement | null>(null);
+  const scrollRef = React.useRef<HTMLElement | null>(null);
+  const memoryBind = useListScrollMemory(memoryKey, { ready: memoryReady });
+  const attachScroller = React.useCallback((node: HTMLElement | null) => {
+    scrollRef.current = node;
+    memoryBind(node);
+  }, [memoryBind]);
   const gitChangesViewMode = useUIStore((state) => state.gitChangesViewMode);
   const isTreeView = gitChangesViewMode === 'tree';
 
@@ -511,8 +516,6 @@ export const ChangesPanel: React.FC<ChangesPanelProps> = ({
 
   const showDivider = React.useCallback(
     (index: number): boolean => {
-      // The tree reads by indentation and guides; row dividers turn it into a table.
-      // The phone's lists are flat.
       if (isTreeView || isMobile) return false;
       const row = rows[index];
       const previous = rows[index - 1];

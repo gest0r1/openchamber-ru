@@ -16,7 +16,7 @@ import { sessionNotificationSchema } from './sessionNotifications';
 import { getOpenCodeUpgradeStatus, upgradeManagedOpenCode } from './opencode-upgrade-runtime';
 import { normalizeWindowsDriveLetter, pathsEqualWithNormalizedDriveLetter } from './pathUtils';
 import { resolveWorkspaceFolders } from './workspaceResolver';
-import { isFileDeletionPatch, reconstructOriginalContentFromPatch } from './patchReconstruction';
+import { fileSidesFromFullPatch, isFileDeletionPatch, reconstructOriginalContentFromPatch } from './patchReconstruction';
 import type { BridgeContext, BridgeResponse } from './bridge';
 import { ENTERPRISE_MODE_ERROR, isEnterpriseMode, publicEnterprisePolicy } from '../../web/server/lib/enterprise-mode.js';
 import { discoverProviderModels } from './model-discovery';
@@ -350,19 +350,24 @@ export async function handleSystemBridgeMessage(
       try {
         let modifiedUri = vscode.Uri.file(modified);
         const patchText = typeof patch === 'string' && patch.trim().length > 0 ? patch : undefined;
-        // A file the patch deleted is gone from disk: its diff shows the old
-        // content against an empty right side.
-        const deleted = patchText !== undefined && isFileDeletionPatch(patchText)
-          && !(await vscode.workspace.fs.stat(modifiedUri).then(() => true, () => false));
-        const modifiedText = deleted ? '' : (await vscode.workspace.openTextDocument(modifiedUri)).getText();
+        const sides = snapshot === true && patchText !== undefined ? fileSidesFromFullPatch(patchText) : null;
         let originalUri = original ? vscode.Uri.file(original) : modifiedUri;
 
-        if (patchText !== undefined) {
-          const originalContent = reconstructOriginalContentFromPatch(modifiedText, patchText);
-          if (typeof originalContent === 'string') {
-            ensureVirtualDiffProviderRegistered(ctx);
-            originalUri = createVirtualOriginalDiffUri(modified, originalContent);
-            if (deleted) modifiedUri = createVirtualOriginalDiffUri(modified, '');
+        if (sides) {
+          ensureVirtualDiffProviderRegistered(ctx);
+          originalUri = createVirtualOriginalDiffUri(modified, sides.original, modified);
+          modifiedUri = createVirtualOriginalDiffUri(modified, sides.modified, modified);
+        } else {
+          const deleted = patchText !== undefined && isFileDeletionPatch(patchText)
+            && !(await vscode.workspace.fs.stat(modifiedUri).then(() => true, () => false));
+          const modifiedText = deleted ? '' : (await vscode.workspace.openTextDocument(modifiedUri)).getText();
+          if (patchText !== undefined) {
+            const originalContent = reconstructOriginalContentFromPatch(modifiedText, patchText);
+            if (typeof originalContent === 'string') {
+              ensureVirtualDiffProviderRegistered(ctx);
+              originalUri = createVirtualOriginalDiffUri(modified, originalContent);
+              if (deleted) modifiedUri = createVirtualOriginalDiffUri(modified, '');
+            }
           }
         }
 

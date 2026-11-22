@@ -10,15 +10,6 @@ import type { ComposerText } from './composerText';
 
 const MENTION_LIST_WIDTH = 560;
 
-/** The `@` list's width, which also shows file paths; `/` shares it so command descriptions fit. */
-const MENTION_LIST_WIDTH = 560;
-
-/**
- * Widths each picker asks for when placed at the caret; a narrower composer
- * narrows them. One width for every list, so they read as one family; the
- * mention and command lists are wider, and the emoji list, whose rows are a
- * glyph and a short name, narrower.
- */
 const CARET_PLACED_WIDTH = {
     mention: MENTION_LIST_WIDTH,
     command: MENTION_LIST_WIDTH,

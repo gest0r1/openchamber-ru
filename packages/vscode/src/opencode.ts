@@ -71,7 +71,6 @@ export interface OpenCodeManager {
   start(workdir?: string): Promise<void>;
   stop(): Promise<void>;
   restart(): Promise<void>;
-  /** Re-apply the plugin switch denials to the managed OpenCode's config. */
   refreshPluginSwitches(): Promise<{ updated: boolean; requiresManualRestart: boolean }>;
   upgradeCli(): Promise<void>;
   installV2(): Promise<void>;
@@ -624,8 +623,6 @@ export function createOpenCodeManager(context: vscode.ExtensionContext): OpenCod
   let managedApiUrlOverride: string | null = null;
   let managedPassword: string | null = null;
   let managedPasswordSource: 'user-env' | 'generated' | 'rotated' | null = null;
-  // Captured when the child launches: after `applyPluginSwitchPolicies` sets
-  // `OPENCODE_CONFIG` on the child env, that value is ours, not the user's.
   let userOwnsOpenCodeConfig = false;
   let servicePassword: string | null = null;
   const userProvidedEnvPassword = (() => {
@@ -819,7 +816,7 @@ export function createOpenCodeManager(context: vscode.ExtensionContext): OpenCod
       const port = await allocateManagedOpenCodePort();
       startup.signal.throwIfAborted();
       userOwnsOpenCodeConfig = (process.env.OPENCODE_CONFIG ?? '').trim().length > 0;
-      serverEnv = applyProviderEnvAliases({ ...process.env });
+      serverEnv = prepareManagedOpenCodeEnv({ ...process.env });
       applyPluginSwitchPolicies(serverEnv, serverWorkingDirectory(), { userOwnsConfig: userOwnsOpenCodeConfig });
       server = spawnManagedOpenCodeServer(serverCwd, port, READY_CHECK_TIMEOUT_MS, startup.signal, serverEnv);
       await server.ready;

@@ -115,52 +115,7 @@ export const registerPluginRoutes = (app: Application, dependencies: PluginRoute
     }
   };
 
-  /**
-   * The switch is applied through the config of the OpenCode OpenChamber
-   * starts. When that process is not ours, nothing reads the store, so every
-   * row reports the switch as unavailable instead of pretending it worked.
-   */
-  const switchable = (item) => (isPluginSwitchAvailable() ? item : { ...item, switchState: 'unavailable' });
-
-  /**
-   * Answer a switch change after the store write. The store is the durable
-   * state; when the managed config cannot be rewritten (a user-owned
-   * `OPENCODE_CONFIG`, a failed write), the child still applies it at its next
-   * launch, so the change is reported as saved with a restart requirement
-   * rather than as a failure that would hide state that already landed.
-   */
-  const answerSwitchChange = async (res, message, result) => {
-    let refreshed;
-    try {
-      refreshed = await refreshPluginSwitches();
-    } catch (error) {
-      console.warn('[API] Failed to rewrite the managed OpenCode config for a plugin switch:', error);
-      return res.json({
-        ...buildAppliedResponse(message),
-        ...result,
-        requiresReload: false,
-        requiresManualRestart: true,
-      });
-    }
-    const response = { ...buildAppliedResponse(message), ...result };
-    if (refreshed?.updated === false) {
-      response.requiresReload = false;
-      response.requiresManualRestart = true;
-    }
-    return res.json(response);
-  };
-
-  const handlePluginError = (res, error, fallbackMessage, context, existsKind = null) => {
-    const code = error?.code;
-    if ((existsKind === 'entry' && ENTRY_EXISTS_CODES.has(code)) || (existsKind === 'file' && FILE_EXISTS_CODES.has(code))) {
-      return res.status(409).json({ error: error.message });
-    }
-    if (NOT_FOUND_CODES.has(code)) {
-      return res.status(404).json({ error: error.message });
-    }
-    if (BAD_REQUEST_CODES.has(code)) {
-      return res.status(400).json({ error: error.message, code });
-    }
+  const switchable = (item: PluginListing) => (isPluginSwitchAvailable() ? item : { ...item, switchState: 'unavailable' });
 
   const answerSwitchChange = async (res: Response, message: string, result: PluginSwitchResult) => {
     let refreshed;
@@ -404,13 +359,13 @@ export const registerPluginRoutes = (app: Application, dependencies: PluginRoute
     }
   });
 
-  app.put('/api/config/plugins/entry/:id/enabled', async (req, res) => {
+  app.put<PluginRequestBody>('/api/config/plugins/entry/:id/enabled', async (req, res) => {
     try {
       const directory = await resolveDirectory(req, res);
       if (directory === null && res.headersSent) return;
       validateEntryId(req.params.id);
 
-      const enabled = req.body?.enabled;
+      const enabled = hasPluginBodyFields(req.body) ? req.body.enabled : undefined;
       if (enabled !== true && enabled !== false) {
         return res.status(400).json({ error: 'enabled must be a boolean', code: 'INVALID_STATE' });
       }
@@ -424,14 +379,14 @@ export const registerPluginRoutes = (app: Application, dependencies: PluginRoute
       const result = setPluginEntryEnabled(req.params.id, enabled, directory, pluginSwitchStore);
       return answerSwitchChange(res, `Plugin ${enabled ? 'enabled' : 'disabled'}.`, result);
     } catch (error) {
-      if (SWITCH_REFUSED_CODES.has(error?.code)) {
+      if (hasCode(SWITCH_REFUSED_CODES, error)) {
         return res.status(409).json({ error: error.message, code: error.code });
       }
       return handlePluginError(res, error, 'Failed to change plugin state', '[API:PUT /api/config/plugins/entry/:id/enabled] Failed:', 'entry');
     }
   });
 
-  app.put('/api/config/plugins/file/:id/enabled', async (req, res) => {
+  app.put<PluginRequestBody>('/api/config/plugins/file/:id/enabled', async (req, res) => {
     try {
       const directory = await resolveDirectory(req, res);
       if (directory === null && res.headersSent) return;
@@ -440,7 +395,7 @@ export const registerPluginRoutes = (app: Application, dependencies: PluginRoute
         return res.status(404).json({ error: 'Plugin file not found' });
       }
 
-      const enabled = req.body?.enabled;
+      const enabled = hasPluginBodyFields(req.body) ? req.body.enabled : undefined;
       if (enabled !== true && enabled !== false) {
         return res.status(400).json({ error: 'enabled must be a boolean', code: 'INVALID_STATE' });
       }
@@ -454,7 +409,7 @@ export const registerPluginRoutes = (app: Application, dependencies: PluginRoute
       const result = setPluginFileEnabled(req.params.id, enabled, directory, pluginSwitchStore);
       return answerSwitchChange(res, `Plugin ${enabled ? 'enabled' : 'disabled'}.`, result);
     } catch (error) {
-      if (SWITCH_REFUSED_CODES.has(error?.code)) {
+      if (hasCode(SWITCH_REFUSED_CODES, error)) {
         return res.status(409).json({ error: error.message, code: error.code });
       }
       return handlePluginError(res, error, 'Failed to change plugin state', '[API:PUT /api/config/plugins/file/:id/enabled] Failed:');
