@@ -1,0 +1,34 @@
+name: Temporary upstream 2.8.0 merge assessment
+on:
+  push:
+    branches: [feature/upstream-280-p1-worktree-20261123]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  assess:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Fetch signed upstream tag and assess three-way merge
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          git remote add upstream https://github.com/openchamber/openchamber.git
+          git fetch --no-tags upstream refs/tags/v2.8.0:refs/tags/upstream-v2.8.0
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git config user.name 'github-actions[bot]'
+          echo "FORK_SHA=$(git rev-parse HEAD)"
+          echo "UPSTREAM_SHA=$(git rev-parse refs/tags/upstream-v2.8.0^{} )"
+          git merge -X ours --no-commit --no-ff refs/tags/upstream-v2.8.0 || true
+          echo '=== merge summary ==='
+          git status --short | tail -100
+          echo '=== unmerged paths ==='
+          git diff --name-only --diff-filter=U | tee /tmp/upstream-unmerged.txt
+          echo "UNMERGED_COUNT=$(wc -l </tmp/upstream-unmerged.txt)"
+          echo '=== diffstat ==='
+          git diff --stat HEAD | tail -30
+          echo '=== modified P1 paths ==='
+          git status --short | grep -E '(root-execution|owner-checkpoint|root-service|bootstrap-runtime|terminal/runtime|git/service|worktree|telegram)' | head -100 || true
