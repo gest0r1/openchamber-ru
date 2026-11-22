@@ -725,7 +725,7 @@ export type {
   BrowserTypeParameters,
   BrowserViewportMode,
   BrowserViewportSummary,
-  SourceControlChangeRequestContext, SourceControlChangeRequestHead,
+  SourceControlChangeRequestHead,
   SourceControlChangeRequestSource,
   SourceControlForge,
   SourceControlForgeUser,
