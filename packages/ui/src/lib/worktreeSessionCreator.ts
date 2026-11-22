@@ -100,7 +100,7 @@ export const createQuickWorktree = async (
   if (setupCommands === null) {
     return null;
   }
-  return createWorktreeWithDefaults(project, {
+  const metadata = await createWorktreeWithDefaults(project, {
     preferredName,
     mode: 'new',
     branchName: preferredName,
@@ -109,6 +109,10 @@ export const createQuickWorktree = async (
     setupCommands,
     returnAfterDirectoryCreated: true,
   });
+  // A directory-created result is not a usable checkout. Never hand a draft
+  // back to the composer until Git and project setup are fully ready.
+  await waitForWorktreeBootstrap(metadata.path);
+  return metadata;
 };
 
 // Track if a worktree creation flow is already running
