@@ -25,6 +25,12 @@ test('root UI mirrors code and preserves mutable guest data under a genuinely un
     await fs.mkdir(original, {mode:0o700});
     await fs.writeFile(path.join(source, 'index.js'), 'console.log("service v1")\n',{mode:0o600});
     await fs.writeFile(path.join(original, 'existing.txt'), 'previous sessions/data preserved\n',{mode:0o600});
+    // Production must refuse an agent-controlled or world-writable source
+    // even if its leaf itself is root-owned.
+    await assert.rejects(
+      prepareRootGuestService({guestId:'example',packageRoot:source,entry:'index.js',dataDir:original}),
+      /ROOT_GUEST_SOURCE_UNTRUSTED/
+    );
     const initial = await prepareRootGuestService({guestId:'example', packageRoot:source, entry:'index.js', dataDir:original}, {root,uid,gid});
     assert.ok(initial.entry.startsWith(root));
     assert.equal(await fs.readFile(path.join(initial.dataDir,'existing.txt'),'utf8'),'previous sessions/data preserved\n');
