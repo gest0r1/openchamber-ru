@@ -39,8 +39,13 @@ jobs:
                 ;;
               *)
                 # UI areas redesigned upstream; preserve their 2.8 implementation.
-                git checkout --theirs -- "$p"
-                git add -- "$p"
+                if git ls-files -u -- "$p" | awk '$3==3 {found=1} END {exit !found}'; then
+                  git checkout --theirs -- "$p"
+                  git add -- "$p"
+                else
+                  # The upstream UI component was removed in a refactor.
+                  git rm -f -- "$p"
+                fi
                 ;;
             esac
           done
