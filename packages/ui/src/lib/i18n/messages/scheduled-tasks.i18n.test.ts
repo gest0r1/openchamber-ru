@@ -12,6 +12,8 @@ import { dict as pl } from './pl';
 import { dict as zhCN } from './zh-CN';
 import { dict as zhTW } from './zh-TW';
 import { dict as tr } from './tr';
+import { dict as ar } from './ar';
+import { dict as he } from './he';
 import { dict as ru } from './ru';
 
 const keys = [
@@ -46,7 +48,7 @@ test('scheduled task session choices and outcomes are translated in every catalo
 });
 
 test('a subagent target names its parent in every catalog', () => {
-  for (const catalog of [en, de, fr, nl, es, ja, ptBR, uk, ko, pl, zhCN, zhTW, tr, ar, he]) {
+  for (const catalog of [en, de, fr, nl, es, ja, ptBR, uk, ko, pl, zhCN, zhTW, tr, ar, he, ru]) {
     expect(catalog['sessions.scheduledTasks.editor.target.subagentOf']).toContain('{parent}');
     expect(catalog['sessions.scheduledTasks.editor.target.subagent']).toBeTruthy();
   }

@@ -4060,4 +4060,5 @@ export const dict: Record<I18nKey, string> = {
   'chat.promptHistorySearch.hint': "↑ ↓ aby przeglądać · Enter aby wczytać · Esc aby zamknąć",
   'helpDialog.item.searchPromptHistory': "Przeszukaj historię poleceń (pole czatu)",
 
+  "settings.openchamber.keyboardShortcuts.action.new_lead.label": "Nowy lider",
 } as const;

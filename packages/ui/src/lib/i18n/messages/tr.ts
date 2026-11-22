@@ -4053,4 +4053,5 @@ export const dict = {
   'chat.promptHistorySearch.hint': "↑ ↓ ile gezin · Enter ile yükle · Esc ile kapat",
   'helpDialog.item.searchPromptHistory': "İstem geçmişinde ara (sohbet girişi)",
 
+  "settings.openchamber.keyboardShortcuts.action.new_lead.label": "Yeni lider",
 };

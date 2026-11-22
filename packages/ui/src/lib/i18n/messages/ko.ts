@@ -4055,4 +4055,5 @@ export const dict: Record<I18nKey, string> = {
   'chat.promptHistorySearch.hint': "↑ ↓ 탐색 · Enter 불러오기 · Esc 닫기",
   'helpDialog.item.searchPromptHistory': "프롬프트 기록 검색(채팅 입력)",
 
+  "settings.openchamber.keyboardShortcuts.action.new_lead.label": "새 리드",
 };

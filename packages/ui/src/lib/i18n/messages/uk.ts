@@ -4056,4 +4056,6 @@ export const dict: Record<I18nKey, string> = {
   'chat.promptHistorySearch.hint': "↑ ↓ для перегляду · Enter для завантаження · Esc для закриття",
   'helpDialog.item.searchPromptHistory': "Пошук в історії запитів (поле чату)",
 
+  "settings.openchamber.keyboardShortcuts.action.new_lead.label": "Новий лід",
+  "chat.workStatus.replyCacheHit": "Відповідь із кешу",
 };

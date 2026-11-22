@@ -4056,4 +4056,6 @@ export const dict: Record<I18nKey, string> = {
   'chat.promptHistorySearch.hint': "↑ ↓ para navegar · Enter para carregar · Esc para fechar",
   'helpDialog.item.searchPromptHistory': "Pesquisar histórico de prompts (entrada de chat)",
 
+  "settings.openchamber.keyboardShortcuts.action.new_lead.label": "Novo líder",
+  "chat.workStatus.replyCacheHit": "Resposta do cache",
 };
