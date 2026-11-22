@@ -18,6 +18,7 @@ import { primaryWorktreeRootFromGitDir, unsupportedRepositoryRootReason } from '
 import { resolveSshAuthSock } from './ssh-auth-sock.js';
 import { randomUUID } from 'crypto';
 import { worktreeBootstrapFailureMessage } from './worktree-bootstrap-storage.js';
+import { makeWorktreeDirectory, worktreeDataPath } from './worktree-execution-boundary.js';
 
 const fsp = fs.promises;
 const _require = createRequire(import.meta.url);
@@ -793,10 +794,7 @@ const OPENCODE_NOUNS = [
 
 const OPENCODE_WORKTREE_ATTEMPTS = 26;
 
-const getOpenCodeDataPath = () => {
-  const xdgDataHome = process.env.XDG_DATA_HOME || path.join(os.homedir(), '.local', 'share');
-  return path.join(xdgDataHome, 'opencode');
-};
+const getOpenCodeDataPath = () => worktreeDataPath();
 
 const pickRandom = (values: string[]) => values[Math.floor(Math.random() * values.length)];
 
@@ -5427,7 +5425,7 @@ const assertWorktreeCreatePreflight = async (directory: string, input: WorktreeC
 export async function previewWorktreeCreate(directory: string, input: WorktreeCreateInput = {}) {
   const mode = input?.mode === 'existing' ? 'existing' : 'new';
   const context = await resolveWorktreeProjectContext(directory);
-  await fsp.mkdir(context.worktreeRoot, { recursive: true });
+  await makeWorktreeDirectory(context.worktreeRoot);
   context.worktreeRoot = await fsp.realpath(context.worktreeRoot);
 
   const preferredName = String(input?.worktreeName || input?.name || '').trim();
@@ -5908,7 +5906,7 @@ export async function createWorktree(directory: string, input: WorktreeCreateInp
     ? { ...result, branchBackup: changeRequestLocalBranch.backupBranch }
     : result);
 
-  await fsp.mkdir(context.worktreeRoot, { recursive: true });
+  await makeWorktreeDirectory(context.worktreeRoot);
   context.worktreeRoot = await fsp.realpath(context.worktreeRoot);
 
   const preferredName = String(preparedInput?.worktreeName || preparedInput?.name || '').trim();
@@ -5925,7 +5923,7 @@ export async function createWorktree(directory: string, input: WorktreeCreateInp
   // request waits for it and answers with the path it really made.
   const usesCreateCommand = preparedInput?.contributorFork !== true && Boolean(String(preparedInput?.createCommand || '').trim());
   if (preparedInput?.returnAfterDirectoryCreated === true && preparedInput?.contributorFork !== true && !usesCreateCommand) {
-    await fsp.mkdir(candidate.directory, { recursive: false });
+    await makeWorktreeDirectory(candidate.directory, { leaf: true });
 
     let bootstrapStatus;
     try {
