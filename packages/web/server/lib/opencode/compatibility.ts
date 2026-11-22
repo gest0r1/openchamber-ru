@@ -7,17 +7,26 @@ const versionSchema = z.string().regex(/^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/)
 const infoSchema = z.object({ version: versionSchema });
 const legacyHealthSchema = z.object({ version: versionSchema, healthy: z.boolean() });
 
-/**
- * Oldest OpenCode OpenChamber runs against. 2.2.4 accepts a share such as
- * `"20%"` in `compaction.buffer`, the form Settings writes; an older OpenCode
- * rejects the whole config file holding it. (2.2.0 before it moved text
- * generation to `POST /api/experimental/generate/text`, 2.1.0 added
- * `archived` to `PATCH /api/session/{id}`, 2.0.20 `GET /api/credential`,
- * 2.0.15 `PATCH /api/session` metadata.)
- *
- * `engines.opencode` in packages/web/package.json repeats it, so the release
- * published to npm says what it needs before a server installs it.
- */
+export interface OpenCodeCompatibility {
+  state: 'unavailable' | 'compatible' | 'incompatible';
+  version: string | null;
+  installation: 'managed' | 'external' | 'bundled';
+  binary: string | null;
+  minimumVersion: string;
+  canInstall: boolean;
+}
+
+export interface OpenCodeCliLaunch {
+  binary: string;
+  args: string[];
+  env?: NodeJS.ProcessEnv;
+}
+
+export interface OpenCodeCliOptions {
+  cwd?: string;
+  env?: NodeJS.ProcessEnv;
+}
+
 const MINIMUM_OPENCODE_VERSION = '2.2.4';
 
 const releaseParts = (version: string) => (version.split(/[-+]/, 1)[0] ?? '').split('.').map(Number);
@@ -31,11 +40,8 @@ const compareRelease = (left: string, right: string) => {
   return 0;
 };
 
-/** Whether OpenCode `version` is older than `minimum`, by release numbers. */
-export const isOpenCodeOlderThan = (version, minimum) => versionSchema.safeParse(version).success
+export const isOpenCodeOlderThan = (version: string, minimum: string) => versionSchema.safeParse(version).success
   && compareRelease(version, minimum) < 0;
-
-const isOlderThanMinimum = (version) => isOpenCodeOlderThan(version, MINIMUM_OPENCODE_VERSION);
 
 const isOlderThanMinimum = (version: string) => isOpenCodeOlderThan(version, MINIMUM_OPENCODE_VERSION);
 

@@ -44,13 +44,9 @@ import { WORK_STATUS_COLUMN_WIDTH } from '@/components/chat/work-status/useWorkS
 import { beginLayoutAnimation, LAYOUT_ANIMATION_EASING } from '@/lib/layoutAnimation';
 import { useLayoutAnimationMs } from '@/hooks/useLayoutAnimationMs';
 import { setChatCovered, setWorkStatusHost, useRightSlotStore } from './rightSlot';
+import { useVSCodeSidebarResize } from './useVSCodeSidebarResize';
 
-// Sessions sidebar width in expanded layout
-const SESSIONS_SIDEBAR_WIDTH = 280;
-// Keep enough room for the chat after adding the persistent sessions sidebar.
-const EXPANDED_LAYOUT_THRESHOLD = SESSIONS_SIDEBAR_WIDTH + 520;
-const SESSIONS_SIDEBAR_MIN_WIDTH = Math.round(SESSIONS_SIDEBAR_WIDTH * 0.7);
-const SESSIONS_SIDEBAR_MAX_WIDTH = 520;
+const EXPANDED_LAYOUT_THRESHOLD = 280 + 520;
 
 type VSCodeView = 'sessions' | 'chat';
 
@@ -96,10 +92,7 @@ export const VSCodeLayout: React.FC = () => {
 
   const [currentView, setCurrentView] = React.useState<VSCodeView>(() => (bootDraftOpen ? 'chat' : 'sessions'));
   const [containerWidth, setContainerWidth] = React.useState<number>(0);
-  const [expandedSidebarWidth, setExpandedSidebarWidth] = React.useState<number>(SESSIONS_SIDEBAR_WIDTH);
-  const [isResizingExpandedSidebar, setIsResizingExpandedSidebar] = React.useState(false);
-  // The desktop sidebar's switch: local to this device, and VS Code mounts
-  // none of the desktop surfaces that read it.
+  const sidebarResize = useVSCodeSidebarResize();
   const sessionsSidebarOpen = useUIStore((state) => state.isSidebarOpen);
   const toggleSessionsSidebar = useUIStore((state) => state.toggleSidebar);
   const containerRef = React.useRef<HTMLDivElement>(null);
@@ -475,11 +468,10 @@ export const VSCodeLayout: React.FC = () => {
         </div>
       ) : usesExpandedLayout ? (
         <div className="flex h-full">
-          {/* Sessions sidebar */}
           {sessionsSidebarOpen ? (
             <div
-              className={cn('relative h-full border-e border-border overflow-hidden flex-shrink-0', isResizingExpandedSidebar && 'select-none')}
-              style={{ width: expandedSidebarWidth, minWidth: expandedSidebarWidth, maxWidth: expandedSidebarWidth }}
+              className={cn('relative h-full border-e border-border overflow-hidden flex-shrink-0', sidebarResize.isResizing && 'select-none')}
+              style={{ width: sidebarResize.width, minWidth: sidebarResize.width, maxWidth: sidebarResize.width }}
             >
               <SessionSidebar
                 mobileVariant
@@ -489,19 +481,20 @@ export const VSCodeLayout: React.FC = () => {
               <div
                 className={cn(
                   'absolute inset-e-0 top-0 z-20 h-full w-[3px] cursor-col-resize transition-colors hover:bg-[var(--interactive-border)]/80',
-                  isResizingExpandedSidebar && 'bg-[var(--interactive-border)]'
+                  sidebarResize.isResizing && 'bg-[var(--interactive-border)]'
                 )}
-                onPointerDown={handleExpandedSidebarResizeStart}
-                onPointerMove={handleExpandedSidebarResizeMove}
-                onPointerUp={handleExpandedSidebarResizeEnd}
-                onPointerCancel={handleExpandedSidebarResizeEnd}
+                ref={sidebarResize.handleRef}
+                onPointerDown={sidebarResize.onPointerDown}
+                onPointerMove={sidebarResize.onPointerMove}
+                onPointerUp={sidebarResize.onPointerEnd}
+                onPointerCancel={sidebarResize.onPointerEnd}
+                onLostPointerCapture={sidebarResize.onPointerEnd}
                 role="separator"
                 aria-orientation="vertical"
                 aria-label={t('vscodeLayout.actions.resizeSessionsSidebarAria')}
               />
             </div>
           ) : null}
-          {/* Chat content */}
           <div className="flex-1 flex flex-col min-w-0">
             <VSCodeHeader
               title={chatTitle}
@@ -555,18 +548,10 @@ export const VSCodeLayout: React.FC = () => {
   );
 };
 
-/**
- * The chat with the inline work-status card's column beside it. VS Code mounts
- * no `ContextPanel`, which owns the right slot elsewhere, so this column hosts
- * the card on its own: the card's width while the card wants it, none
- * otherwise. `data-chat-area` is what `useWorkStatusVisibility` measures, so
- * a wide editor tab or sidebar gets the card and a narrow one the overlay.
- */
 const VSCodeChatArea: React.FC<{ active: boolean }> = ({ active }) => {
   const runOverviewOpen = useUIStore((state) => state.runOverviewKey !== null);
   const reserved = useRightSlotStore((state) => state.workStatusReserved);
   const layoutAnimationMs = useLayoutAnimationMs();
-  // The run overview replaces the chat here, and the card belongs to the chat.
   React.useEffect(() => {
     setChatCovered(runOverviewOpen);
     return () => setChatCovered(false);
@@ -610,17 +595,16 @@ interface VSCodeHeaderProps {
   onNewSession?: () => void;
   onSettings?: () => void;
   showWorkStatus?: boolean;
-  /** The expanded layout's sessions list beside the chat, which this header folds. */
   sessionsSidebarOpen?: boolean;
   onToggleSessionsSidebar?: () => void;
   showContextUsage?: boolean;
   enableSessionSwitcher?: boolean;
-  /** The sessions list has nothing to separate from the search field below it. */
+  hidden?: boolean;
   borderless?: boolean;
 }
 
 
-const VSCodeHeader: React.FC<VSCodeHeaderProps> = ({ title, showBack, onBack, onArchiveAll, showArchiveToggle = Boolean(onArchiveAll), onNewSession, onSettings, showWorkStatus, sessionsSidebarOpen = false, onToggleSessionsSidebar, showContextUsage, enableSessionSwitcher, borderless }) => {
+const VSCodeHeader: React.FC<VSCodeHeaderProps> = ({ title, showBack, onBack, onArchiveAll, showArchiveToggle = Boolean(onArchiveAll), onNewSession, onSettings, showWorkStatus, sessionsSidebarOpen = false, onToggleSessionsSidebar, showContextUsage, enableSessionSwitcher, hidden = false, borderless }) => {
   const { t } = useI18n();
   const showArchivedSessions = useSessionDisplayStore((state) => state.showArchivedSessions);
   const toggleArchivedSessions = useSessionDisplayStore((state) => state.toggleArchivedSessions);
@@ -634,8 +618,6 @@ const VSCodeHeader: React.FC<VSCodeHeaderProps> = ({ title, showBack, onBack, on
   const workStatusPanelFits = useUIStore((state) => state.workStatusPanelFits);
   const workStatusOverlayOpen = useUIStore((state) => state.workStatusOverlayOpen);
   const setWorkStatusOverlayOpen = useUIStore((state) => state.setWorkStatusOverlayOpen);
-  // The desktop header's toggle: where the card fits beside the chat the
-  // button switches it on and off, where it does not it opens the overlay.
   const workStatusOverlayForm = workStatusPanelEnabled && !workStatusPanelFits;
   const workStatusToggleActive = workStatusOverlayForm ? workStatusOverlayOpen : workStatusPanelEnabled;
   const handleWorkStatusToggle = () => {
@@ -645,6 +627,64 @@ const VSCodeHeader: React.FC<VSCodeHeaderProps> = ({ title, showBack, onBack, on
   const workStatusToggleTitle = workStatusToggleActive
     ? t('header.workStatusPanel.hide')
     : t(workStatusOverlayForm ? 'header.workStatusPanel.showOverlay' : 'header.workStatusPanel.show');
+
+  const updateSessionTitle = useSessionUIStore((state) => state.updateSessionTitle);
+  const sessionTitle = useDirectorySync(
+    React.useCallback((state) => (
+      currentSessionId ? state.session.find((session) => session.id === currentSessionId)?.title ?? null : null
+    ), [currentSessionId]),
+  );
+  const [renamingSessionId, setRenamingSessionId] = React.useState<string | null>(null);
+  const [titleDraft, setTitleDraft] = React.useState('');
+  const renameRequestedRef = React.useRef(false);
+  const renameFormRef = React.useRef<HTMLFormElement | null>(null);
+  const isRenaming = renamingSessionId !== null && renamingSessionId === currentSessionId;
+
+  React.useEffect(() => {
+    setRenamingSessionId(null);
+  }, [currentSessionId]);
+
+  const beginRename = () => {
+    if (!currentSessionId) return;
+    setTitleDraft(sessionTitle?.trim() || title);
+    setRenamingSessionId(currentSessionId);
+  };
+
+  useKeybinds({
+    rename_current_session: () => {
+      if (!enableSessionSwitcher || hidden || !currentSessionId) return false;
+      beginRename();
+    },
+  });
+
+  const focusRenameInput = React.useCallback((node: HTMLInputElement | null) => {
+    node?.focus();
+    node?.select();
+  }, []);
+
+  const saveRename = React.useCallback(async () => {
+    if (!renamingSessionId) return;
+    const nextTitle = titleDraft.trim();
+    setRenamingSessionId(null);
+    if (!nextTitle || nextTitle === sessionTitle?.trim()) return;
+    try {
+      await updateSessionTitle(renamingSessionId, nextTitle);
+    } catch (error) {
+      console.error('[vscode-header] rename failed', error);
+      toast.error(t('sessions.sidebar.session.rename.error', {
+        detail: describeSessionActionError(error instanceof Error ? error : new Error(String(error)), t),
+      }));
+    }
+  }, [renamingSessionId, sessionTitle, t, titleDraft, updateSessionTitle]);
+
+  React.useEffect(() => {
+    if (!isRenaming) return;
+    const handleDocumentMouseDown = (event: MouseEvent) => {
+      if (!(event.target instanceof Node) || !renameFormRef.current?.contains(event.target)) void saveRename();
+    };
+    document.addEventListener('mousedown', handleDocumentMouseDown);
+    return () => document.removeEventListener('mousedown', handleDocumentMouseDown);
+  }, [isRenaming, saveRename]);
 
   const { context: contextLimit, output: outputLimit } = useContextWindowLimits(currentSessionId ?? null);
 
@@ -693,12 +733,35 @@ const VSCodeHeader: React.FC<VSCodeHeaderProps> = ({ title, showBack, onBack, on
           aria-pressed={sessionsSidebarOpen}
           title={t(sessionsSidebarOpen ? 'vscodeLayout.actions.hideSessionsAria' : 'vscodeLayout.actions.showSessionsAria')}
         >
-          {/* The desktop sidebar toggle's glyph, the Session card toggle's pair. */}
           <Icon name="panel-left" className="h-4 w-4" />
         </button>
       )}
-      {enableSessionSwitcher ? (
-        <SessionSwitcherDropdown variant="compact" scopeProjectId={activeProjectId}>
+      {isRenaming ? (
+        <form
+          ref={renameFormRef}
+          data-session-rename-form="vscode-header"
+          className="flex min-w-0 flex-1 items-center gap-2 px-1"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void saveRename();
+          }}
+        >
+          <input
+            ref={focusRenameInput}
+            value={titleDraft}
+            onChange={(event) => setTitleDraft(event.target.value)}
+            onKeyDown={(event) => handleSessionRenameKeyDown(event, () => setRenamingSessionId(null))}
+            placeholder={t('sessions.sidebar.session.menu.rename')}
+            className="min-w-0 flex-1 bg-transparent text-sm font-medium outline-none placeholder:text-muted-foreground"
+          />
+          <button
+            type="submit"
+            aria-label={t('sessions.sidebar.session.rename.save')}
+            title={t('sessions.sidebar.session.rename.save')}
+            className="shrink-0 text-muted-foreground hover:text-foreground"
+          >
+            <Icon name="check" className="size-4" />
+          </button>
           <button
             type="button"
             onClick={() => setRenamingSessionId(null)}
@@ -779,7 +842,6 @@ const VSCodeHeader: React.FC<VSCodeHeaderProps> = ({ title, showBack, onBack, on
           onClick={handleWorkStatusToggle}
           className={cn(
             'inline-flex h-7 w-7 items-center justify-center rounded-md transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-            // On, the flat selected fill the desktop header's toggle takes.
             workStatusToggleActive
               ? 'oc-selected text-interactive-selection-foreground'
               : 'text-muted-foreground hover:bg-interactive-hover/60 hover:text-foreground',

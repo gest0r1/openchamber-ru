@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { OPENCODE_CONFIG_DIR, OPENCODE_DATA_DIR } from './opencodeConfigPaths';
 import fs from 'node:fs';
 import path from 'node:path';
-import { fetchOpenCodeGoUsage, OPENCODE_GO_KEY_EXPIRED, type OpenCodeGoApiKeyCredential, type OpenCodeGoConsoleCredential } from './opencodeGoQuota';
+import { fetchOpenCodeGoUsage, isOpenCodeGoKeyRefusal, OPENCODE_GO_KEY_EXPIRED, type OpenCodeGoApiKeyCredential, type OpenCodeGoConsoleCredential } from './opencodeGoQuota';
 import { fetchOpenCodeZenUsage, type OpenCodeZenCredential } from '../../web/server/lib/quota/providers/opencode-zen.js';
 import { fetchMistralUsage } from '../../web/server/lib/quota/providers/mistral-billing.js';
 import { deleteLegacyOllamaCloudCredential, deleteLegacyOpenCodeGoCredential, readCredential } from './quotaCredentials';
@@ -15,6 +15,9 @@ import { readConsoleBudgets, withConsoleBudgets, type ConsoleBudgets } from '../
 import { antigravityHeaders, warnIfGeminiGroupMissing } from '../../web/server/lib/quota/providers/antigravity/client.js';
 import { miniMaxStatusError } from '../../web/server/lib/quota/providers/minimax-status.js';
 import { readCodexCliLogin, signInEmailOf } from '../../web/server/lib/quota/providers/codex-cli.js';
+import { isUsageTimeout, requestCodexUsage, requestUsageWithDeadline, type UsageResponse } from './usageRequest';
+import { formatCredits } from '../../web/server/lib/quota/utils/formatters.js';
+import { fetchCursorSummaryWindow } from '../../web/server/lib/quota/providers/cursor-summary.js';
 
 type AuthEntry = Record<string, unknown> | string;
 type AuthFile = Record<string, AuthEntry>;
@@ -22,7 +25,6 @@ type AuthFile = Record<string, AuthEntry>;
 type UsageWindowGiftReset = {
   recordId: number;
   expireAt: number;
-  /** Grant kind from the z.ai list record; sent back unchanged on activation. */
   grantType?: string;
 };
 
@@ -928,23 +930,10 @@ export const listConfiguredQuotaProviders = async () => {
   return Array.from(configured);
 };
 
-// Mirrors packages/web/server/lib/quota/providers/codex.js (kept in sync by hand).
-const CODEX_USAGE_URL = 'https://chatgpt.com/backend-api/wham/usage';
 const codexErrorBodySchema = z.object({ error: z.object({ type: z.string() }) });
 
-// A fixed origin with a bearer token: a redirect would carry the token elsewhere.
-const requestCodexUsage = (accessToken: string, accountId: string | null | undefined): Promise<Response> => fetch(CODEX_USAGE_URL, {
-  method: 'GET',
-  redirect: 'error',
-  headers: {
-    Authorization: `Bearer ${accessToken}`,
-    'Content-Type': 'application/json',
-    ...(accountId ? { 'ChatGPT-Account-Id': accountId } : {}),
-  },
-});
-
 // SAFETY: every field of the payload is read through toNumber/toTimestamp/asNonEmptyString, so a shape other than the one asserted yields no window rather than a wrong one.
-const codexUsagePayloadOf = (response: Response) => response.json() as Promise<OpenAiUsagePayload>;
+const codexUsagePayloadOf = (response: UsageResponse) => response.json() as Promise<OpenAiUsagePayload>;
 
 const codexUsageResult = (payload: OpenAiUsagePayload, accountLabel: string | null = null): ProviderResult => buildResult({
   providerId: 'codex',
@@ -963,14 +952,15 @@ const codexFailure = (error: string, configured = true): ProviderResult => build
   error,
 });
 
-// Usage read with the Codex CLI's sign-in when OpenCode's cannot read it. The
-// numbers are always named by the CLI account's email (from the answer, else
-// from the CLI token): OpenCode's token-sharing token says nothing about whose
-// it is, so another account's limits could otherwise pass for the user's own.
+const unlessTimedOut = (error: Error): null => {
+  if (isUsageTimeout(error)) throw error;
+  return null;
+};
+
 const codexUsageFromCli = async (): Promise<ProviderResult | null> => {
   const login = readCodexCliLogin();
   if (!login) return null;
-  const response = await requestCodexUsage(login.accessToken, login.accountId).catch(() => null);
+  const response = await requestCodexUsage(login.accessToken, login.accountId).catch(unlessTimedOut);
   if (!response?.ok) return null;
   const payload = await codexUsagePayloadOf(response);
   return codexUsageResult(payload, asNonEmptyString(payload?.email) ?? signInEmailOf(login.accessToken));
@@ -989,18 +979,14 @@ const fetchCodexQuota = async (): Promise<ProviderResult> => {
     if (response.ok) return codexUsageResult(await codexUsagePayloadOf(response));
     if (response.status !== 401) return codexFailure(`API error: ${response.status}`);
 
-    // A 401 is not always an expired token: the usage endpoint refuses OpenCode's
-    // `chatgpt-token-sharing` token ("Sign in with ChatGPT") with an
-    // access-enforcement body, and OpenAI has no usage endpoint for that sign-in.
-    // The numbers then come from the Codex CLI's own sign-in on this machine when
-    // it has one; without it the message sends the user to the ChatGPT usage page.
-    const body = codexErrorBodySchema.safeParse(await response.json().catch(() => null));
+    const body = codexErrorBodySchema.safeParse(await response.json().catch(unlessTimedOut));
     if (!body.success || body.data.error.type !== 'rejected_by_access_enforcement') {
       return codexFailure('Session expired \u2014 please re-authenticate with OpenAI');
     }
     return await codexUsageFromCli()
       ?? codexFailure('OpenAI shows usage for Sign in with ChatGPT only at chatgpt.com/settings/usage. The legacy Codex sign-ins show it here.');
   } catch (error) {
+    if (isUsageTimeout(error)) return codexFailure('Request timed out');
     return codexFailure(error instanceof Error ? error.message : 'Request failed');
   }
 };
@@ -1033,7 +1019,7 @@ const codexUsageWindowsOf = (payload: OpenAiUsagePayload) => {
     const valueLabel = unlimited
       ? 'Unlimited'
       : balance !== null
-        ? String(balance)
+        ? formatCredits(balance)
         : null;
     windows.credits_balance = toUsageWindow({
       usedPercent: null,
@@ -1046,10 +1032,13 @@ const codexUsageWindowsOf = (payload: OpenAiUsagePayload) => {
     const spendLimit = payload.spend_control.individual_limit;
     const used = toNumber(spendLimit.used);
     const limit = toNumber(spendLimit.limit);
+    const isUsd = spendLimit.unit === 'usd';
     const valueLabel = used !== null && limit !== null
-      ? `${used.toFixed(0)} / ${limit.toFixed(0)} used`
+      ? isUsd
+        ? `$${formatMoney(used)} / $${formatMoney(limit)}`
+        : `${used.toFixed(0)} / ${limit.toFixed(0)} used`
       : null;
-    windows.credits = toUsageWindow({
+    windows[isUsd ? 'usage' : 'credits'] = toUsageWindow({
       usedPercent: toNumber(spendLimit.used_percent),
       windowSeconds: null,
       resetAt: null,
@@ -1555,7 +1544,6 @@ let claudeCooldownUntil = 0;
 const claudeCooldownFromResponse = (response: UsageResponse): number => {
   const raw = response.headers.get('retry-after');
   const seconds = raw ? Number(raw) : Number.NaN;
-  // `Retry-After: 0` asks for an immediate retry, so it ends the cooldown.
   if (Number.isFinite(seconds) && seconds >= 0) {
     return Math.min(seconds * 1000, CLAUDE_MAX_COOLDOWN_MS);
   }
@@ -1711,7 +1699,6 @@ const fetchClaudeQuota = async (): Promise<ProviderResult> => {
       });
     }
 
-    // A valid token without the `user:profile` scope (every `claude setup-token` token) gets 403.
     if (response.status === 403) {
       return buildResult({
         providerId: 'claude',
@@ -2942,9 +2929,6 @@ const activateZaiGiftReset = async (input: { recordId: number; resetType: QuotaG
     throw new Error('Invalid gift reset request');
   }
 
-  // z.ai requires grantType (added to the contract in late Oct 2026). The value
-  // comes from the list record the user activates; GLOBAL is the only value
-  // observed so far, so it doubles as the fallback for records without one.
   const response = await fetch(ZAI_GIFT_RESET_USE_URL, {
     method: 'POST',
     headers: {

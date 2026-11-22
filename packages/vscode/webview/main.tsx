@@ -6,6 +6,7 @@ import { findMessagePageItem } from '@openchamber/ui/lib/opencode/messagePaging'
 import { BridgeRequestError, onCommand, onThemeChange, postBridgeNotification, proxyApiRequest, proxySessionMessageRequest, sendBridgeMessage, sendBridgeMessageWithOptions, startSseProxy, stopSseProxy } from './api/bridge';
 import { vscodeStreamPerfCount, vscodeStreamPerfMeasure, vscodeStreamPerfObserve } from './api/streamPerf';
 import { quotaGiftResetBridgePayload } from './quotaGiftResetRequest';
+import { sessionMetadataRequest } from './sessionMetadataRequest';
 import { extractBodyBase64, extractBodyText, extractJsonBody, hasInitBody } from './requestBodyTransport';
 import type { RuntimeAPIs } from '@openchamber/ui/lib/api/types';
 import { opencodeClient } from '@openchamber/ui/lib/opencode/client';
@@ -1238,7 +1239,6 @@ const handleLocalApiRequest = async (input: RequestInfo | URL, url: URL, init: R
     return new Response(JSON.stringify(result), { status: 200, headers: { 'Content-Type': 'application/json' } });
   }
 
-  // VS Code loads no extensions.
   if (pathname === '/api/quota/extensions') {
     return new Response(JSON.stringify({ extensions: [] }), { status: 200, headers: { 'Content-Type': 'application/json' } });
   }
@@ -1572,7 +1572,6 @@ onCommand('addLineComment', (payload) => {
       return;
     }
 
-    // VS Code has already emptied the comment field, so a refusal would lose the text.
     useInlineCommentDraftStore.getState().addDraft(target, {
       id: draftId,
       source,
@@ -1583,6 +1582,7 @@ onCommand('addLineComment', (payload) => {
       code,
       language,
       text: comment,
+      composing: record.openInComposer === true,
     }, { written: true });
   });
 });

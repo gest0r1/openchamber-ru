@@ -1,4 +1,5 @@
 import { isProviderId, isProviderUserId, isProviderUsername } from './provider-id.js';
+import type { SourceControlRepositoryBinding, SourceControlRepositoryContext } from './binding-types.js';
 
 type StoredRemote = SourceControlRepositoryBinding['remotes'][number] extends infer Remote
   ? Remote extends unknown ? Omit<Remote, 'presentation' | 'inherited'> : never
@@ -56,7 +57,7 @@ const normalizedPresentationInstance = (value: { instance: string }) => {
       && (parsed.protocol === 'https:' || parsed.protocol === 'http:' && loopback);
   } catch { return false; }
 };
-const keys = (value, required, optional = []) => plain(value)
+const keys = (value: unknown, required: string[], optional: string[] = []): value is object => plain(value)
   && required.every((key) => Object.hasOwn(value, key))
   && Object.keys(value).every((key) => required.includes(key) || optional.includes(key));
 const safeEndpointPath = (pathname: string) => {

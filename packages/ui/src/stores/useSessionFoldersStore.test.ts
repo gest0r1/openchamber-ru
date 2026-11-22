@@ -54,9 +54,11 @@ environment.respond(async (url, init) => {
     const request = { method: init?.method ?? 'GET', body: init?.body ? JSON.parse(String(init.body)) : null };
     requests.push(request);
     return respond(request, init?.signal);
-  }),
-}));
-mock.module('@/lib/runtime-switch', () => ({ getRuntimeKey: () => runtimeKey }));
+});
+const activateRuntime = (key: string) => {
+  runtimeKey = key;
+  switchRuntimeEndpoint({ apiBaseUrl: 'https://local.test', runtimeKey: key });
+};
 
 const { useSessionFoldersStore, handleSessionFoldersChanged, handleSessionFoldersStreamReady } = await import('./useSessionFoldersStore');
 Reflect.deleteProperty(globalThis, 'window');

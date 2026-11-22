@@ -1,6 +1,6 @@
 import { describe, test } from 'node:test';
 import assert from 'node:assert/strict';
-import { isFileDeletionPatch, reconstructOriginalContentFromPatch } from './patchReconstruction';
+import { fileSidesFromFullPatch, isFileDeletionPatch, reconstructOriginalContentFromPatch } from './patchReconstruction';
 
 const file = (...lines: string[]) => lines.join('\n');
 

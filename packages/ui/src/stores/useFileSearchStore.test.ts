@@ -32,17 +32,22 @@ environment.respond(async (url) => {
   const files = await request.promise;
   return Response.json({ data: files.map((file) => ({ path: file.path.replace(/^\/project\//, '') })) });
 });
-
-mock.module('@/lib/opencode/client', () => ({
-  opencodeClient: {
-    searchFiles: searchFilesMock,
-  },
-}));
-mock.module('@/lib/runtime-switch', () => ({ getRuntimeKey: () => runtimeKey }));
-mock.module('@/contexts/runtimeAPIRegistry', () => ({
-  getRegisteredRuntimeAPIs: () => {
-    const search = runtimeSearch;
-    return search ? { files: { search: (payload: { signal?: AbortSignal }) => {
+const setRuntime = (runtimeKey: string) => switchRuntimeEndpoint({ apiBaseUrl: `https://${runtimeKey}.test`, runtimeKey });
+const unavailableCapability = (name: string | symbol): never => {
+  throw new Error(`Unexpected native capability: ${String(name)}`);
+};
+const nativeAPIs: RuntimeAPIs = {
+  get runtime(): never { return unavailableCapability('runtime'); },
+  get terminal(): never { return unavailableCapability('terminal'); },
+  get git(): never { return unavailableCapability('git'); },
+  get settings(): never { return unavailableCapability('settings'); },
+  get permissions(): never { return unavailableCapability('permissions'); },
+  get notifications(): never { return unavailableCapability('notifications'); },
+  get sourceControl(): never { return unavailableCapability('sourceControl'); },
+  files: {
+    listDirectory: () => unavailableCapability('listDirectory'),
+    createDirectory: () => unavailableCapability('createDirectory'),
+    search: (payload: { signal?: AbortSignal }) => {
       runtimeSearchCalls.push(payload);
       return runtimeSearch?.() ?? Promise.resolve([]);
     },
@@ -167,6 +172,7 @@ describe('useFileSearchStore', () => {
         expect(runtimeSearchCalls).toHaveLength(2);
         expect(walkSignal(1)?.aborted).toBe(false);
 
+        await environment.settle();
         searchRequests[0].resolve([{ path: '/project/x.ts' }]);
         await first;
         expect(warning).not.toHaveBeenCalled();
