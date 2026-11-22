@@ -14,7 +14,7 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
-          bun install --no-frozen-lockfile
+          bun install --no-frozen-lockfile --ignore-scripts
           git add bun.lock
           if git diff --cached --quiet; then
             echo 'Lockfile unchanged'
