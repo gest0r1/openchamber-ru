@@ -85,6 +85,10 @@ export const pluginPanelI18n = {
     'chat.chatInput.toast.guestNotOnPhone': '{name} opent niet op de telefoon. Open het in OpenChamber web of desktop.',
   },
   ru: {
+    'contextPanel.plugin.linkDialog.description': 'Расширение показывает идентификатор или ссылку, по которой вы нажали.',
+    'contextRail.surface.plugin.listeningAria': '{label}, использует микрофон',
+    'contextRail.surface.plugin.listeningTooltip': 'Использует микрофон',
+    'chat.chatInput.toast.guestNotOnPhone': '{name} не открывается на телефоне. Откройте в OpenChamber на компьютере или в браузере.',
     'chat.workStatus.sections.extensionBadge': 'Расширение',
     'chat.chatInput.toast.guestHasNoPanel': 'Это расширение работает без панели.',
     'header.mainSurface.backToChat': 'Вернуться в чат',
