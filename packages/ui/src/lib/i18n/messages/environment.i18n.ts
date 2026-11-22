@@ -571,6 +571,8 @@ export const environmentI18n = {
     'settings.environment.secrets.info': 'נשמרו מכרטיס הסודות של סוכן. רק פקודות שמאשרים בכרטיס הזה מקבלות אותם.',
   },
   ru: {
+    "settings.environment.secrets.label": "Сохранённые секреты",
+    "settings.environment.secrets.info": "Секреты, сохранённые из карточки запроса агента. Они передаются только командам, которые вы подтвердите в этой карточке.",
     'settings.environment.user.title': 'Переменные окружения',
     'settings.environment.user.info': 'Добавляются в окружение OpenCode, Git, терминала и действий проекта. Значения остаются на этом сервере и больше не показываются. Проект может добавить свои в разделе «Проекты».',
     'settings.environment.user.enterpriseNote': 'Корпоративный режим: переменные доходят до Git, терминала и действий проекта, но не до OpenCode.',
