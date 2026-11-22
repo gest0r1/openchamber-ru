@@ -23,7 +23,12 @@ for (const name of ['client', 'schema', 'protocol']) {
   if (lock.match(pattern)?.[1] !== version) throw Error(`Locked @opencode/${name} differs from ${version}`);
 }
 for (const match of lock.matchAll(/"@opencode\/(?:client|schema|protocol)": "(2\.\d+\.\d+)"/g)) {
-  if (match[1] !== version) throw Error(`Lockfile dependency differs from ${version}`);
+  // Upstream OpenChamber 2.8 adds embedded desktop/server packages from
+  // OpenCode 2.3.2. The direct OpenCode client and external CLI stay pinned
+  // to 2.2.7 above; permit only this reviewed transitive version.
+  if (match[1] !== version && match[1] !== '2.3.2') {
+    throw Error(`Unexpected nested OpenCode dependency ${match[1]}; expected ${version} or 2.3.2`);
+  }
 }
 if (process.argv[2] === '--expected') {
   if (process.argv[3] !== version) throw Error(`Distribution expects ${process.argv[3]}, OpenChamber pins ${version}`);

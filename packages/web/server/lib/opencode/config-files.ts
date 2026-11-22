@@ -335,7 +335,7 @@ function readWorktreeDirectorySetting(workingDirectory: string, primaryWorktree 
     : userPaths;
   const sources = [...executionUserPaths, customPath, ...getFolderConfigPaths(workingDirectory)];
   const mergedConfig = sources.reduce((config, filePath) => mergeConfigs(config, readConfigFile(filePath)), {});
-  return resolveWorktreeDirectory(mergedConfig, primaryWorktree);
+  return resolveWorktreeDirectory(mergedConfig, primaryWorktree, isSeparatedRootWorktreeRuntime() ? worktreeExecutionHome() : undefined);
 }
 
 function getConfigForPath(layers: OpenCodeConfigLayers, targetPath?: string | null) {

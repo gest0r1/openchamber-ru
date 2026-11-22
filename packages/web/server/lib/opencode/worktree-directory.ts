@@ -1,10 +1,10 @@
 import path from 'node:path';
-import { worktreeExecutionHome } from '../git/worktree-execution-boundary.js';
+import os from 'node:os';
 import { isString } from '../shared/object-guards.js';
 
 const isConfigObject = (value: unknown): value is { worktree?: unknown; directory?: unknown } => value !== null && typeof value === 'object';
 
-export function resolveWorktreeDirectory<Config>(config: Config, primaryWorktree: string, homeDirectory = worktreeExecutionHome()) {
+export function resolveWorktreeDirectory<Config>(config: Config, primaryWorktree: string, homeDirectory = os.homedir()) {
   const worktree = isConfigObject(config) ? config.worktree : null;
   const directory = isConfigObject(worktree) ? worktree.directory : null;
   if (!isString(directory)) {
