@@ -749,7 +749,7 @@ export type {
   SourceControlProviderResult,
   SourceControlProviderSession,
   SourceControlProviderUser,
-  SourceControlReconcileData, SourceControlReviewerState,
+  SourceControlReconcileData,
   SourceControlResourceMethod,
   SourceControlVerifyData,
   SourceControlStatusData,
