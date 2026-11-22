@@ -946,13 +946,6 @@ export const connectHost = (options: HostClientOptions = {}): HostClient => {
       v: OPENCHAMBER_SDK_API_VERSION,
       type: 'block-answer',
       id: nextId(ids),
-      payload: { sha },
-    }) : Promise.reject(new HostRequestError('HOST_REJECTED', 'Commit id must be 7 to 64 hex characters.'))),
-    answerBlock: (text) => request({
-      channel: OPENCHAMBER_SDK_CHANNEL,
-      v: OPENCHAMBER_SDK_API_VERSION,
-      type: 'block-answer',
-      id: nextId(ids),
       payload: { text: text.trim().slice(0, GUEST_BLOCK_ANSWER_MAX) },
     }),
     openSurface: (surfaceId) => request({
