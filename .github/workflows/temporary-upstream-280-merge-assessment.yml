@@ -1,34 +1,53 @@
-name: Temporary upstream 2.8.0 merge assessment
+name: Temporary upstream 2.8.0 integration
 on:
   push:
     branches: [feature/upstream-280-p1-worktree-20261123]
-  workflow_dispatch:
 permissions:
-  contents: read
+  contents: write
 jobs:
-  assess:
+  merge-upstream:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
-      - name: Fetch signed upstream tag and assess three-way merge
+      - name: Merge v2.8.0 while preserving fork policy and preparing TS migration
         shell: bash
         run: |
           set -Eeuo pipefail
-          git remote add upstream https://github.com/openchamber/openchamber.git
-          git fetch --no-tags upstream refs/tags/v2.8.0:refs/tags/upstream-v2.8.0
           git config user.email 'github-actions[bot]@users.noreply.github.com'
           git config user.name 'github-actions[bot]'
-          echo "FORK_SHA=$(git rev-parse HEAD)"
-          echo "UPSTREAM_SHA=$(git rev-parse refs/tags/upstream-v2.8.0^{} )"
-          git merge -X ours --no-commit --no-ff refs/tags/upstream-v2.8.0 || true
-          echo '=== merge summary ==='
-          git status --short | tail -100
-          echo '=== unmerged paths ==='
-          git diff --name-only --diff-filter=U | tee /tmp/upstream-unmerged.txt
-          echo "UNMERGED_COUNT=$(wc -l </tmp/upstream-unmerged.txt)"
-          echo '=== diffstat ==='
-          git diff --stat HEAD | tail -30
-          echo '=== modified P1 paths ==='
-          git status --short | grep -E '(root-execution|owner-checkpoint|root-service|bootstrap-runtime|terminal/runtime|git/service|worktree|telegram)' | head -100 || true
+          git remote add upstream https://github.com/openchamber/openchamber.git
+          git fetch --no-tags upstream refs/tags/v2.8.0:refs/tags/upstream-v2.8.0
+          git merge --no-commit --no-ff -X ours refs/tags/upstream-v2.8.0 || true
+          mapfile -t unmerged < <(git diff --name-only --diff-filter=U)
+          echo "UPSTREAM_UNMERGED_COUNT=${#unmerged[@]}"
+          if (( ${#unmerged[@]} != 74 )); then
+            echo 'Unexpected conflict count; aborting automatic resolution' >&2
+            exit 4
+          fi
+          for p in "${unmerged[@]}"; do
+            case "$p" in
+              .github/workflows/*)
+                # Fork intentionally removes upstream privileged/bot workflows.
+                git rm -f -- "$p"
+                ;;
+              packages/web/server/lib/*.js|packages/web/server/lib/*.d.ts)
+                # Upstream moved the live implementation to TS. Remove stale JS
+                # only; P1-specific behavior must be re-ported to TS separately.
+                git rm -f -- "$p"
+                ;;
+              *)
+                # UI areas redesigned upstream; preserve their 2.8 implementation.
+                git checkout --theirs -- "$p"
+                git add -- "$p"
+                ;;
+            esac
+          done
+          test -z "$(git diff --name-only --diff-filter=U)"
+          echo '=== P1 files requiring re-port ==='
+          git status --short | grep -E 'root-execution|owner-checkpoint|root-service|git/service.ts|terminal/runtime.ts|server-frame/bootstrap-runtime.ts' || true
+          git rm -f -- .github/workflows/temporary-upstream-280-merge-assessment.yml
+          git add -A
+          git commit -m 'chore: merge upstream OpenChamber v2.8.0 into RU fork (P1 port pending)'
+          git push origin HEAD:feature/upstream-280-p1-worktree-20261123
