@@ -341,11 +341,6 @@ const sourceControlCapabilitiesSchema = z.object({
 
 const FIXED_USERNAME = /^[A-Za-z0-9._-]{1,64}$/;
 
-export const sourceControlServiceLoginSchema = z.object({
-  kind: z.literal('service'),
-  hint: z.string().min(1).max(2_000),
-});
-
 /** Shared service-login shape for manifests and public provider descriptors. */
 export const sourceControlServiceLoginSchema = z.object({
   kind: z.literal('service'),
