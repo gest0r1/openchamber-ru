@@ -334,7 +334,7 @@ export const sidebarSectionsI18n = {
     "sessions.sidebar.sections.template.prs": "Pull requests",
     "sessions.sidebar.sections.template.stalled": "Stilgevallen",
     "sessions.sidebar.sections.template.today": "Vandaag",
-    "sessions.sidebar.sections.template.recent": "Recent",
+    "sessions.sidebar.sections.template.recent": "Onlangs",
     "sessions.sidebar.sections.batchSize": "Sessies vóór 'Meer tonen'",
     "sessions.sidebar.sections.template.projects": "Groep projecten",
     "sessions.sidebar.sections.template.blank": "Eigen…",
