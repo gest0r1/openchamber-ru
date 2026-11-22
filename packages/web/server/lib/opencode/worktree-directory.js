@@ -12,7 +12,6 @@
  *
  * Reference: https://opencode.ai/v2/docs/config#worktrees
  */
-import os from 'node:os';
 import path from 'node:path';
 import { worktreeExecutionHome } from '../git/worktree-execution-boundary.js';
 
