@@ -1,5 +1,6 @@
 import { registerNotificationEmitRoutes } from '../notifications/emit-route.js';
 import { registerHttpResponseDiagnostics } from './core-routes.js';
+import { registerOwnerCheckpointRoutes } from '../owner-checkpoint-routes.js';
 
 export const createBootstrapRuntime = (dependencies) => {
   const {
@@ -131,6 +132,9 @@ export const createBootstrapRuntime = (dependencies) => {
       readSettingsFromDiskMigrated,
       normalizeTunnelSessionTtlMs,
     });
+
+    // Only the root UI with an authenticated human session can decide owner checkpoints.
+    registerOwnerCheckpointRoutes(app, { express, uiAuthController, processObject: process });
 
     notificationEmitRoutes.registerApiRoute();
 

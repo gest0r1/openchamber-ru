@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
+import { removeRootGuestServiceData } from './root-service-runtime.js';
 import { z } from 'zod';
 import { GUEST_STORAGE_KEY_MAX, GUEST_STORAGE_KEYS_MAX, GUEST_STORAGE_TOTAL_BYTES, GUEST_STORAGE_VALUE_BYTES } from '@openchamber/sdk';
 
@@ -17,7 +18,13 @@ export const guestDataDir = (persistPath, id) => {
   return path.join(path.dirname(persistPath), 'guest-data', id);
 };
 
-export const removeGuestData = (persistPath, id) => fs.rm(guestDataDir(persistPath, id), { recursive: true, force: true });
+export const removeGuestData = async (persistPath, id) => {
+  if (typeof process.getuid === 'function' && process.getuid() === 0) {
+    if (process.env.OPENCHAMBER_ROOT_MODE !== 'separated') throw new Error('ROOT_GUEST_DATA_REMOVAL_FORBIDDEN');
+    await removeRootGuestServiceData(id);
+  }
+  await fs.rm(guestDataDir(persistPath, id), { recursive: true, force: true });
+};
 
 const withStorageLock = async (file, operation) => {
   const previous = stores.get(file) ?? Promise.resolve();

@@ -53,6 +53,10 @@ jobs:
         run: node --test extensions/telegram-shadow/service/state.test.js extensions/telegram-shadow/service/http.test.js extensions/telegram-shadow/service/migration.test.js
       - name: Telegram SDK notifier Node service contracts
         run: node --test extensions/telegram-notifier/service/reconcile.test.js extensions/telegram-notifier/service/http.test.js
+      - name: P1 root PTY privilege boundary contracts
+        run: node --test packages/web/server/lib/root-execution-boundary.contract.mjs packages/web/server/lib/owner-checkpoint-routes.contract.mjs
+      - name: P1 extension service real UID boundary
+        run: sudo -n env PATH="$PATH" node --test packages/web/server/lib/guests/root-service-runtime.contract.mjs
       - name: Tests
         run: bun run test
       - name: Fork release and agent entrypoint contracts
@@ -81,6 +85,19 @@ jobs:
         run: bun install --frozen-lockfile
       - name: Build web
         run: bun run --cwd packages/web build
+      - name: Validate root-compatible packaged web runtime
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          mkdir -p "$RUNNER_TEMP/oc-p1-package"
+          (cd packages/web && bun pm pack --destination "$RUNNER_TEMP/oc-p1-package")
+          shopt -s nullglob
+          packages=("$RUNNER_TEMP"/oc-p1-package/*.tgz)
+          [[ "${#packages[@]}" == 1 ]] || { echo 'Expected one OpenChamber package' >&2; exit 1; }
+          export BUN_INSTALL="$RUNNER_TEMP/oc-p1-bun"
+          bun add -g --ignore-scripts "${packages[0]}"
+          test "$("$BUN_INSTALL/bin/openchamber" --version | sed -E 's/^OpenChamber[[:space:]]+v?//;s/^v//')" = 2.7.1
+          "$BUN_INSTALL/bin/openchamber" serve --help >/dev/null
       - name: Build VS Code extension
         run: bun run --cwd packages/vscode build
       - name: Prepare mobile web assets

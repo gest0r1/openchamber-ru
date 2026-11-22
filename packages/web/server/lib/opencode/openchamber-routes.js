@@ -192,6 +192,10 @@ export const registerOpenChamberRoutes = (app, dependencies) => {
           const openCodeShortfall = await readOpenCodeShortfall(updateInfo.version);
           if (openCodeShortfall) {
             updateInfo = { ...updateInfo, installBlocked: 'opencode-version', ...openCodeShortfall };
+          } else if (process.getuid?.() === 0 && process.env.OPENCHAMBER_ROOT_MODE === 'separated') {
+            // Root OpenChamber is delivered atomically by my-opencode installer.
+            // A UI-triggered shell update must never mutate root binaries.
+            updateInfo = { ...updateInfo, installBlocked: 'manual-install' };
           } else if (isUnmanagedInstall()) {
             updateInfo = { ...updateInfo, installBlocked: 'manual-install' };
           } else {
@@ -234,6 +238,10 @@ export const registerOpenChamberRoutes = (app, dependencies) => {
 
   app.post('/api/openchamber/update-install', async (_req, res) => {
     try {
+      if (process.getuid?.() === 0 && process.env.OPENCHAMBER_ROOT_MODE === 'separated') {
+        return res.status(403).json({ code: 'ROOT_MANAGED_UPDATE_REQUIRED',
+          error: 'Use the authenticated my-opencode root installer; direct UI updates are disabled.' });
+      }
       if (process.env.OPENCHAMBER_RUNTIME === 'desktop') {
         if (typeof desktopUpdater?.install !== 'function' || typeof desktopUpdater?.restart !== 'function') {
           return res.status(503).json({
