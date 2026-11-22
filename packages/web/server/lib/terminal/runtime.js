@@ -11,6 +11,7 @@ import { sanitizeTerminalHistoryChunk } from './history.js';
 import { consumeTerminalThemeQueries, terminalThemeModeReport } from './theme-response.js';
 import { buildTerminalShellLaunch, createTerminalShellResolver, normalizeTerminalShell } from './shells.js';
 import { stripAppImageArgv0Leak, stripAppImageLauncherEnv, resolvePosixPtyLaunch } from '../inherited-env.js';
+import { separatePtyLaunch } from '../root-execution-boundary.js';
 import { assignInjectedEnv } from '../injected-env.js';
 import { shutdownTerminalProcesses } from './shutdown.js';
 import { bunVersionRunsBunPty } from './bun-pty-support.js';
@@ -227,7 +228,9 @@ export function createTerminalRuntime({
     const hostEnv = { ...process.env, PATH: buildAugmentedPath() };
     // Opening a terminal or running a project action is the user's own act,
     // so it may run the project's environment command.
-    const inheritedEnv = environmentRuntime ? await environmentRuntime.applyToDirectory(cwd, hostEnv, { refresh: true }) : hostEnv;
+    // Root UI cannot evaluate project environment commands as root.
+    const inheritedEnv = process.getuid?.() === 0 ? hostEnv :
+      (environmentRuntime ? await environmentRuntime.applyToDirectory(cwd, hostEnv, { refresh: true }) : hostEnv);
     let lastError = null;
     for (const executable of resolvedShell.executables) {
       try {
@@ -254,7 +257,8 @@ export function createTerminalRuntime({
         const launch = resolvePosixPtyLaunch(shellLaunch.executable, shellLaunch.args);
         const options = { name: 'xterm-256color', cwd, cols, rows, env };
         if (process.platform === 'win32') options.useConpty = true;
-        return { process: await provider.spawn(launch.executable, launch.args, options), backend: provider.backend, shell: resolvedShell.id, shellExecutable: executable, loginShell };
+        const isolated = separatePtyLaunch({ executable: launch.executable, args: launch.args, env });
+        return { process: await provider.spawn(isolated.executable, isolated.args, { ...options, env: isolated.env }), backend: provider.backend, shell: resolvedShell.id, shellExecutable: executable, loginShell };
       } catch (error) { lastError = error; }
     }
     throw lastError ?? new Error('No executable shell found');
