@@ -6,7 +6,6 @@ permissions:
   contents: write
 jobs:
   merge-upstream:
-    if: ${{ github.event.head_commit.message != 'chore: merge upstream OpenChamber v2.8.0 into RU fork (P1 port pending)' }}
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -16,6 +15,10 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
+          if [[ "$(git log -1 --format=%s)" == 'chore: merge upstream OpenChamber v2.8.0 into RU fork (P1 port pending)' ]]; then
+            echo 'Integration already applied; no merge required.'
+            exit 0
+          fi
           git config user.email 'github-actions[bot]@users.noreply.github.com'
           git config user.name 'github-actions[bot]'
           git remote add upstream https://github.com/openchamber/openchamber.git
