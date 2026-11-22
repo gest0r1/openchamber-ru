@@ -34,6 +34,21 @@ const identity = (options) => {
   return { uid, gid };
 };
 
+/** A model-owned project path is not allowed to become a root file-copy
+ * source. Walk every existing ancestor to prevent symlink and UID bypasses.
+ */
+const assertRootOwnedSource = async (source) => {
+  let current = path.resolve(source);
+  while (true) {
+    const st = await fs.lstat(current);
+    if (st.isSymbolicLink() || st.uid !== 0 || (st.mode & 0o022)) {
+      throw new Error('ROOT_GUEST_SOURCE_UNTRUSTED');
+    }
+    if (current === path.parse(current).root) break;
+    current = path.dirname(current);
+  }
+};
+
 const inspectTree = async (src) => {
   let entries = 0, bytes = 0;
   const check = async (name) => {
@@ -115,6 +130,9 @@ export async function prepareRootGuestService({ guestId, packageRoot, entry, dat
   const { uid, gid } = identity(options);
   const root = options.root ?? ROOT;
   const source = path.resolve(packageRoot);
+  // Test-only injection uses its own root, while production requires a
+  // root-owned, non-writable path all the way to the filesystem root.
+  if (options.root === undefined) await assertRootOwnedSource(source);
   const absoluteEntry = path.resolve(source, entry);
   if (!absoluteEntry.startsWith(source + path.sep) || !(await fs.stat(absoluteEntry)).isFile()) {
     throw new Error('ROOT_GUEST_ENTRY_OUTSIDE_PACKAGE');
@@ -124,6 +142,7 @@ export async function prepareRootGuestService({ guestId, packageRoot, entry, dat
   await ensureRootDir(codeRoot); await ensureRootDir(dataRoot);
   const codeTarget = path.join(codeRoot, guestId);
   const dataTarget = path.join(dataRoot, guestId);
+  if (options.root === undefined && fssync.existsSync(dataDir)) await assertRootOwnedSource(dataDir);
   await makeMirror(source, codeTarget);
   await copyGuestData(dataDir, dataTarget, uid, gid);
   const mappedEntry = path.join(codeTarget, path.relative(source, absoluteEntry));
