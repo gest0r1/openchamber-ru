@@ -404,7 +404,10 @@ test('the mounted poller recovers real store failure and starts a fresh load on 
     await act(async () => clock.fire());
     expect(useGlobalSessionsStore.getState().activeSessions.map((item) => item.id)).toEqual(['restored']);
     expect(useGlobalSessionsStore.getState().status).toBe('ready');
-    expect(clock.delay()).toBe(GLOBAL_SESSIONS_FULL_REFRESH_INTERVAL_MS);
+    // The wall-clock can advance by a few milliseconds between timer setup
+    // and inspection on a busy CI host; assert the nominal interval, not 1ms exactness.
+    expect(clock.delay()).toBeGreaterThanOrEqual(GLOBAL_SESSIONS_FULL_REFRESH_INTERVAL_MS - 25);
+    expect(clock.delay()).toBeLessThanOrEqual(GLOBAL_SESSIONS_FULL_REFRESH_INTERVAL_MS);
     expect(list.mock.calls.every(([options]) => options?.global === true)).toBe(true);
     // A stream gap reads the head of the list, without the host seed.
     const seedsBeforeHeadCheck = host.mock.calls.length;
