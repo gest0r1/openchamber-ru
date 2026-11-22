@@ -4765,96 +4765,12 @@ export const useConfigStore = create<ConfigStore>()(
                     return filterVisibleAgents(agents);
                 },
             }),
-            {
-                name: "config-store",
-                storage: createDeferredSafeJSONStorage(),
-                // Version 1 is the slim format below. Builds without it read
-                // `snapshot.agents` unguarded; the version bump makes them skip
-                // this blob (they have no migrate) instead of crashing on it.
-                version: 1,
-                // SAFETY: a version-0 blob is the same shape plus catalogs, and
-                // merge() is the one place that validates any persisted state.
-                migrate: (persistedState) => persistedState as ConfigStore,
-                merge: (persistedState, currentState) => {
-                    // SAFETY: Zustand's storage boundary supplies an unknown
-                    // partial store. Only an explicitly matching runtime may hydrate it.
-                    const persisted = persistedState as Partial<ConfigStore> | undefined;
-                    if (!persisted || persisted.configRuntimeKey !== getRuntimeKey()) return currentState;
-
-                    const storedScopes = isRecord(persisted.directoryScoped) && !Array.isArray(persisted.directoryScoped)
-                        ? persisted.directoryScoped
-                        : currentState.directoryScoped;
-                    const directoryScoped = { ...storedScopes };
-                    for (const [directory, snapshot] of Object.entries(directoryScoped)) {
-                        if (!isRecord(snapshot)) {
-                            delete directoryScoped[directory];
-                        } else if (snapshot.providers === undefined) {
-                            // Version 1 persists selections without catalogs; give the
-                            // snapshot the empty lists the store expects. With no
-                            // `*Loaded` flag persisted, an empty list reads as not loaded.
-                            directoryScoped[directory] = { ...snapshot, providers: [], agents: snapshot.agents ?? [] };
-                        } else if (!hasCompatibleCachedVariants(snapshot.providers)) {
-                            directoryScoped[directory] = {
-                                ...snapshot, providers: [], providersLoaded: false, defaultProviders: {},
-                                agents: snapshot.agents ?? [],
-                            };
-                        }
-                    }
-
-                    const merged = { ...currentState, ...persisted, directoryScoped };
-                    if (persisted.providers !== undefined && !hasCompatibleCachedVariants(persisted.providers)) {
-                        merged.providers = currentState.providers;
-                        merged.providersLoaded = currentState.providersLoaded;
-                        merged.defaultProviders = currentState.defaultProviders;
-                    }
-                    return hydrateActiveDirectorySnapshot(merged);
-                },
-                // Selections only. The provider and agent catalogs are not
-                // persisted: VS Code gives every OpenChamber webview one origin,
-                // so each write reaches every webview in every window as a
-                // StorageEvent carrying the old and the new value, and with the
-                // catalogs a write was tens of megabytes. On a cold start the
-                // pickers wait for initializeApp() / activateDirectory() to load
-                // the catalogs. Older blobs that still carry them hydrate as before.
-                partialize: (state) => ({
-                    configRuntimeKey: state.configRuntimeKey,
-                    activeDirectoryKey: state.activeDirectoryKey,
-                    directoryScoped: Object.fromEntries(
-                        Object.entries(state.directoryScoped).map(([directoryKey, snapshot]) => [
-                            directoryKey,
-                            toPersistedDirectorySnapshot(snapshot),
-                        ]),
-                    ),
-                    currentProviderId: state.currentProviderId,
-                    currentModelId: state.currentModelId,
-                    currentVariant: state.currentVariant,
-                    currentVariantSelection: state.currentVariantSelection,
-                    currentAgentName: state.currentAgentName,
-                    selectedProviderId: sanitizePersistedSelectedProviderId(state.selectedProviderId),
-                    agentModelSelections: state.agentModelSelections,
-                    defaultProviders: state.defaultProviders,
-                    settingsDefaultModel: state.settingsDefaultModel,
-                    settingsDefaultVariant: state.settingsDefaultVariant,
-                    settingsDefaultAgent: state.settingsDefaultAgent,
-                    settingsAutoCreateWorktree: state.settingsAutoCreateWorktree,
-                    settingsGitmojiEnabled: state.settingsGitmojiEnabled,
-                    settingsDefaultFileViewerPreview: state.settingsDefaultFileViewerPreview,
-                    settingsZenModel: state.settingsZenModel,
-                    settingsMessageStreamTransport: state.settingsMessageStreamTransport,
-                    dictationEnabled: state.dictationEnabled,
-                    dictationAutoSend: state.dictationAutoSend,
-                    speechRate: state.speechRate,
-                    speechPitch: state.speechPitch,
-                    speechVolume: state.speechVolume,
-                }),
-             },
-         ),
+            configPersistence,
+        ),
     ),
 );
 
-if (typeof window !== "undefined") {
-    window.__zustand_config_store__ = useConfigStore;
-}
+subscribeConfigStoreChanges();
 
 // Show the last known catalogs of the active directory while OpenCode starts.
 // After persist hydration, which restores the active directory key.

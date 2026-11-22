@@ -2,7 +2,9 @@ import React from 'react';
 
 import { Button } from '@/components/ui/button';
 import { Icon } from '@/components/icon/Icon';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import type { IconName } from '@/components/icon/icons';
+import { ButtonTooltip, ToolbarTooltipButton } from '@/components/ui/action-toolbar';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useI18n } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 import {
@@ -17,28 +19,34 @@ import {
 
 export type BrowserColorScheme = 'system' | 'light' | 'dark';
 
-/**
- * Size and appearance controls for the previewed page.
- *
- * Shown only when asked for. The width and height boxes are the source of
- * truth; the preset list is a shortcut into them, which is why choosing a
- * preset and then typing a size are the same action from here on.
- */
+const RESPONSIVE = 'responsive';
+
+const SCHEMES: ReadonlyArray<{ value: BrowserColorScheme; icon: IconName }> = [
+  { value: 'system', icon: 'contrast-2' },
+  { value: 'light', icon: 'sun' },
+  { value: 'dark', icon: 'moon' },
+];
+
 export const BrowserDeviceBar: React.FC<{
   viewport: BrowserViewport;
   onViewportChange: (viewport: BrowserViewport) => void;
   colorScheme: BrowserColorScheme;
   onColorSchemeChange: (scheme: BrowserColorScheme) => void;
   scale: number;
-}> = ({ viewport, onViewportChange, colorScheme, onColorSchemeChange, scale }) => {
+  panelSize: { width: number; height: number };
+}> = ({ viewport, onViewportChange, colorScheme, onColorSchemeChange, scale, panelSize }) => {
   const { t } = useI18n();
   const size = viewportSize(viewport);
-  const presetId = viewport.kind === 'preset' ? viewport.id : '';
+  const presetId = viewport.kind === 'preset' ? viewport.id : RESPONSIVE;
+  const presetLabel = (id: string) => (
+    id === RESPONSIVE ? t('contextPanel.browser.device.responsive') : VIEWPORT_PRESETS.find((preset) => preset.id === id)?.label ?? id
+  );
+  const shownPanelSize = { width: Math.round(panelSize.width), height: Math.round(panelSize.height) };
 
   const commitSize = (side: 'width' | 'height', raw: string) => {
     const parsed = Number.parseInt(raw, 10);
     if (!Number.isFinite(parsed)) return;
-    const current = size ?? { width: 1280, height: 800 };
+    const current = size ?? shownPanelSize;
     onViewportChange({
       kind: 'custom',
       width: clampViewportSize(side === 'width' ? parsed : current.width),
@@ -46,9 +54,9 @@ export const BrowserDeviceBar: React.FC<{
     });
   };
 
-  const inputClass = cn(
-    'oc-raised oc-field h-6 w-14 rounded-full bg-[var(--surface-elevated)] px-2 text-center',
-    'typography-micro tabular-nums text-foreground outline-none',
+  const sizeInputClass = cn(
+    'w-11 min-w-0 bg-transparent text-center typography-meta tabular-nums text-foreground outline-none',
+    'placeholder:text-muted-foreground',
   );
 
   return (
@@ -79,22 +87,30 @@ export const BrowserDeviceBar: React.FC<{
         <TooltipContent sideOffset={6}>{t('contextPanel.browser.device.preset')}</TooltipContent>
       </Tooltip>
 
-      <input
-        value={size ? String(size.width) : ''}
-        onChange={(event) => commitSize('width', event.target.value)}
-        placeholder="—"
-        inputMode="numeric"
-        aria-label={t('contextPanel.browser.device.width')}
-        className={inputClass}
-      />
-      <span className="typography-micro text-muted-foreground">×</span>
-      <input
-        value={size ? String(size.height) : ''}
-        onChange={(event) => commitSize('height', event.target.value)}
-        placeholder="—"
-        inputMode="numeric"
-        aria-label={t('contextPanel.browser.device.height')}
-        className={inputClass}
+      <div className="oc-raised oc-field flex h-7 shrink-0 items-center rounded-md bg-[var(--surface-elevated)] px-1">
+        <input
+          value={size ? String(size.width) : ''}
+          onChange={(event) => commitSize('width', event.target.value)}
+          placeholder={shownPanelSize.width > 0 ? String(shownPanelSize.width) : ''}
+          inputMode="numeric"
+          aria-label={t('contextPanel.browser.device.width')}
+          className={sizeInputClass}
+        />
+        <span className="typography-meta text-muted-foreground" aria-hidden="true">×</span>
+        <input
+          value={size ? String(size.height) : ''}
+          onChange={(event) => commitSize('height', event.target.value)}
+          placeholder={shownPanelSize.height > 0 ? String(shownPanelSize.height) : ''}
+          inputMode="numeric"
+          aria-label={t('contextPanel.browser.device.height')}
+          className={sizeInputClass}
+        />
+      </div>
+      <ToolbarTooltipButton
+        icon="anticlockwise-2"
+        label={t('contextPanel.browser.device.rotate')}
+        onClick={() => onViewportChange(rotateViewport(viewport))}
+        disabled={!size}
       />
 
       <Tooltip>

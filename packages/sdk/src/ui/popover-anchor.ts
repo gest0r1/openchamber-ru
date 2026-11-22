@@ -17,7 +17,6 @@ let nextPopoverAnchorId = 0;
 
 const isKeyboardEvent = (event: Event): event is KeyboardEvent => 'key' in event;
 
-/** Adds a bounded host popover preview to an extension-owned element. */
 export const mountPopoverAnchor = (element: HTMLElement, options: PopoverAnchorOptions): PopoverAnchorHandle => {
   const document = element.ownerDocument;
   const window = document.defaultView;
@@ -174,8 +173,6 @@ export const mountPopoverAnchor = (element: HTMLElement, options: PopoverAnchorO
   if (ownsExpanded) element.setAttribute('aria-expanded', 'false');
   if (options.label) element.setAttribute('aria-label', options.label);
   element.addEventListener('pointerenter', onPointerEnter);
-  // Crossing opaque iframe documents can omit an enter transition. A real
-  // pointer move over this element still establishes a new hover intent.
   element.addEventListener('pointermove', onPointerEnter);
   element.addEventListener('pointerleave', onPointerLeave);
   element.addEventListener('pointerdown', onPointerDown);

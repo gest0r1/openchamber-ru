@@ -1,28 +1,15 @@
 // Run with: bun packages/ui/tests/chat-history-scroll.browser.mjs
 // Uses production React and the installed LegendList in a real Chromium page.
 import assert from 'node:assert/strict';
-import { readFileSync, mkdtempSync, rmSync } from 'node:fs';
-import { createRequire } from 'node:module';
-import { tmpdir } from 'node:os';
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { dirname, join } from 'node:path';
+import { join } from 'node:path';
+import { createServer } from 'vite';
 import {
     CdpClient, createPageTarget, evaluateValue, launchChrome, reservePort, resolveChrome, wait,
 } from '../../../scripts/perf/cdp.mjs';
 
 const repo = fileURLToPath(new URL('../../../', import.meta.url));
-const source = readFileSync(join(repo, 'packages/ui/src/components/chat/MessageList.tsx'), 'utf8');
-const start = source.indexOf('type TimelineListProps =');
-const end = source.indexOf("TimelineList.displayName = 'TimelineList';", start);
-assert.ok(start >= 0 && end > start, 'Locate the production TimelineList component');
-const estimatedSize = source.match(/^const TIMELINE_ESTIMATED_ENTRY_SIZE = .+;$/m)?.[0];
-assert.ok(estimatedSize, 'Use the production row size estimate');
-// Resolve the list the UI package actually installs; a stale hoisted copy at
-// the repository root would otherwise be measured instead.
-const legendList = join(
-    dirname(createRequire(join(repo, 'packages/ui/package.json')).resolve('@legendapp/list/react')),
-    'react.mjs',
-);
 // Prepend compensation loses sub-pixel remainders when row estimates are
 // fractional, and whether they are depends on the measured average. One
 // height profile can pass by luck, so the scenarios run over several.
@@ -79,9 +66,40 @@ const frames = async count => {
 const params = new URLSearchParams(location.search);
 const heightPeriod = Number(params.get('period'));
 const heightStep = Number(params.get('step'));
-const rowsFrom = (from, count, older = false) => Array.from({ length: count }, (_, i) => ({
-    key: 'row-' + (from + i), kind: 'turn', height: 180 + ((from + i + 100) % heightPeriod) * heightStep, older,
-}));
+document.documentElement.classList.toggle('mobile-pointer', params.get('touch') === 'true');
+// CSS supplies deterministic content heights and delayed image-like growth;
+// the real row renderer, estimator, selection hold and list run unchanged.
+const sizing = document.createElement('style');
+document.head.append(sizing);
+const heights = new Map();
+const paintHeights = () => {
+    sizing.textContent = [...heights].map(([key, height]) =>
+        '[data-turn-row="' + key + '"] { height:' + height + 'px; overflow:hidden }'
+    ).join('\\n');
+};
+const rowsFrom = (from, count, older = false) => Array.from({ length: count }, (_, i) => {
+    const key = 'row-' + (from + i);
+    const height = 180 + ((from + i + 100) % heightPeriod) * heightStep;
+    heights.set(key, older ? 90 : height);
+    if (older) setTimeout(() => { heights.set(key, height); paintHeights(); }, 180);
+    const message = {
+        info: { id: key, sessionID: 'history-fixture', role: 'assistant', agent: 'build',
+            providerID: 'fixture', modelID: 'fixture', time: { created: 1, completed: 2 },
+            tokens: { input: 0, output: 0, reasoning: 0, cache: { read: 0, write: 0 } }, cost: 0 },
+        parts: [{ id: 'text-' + key, type: 'text',
+            text: Array(Math.ceil((height + 40) / 26)).fill('Row ' + key).join('\\n'),
+            sessionID: 'history-fixture', messageID: key }],
+    };
+    paintHeights();
+    return {
+        key, kind: 'turn-message', messageId: key, slice: null, final: false,
+        underFold: false, gapBelow: false,
+        entry: { key, kind: 'turn', isLastTurn: false, turn: {
+            turnId: key, userMessage: { info: { id: 'prompt-' + key, role: 'user', time: { created: 1 } }, parts: [] },
+            assistantMessages: [message],
+        } },
+    };
+});
 const noop = () => {};
 let list;
 const registerList = value => { list = value; };
@@ -110,13 +128,13 @@ function App() {
             moveTo(100);
             await frames(10);
         }
-        const visible = [...scroller.querySelectorAll('[data-probe-id]')].find(
+        const visible = [...scroller.querySelectorAll('[data-turn-row]')].find(
             node => node.getBoundingClientRect().bottom > scroller.getBoundingClientRect().top + 1,
         );
         if (!visible) throw new Error('No visible anchor');
-        const key = visible.dataset.probeId;
+        const key = visible.dataset.turnRow;
         const read = () => {
-            const node = scroller.querySelector('[data-probe-id="' + key + '"]');
+            const node = scroller.querySelector('[data-turn-row="' + key + '"]');
             return node ? node.getBoundingClientRect().top - scroller.getBoundingClientRect().top : null;
         };
         const before = read();
@@ -203,46 +221,37 @@ function App() {
         scrollContainerProps={{ style: { height: 600, width: 800, overflow: 'auto', overflowAnchor: 'none' } }}
     />;
 }
-createRoot(document.getElementById('root')).render(<App />);
+createRoot(document.getElementById('root')).render(
+    <SyncRuntimeContext.Provider value={{ childStores }}>
+        <RuntimeAPIProvider apis={apis}><I18nProvider><App /></I18nProvider></RuntimeAPIProvider>
+    </SyncRuntimeContext.Provider>
+);
 `;
 
-const build = await Bun.build({
-    entrypoints: ['history-fixture'],
-    minify: true,
-    define: { 'process.env.NODE_ENV': '"production"' },
-    plugins: [{
-        name: 'history-fixture',
-        setup(builder) {
-            builder.onResolve({ filter: /^history-fixture$/ }, () => ({ path: 'entry', namespace: 'fixture' }));
-            builder.onLoad({ filter: /.*/, namespace: 'fixture' }, () => ({ contents: fixture, loader: 'tsx' }));
-            // React 19 provides the hook that the compatibility shim delegates to.
-            builder.onResolve({ filter: /^use-sync-external-store\/shim$/ }, () => ({ path: 'shim', namespace: 'react-shim' }));
-            builder.onLoad({ filter: /.*/, namespace: 'react-shim' }, () => ({
-                contents: `export { useSyncExternalStore } from ${JSON.stringify(join(repo, 'node_modules/react/index.js'))};`,
-                loader: 'js',
-            }));
-        },
-    }],
-});
-assert.ok(build.success, build.logs.join('\n'));
-const javascript = await build.outputs[0].text();
-const chromePath = resolveChrome();
-const profileDir = mkdtempSync(join(tmpdir(), 'openchamber-history-scroll-'));
-const server = Bun.serve({
-    hostname: '127.0.0.1',
-    port: 0,
-    fetch(request) {
-        return new URL(request.url).pathname === '/app.js'
-            ? new Response(javascript, { headers: { 'Content-Type': 'application/javascript' } })
-            : new Response('<!doctype html><div id="root"></div><script type="module" src="/app.js"></script>', {
-                headers: { 'Content-Type': 'text/html' },
-            });
-    },
-});
-const port = await reservePort();
-const chrome = launchChrome({ chrome: chromePath, port, profileDir, headless: true });
+mkdirSync(join(repo, 'packages/ui/tmp'), { recursive: true });
+const fixtureDir = mkdtempSync(join(repo, 'packages/ui/tmp/history-scroll-'));
+let server;
+let chrome;
 let client;
 try {
+    writeFileSync(join(fixtureDir, 'fixture.tsx'), fixture);
+    writeFileSync(join(fixtureDir, 'index.html'), '<!doctype html><div id="root"></div><script type="module" src="/fixture.tsx"></script>');
+    const chromePath = resolveChrome();
+    server = await createServer({
+        configFile: false, root: fixtureDir, logLevel: 'error', cacheDir: join(fixtureDir, '.vite'),
+        resolve: { alias: {
+            '@': join(repo, 'packages/ui/src'),
+            '@openchamber/ui': join(repo, 'packages/ui/src'),
+            '@openchamber/sdk/schemas': join(repo, 'packages/sdk/src/schemas.ts'),
+            '@openchamber/sdk/ui': join(repo, 'packages/sdk/src/ui/index.ts'),
+            '@openchamber/sdk': join(repo, 'packages/sdk/src/index.ts'),
+        } },
+        server: { host: 'localhost', port: 0, hmr: false, watch: null, fs: { allow: [repo, realpathSync(join(repo, 'node_modules'))] } },
+    });
+    await server.listen();
+    const origin = server.resolvedUrls.local[0];
+    const port = await reservePort();
+    chrome = launchChrome({ chrome: chromePath, port, profileDir: join(fixtureDir, 'profile'), headless: true });
     const target = await createPageTarget(port);
     client = new CdpClient(target.webSocketDebuggerUrl);
     await client.connect();
@@ -294,11 +303,11 @@ try {
     assert.ok(scrolls[true].restShift !== null && Math.abs(scrolls[true].restShift) <= 1, `The correction at rest moved the reader's row by ${scrolls[true].restShift}px`);
 } finally {
     client?.socket.close();
-    if (chrome.exitCode === null && chrome.signalCode === null) {
+    if (chrome && chrome.exitCode === null && chrome.signalCode === null) {
         const exited = new Promise(resolve => chrome.once('exit', resolve));
         chrome.kill();
         await exited;
     }
-    server.stop(true);
-    rmSync(profileDir, { recursive: true, force: true });
+    await server?.close();
+    rmSync(fixtureDir, { recursive: true, force: true });
 }

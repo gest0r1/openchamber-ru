@@ -99,8 +99,6 @@ export function MarkdownLink(props: React.ComponentProps<'a'> & ExtraProps) {
   return <ScreenMarkdownLink {...props} />;
 }
 
-// The favicon sits before its link, framed, loads lazily, and goes away when
-// the site has none; a broken-image icon would read as a broken link.
 function LinkFavicon({ src }: { src: string }) {
   const [failed, setFailed] = React.useState(false);
   if (failed) return null;
@@ -198,8 +196,6 @@ function ScreenMarkdownHref({ href, children: originalChildren, node, ...props }
   const skill = parseSkillHref(href);
   const agent = parseAgentHref(href);
   const attachment = parseAttachmentHref(href);
-  // VS Code keeps session links inert: its sessions live on its own OpenCode,
-  // so a link to a web session opens in the browser like any other.
   const session = isVSCodeRuntime() ? null : parseSessionLink(href, appOwnOrigins());
   const extensionInstall = isVSCodeRuntime() ? null : parseExtensionInstallLink(href);
   // A session or message the user's message mentioned draws as its chip.
@@ -211,14 +207,11 @@ function ScreenMarkdownHref({ href, children: originalChildren, node, ...props }
   const file = presentation.fileNavigation && resolveMarkdownFile(href, directory, 'click', 'href');
   const revealPath = useRevealMarkdownPath();
   const folder = presentation.fileNavigation && !file && revealPath ? localPathFromFileUrl(href) : null;
-  // A link whose URL is not a file but whose text is a path opens that file
-  // once the file is confirmed, as the old annotation pass did.
   const probeHref = Boolean(file || folder || app || session || skill || agent || attachment);
   const probe = probeHref ? href : text;
   const path = useConfirmedInlineFile(probe, probeHref ? 'href' : 'path');
   const textFile = Boolean(path && !probeHref);
   const external = isExternalHttpUrl(href);
-  // A host's own reference (`#12`, a commit) reads as part of the text, without the site's mark.
   const reference = node?.properties.dataOcReference !== undefined;
   const favicon = external && !path && !reference ? getExternalFaviconUrl(href) : null;
   const showPreview = presentation.loopbackPreview && isLoopbackHttpUrl(href) && directory
@@ -256,7 +249,6 @@ function ScreenMarkdownHref({ href, children: originalChildren, node, ...props }
       return;
     }
     if (href.startsWith('#') && !media?.documentAssets) {
-      // In-message anchors (footnotes) scroll within this message.
       event.preventDefault();
       const id = decodeURIComponent(href.slice(1));
       const root = event.currentTarget.closest('[data-markdown-content]');

@@ -35,14 +35,10 @@ import {
 import { StarterPickerList, type OverflowActions } from './DraftStarterPickerList';
 
 type DraftPresetChipsProps = {
-    /** Called with the resolved starter invocation when a chip is clicked. */
     onSubmit: (starter: ResolvedStarter) => void;
-    /** Extra classes for the wrapper (e.g. width/spacing per surface). */
     className?: string;
 };
 
-// Droppable id for the mobile "drag a chip here to delete" target. Kept distinct
-// from any chip id (which are `group:type:name`) so collisions never alias.
 const TRASH_DROPPABLE_ID = '__draft-starter-trash__';
 
 // Shared box for the icon buttons in the "+" slot (add picker and the
@@ -64,9 +60,7 @@ const SortableChip: React.FC<{
     item: ResolvedStarter;
     onSubmit: (starter: ResolvedStarter) => void;
     onRemove: () => void;
-    /** Project chips only: move the starter into the team's shared file, or back out of it. */
     onToggleShared?: () => void;
-    /** Hide the per-chip hover "x" (mobile uses the trash drop-zone instead). */
     hideRemove?: boolean;
     /** Past the end of the row: kept out of flow and out of reach, but measured. */
     overflowed?: boolean;
@@ -84,8 +78,6 @@ const SortableChip: React.FC<{
     return (
         <div
             ref={setNodeRef}
-            // Translate only (no scaleX/scaleY) so the lifted chip keeps its own
-            // width instead of stretching to the target slot.
             style={{ transform: CSS.Translate.toString(transform), transition }}
             className={cn('group/chip relative', isDragging && 'z-10 opacity-60', overflowed && 'invisible absolute')}
             data-starter-chip=""
@@ -123,7 +115,6 @@ const SortableChip: React.FC<{
                     <TooltipContent side="top" sideOffset={6}>{t(item.shared ? 'chat.draftStarters.makePersonal' : 'chat.draftStarters.share')}</TooltipContent>
                 </Tooltip>
             ) : null}
-            {/* A shared starter is the team's: it leaves only through the repo file. */}
             {hideRemove || item.shared ? null : (
                 <Tooltip>
                     <TooltipTrigger asChild>
@@ -168,11 +159,6 @@ const StarterGroup: React.FC<{
     </SortableContext>
 );
 
-/**
- * Mobile delete target. Sits in the "+" slot and is only mounted while a chip is
- * being dragged; dropping a chip on it removes that starter. Styled to match the
- * add ("+") button so the swap reads as the same affordance toggling purpose.
- */
 const TrashDropZone: React.FC = () => {
     const { t } = useI18n();
     const { currentTheme } = useThemeSystem();
@@ -184,8 +170,6 @@ const TrashDropZone: React.FC = () => {
             ref={setNodeRef}
             aria-label={t('chat.draftStarters.remove')}
             title={t('chat.draftStarters.remove')}
-            // Same box as the "+" button so the swap never shifts layout; on-hover
-            // feedback is color-only (no resize).
             className={cn(
                 CHIP_ICON_BUTTON_CLASS,
                 isOver ? 'border-destructive text-destructive' : 'text-muted-foreground',
@@ -249,17 +233,6 @@ const AddStarterPicker: React.FC<{
     );
 };
 
-/**
- * The editable row of starter chips on the draft welcome screen. Shows the
- * global group then the project group (each reorderable within itself), plus a
- * "+" picker to pin existing commands/skills. The surface owns how a chip click
- * is submitted via `onSubmit`.
- *
- * Both groups share a single DndContext so the mobile trash drop-zone (which
- * replaces the "+" while dragging) is reachable from either group's drag.
- * Reorder is constrained to within a chip's own group; cross-group hovers are
- * ignored.
- */
 const DraftPresetChipsContent: React.FC<DraftPresetChipsProps> = ({ onSubmit, className }) => {
     const { global, project, pinnable, ensureLoaded, addStarter, removeStarter, reorder, shareStarter, unshareStarter } = useDraftStarters();
     const { isMobile } = useDeviceInfo();
@@ -315,9 +288,7 @@ const DraftPresetChipsContent: React.FC<DraftPresetChipsProps> = ({ onSubmit, cl
     };
 
     const sensors = useSensors(
-        // Desktop: start dragging after a small move so a click still submits.
         useSensor(MouseSensor, { activationConstraint: { distance: 8 } }),
-        // Touch: long-press to drag (tap submits, a quick swipe scrolls instead).
         useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 6 } }),
     );
 
@@ -343,7 +314,6 @@ const DraftPresetChipsContent: React.FC<DraftPresetChipsProps> = ({ onSubmit, cl
         const overId = String(over.id);
         if (activeId === overId) return;
         const overChip = chipById(overId);
-        // Reorder only within the same group; ignore cross-group hovers.
         if (overChip && overChip.group === chip.group) {
             reorder(chip.group, activeId, overId);
         }
@@ -353,8 +323,6 @@ const DraftPresetChipsContent: React.FC<DraftPresetChipsProps> = ({ onSubmit, cl
         <DndContext
             sensors={sensors}
             collisionDetection={closestCenter}
-            // The trash drop-zone mounts on drag start, so re-measure droppables
-            // while dragging or it never registers a rect to drop onto.
             measuring={{ droppable: { strategy: MeasuringStrategy.Always } }}
             onDragStart={handleDragStart}
             onDragCancel={handleDragCancel}
@@ -406,5 +374,4 @@ const DraftPresetChipsView: React.FC<DraftPresetChipsProps> = (props) => {
     return visible ? <DraftPresetChipsContent {...props} /> : null;
 };
 
-/** Memoized: the composer re-renders on every keystroke, and nothing here depends on the draft text. */
 export const DraftPresetChips = React.memo(DraftPresetChipsView);

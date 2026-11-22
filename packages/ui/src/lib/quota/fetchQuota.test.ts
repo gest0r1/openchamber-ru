@@ -1,6 +1,7 @@
 import { afterEach, expect, mock, test } from 'bun:test';
+import type { ProviderResult } from '@/types';
 
-let responsePayload: unknown;
+let responsePayload: ProviderResult;
 mock.module('@/lib/runtime-fetch', () => ({ runtimeFetch: async () => Response.json(responsePayload) }));
 const { fetchQuota } = await import('./fetchQuota');
 

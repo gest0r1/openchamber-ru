@@ -16,7 +16,6 @@ export type GuestOpenSurfaceResult =
 
 type OpenGuestSurfaceOptions = {
   mode: ContextPanelMode;
-  /** The panel's directory, the same key the rail opens it under; null before the app knows one. */
   directory: string | null;
   /** VS Code has no context panel for guests. */
   supported: boolean;

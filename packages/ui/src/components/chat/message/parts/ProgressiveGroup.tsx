@@ -66,9 +66,6 @@ const isActivityRunning = (activity: TurnActivityPart): boolean => {
     return typeof activity.endedAt !== 'number';
 };
 
-/**
- * Extract a short filename from a tool part's input (for aggregation display).
- */
 const getToolFileName = (activity: TurnActivityPart): string | null => {
     const part = activity.part as ToolPartType;
     const state = part.state as { input?: Record<string, unknown>; metadata?: Record<string, unknown> } | undefined;
@@ -190,11 +187,6 @@ const resolveSkillFilePath = (skillPathOrDir: string): string => {
     return normalizedPath.toLowerCase().endsWith('/skill.md') ? normalizedPath : `${normalizedPath}/SKILL.md`;
 };
 
-/**
- * Short description for a static tool row (aggregation display). Tool naming
- * and per-tool input fields live in `@/lib/opencode/tools`; this only trims
- * the result to the row's width and falls back to a bare file name.
- */
 const SHORT_DESCRIPTION_MAX = 50;
 
 const getToolShortDescription = (activity: TurnActivityPart): string | null => {
@@ -211,10 +203,6 @@ const getToolShortDescription = (activity: TurnActivityPart): string | null => {
 };
 
 
-/**
- * Render a static aggregated tool row.
- * Shows: [icon] DisplayName file1.tsx file2.tsx ...
- */
 const areActivityListsEqual = (left: TurnActivityPart[], right: TurnActivityPart[]): boolean => {
     if (left === right) {
         return true;
@@ -252,8 +240,6 @@ const StaticToolRowInner: React.FC<{
     const showToolFileIcons = useUIStore((state) => state.showToolFileIcons);
     const { t } = useI18n();
     const { isMobile } = useDeviceInfo();
-    // Grouped rows share one normalized name; the registry wants the full
-    // name OpenCode reported, which every activity in the group carries.
     const firstPart = activities[0]?.part;
     const presentation = useGuestToolPresentation(firstPart?.type === 'tool' ? firstPart.tool : null);
     const displayName = presentation?.name ?? getToolMetadata(toolName).displayName;
@@ -322,9 +308,6 @@ const StaticToolRowInner: React.FC<{
             return;
         }
 
-        // Dedicated mobile app: stage the same pending file focus/navigation
-        // desktop uses, then surface the Files pane (workspace drawer tab),
-        // which consumes it.
         if (mobileActions) {
             const uiStore = useUIStore.getState();
             const contextDirectory = currentDirectory || getDirectoryForFilePath(currentDirectory, absolutePath);
@@ -357,9 +340,6 @@ const StaticToolRowInner: React.FC<{
         uiStore.openContextFile(contextDirectory, absolutePath);
     }, [currentDirectory, mobileActions, runtime]);
 
-    // An image opens straight into the expanded panel to be looked at closely.
-    // Only where the file opens in the context panel: VS Code opens an editor
-    // tab and mobile a full-screen pane, where the path itself already does it.
     const canOpenImageExpanded = !runtime?.editor && !mobileActions && !isMobile;
     const handleOpenImageExpanded = React.useCallback((filePath: string) => {
         const absolutePath = toAbsoluteFilePath(currentDirectory, filePath);
@@ -381,9 +361,6 @@ const StaticToolRowInner: React.FC<{
 
     return (
         <div
-            // oc-static-tool-row: on touch devices mobile.css raises this to the
-            // same 36px floor the [role="button"] expandable/reasoning rows get,
-            // so static and expandable rows have identical rhythm.
             className={cn(
                 'oc-static-tool-row flex w-full items-center gap-x-1.5 pe-2 ps-px py-1.5 rounded-xl min-w-0'
             )}

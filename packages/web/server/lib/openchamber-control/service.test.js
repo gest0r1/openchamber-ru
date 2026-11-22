@@ -803,6 +803,16 @@ describe('OpenChamber control service', () => {
       .resolves.toEqual({ sessionId: 'ses_repo', directory: '/repo', sessionStatus: { type: 'idle' } });
   });
 
+  it('reads an unscoped session where it lives instead of the tool context directory', async () => {
+    const { service, client } = createService();
+    client.session.get.mockResolvedValue({ id: 'ses_moved', location: { directory: '/repo/worktrees/moved' } });
+
+    await expect(service.execute('session.status', { sessionId: 'ses_moved' }, '/current-session'))
+      .resolves.toEqual({ sessionId: 'ses_moved', directory: '/repo/worktrees/moved', sessionStatus: { type: 'idle' } });
+    await expect(service.execute('session.messages', { sessionId: 'ses_moved' }, '/current-session'))
+      .resolves.toMatchObject({ directory: '/repo/worktrees/moved' });
+  });
+
   it('rejects an unknown project instead of reading another directory', async () => {
     const { service, client } = createService();
     await expect(service.execute('session.list', { projectId: 'missing' }, '/current-session'))
@@ -1100,7 +1110,7 @@ describe('OpenChamber control service', () => {
     expect(client.session.list).not.toHaveBeenCalled();
   });
 
-  it('projects only ordered text content from session messages', async () => {
+  it('projects ordered text content, with what the user attached as context, from session messages', async () => {
     const { service, client } = createService();
     client.message.list.mockResolvedValue({ data: [
       {
@@ -1109,6 +1119,9 @@ describe('OpenChamber control service', () => {
       },
       { id: 'msg_user', type: 'user', time: { created: 10 }, text: 'Question' },
       { id: 'msg_tool', type: 'assistant', time: { created: 15 }, content: [{ type: 'tool' }] },
+      { id: 'msg_quote', type: 'synthetic', time: { created: 9 }, text: 'The user selected this fragment:\n> old answer\n\nThe user wrote: why?', metadata: { openchamberContext: { kind: 'chat-quote' } } },
+      { id: 'msg_notice', type: 'synthetic', time: { created: 12 }, text: 'A plugin notice', metadata: { source: 'some-plugin' } },
+      { id: 'msg_choice', type: 'synthetic', time: { created: 25 }, text: 'The user picked MIT', metadata: { openchamberUiBlockAnswer: { block: 'b1' } } },
     ] });
 
     await expect(service.execute('session.messages', {
@@ -1122,10 +1135,22 @@ describe('OpenChamber control service', () => {
       role: 'all',
       sessionStatus: { type: 'idle' },
       messages: [
+        { id: 'msg_quote', role: 'user', createdAt: 9, completedAt: null, model: null, text: 'The user selected this fragment:\n> old answer\n\nThe user wrote: why?', attached: true },
         { id: 'msg_user', role: 'user', createdAt: 10, completedAt: null, model: null, text: 'Question' },
         { id: 'msg_assistant', role: 'assistant', createdAt: 20, completedAt: 30, model: 'openai/gpt-5.4-mini', text: 'First answer' },
+        { id: 'msg_choice', role: 'user', createdAt: 25, completedAt: null, model: null, text: 'The user picked MIT', attached: true },
       ],
     });
+  });
+
+  it('keeps an attachment before the prompt it came with, also when both share a millisecond', async () => {
+    const { service, client } = createService();
+    client.message.list.mockResolvedValue({ data: [
+      { id: 'msg_2_prompt', type: 'user', time: { created: 10 }, text: 'Why is that?' },
+      { id: 'msg_1_quote', type: 'synthetic', time: { created: 10 }, text: 'The user selected this fragment', metadata: { openchamberContext: { kind: 'chat-quote' } } },
+    ] });
+    const { messages } = await service.execute('session.messages', { sessionId: 'ses_1', directory: '/repo', last: true });
+    expect(messages.map((message) => message.id)).toEqual(['msg_2_prompt']);
   });
 
   it('follows the message cursor so all: true returns the whole history', async () => {
@@ -1399,13 +1424,29 @@ describe('render.page', () => {
   describe('with awaitAnswer', () => {
     const ask = { html: page, title: 'Pick a layout', awaitAnswer: true };
     const call = { contextSessionId: 'ses_1', contextCallId: 'call_1' };
-    // The call starts waiting once its checks have run.
-    const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
+    const createWaitingService = (overrides = {}) => {
+      const waiting = [];
+      const listeners = [];
+      const result = createService({
+        ...overrides,
+        onPageWaitChange: (change) => {
+          overrides.onPageWaitChange?.(change);
+          if (change.type !== 'waiting') return;
+          const listener = listeners.shift();
+          if (listener) listener(change);
+          else waiting.push(change);
+        },
+      });
+      return {
+        ...result,
+        waitForPage: () => waiting.length ? Promise.resolve(waiting.shift()) : new Promise((resolve) => listeners.push(resolve)),
+      };
+    };
 
     it('hands the agent the errors when a client cannot draw its ui', async () => {
-      const { service } = createService();
+      const { service, waitForPage } = createWaitingService();
       const pending = service.execute('render.page', { ui: 'root = Stack([Text(1)])', title: 'Pick', awaitAnswer: true }, '/repo', call);
-      await settle();
+      await waitForPage();
 
       expect(service.answerPage({ sessionId: 'ses_1', callId: 'call_1', notDrawn: ['Text /markdown: expects string'] })).toEqual({ answered: false });
       const result = await pending;
@@ -1415,7 +1456,7 @@ describe('render.page', () => {
     });
 
     it('waits until the user answers and returns the answer', async () => {
-      const { service } = createService();
+      const { service, waitForPage } = createWaitingService();
       const pending = service.execute('render.page', ask, '/repo', call);
       await settle();
       expect(service.isPageWaiting('ses_1', 'call_1')).toBe(true);
@@ -1472,9 +1513,9 @@ describe('render.page', () => {
 
     it('announces when the page starts and stops waiting', async () => {
       const onPageWaitChange = vi.fn();
-      const { service } = createService({ onPageWaitChange });
+      const { service, waitForPage } = createWaitingService({ onPageWaitChange });
       const pending = service.execute('render.page', ask, '/repo', call);
-      await settle();
+      await waitForPage();
 
       expect(onPageWaitChange).toHaveBeenCalledWith({ type: 'waiting', sessionId: 'ses_1', callId: 'call_1', title: 'Pick a layout', directory: '/repo' });
       service.answerPage({ sessionId: 'ses_1', callId: 'call_1', summary: 'B' });
@@ -1483,16 +1524,16 @@ describe('render.page', () => {
 
       const controller = new AbortController();
       const aborted = service.execute('render.page', ask, '/repo', { ...call, signal: controller.signal });
-      await settle();
+      await waitForPage();
       controller.abort();
       await expect(aborted).rejects.toBeTruthy();
       expect(onPageWaitChange).toHaveBeenLastCalledWith({ type: 'settled', sessionId: 'ses_1', callId: 'call_1' });
     });
 
     it('answers once: a second answer, or one for another call, finds nothing waiting', async () => {
-      const { service } = createService();
+      const { service, waitForPage } = createWaitingService();
       const pending = service.execute('render.page', ask, '/repo', call);
-      await settle();
+      await waitForPage();
 
       expect(() => service.answerPage({ sessionId: 'ses_1', callId: 'call_2', summary: 'B' })).toThrow(expect.objectContaining({ statusCode: 404 }));
       service.answerPage({ sessionId: 'ses_1', callId: 'call_1', summary: 'B' });
@@ -1501,10 +1542,10 @@ describe('render.page', () => {
     });
 
     it('stops waiting when the call is aborted, and the page no longer takes an answer', async () => {
-      const { service } = createService();
+      const { service, waitForPage } = createWaitingService();
       const controller = new AbortController();
       const pending = service.execute('render.page', ask, '/repo', { ...call, signal: controller.signal });
-      await settle();
+      await waitForPage();
 
       controller.abort();
 
@@ -1518,9 +1559,9 @@ describe('render.page', () => {
       [{ summary: 'B', data: 'x'.repeat(16_001) }, 413],
       [{ sessionId: '', summary: 'B' }, 400],
     ])('refuses the answer %o and keeps waiting', async (answer, statusCode) => {
-      const { service } = createService();
+      const { service, waitForPage } = createWaitingService();
       const pending = service.execute('render.page', ask, '/repo', call);
-      await settle();
+      await waitForPage();
 
       expect(() => service.answerPage({ sessionId: 'ses_1', callId: 'call_1', ...answer })).toThrow(expect.objectContaining({ statusCode }));
       service.answerPage({ sessionId: 'ses_1', callId: 'call_1', summary: 'B' });
@@ -1543,21 +1584,24 @@ describe('render.page', () => {
       expect(() => service.answerPage({ sessionId: 'ses_1', callId: 'call_1', summary: 'B' })).toThrow(expect.objectContaining({ statusCode: 404 }));
     });
 
-    it('waits when only a synthetic or queued message is pending, or the inbox cannot be read', async () => {
-      const { service, client } = createService();
+    it('waits when only a synthetic, queued or agent-sent message is pending, or the inbox cannot be read', async () => {
+      const { service, client, waitForPage } = createWaitingService();
       client.session.inbox.list.mockResolvedValueOnce([
         { id: 'msg_2', sessionID: 'ses_1', type: 'synthetic', delivery: 'steer', payload: { text: 'subagent finished' }, time: { created: 1 } },
         { id: 'msg_3', sessionID: 'ses_1', type: 'user', delivery: 'queue', payload: { text: 'after this turn' }, time: { created: 2 } },
+        { id: 'msg_4', sessionID: 'ses_1', type: 'user', delivery: 'steer', payload: { text: 'build 42 finished', metadata: { openchamber: { promptedBy: { sessionID: 'ses_helper' } } } }, time: { created: 3 } },
+        { id: 'msg_5', sessionID: 'ses_1', type: 'user', delivery: 'steer', payload: { text: 'from afar', metadata: { openchamber: { promptedBy: { sessionID: 'remote-host/opencode/session:ses_x' } } } }, time: { created: 4 } },
+        { id: 'msg_6', sessionID: 'ses_1', type: 'user', delivery: 'steer', payload: { text: 'nightly check', metadata: { schedule: { id: 'sch_1', run: 1, dueAt: 1, late: false } } }, time: { created: 5 } },
       ]);
       const pending = service.execute('render.page', ask, '/repo', call);
-      await settle();
+      await waitForPage();
       service.answerPage({ sessionId: 'ses_1', callId: 'call_1', summary: 'B' });
       await expect(pending).resolves.toMatchObject({ answer: { answered: true, summary: 'B' } });
 
       const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
       client.session.inbox.list.mockRejectedValueOnce(new Error('OpenCode is down'));
       const failedRead = service.execute('render.page', ask, '/repo', call);
-      await settle();
+      await waitForPage();
       service.answerPage({ sessionId: 'ses_1', callId: 'call_1', summary: 'A' });
       await expect(failedRead).resolves.toMatchObject({ answer: { answered: true, summary: 'A' } });
       warn.mockRestore();
@@ -1695,8 +1739,9 @@ describe('browser select', () => {
   });
 
   it.each([
-    [{ label: 'Canada' }, 'selector is required for browser.select'],
-    [{ selector: '  ', label: 'Canada' }, 'selector is required for browser.select'],
+    [{ label: 'Canada' }, 'browser.select requires ref or selector'],
+    [{ selector: '  ', label: 'Canada' }, 'browser.select requires ref or selector'],
+    [{ ref: 'button', label: 'Canada' }, 'ref must be a ref from browser.snapshot'],
     [{ selector: '#country' }, 'browser.select requires exactly one of label or value'],
     [{ selector: '#country', label: 'Canada', value: 'ca' }, 'browser.select requires exactly one of label or value'],
     [{ selector: '#country', label: 42 }, 'browser.select requires exactly one of label or value'],
@@ -1796,6 +1841,42 @@ describe('returning a dispatched session result', () => {
     expect(sessionService.create).toHaveBeenCalled();
     expect(result).not.toHaveProperty('resultDelivery');
     expect(dispatchResults.register).not.toHaveBeenCalled();
+  });
+
+  it('creates an ownWork session under the calling session and brings its answer back by default', async () => {
+    const { service, sessionService, dispatchResults } = createReturningService();
+    const result = await service.execute('session.create', { prompt: 'Fix the parser', ownWork: true }, '/repo', { contextSessionId: 'ses_parent' });
+
+    expect(sessionService.create).toHaveBeenCalledWith(expect.objectContaining({ prompt: 'Fix the parser' }), { operatorParentId: 'ses_parent' });
+    expect(dispatchResults.register).toHaveBeenCalledWith({ parentSessionId: 'ses_parent', sessionId: 'ses_child', dispatchedAt: 1_000 });
+    expect(result.resultDelivery.status).toBe('pending');
+  });
+
+  it('keeps an ownWork session quiet when the agent turns its answer off', async () => {
+    const { service, sessionService, dispatchResults } = createReturningService();
+    await service.execute('session.create', { prompt: 'Fix the parser', ownWork: true, returnResult: false }, '/repo', { contextSessionId: 'ses_parent' });
+
+    expect(sessionService.create).toHaveBeenCalledWith(expect.anything(), { operatorParentId: 'ses_parent' });
+    expect(dispatchResults.register).not.toHaveBeenCalled();
+  });
+
+  it('leaves a session without ownWork to the user', async () => {
+    const { service, sessionService, dispatchResults } = createReturningService();
+    await service.execute('session.create', { prompt: 'Fix the parser' }, '/repo', { contextSessionId: 'ses_parent' });
+
+    expect(sessionService.create).toHaveBeenCalledWith(expect.anything());
+    expect(dispatchResults.register).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['without a calling session', 'session.create', { prompt: 'x', ownWork: true }, {}, 'needs a calling session'],
+    ['on a send', 'session.send', { sessionId: 'ses_child', prompt: 'x', ownWork: true }, { contextSessionId: 'ses_parent' }, 'applies only to session.create'],
+    ['as a string', 'session.create', { prompt: 'x', ownWork: 'true' }, { contextSessionId: 'ses_parent' }, 'ownWork must be a boolean'],
+  ])('refuses ownWork %s before creating anything', async (_label, action, input, options, message) => {
+    const { service, sessionService } = createReturningService();
+    await expect(service.execute(action, input, '/repo', options)).rejects.toMatchObject({ statusCode: 400, message: expect.stringContaining(message) });
+    expect(sessionService.create).not.toHaveBeenCalled();
+    expect(sessionService.send).not.toHaveBeenCalled();
   });
 
   it('refuses a wait that is not a boolean', async () => {

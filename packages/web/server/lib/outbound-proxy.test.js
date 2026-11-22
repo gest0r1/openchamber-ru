@@ -34,11 +34,11 @@ describe('applyOutboundProxyFromEnv', () => {
 
   it('sends fetch through the proxy and keeps loopback direct in a real Node process', () => {
     const moduleUrl = new URL('./outbound-proxy.js', import.meta.url).href;
-    const result = spawnSync('node', ['--input-type=module', '--eval', `
+    const result = spawnSync('node', ['--import', new URL('../../scripts/register-server-sources.mjs', import.meta.url).href, '--input-type=module', '--eval', `
       import http from 'node:http';
       import assert from 'node:assert/strict';
       const seen = [];
-      const proxy = http.createServer((req, res) => res.end());
+      const proxy = http.createServer((req, res) => { seen.push(req.method + ' ' + req.url); res.end(); });
       proxy.on('connect', (req, socket) => { seen.push('proxy ' + req.url); socket.end('HTTP/1.1 502 Bad Gateway\\r\\n\\r\\n'); });
       const local = http.createServer((req, res) => { seen.push('direct'); res.end('ok'); });
       await new Promise((resolve) => proxy.listen(0, '127.0.0.1', resolve));

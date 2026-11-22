@@ -1,8 +1,10 @@
 import { afterEach, describe, expect, spyOn, test } from 'bun:test';
+import { execFileSync } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
 import { runInNewContext } from 'node:vm';
 import { Window } from 'happy-dom';
 import { guestMessageSchema } from '@openchamber/sdk/schemas';
+import * as sdk from '@openchamber/sdk';
 import type { GuestMessage, HostMessage, HostReadyContext, HostResultPayload, GuestWorkspaceSnapshot } from '@openchamber/sdk';
 
 import { resolveGuestIconName } from './icon.ts';

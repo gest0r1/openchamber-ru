@@ -415,6 +415,7 @@ describe('parseQueuedItemInput', () => {
     ]);
     expect(() => parseQueuedItemInput(item({ context: [{ kind: 'context', text: 'no metadata' }] }))).toThrow(TypeError);
     expect(() => parseQueuedItemInput(item({ context: [{ kind: 'other', text: 'x' }] }))).toThrow(TypeError);
+    expect(parseQueuedItemInput(item({ context })).context[0].metadata).toBe(context[0].metadata);
   });
 
   it('accepts an item that is only context', () => {
@@ -520,6 +521,19 @@ describe('a message queued as a goal', () => {
 });
 
 describe('message queue runtime', () => {
+  it.each(['constructor', 'toString'])('delivers an idle session named %s despite inherited active-map members', async (sessionId) => {
+    const { runtime, openCode } = createRuntime();
+    runtime.start();
+    await runtime.enqueue(sessionId, DIRECTORY, item());
+    await vi.waitFor(() => {
+      expect(openCode.state.sent).toHaveLength(1);
+      expect(openCode.state.sent[0].path).toBe(`/api/session/${sessionId}/prompt`);
+      expect(runtime.sessionSnapshot(sessionId).items).toEqual([]);
+    });
+    runtime.stop();
+    await runtime.flush();
+  });
+
   it('delivers the head of the queue when the session goes idle, in order', async () => {
     const { runtime, openCode, emit, promptSent, broadcasts, replayAfterSend } = createRuntime();
     runtime.start();
@@ -604,12 +618,57 @@ describe('message queue runtime', () => {
     await runtime.flush();
   });
 
-  it('waits for a background subagent before sending the queued message', async () => {
+  it('delivers a message queued while busy to the directory the session moved to, once', async () => {
+    const { runtime, openCode, emit, broadcasts } = createRuntime();
+    runtime.start();
+    openCode.state.active = { [SESSION]: { type: 'running' } };
+    await runtime.enqueue(SESSION, DIRECTORY, item({ content: 'after the move', text: 'after the move' }));
+    await settle();
+    expect(openCode.state.sent).toHaveLength(0);
+
+    emit({ type: 'session.updated', properties: { sessionID: SESSION, info: { id: SESSION, directory: '/repo/moved', projectID: 'project-1' } } });
+    expect(runtime.sessionSnapshot(SESSION).directory).toBe('/repo/moved');
+    expect(broadcasts.at(-1)).toMatchObject({
+      properties: { session: { sessionId: SESSION, directory: '/repo/moved', items: [{ content: 'after the move' }] } },
+    });
+
+    openCode.state.active = {};
+    emit({ type: 'session.status', properties: { sessionID: SESSION, status: { type: 'idle' } } });
+    await settle();
+
+    expect(openCode.state.sent).toHaveLength(1);
+    expect(openCode.state.sent[0].body).toEqual({ text: 'after the move' });
+    const promptUrls = openCode.fetchImpl.mock.calls
+      .map(([url]) => new URL(url))
+      .filter((url) => url.pathname === `/api/session/${SESSION}/prompt`);
+    expect(promptUrls.map((url) => url.searchParams.get('directory'))).toEqual(['/repo/moved']);
+    expect(runtime.sessionSnapshot(SESSION)).toMatchObject({ directory: '/repo/moved', items: [], sendingId: null });
+
+    // A later idle finds nothing left to send.
+    emit({ type: 'session.status', properties: { sessionID: SESSION, status: { type: 'busy' } } });
+    emit({ type: 'session.status', properties: { sessionID: SESSION, status: { type: 'idle' } } });
+    await settle();
+    expect(openCode.state.sent).toHaveLength(1);
+  });
+
+  it('a session update without a projectID does not move the queue', async () => {
+    const { runtime, emit } = createRuntime();
+    runtime.start();
+    await runtime.enqueue(SESSION, DIRECTORY, item());
+
+    emit({ type: 'session.updated', properties: { sessionID: SESSION, info: { id: SESSION, directory: '/repo/elsewhere', title: 'Renamed' } } });
+
+    expect(runtime.sessionSnapshot(SESSION).directory).toBe(DIRECTORY);
+    runtime.stop();
+    await runtime.flush();
+  });
+
+  it('sends the queued message to an idle parent while its background subagents run', async () => {
     const { runtime, openCode, emit } = createRuntime();
     runtime.start();
-    // The parent paused: it is idle while its background subagent works.
-    openCode.state.children = { [SESSION]: ['ses_child'] };
-    openCode.state.active = { ses_child: { type: 'running' } };
+    // The parent is idle while its subagent and that one's own subagent work.
+    openCode.state.children = { [SESSION]: ['ses_child'], ses_child: ['ses_grandchild'] };
+    openCode.state.active = { ses_child: { type: 'running' }, ses_grandchild: { type: 'running' } };
 
     await runtime.enqueue(SESSION, DIRECTORY, item({ content: 'next', text: 'next' }));
     emit({ type: 'session.status', properties: { sessionID: SESSION, status: { type: 'idle' } } });
@@ -856,11 +915,10 @@ describe('message queue runtime', () => {
     const { runtime, openCode, emit } = createRuntime();
     runtime.start();
     let release;
-    // active map, message tail, the subagent check (empty active map),
-    // model switch, then the prompt itself (held open until released)
+    // active map, message tail, model switch, then the prompt itself (held
+    // open until released)
     openCode.fetchImpl.mockImplementationOnce(async () => Response.json({ location: {}, data: {} }))
       .mockImplementationOnce(async () => Response.json({ data: [], cursor: {} }))
-      .mockImplementationOnce(async () => Response.json({ data: {} }))
       .mockImplementationOnce(async () => new Response(null, { status: 204 }))
       .mockImplementationOnce(() => new Promise((resolve) => { release = () => resolve(new Response(null, { status: 204 })); }));
     const { itemId } = await runtime.enqueue(SESSION, DIRECTORY, item());

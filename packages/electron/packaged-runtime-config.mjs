@@ -29,8 +29,6 @@ export const RUNTIME_CONFIG_SCRIPT = '(function(){var read=window.__OPENCHAMBER_
 export const injectRuntimeConfig = (html, { pending }) => {
   if (pending) {
     const tag = `<script src="${RUNTIME_CONFIG_SCRIPT_PATHNAME}"></script>`;
-    // At the end of the body, so the document's own loading screen is parsed
-    // and painted while the script waits.
     return html.includes('</body>') ? html.replace('</body>', `${tag}</body>`) : `${html}${tag}`;
   }
   const tag = `<script>${RUNTIME_CONFIG_SCRIPT}</script>`;
@@ -39,7 +37,6 @@ export const injectRuntimeConfig = (html, { pending }) => {
   return `${tag}${html}`;
 };
 
-/** Held from the early navigation until startup has resolved. While held, documents are served with the blocking script and its request waits. */
 export const createRuntimeConfigGate = () => {
   let held = null;
   let release = null;
@@ -60,12 +57,10 @@ export const createRuntimeConfigGate = () => {
   };
 };
 
-/** Only the top frame of a window, showing the packaged application itself. */
 export const isRuntimeConfigFrame = (frame) => {
   try {
     return Boolean(frame) && frame.parent === null && frame.origin === PACKAGED_UI_ORIGIN;
   } catch {
-    // Reading a frame that is already gone throws.
     return false;
   }
 };

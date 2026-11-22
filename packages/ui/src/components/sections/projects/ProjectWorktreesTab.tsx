@@ -28,7 +28,6 @@ import {
 } from './projectSetupModel';
 import type { ProjectSetupState } from './useProjectSetup';
 
-/** A command's text, edited in place and written when the field loses focus. */
 const CommandInput: React.FC<{
   value: string;
   disabled?: boolean;
@@ -211,7 +210,6 @@ const CreateCommand: React.FC<{ projectRef: ProjectRef; setup: ProjectSetup; set
 export const ProjectWorktreesTab: React.FC<{
   projectRef: ProjectRef;
   setupState: ProjectSetupState;
-  /** Opens the project's worktrees page; absent where that page does not exist. */
   onOpenWorktrees?: () => void;
 }> = ({ projectRef, setupState, onOpenWorktrees }) => {
   const { t } = useI18n();
@@ -224,7 +222,6 @@ export const ProjectWorktreesTab: React.FC<{
       .then((result) => {
         if (!cancelled) setIsGitRepo(result);
       })
-      // An unknown answer keeps the setup editable, as before the check existed.
       .catch(() => undefined);
     return () => {
       cancelled = true;

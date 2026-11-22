@@ -11,9 +11,9 @@
 type DelimitedTable = {
   header: string[];
   rows: string[][];
-  /** Every data row in the file, including the ones not kept. */
   totalRows: number;
   columnCount: number;
+  dataColumnCount: number;
   truncated: boolean;
 };
 
@@ -25,11 +25,12 @@ export const delimiterForPath = (filePath: string): ',' | '\t' => (
 
 export const parseDelimitedText = (
   content: string,
-  delimiter: ',' | '\t',
+  delimiter: TableDelimiter,
   rowCap: number = DEFAULT_TABLE_ROW_CAP,
 ): DelimitedTable => {
   const records: string[][] = [];
   let totalRecords = 0;
+  let dataColumnCount = 0;
   let field = '';
   let record: string[] = [];
   let quoted = false;
@@ -38,10 +39,9 @@ export const parseDelimitedText = (
   const pushRecord = () => {
     record.push(field);
     field = '';
-    // A trailing newline is not an empty record; a single empty field is only
-    // a record when something else on that line said so.
     const isBlank = record.length === 1 && record[0] === '' && !recordHasContent;
     if (!isBlank) {
+      dataColumnCount = Math.max(dataColumnCount, record.length);
       if (totalRecords === 0 || records.length <= rowCap) {
         records.push(record);
       }
@@ -96,6 +96,7 @@ export const parseDelimitedText = (
     rows,
     totalRows,
     columnCount,
+    dataColumnCount,
     truncated: rows.length < totalRows,
   };
 };

@@ -4,7 +4,6 @@ import { SessionMenuItemHint } from './SessionMenuItemHint';
 import { useI18n } from '@/lib/i18n';
 import { useSessionAiRenameAction } from './useSessionAiRenameAction';
 
-/** Mounted in the sidebar, tab context menus and the single-session header. */
 export function SessionAiRenameMenuItem({ sessionID, directory, open, Item }: {
   sessionID: string;
   directory: string | null | undefined;
@@ -14,8 +13,6 @@ export function SessionAiRenameMenuItem({ sessionID, directory, open, Item }: {
   const { t } = useI18n();
   const { pending, disabled, hint, run } = useSessionAiRenameAction(sessionID, directory, open);
 
-  // The span keeps the hint reachable while the item is disabled, which is
-  // exactly when the hint says why.
   return (
     <SessionMenuItemHint hint={hint}>
       <span className="block">

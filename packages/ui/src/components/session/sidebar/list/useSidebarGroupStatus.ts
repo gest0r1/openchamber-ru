@@ -44,7 +44,6 @@ export const useSidebarGroupStatus = ({
     React.useCallback(() => '', []),
   );
   const groupStatusByKey = React.useMemo(() => {
-    // The snapshot invalidates these reads; the directory stores own their state.
     void bootstrapSnapshot;
     const pausedDirectories = new Set(pausedSnapshot ? pausedSnapshot.split('\u0001') : []);
     const statuses = new Map<string, SessionSidebarGroupStatus>();
@@ -68,13 +67,10 @@ export const useSidebarGroupStatus = ({
           canGrantAccess: failure === 'os-permission' && canGrantAccess,
         });
       } else {
-        // Unopened directories rely on the global list. A previous complete
-        // list keeps empty groups ready during background refreshes.
         const complete = hasLoadedGlobalSessions || (!archived && groupDirectories.length > 0
           && groupDirectories.every((directory) => childStores.getBootstrapState(directory) === 'complete'));
         statuses.set(key, {
           state: complete ? 'ready' : globalStatus === 'error' ? 'load-failed' : 'loading',
-          // A null directory retries the global list, without initializing a location.
           directory: complete ? groupDirectories[0] ?? null : null,
           canGrantAccess: false,
         });

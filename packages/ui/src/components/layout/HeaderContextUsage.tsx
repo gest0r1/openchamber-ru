@@ -29,8 +29,6 @@ const TONE_COLOR = {
 const HeaderContextUsageComponent: React.FC<{ buttonClassName: string }> = ({ buttonClassName }) => {
   const { t } = useI18n();
   const { sessionId, fill, limit } = useCurrentContextReading();
-  // The panel key the rail uses, so this button and the rail's Context icon
-  // open, light up and close the same surface.
   const effectiveDirectory = useEffectiveDirectory();
   const directoryKey = effectiveDirectory ? normalizeContextPanelDirectoryKey(effectiveDirectory) : '';
   const openContextSurface = useUIStore((state) => state.openContextSurface);
@@ -44,7 +42,6 @@ const HeaderContextUsageComponent: React.FC<{ buttonClassName: string }> = ({ bu
   }
 
   const percent = fill.state === 'measured' ? (fill.totalTokens / limit) * 100 : null;
-  // Rounded for the tone, as the Work Status meter does, so both turn together.
   const arcColor = percent === null ? undefined : TONE_COLOR[resolveUsageTone(Math.round(percent))];
 
   return (
@@ -52,7 +49,6 @@ const HeaderContextUsageComponent: React.FC<{ buttonClassName: string }> = ({ bu
       <TooltipTrigger asChild>
         <button
           type="button"
-          // Toggles, as the rail icon does: a second click closes the overview.
           onClick={directoryKey ? () => openContextSurface(directoryKey, 'context') : undefined}
           aria-label={t('contextUsage.aria.label')}
           aria-pressed={contextShown}
@@ -74,6 +70,4 @@ const HeaderContextUsageComponent: React.FC<{ buttonClassName: string }> = ({ bu
   );
 };
 
-// Memoised: the header re-renders on many session changes; this re-renders
-// when a response reports a new fill.
 export const HeaderContextUsage = React.memo(HeaderContextUsageComponent);

@@ -17,8 +17,6 @@ const getFileReferenceStatCacheMax = (): number => (
   isVSCodeRuntime() ? VSCODE_FILE_REFERENCE_STAT_CACHE_MAX : FILE_REFERENCE_STAT_CACHE_MAX
 );
 
-// NUL cannot occur in a real path, so a directory-qualified key cannot collide
-// with a differently scoped entry.
 const statCacheKey = (directory: string, normalizedPath: string): string => `${directory}\u0000${normalizedPath}`;
 
 export const fileReferenceExists = (resolvedPath: string, effectiveDirectory: string): Promise<boolean> => {
@@ -41,9 +39,6 @@ export const fileReferenceExists = (resolvedPath: string, effectiveDirectory: st
       void runtimeFetch(`/api/fs/stat?path=${encodeURIComponent(normalizedPath)}&optional=true`, {
         method: 'GET',
         cache: 'no-store',
-        // The stat route resolves the workspace from this header. Without it
-        // the server falls back to the browsed lastDirectory, which rejects
-        // session-local files with 400 whenever the two directories differ.
         headers: effectiveDirectory ? { 'x-opencode-directory': effectiveDirectory } : undefined,
       })
         .then(async (response) => {

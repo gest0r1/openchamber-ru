@@ -8,24 +8,12 @@ import { runtimeFetch } from '@/lib/runtime-fetch';
 import { isAmbiguousTransportFailure } from '@/lib/relay/transport-error';
 import { loadRelayGuestDocument } from './relay-document';
 
-/**
- * Direct frames load their package from `/api/guest-files/<grant>/…`: the
- * grant in the path is the frame's only credential, so the page's relative
- * URLs (scripts, styles, its own `fetch`) keep it, and the frame never needs
- * the session a sign-in proxy in front of the server would ask for. A server
- * that predates grants gets the short-lived guest-scoped query token instead.
- * Relay frames fetch their HTML and static resources over authenticated
- * runtime HTTP and use srcDoc; browser-owned iframe requests cannot travel
- * through the JS tunnel client. No representation contains the runtime's
- * bearer credential.
- */
 export type GuestFrameUrl =
   | { kind: 'url'; url: string; expiresAt: number }
   | { kind: 'document'; html: string };
 
 const frameGrantSchema = z.object({ grant: z.string().min(1), expiresAt: z.number() });
 
-/** The frame's grant, or null when the server predates grants. */
 const mintGuestFrameGrant = async (guestId: string, signal?: AbortSignal): Promise<z.infer<typeof frameGrantSchema> | null> => {
   const response = await runtimeFetch(`/api/guests/${encodeURIComponent(guestId)}/frame-grant`, { method: 'POST', signal });
   if (response.status === 404 || response.status === 405) return null;

@@ -144,10 +144,6 @@ export const TodosSection: React.FC<{
   disabled: boolean;
   canCreateWorktree: boolean;
   sendingTodoId: string | null;
-  /**
-   * Shows `next` and persists it through the container's store write: one
-   * todo when `change` names it, otherwise the whole list.
-   */
   onPersistTodos: (next: ProjectTodoItem[], change?: ProjectTodoChange) => void;
   onSendToCurrentSession: (todoText: string) => void;
   onSendToNewSession: (todoId: string, todoText: string) => void;
@@ -170,7 +166,6 @@ export const TodosSection: React.FC<{
   const [editingTodoId, setEditingTodoId] = React.useState<string | null>(null);
   const reveal = useKnowledgeRevealClass();
 
-  // Shown at once and persisted by the container, which reports a failure.
   const handleAddTodo = React.useCallback((trimmed: string) => {
     const id = createTodoId();
     const text = trimmed.slice(0, PROJECT_TODO_TEXT_MAX_LENGTH);

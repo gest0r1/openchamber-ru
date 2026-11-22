@@ -492,30 +492,25 @@ const AttachmentPickerInput = React.memo(function AttachmentPickerInput({ ref, o
 });
 
 const ChatInputComponent: React.FC<ChatInputProps> = ({
-    onOpenSettings,
-    scrollToBottom,
-    scrollToLatest,
-    active = true,
-    draftPresentationExiting = false,
+    onOpenSettings, scrollToBottom, scrollToLatest, active = true, draftPresentationExiting = false,
 }) => {
-    const { t } = useI18n();
-    // The session this composer belongs to: its column's (see
-    // chatColumnSession.ts); outside a column it follows the live selection.
-    const chatColumnSession = useChatColumnSession();
-    const { pinned: columnPinned, openTimelineDialog, focusInput: focusColumnInput } = useChatColumnActions();
-    // Track if we restored a draft on mount (for text selection)
-    const initialDraftRef = React.useRef<string | null>(null);
-    const initialDraftIdentityRef = React.useRef<ChatDraftIdentity | null>(null);
-    const initialDraftSnapshotRef = React.useRef<ChatDraftSnapshot>({ text: '', confirmedMentions: new Set() });
-    const [message, setMessage] = React.useState(() => {
-        const identity = resolveChatDraftIdentity(chatColumnSession);
-        const snapshot = readChatDraftClaimingFolderDraft(identity);
-        initialDraftIdentityRef.current = identity;
-        initialDraftSnapshotRef.current = snapshot;
-        if (snapshot.text) {
-            initialDraftRef.current = snapshot.text;
-        }
-        return snapshot.text;
+    const props = { onOpenSettings, scrollToBottom, scrollToLatest, active, draftPresentationExiting };
+    const column = useComposerColumn();
+    const i18n = useI18n();
+    const draftText = useComposerDraftText(column.chatColumnSession);
+    const editorState = useComposerEditorState();
+    const autocompleteState = useComposerAutocompleteState();
+    const mobilePanels = useComposerMobilePanels();
+    const historySearchState = useComposerHistorySearchState(editorState.composerFormRef);
+    const dropState = useComposerDropState();
+    const attachmentWork = useComposerAttachmentWork();
+    const largePasteState = useComposerLargePasteState();
+    const dictationState = useComposerDictationState();
+    const sessionScope = useComposerSessionScope({ column, draftText });
+    const selection = useComposerSelection({ column, editorState, sessionScope });
+    const preferences = useComposerPreferences();
+    const largePasteScope = useComposerLargePasteScope({
+        ...sessionScope, ...preferences, ...largePasteState, ...editorState,
     });
     const confirmedMentionsRef = React.useRef<Set<string>>(initialDraftSnapshotRef.current.confirmedMentions);
     const [storedInputMode, setInputMode] = React.useState<'normal' | 'shell'>('normal');
@@ -918,19 +913,10 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({
         title: '',
         content: '',
     });
-    // Mount the lazy preview dialog only after its first open; rendering it
-    // closed would fetch the ToolOutputDialog chunk (with the @pierre/diffs
-    // stack) on the draft screen before any preview is requested.
-    const [attachmentPreviewMounted, setAttachmentPreviewMounted] = React.useState(false);
-    React.useEffect(() => {
-        if (attachmentPreview.open) {
-            setAttachmentPreviewMounted(true);
-        }
-    }, [attachmentPreview.open]);
-    const attachmentCompatibilityRef = React.useRef({
-        modelKey: `${currentProviderId ?? ''}/${currentModelId ?? ''}`,
-        modalitySignature: currentModelMetadata?.modalities?.input?.slice().sort().join(',') ?? null,
-        attachmentIds: new Set<string>(),
+    const referencePickerState = useComposerReferencePickerState();
+    const mobileShell = useComposerMobileShell({
+        preferences, expansion, referencePickerState, editorState, mobilePanels, historySearchState,
+        dropState, largePasteState,
     });
 
     React.useEffect(() => {
@@ -1410,223 +1396,12 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({
             isDragging,
         },
     });
-    const mobileComposerExpanded = mobileShell.expanded;
-    const mobileTextareaFocused = mobileShell.focused;
-    const linkedReferences = useDraftLinkedReferences(chatDraftIdentity);
-    const setLinkedReferencesFor = React.useCallback((
-        target: ChatDraftIdentity | null,
-        references: ComposerReference[],
-    ) => {
-        useLinkedReferenceDrafts.getState().set(references, target);
-    }, []);
-    const updateLinkedReferencesFor = React.useCallback((
-        target: ChatDraftIdentity | null,
-        update: (current: ComposerReference[]) => ComposerReference[],
-    ) => {
-        useLinkedReferenceDrafts.getState().set(update(readLinkedReferences(target)), target);
-    }, []);
-    // UI actions act on the draft on screen now; a send keeps its own target.
-    const updateLinkedReferences = React.useCallback((update: (current: ComposerReference[]) => ComposerReference[]) => {
-        updateLinkedReferencesFor(currentChatDraftIdentityRef.current, update);
-    }, [updateLinkedReferencesFor]);
-    const [contextPreviewHost, setContextPreviewHost] = React.useState<HTMLDivElement | null>(null);
-    const [attachDialogGuestId, setAttachDialogGuestId] = React.useState<string | null>(null);
-    // The chip the attach dialog was opened from; null when opened from the + menu.
-    const [attachDialogItem, setAttachDialogItem] = React.useState<AttachIssueRequest | null>(null);
-
-    // Message queue
-    const messageQueueDirectory = currentSessionDirectoryForSync ?? currentDirectory;
-    const parentMessageQueueTarget = React.useMemo(() => (currentSessionId
-        ? createMessageQueueTarget(currentSessionId, messageQueueDirectory, activeRuntimeKey)
-        : null), [activeRuntimeKey, currentSessionId, messageQueueDirectory]);
-    const parentMessageQueueKey = parentMessageQueueTarget ? getMessageQueueKey(parentMessageQueueTarget) : null;
-    const messageQueueTarget = !isBtwActive ? parentMessageQueueTarget : null;
-    const messageQueueKey = !isBtwActive ? parentMessageQueueKey : null;
-    const followUpBehavior = useMessageQueueStore((state) => state.followUpBehavior);
-    const queuedMessages = useMessageQueueStore(
-        React.useCallback(
-            (state) => {
-                if (!messageQueueKey) return EMPTY_QUEUE;
-                return state.queuedMessages[messageQueueKey] ?? EMPTY_QUEUE;
-            },
-            [messageQueueKey]
-        )
-    );
-    const addToQueue = useMessageQueueStore((state) => state.addToQueue);
-    const takeForSend = useMessageQueueStore((state) => state.takeForSend);
-    const popQueuedToInput = useMessageQueueStore((state) => state.popToInput);
-
-    // Inline comment drafts
-    const inlineDraftSessionKey = isBtwActive ? btwComposerSessionId ?? '' : currentSessionId ?? (newSessionDraftOpen ? 'draft' : '');
-    const inlineDraftDirectory = currentSessionDirectoryForSync ?? currentDirectory;
-    const inlineDraftTarget = React.useMemo<InlineCommentDraftTarget | null>(
-        () => inlineDraftSessionKey && inlineDraftDirectory
-            ? { directory: inlineDraftDirectory, sessionKey: inlineDraftSessionKey }
-            : null,
-        [inlineDraftDirectory, inlineDraftSessionKey],
-    );
-    const inlineDraftKey = inlineDraftTarget
-        ? getInlineCommentDraftKey(activeRuntimeKey, inlineDraftTarget.directory, inlineDraftTarget.sessionKey)
-        : null;
-    // Publish where the composer on screen files what other surfaces hand it:
-    // inline drafts (file, diff, plan, terminal, PR and browser comments) and
-    // attachments (a comment's image, an annotation's screenshot).
-    const composerAddress = React.useMemo<ComposerAddress | null>(
-        () => ({ inline: inlineDraftTarget, attachments: chatDraftIdentity }),
-        [chatDraftIdentity, inlineDraftTarget],
-    );
-    React.useLayoutEffect(() => {
-        if (columnPinned) return;
-        useInputStore.getState().setComposerAddress(composerAddress);
-        return () => useInputStore.getState().setComposerAddress(null);
-    }, [columnPinned, composerAddress]);
-    const draftCount = useInlineCommentDraftStore(
-        React.useCallback(
-            (state) => inlineDraftKey ? (state.drafts[inlineDraftKey] ?? []).length : 0,
-            [inlineDraftKey]
-        )
-    );
-    const consumeDrafts = useInlineCommentDraftStore((state) => state.consumeDrafts);
-    const hasDrafts = draftCount > 0;
-
-    // Mobile comment mode (see composer/comment/): read imperatively here so
-    // the send/queue guards below see the live state; rendering and lifecycle
-    // live in useMobileCommentComposerMode further down.
-    const mobileCommentController = useMobileCommentComposerController();
-    const isMobileCommentOpen = React.useCallback(
-        () => isMobile && mobileCommentController?.getState().status === 'open',
-        [isMobile, mobileCommentController],
-    );
-    const attachMobileCommentRef = React.useRef<() => void>(() => undefined);
-
-    const inputHistoryScope = useInputHistoryStore((state) => state.scope);
-    const inputHistoryIdentity = React.useMemo(
-        () => createInputHistoryIdentity(
-            activeRuntimeKey,
-            currentSessionDirectoryForSync ?? currentDirectory ?? '',
-            inlineDraftSessionKey || 'draft',
-        ),
-        [activeRuntimeKey, currentDirectory, currentSessionDirectoryForSync, inlineDraftSessionKey],
-    );
-    const inputHistoryEntries = useInputHistoryStore(React.useCallback(
-        (state) => selectInputHistoryEntries(state, inputHistoryIdentity),
-        [inputHistoryIdentity],
-    ));
-    // Session scope also reads the visible transcript, so sessions older than
-    // the persisted history still recall their prompts.
-    const transcriptPrompts = useUserMessageHistory((isBtwActive ? btwSessionId : currentSessionId) ?? '');
-    const historyValues = React.useMemo(
-        () => (inputHistoryScope === 'session'
-            ? mergeSessionInputHistory(transcriptPrompts, inputHistoryEntries)
-            : mapInputHistoryEntriesToValues(inputHistoryEntries)),
-        [inputHistoryEntries, inputHistoryScope, transcriptPrompts],
-    );
-    const messageHistoryIdentity = React.useMemo(
-        () => buildInputHistoryNavigatorIdentity(inputHistoryScope, inputHistoryIdentity),
-        [inputHistoryIdentity, inputHistoryScope],
-    );
-    const messageHistory = useMessageHistory<AttachedFile>(historyValues, messageHistoryIdentity);
-    const promptHistorySearchIdentity = `${chatDraftIdentity ? getChatDraftIdentityKey(chatDraftIdentity) : 'none'}:${messageHistoryIdentity}:${inputMode}:${isBtwActive}:${isBtwPanelVisible}`;
-    const isPromptHistorySearchOpen = promptHistorySearch?.identity === promptHistorySearchIdentity;
-    const promptHistorySearchIdentityRef = React.useRef(promptHistorySearchIdentity);
-    promptHistorySearchIdentityRef.current = promptHistorySearchIdentity;
-
-    React.useEffect(() => {
-        if (!isPromptHistorySearchOpen && promptHistorySearch) setPromptHistorySearch(null);
-    }, [isPromptHistorySearchOpen, promptHistorySearch]);
-
-    // The one deferred composer focus that history work may have pending. A
-    // newer schedule replaces it; opening the search or unmounting cancels it,
-    // so a stale frame cannot pull focus out of a search that opened since.
-    const historyFocusFrameRef = React.useRef<number | null>(null);
-    const cancelHistoryFocusFrame = React.useCallback(() => {
-        if (historyFocusFrameRef.current === null) return;
-        window.cancelAnimationFrame(historyFocusFrameRef.current);
-        historyFocusFrameRef.current = null;
-        setHistoryFocusPending(false);
-    }, []);
-    const scheduleHistoryFocusFrame = React.useCallback((run: () => void) => {
-        cancelHistoryFocusFrame();
-        setHistoryFocusPending(true);
-        historyFocusFrameRef.current = window.requestAnimationFrame(() => {
-            historyFocusFrameRef.current = null;
-            run();
-            setHistoryFocusPending(false);
-        });
-    }, [cancelHistoryFocusFrame]);
-    React.useEffect(() => cancelHistoryFocusFrame, [cancelHistoryFocusFrame]);
-
-    const applyHistoryValue = React.useCallback((value: MessageHistoryValue<AttachedFile>, selection: 'start' | 'end') => {
-        const identity = promptHistorySearchIdentityRef.current;
-        setMessage(value.text);
-        messageRef.current = value.text;
-        useInputStore.getState().setAttachedFiles([...value.attachments], chatDraftIdentity);
-        scheduleHistoryFocusFrame(() => {
-            if (promptHistorySearchIdentityRef.current !== identity) return;
-            const editor = composerRef.current;
-            if (!editor) return;
-            const position = selection === 'start' ? 0 : editor.getValue().length;
-            editor.focus();
-            editor.setSelection(position, position);
-        });
-    }, [chatDraftIdentity, scheduleHistoryFocusFrame]);
-
-    // Keep messageRef in sync with message state
-    React.useEffect(() => {
-        messageRef.current = message;
-    }, [message]);
-
-    React.useEffect(() => {
-        currentChatDraftIdentityRef.current = chatDraftIdentity;
-    }, [chatDraftIdentity]);
-
-    // Draft persistence: identity switching, debounced writes and the
-    // flush-on-hide edges live in the hook.
-    const {
-        persistNow: persistDraftImmediately,
-        handoffDraft,
-        restoreDraft,
-        migrateDraft,
-    } = useComposerDraft({
-        message,
-        messageRef,
-        setMessage,
-        confirmedMentionsRef,
-        identity: chatDraftIdentity,
-        selectAttachmentsOnIdentityChange: !columnPinned,
-        initialDraft: {
-            text: initialDraftRef.current ?? '',
-            identity: initialDraftIdentityRef.current,
-        },
-        newSessionDraftId: newSessionDraftOpen ? newSessionDraft.draftId : null,
-        onIdentityChange: () => {
-            mentionCompletion.clear();
-            closeAutocomplete();
-            setInputMode('normal');
-            draftCaretModeRef.current.atEnd = isBtwActive || draftCaretModeRef.current.btw;
-            draftCaretModeRef.current.btw = isBtwActive;
-        },
-        onDraftRestored: (source) => {
-            const editor = composerRef.current;
-            if (!editor) return;
-            if (source === 'fork') editor.focus();
-            if (source !== 'fork' && draftCaretModeRef.current.atEnd) {
-                editor.setSelection(editor.getValue().length);
-            } else {
-                editor.selectAll();
-            }
-        },
+    const sessionLifecycle = useComposerSessionLifecycle({
+        sessionScope, draftHistory, column, editorState, mobilePanels, draftText, preferences,
+        selection,
     });
-
-    // A project's new draft is shared with the server, which lists it in the
-    // sidebar once the user leaves it (the chat identity carries its key only
-    // while it is the one on screen).
-    useSessionDraftPublishing({
-        identity: isBtwActive ? null : chatDraftIdentity,
-        message,
-        confirmedMentionsRef,
-        projectId: newSessionDraftOpen ? newSessionDraft.selectedProjectId ?? null : null,
-        enabled: newSessionDraftOpen && !currentSessionId,
+    const parallelRun = useComposerParallelRun({
+        preferences, expansion, sessionScope, draftText, largePasteState, mobileShell,
     });
 
     const handleExitBtw = React.useCallback(() => {
@@ -2945,54 +2720,11 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({
             toast.info(t('chat.chatInput.toast.dictationKeptForOriginalSession'));
         },
     });
-
-    // Dictation: insert the transcript inline; optionally submit immediately.
-    // getCurrentInputSnapshot reads composerRef.current.getValue() first, so setting
-    // it synchronously lets handleSubmit pick up the text in the same tick.
-    // A transcript belongs to the draft that was on screen when recording
-    // started. After a session switch it is kept for that draft and must not
-    // be inserted or sent here.
-    const handleDictationInsert = React.useCallback((text: string) => {
-        if (keepTranscriptForOrigin(text)) return;
-        dictationSendEndRef.current?.();
-        setMessage((prev) => {
-            // The editor is controlled by this state; getCurrentInputSnapshot
-            // reads it back, so no imperative write is needed.
-            return appendInlineText(prev, text);
-        });
-        setTimeout(() => {
-            composerRef.current?.focus();
-        }, 0);
-    }, [keepTranscriptForOrigin]);
-
-    const handleDictationInsertAndSend = React.useCallback((text: string) => {
-        if (keepTranscriptForOrigin(text)) return;
-        // Read the pending draft from the ref, NOT from the editor: the
-        // transcript resolves asynchronously, and on mobile the shell may have
-        // already collapsed into the pill by then, so the editor is unmounted
-        // and getValue() returns '' — which silently dropped the user's typed
-        // text and (once the composer cleared) the transcript with it.
-        const next = appendInlineText(messageRef.current, text);
-        // Land the composed text in the composer state first, so a failed send
-        // restores exactly what the user dictated, then submit it as an
-        // explicit override (the textarea may be unmounted at this point).
-        setMessage(next);
-        dictationSendInFlightRef.current = true;
-        void handleSubmitRef.current({ presetText: next }).finally(() => {
-            dictationSendEndRef.current?.();
-        });
-    }, [keepTranscriptForOrigin]);
-
-    // A command with an argument sends once the isolated composer owns its draft.
-    React.useEffect(() => {
-        const pending = immediateBtwSubmitRef.current;
-        if (!pending || !isBtwActive || !chatDraftIdentity) return;
-        if (getChatDraftIdentityKey(pending.identity) !== getChatDraftIdentityKey(chatDraftIdentity)) {
-            immediateBtwSubmitRef.current = null;
-            return;
-        }
-        immediateBtwSubmitRef.current = null;
-        void handleSubmit({ presetText: pending.text });
+    const sending = useComposerSending({
+        inlineContext, attachmentWork, largePasteState, i18n, draftText, editorState, sendAvailability,
+        sessionScope, queueState, language, selection, mentionAttachments, props, referenceDrafts, preferences,
+        historySearchState, column, parallelRun, sessionLifecycle, expansion, permissionSettings,
+        runtime, draftHistory,
     });
 
     // Preset chips rendered outside this component (e.g. under the welcome
@@ -3253,57 +2985,8 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({
         editorRef: composerRef,
         containerRef: dropZoneRef,
     });
-
-
-    const handleAbort = React.useCallback(() => {
-        clearAbortPrompt();
-
-        // btw mode: the stop button stops the fork's turn, not the main
-        // session's.
-        const abortTarget = isBtwActive && btwSessionId ? btwSessionId : currentSessionId;
-        void abortCurrentOperation(abortTarget || undefined);
-    }, [abortCurrentOperation, btwSessionId, clearAbortPrompt, currentSessionId, isBtwActive]);
-
-    const handleCycleThinking = React.useCallback(() => {
-        cycleThinkingVariant(currentSessionId);
-    }, [currentSessionId]);
-    const handleOpenThinkingPanel = React.useCallback(() => handleOpenMobilePanel('variant'), [handleOpenMobilePanel]);
-
-    const handleCycleAgent = React.useCallback((direction: 1 | -1 = 1) => {
-        // Auto hides the agent control, so the shortcut must not change a
-        // choice the user cannot see.
-        if (isAutoModel(currentProviderId, currentModelId)) return;
-        const nextAgentName = getCycledPrimaryAgentName(agents, currentAgentName, direction, useUIStore.getState().favoriteAgents);
-        if (!nextAgentName) return;
-
-        if (currentSessionId) {
-            pickSessionAgent(currentSessionId, nextAgentName);
-        }
-
-        // A pinned column's agent is its own session's choice only.
-        if (!columnPinned) setAgent(nextAgentName);
-    }, [agents, columnPinned, currentAgentName, currentModelId, currentProviderId, currentSessionId, setAgent, pickSessionAgent]);
-
-    // Height the failed-dictation salvage text needs. Its overlay sits
-    // absolutely over the composer, so the composer must be able to grow for
-    // it. Apply the editor's line and screen bounds before using that height as
-    // a floor, otherwise long salvage text can push the action row off-screen.
-    const dictationHeightHostRef = React.useRef<HTMLDivElement | null>(null);
-    // The short hint drops the @, $ and / pointers, so it only replaces the
-    // full one when that would wrap.
-    const fullChatPlaceholderFits = usePlaceholderFitsOneLine(dictationHeightHostRef, t('chat.chatInput.placeholder.chat'));
-    const useCompactChatPlaceholder = isMobile || !fullChatPlaceholderFits;
-    const [dictationContentHeight, setDictationContentHeight] = React.useState<number | null>(null);
-    const handleDictationContentHeightChange = React.useCallback((height: number | null) => {
-        setDictationContentHeight((prev) => (prev === height ? prev : height));
-    }, []);
-    const dictationHeightLimit = useComposerHeightLimit({
-        active: dictationContentHeight !== null,
-        disabled: isComposerExpanded,
-        hostRef: dictationHeightHostRef,
-        maxLines: isMobile ? MAX_MOBILE_COMPOSER_LINES : MAX_VISIBLE_COMPOSER_LINES,
-        boundSelector: isMobile ? '[data-composer-bound]' : undefined,
-        boundGapPx: isMobile ? MOBILE_COMPOSER_BOUND_GAP_PX : 0,
+    const dictation = useComposerDictation({
+        draftText, i18n, dictationState, editorState, draftHistory, sendHandlers: sending,
     });
 
     const updateAutocompleteState = React.useCallback((
@@ -3953,23 +3636,12 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({
         confirmMention(mentionPath, confirmedMentionsRef.current);
         completeMentionSelection(mentionPath);
     });
-
-    // A session is written as its link, which draws as a chip with its title.
-    const handleSessionSelect = useStableHandler((session: Session) => {
-        const cursorPosition = composerRef.current?.getSelection().start ?? message.length;
-        const lastAtSymbol = message.substring(0, cursorPosition).lastIndexOf('@');
-        const start = lastAtSymbol === -1 ? cursorPosition : lastAtSymbol;
-        const inserted = `${sessionLinkText(session.id)} `;
-        rememberSessionMentions([sessionReference(session)]);
-        const newMessage = message.substring(0, start) + inserted + message.substring(cursorPosition);
-        setMessage(newMessage);
-        const nextCursor = start + inserted.length;
-        requestAnimationFrame(() => {
-            composerRef.current?.setSelection(nextCursor);
-            updateAutocompleteState(newMessage, nextCursor);
-        });
-        closeAutocomplete();
-        composerRef.current?.focus();
+    usePendingSharedDraftContent({
+        composerText: draftText.composerText,
+        setMessage: draftText.setMessage,
+        chatDraftIdentity: sessionScope.chatDraftIdentity,
+        attachSharedFiles: fileIntake.attachSharedFiles,
+        restoreDraft: draftHistory.restoreDraft,
     });
 
     // The row's content is read now: a row that cannot be read leaves no chip
@@ -4021,74 +3693,24 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({
 
         composerRef.current?.focus();
     });
-
-    const handleSnippetSelect = useStableHandler((_snippet: unknown, trigger: string) => {
-        const textarea = composerRef.current;
-        const cursorPosition = textarea?.getSelection().start ?? message.length;
-        const textBeforeCursor = message.substring(0, cursorPosition);
-        const lastHashSymbol = textBeforeCursor.lastIndexOf('#');
-        const startIndex = lastHashSymbol !== -1 ? lastHashSymbol : cursorPosition;
-        const newMessage = `${message.substring(0, startIndex)}#${trigger} ${message.substring(cursorPosition)}`;
-        setMessage(newMessage);
-        const nextCursor = startIndex + trigger.length + 2;
-        requestAnimationFrame(() => {
-            if (composerRef.current) {
-                composerRef.current.setSelection(nextCursor);
-            }
-            updateAutocompleteState(newMessage, nextCursor);
-        });
-        closeAutocomplete();
-        composerRef.current?.focus();
+    const completions = useComposerCompletions({
+        editorState, autocompleteState, draftText, i18n, mentionPaths, language, editorActions,
+        referenceDrafts, sessionScope, sendHandlers: sending,
     });
-
-    // "Save draft as #name": the draft goes into the snippet without the
-    // `#name` being typed, and once saved that token leaves the composer.
-    const snippetDraftText = openAutocomplete === 'snippet' ? withoutSnippetToken(message, autocompleteQuery) : undefined;
-    const handleSnippetDraftSaved = useStableHandler((typedName: string) => {
-        setMessage(withoutSnippetToken(messageRef.current, typedName));
+    useComposerFocus({ props, sessionScope, preferences, column, editorState, mobilePanels });
+    useComposerAbortPrompt({ sessionScope });
+    const fileDrop = useComposerFileDrop({
+        mentionPaths, draftText, i18n, dropState, editorState, sessionScope, selection, editorActions,
+        fileIntake,
     });
-
-    const handleEmojiSelect = useStableHandler((emoji: string) => {
-        const cursorPosition = composerRef.current?.getSelection().start ?? message.length;
-        const startIndex = Math.max(0, cursorPosition - autocompleteQuery.length - 1);
-        const inserted = `${emoji} `;
-        const newMessage = `${message.substring(0, startIndex)}${inserted}${message.substring(cursorPosition)}`;
-        setMessage(newMessage);
-        const nextCursor = startIndex + inserted.length;
-        requestAnimationFrame(() => {
-            composerRef.current?.setSelection(nextCursor);
-            updateAutocompleteState(newMessage, nextCursor);
-        });
-        closeAutocomplete();
-        composerRef.current?.focus();
+    const filePicker = useComposerFilePicker({ fileIntake, runtime, i18n });
+    const referenceActions = useComposerReferenceActions({
+        referenceDrafts, sessionScope, i18n, editorState, draftText, column, language,
+        attachmentPreview, mentionAttachments, fileIntake, referencePicker, referencePickerState,
+        runtime,
     });
-
-    const handleCommandSelect = useStableHandler((command: CommandInfo) => {
-        if (command.name === 'btw' && currentSessionId) {
-            closeAutocomplete();
-            void handleSubmitRef.current({ presetText: '/btw' });
-            return;
-        }
-        setMessage(`/${command.name} `);
-
-        closeAutocomplete();
-
-        const refocus = () => {
-            if (composerRef.current) {
-                try {
-                    composerRef.current.focus({ preventScroll: true });
-                } catch {
-                    composerRef.current.focus();
-                }
-                composerRef.current.setSelection(composerRef.current.getValue().length, composerRef.current.getValue().length);
-            }
-        };
-
-        requestAnimationFrame(() => {
-            refocus();
-            requestAnimationFrame(refocus);
-        });
-        setTimeout(refocus, 60);
+    const draftTarget = useComposerDraftTarget({
+        sessionScope, runtime, mobilePanels, preferences, expansion, props,
     });
 
     React.useEffect(() => {
@@ -5040,74 +4662,14 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({
         }
         return state.getSessionMode(permissionScopeSessionId);
     });
-    const shownPermissionMode = displayedPermissionMode(permissionMode, safetyNetAvailable);
-    const isPermissionAutoAcceptInteractive = Boolean(permissionScopeSessionId || newSessionDraftOpen);
-
-    const handlePermissionModeCycle = React.useCallback(() => {
-        if (isBtwActive && !btwSessionId && currentSessionId) {
-            useBtwStore.getState().setPanelState(currentSessionId, {
-                pendingPermissionMode: nextPermissionMode(permissionMode, safetyNetAvailable),
-            });
-            return;
-        }
-        cyclePermissionMode({
-            permissionScopeSessionId,
-            newSessionDraftOpen,
-            currentMode: permissionMode,
-            safetyAvailable: safetyNetAvailable,
-            setDraftPermissionMode,
-            setSessionMode,
-            onOpenSessionFirst: () => toast.error(t('chat.chatInput.toast.openSessionFirst')),
-            onToggleFailed: () => toast.error(t('chat.chatInput.toast.togglePermissionAutoAcceptFailed')),
-        });
-    }, [
-        newSessionDraftOpen,
-        permissionMode,
-        permissionScopeSessionId,
-        safetyNetAvailable,
-        isBtwActive,
-        btwSessionId,
-        currentSessionId,
-        setDraftPermissionMode,
-        setSessionMode,
-        t,
-    ]);
-
-    useKeybind('toggle_permission_auto_accept', () => {
-        if (!isPermissionAutoAcceptInteractive || isPromptHistorySearchOpen) return false;
-        handlePermissionModeCycle();
+    const keyHandler = createComposerKeyHandler({
+        largePasteState, editorState, draftText, autocompleteState, preferences, expansion,
+        mobileActions, sessionScope, sessionLifecycle, editorActions, queueState, queueActions: sending,
+        draftHistory, sendAvailability, submission: sending,
     });
-
-    // Acknowledging the abort record is what lets the working chip resume for
-    // the next run; the old "Aborted" banner that used to accompany it is gone.
-    React.useEffect(() => {
-        const pendingAbort = Boolean(abortPromptSessionId) && abortPromptSessionId === currentSessionId;
-        if (!prevWasAbortedRef.current && pendingAbort && currentSessionId) {
-            acknowledgeSessionAbort(currentSessionId);
-        }
-        prevWasAbortedRef.current = pendingAbort;
-    }, [abortPromptSessionId, acknowledgeSessionAbort, currentSessionId]);
-
-    // The editor is memoized: stable handlers let it skip the composer's
-    // renders while a reply streams, which change nothing it shows.
-    const handleEditorChange = useStableHandler(handleComposerChange);
-    const handleEditorKeyDown = useStableHandler((event: KeyboardEvent) => {
-        // Every interception branch calls preventDefault, so the event itself
-        // reports whether the composer consumed it.
-        handleKeyDown(event);
-        return event.defaultPrevented;
+    const editorHandlers = useComposerEditorHandlers({
+        editorActions, createComposerKeyHandler: keyHandler, largePasteState, editorState, mobileShell,
     });
-    const handleEditorKeyUp = useStableHandler((event: KeyboardEvent) => largeTextPasteGesture.keyUp(event));
-    const handleEditorSelectionChange = useStableHandler((selection: ComposerSelection) => {
-        largeTextPasteGesture.invalidate();
-        cursorPosRef.current = selection.start;
-        updateAutocompleteOverlayPosition();
-    });
-    const handleEditorBlur = useStableHandler(() => {
-        largeTextPasteGesture.invalidate();
-        mobileShell.onEditorBlur();
-    });
-
     return (
         <>
         <form
@@ -5706,7 +5268,5 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({
 };
 
 ChatInputComponent.displayName = 'ChatInput';
-
-const probeSessionLocation = (directory: string) => opencodeClient.getLocationAvailability(directory);
 
 export const ChatInput = React.memo(ChatInputComponent);

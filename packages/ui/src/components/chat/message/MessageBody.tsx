@@ -2483,6 +2483,7 @@ const MessageBody = React.memo(({ isUser, ...props }: MessageBodyProps) => {
                 onCopyMessage={props.onCopyMessage}
                 copiedMessage={props.copiedMessage}
                 onSaveAsSnippet={props.onSaveAsSnippet}
+                onSelectMessages={props.onSelectMessages}
                 onShowPopup={props.onShowPopup}
                 agentMention={props.agentMention}
                 onRevert={props.onRevert}

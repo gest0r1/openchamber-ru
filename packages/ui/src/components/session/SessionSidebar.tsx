@@ -180,7 +180,6 @@ const SessionSidebarComponent: React.FC<SessionSidebarProps> = ({
   const hasSessionSearchQuery = searchText.length > 0;
 
   useSessionSearchEffects({
-    // The phone's search field is its sheet's, without the keyboard shortcuts.
     enabled: isVisible && !phone,
     sessionSearchInputRef,
   });
@@ -188,7 +187,6 @@ const SessionSidebarComponent: React.FC<SessionSidebarProps> = ({
   const gitBranches = useGitAllBranches(isVisible);
 
   const isVSCode = React.useMemo(() => isVSCodeRuntime(), []);
-  // sessionAttentionStates removed — now using notification-store directly in SessionNodeItem
   const worktreeMetadata = useSessionUIStore((state) => state.worktreeMetadata);
   const availableWorktreesByProject = useSessionUIStore((state) => state.availableWorktreesByProject);
   const openNewSessionDraft = useSessionUIStore((state) => state.openNewSessionDraft);
@@ -196,13 +194,7 @@ const SessionSidebarComponent: React.FC<SessionSidebarProps> = ({
     () => buildKnownSessionDirectories(projects, availableWorktreesByProject, { includeWorktrees: !isVSCode }),
     [availableWorktreesByProject, isVSCode, projects],
   );
-  // The sidebar tree's +-buttons (project / group / folder) open a draft but,
-  // unlike selecting an existing session, don't navigate. VS Code's compact view
-  // is driven by the openchamber:navigate event, so switch to chat explicitly
-  // (a no-op in the expanded side-by-side layout, which is always showing chat).
   const openNewSessionDraftFromTree = React.useCallback<typeof openNewSessionDraft>((options) => {
-    // Starting a draft always leaves any full-page surface, even when a
-    // draft was already open (no store transition fires in that case).
     useUIStore.getState().closeMainSurfaces();
     openNewSessionDraft(options);
     if (isVSCode) {
@@ -277,16 +269,10 @@ const SessionSidebarComponent: React.FC<SessionSidebarProps> = ({
       const worktreesByProject = new Map(seededRawScope.worktreesByProject);
       const unresolvedProjectPaths = new Set<string>();
 
-      // Read every project at once. The repository check and worktree list
-      // inside coalesce into one `/api/git/projects` batch, and the server
-      // bounds how many git processes run concurrently, so the client no
-      // longer needs its own worker pool to protect the worktree process.
       await runBackgroundNetworkTask(() => Promise.all(projectEntries.map(async (project) => {
         const projectPath = normalizePath(project.path);
         if (!projectPath) return;
         try {
-          // Use store-cached isGitRepo when available; fall back to a direct
-          // check for projects the Git store hasn't seen yet.
           const cachedIsGitRepo = useGitStore.getState().directories.get(projectPath)?.isGitRepo;
           const isGitRepo = cachedIsGitRepo ?? await checkIsGitRepository(projectPath);
           if (cancelled || !isCurrent()) return;
@@ -302,7 +288,6 @@ const SessionSidebarComponent: React.FC<SessionSidebarProps> = ({
             worktreesByProject.set(projectPath, worktrees);
           }
         } catch {
-          // Keep last-known worktrees when a project is temporarily unavailable.
           unresolvedProjectPaths.add(projectPath);
         }
       })));
@@ -342,9 +327,6 @@ const SessionSidebarComponent: React.FC<SessionSidebarProps> = ({
         return [path, unresolvedProjectPaths.has(path) ? 'error' : 'ready'];
       })) });
       setResolvedWorktreeTopologyKey(projectWorktreeDiscoveryKey);
-      // Projects come from the local cache right after an instance switch, so
-      // discovery can run before the instance answers. Failures from before the
-      // connection was up say nothing about the instance: ask once more.
       if (unresolvedProjectPaths.size > 0 && !connectedAtStart && useConfigStore.getState().isConnected) {
         requestWorktreeDiscovery();
       }
@@ -357,9 +339,6 @@ const SessionSidebarComponent: React.FC<SessionSidebarProps> = ({
     };
   }, [isVSCode, projectWorktreeDiscoveryKey, runtimeKey, worktreeDiscoveryRevision]);
 
-  // A discovery that failed while the instance was unreachable (switch,
-  // reconnect) is retried when the connection comes up; a discovery still in
-  // flight at that moment retries itself above.
   React.useEffect(() => {
     if (isConnected && unresolvedWorktreeProjectPathsRef.current.size > 0) {
       requestWorktreeDiscovery();
@@ -491,7 +470,6 @@ const SessionSidebarComponent: React.FC<SessionSidebarProps> = ({
   });
 
   const isSessionsLoading = useSessionUIStore((state) => state.isLoading);
-  // Keep last-known repo status to avoid UI jiggling during project switch
   const lastRepoStatusRef = React.useRef(false);
   if (activeProjectId && projectRepoStatus.has(activeProjectId)) {
     lastRepoStatusRef.current = Boolean(projectRepoStatus.get(activeProjectId));
@@ -629,11 +607,7 @@ const SessionSidebarComponent: React.FC<SessionSidebarProps> = ({
     <SidebarSearchEmptyState />
   ), []);
 
-  // Web/desktop route archived sessions to the Archive page; only the VS Code
-  // compact webview keeps inline archived buckets behind its toggle.
   const showInlineArchived = isVSCode && showArchivedSessions;
-  // The projects view always groups by worktree (parallel-work overview).
-  // VS Code has no worktree groups, so it renders the merged per-project list.
   const useGroupedSections = !isVSCode;
   const desktopHeaderActionButtonClass =
     'inline-flex h-6 w-6 cursor-pointer items-center justify-center rounded-md leading-none text-foreground hover:bg-interactive-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed';
@@ -706,8 +680,6 @@ const SessionSidebarComponent: React.FC<SessionSidebarProps> = ({
 
     return subscribeOpenchamberEvents((event) => {
       if (event.type === 'session-created') {
-        // A new session can only have changed its own project's worktrees.
-        // When its project is not certain, every project is discovered.
         const project = resolveProjectForCreatedSession(event.directory, useProjectsStore.getState().projects);
         if (!project) {
           requestWorktreeDiscovery();
@@ -718,8 +690,6 @@ const SessionSidebarComponent: React.FC<SessionSidebarProps> = ({
       }
       if (event.type !== 'worktree-changed') return;
 
-      // One event names every directory of the changed repository the server
-      // has seen; refresh each registered project among them exactly once.
       refreshProjects(resolveProjectsForWorktreeChange(event.directories));
     });
   }, [isVSCode, worktreeRefreshDependencies]);
@@ -785,15 +755,9 @@ const SessionSidebarComponent: React.FC<SessionSidebarProps> = ({
       }}
     />
   );
-  // The phone's sheet holds the header, footer and dialogs around its list.
   if (phone) return <div className="flex min-h-0 flex-1 flex-col">{collection}</div>;
 
   return (
-    // One shared tooltip provider for the whole sidebar, matching the opencode
-    // sidebar feel: 400ms before the first tooltip opens, instant close on
-    // leave, and grouping — moving between rows within 600ms hands the tooltip
-    // over to the next row without replaying the open delay or exit/enter
-    // animation.
     <TooltipProvider delay={400} closeDelay={0} timeout={300}>
     <div
       className={cn(

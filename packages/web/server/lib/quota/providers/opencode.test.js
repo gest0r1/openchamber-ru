@@ -78,7 +78,7 @@ const consoleFetch = ({
 describe('OpenCode Zen quota provider', () => {
   it('keeps every budget scoped to its service account, separate from the Zen counters', async () => {
     const budget = JSON.stringify([
-      { serviceAccountId: 'svcacct_A', name: 'Build', spentMicroCents: '100000000', limitMicroCents: '1000000000' },
+      { serviceAccountId: 'svcacct_A', name: 'Build', spentMicroCents: '250000000', limitMicroCents: '1000000000', resetsAt: '2026-11-01T00:00:00.000Z' },
       { serviceAccountId: 'svcacct_B', name: 'Review', spentMicroCents: '900000000', limitMicroCents: null },
     ]);
     const result = await fetchQuota({ readAuth: async () => apiKeyAuth(), fetchImpl: consoleFetch({ budget }) });

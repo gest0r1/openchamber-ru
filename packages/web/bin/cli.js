@@ -1,23 +1,25 @@
 #!/usr/bin/env node
 
-import fs from 'fs';
-import path from 'path';
-import { spawnSync } from 'child_process';
-import { fileURLToPath, pathToFileURL } from 'url';
-import { isModuleCliExecution } from './cli-entry.js';
-import { EXIT_CODE, TunnelCliError } from './lib/cli-errors.js';
-import {
-  resolveServeHost,
-  hasUiPasswordConfigured,
-  generateUiPassword,
-  resolveServeUiPassword,
-  assertAuthenticatedNetworkExposure,
-} from './lib/cli-network.js';
-import {
-  maskToken,
-  resolveToken,
-  redactProfileForOutput,
-  redactProfilesForOutput,
+import { existsSync } from 'node:fs';
+
+const sourceLoader = new URL('../scripts/register-server-sources.mjs', import.meta.url);
+if (!process.versions.bun && existsSync(sourceLoader)) await import(sourceLoader.href);
+
+const builtCli = new URL('../build/bin/cli.js', import.meta.url);
+const legacyEntry = !existsSync(sourceLoader) && existsSync(builtCli);
+const runtime = await import(legacyEntry ? new URL('../build/bin/cli-runtime.js', import.meta.url).href : './cli-runtime.js');
+
+export const {
+  main, commands, parseArgs, assertAuthenticatedNetworkExposure,
+  resolveServeHost, hasUiPasswordConfigured, generateUiPassword, resolveServeUiPassword,
+  shouldDisplayTunnelQr, isValidTunnelDoctorResponse, readDesktopLocalPortFromSettings,
+  getPidFilePath, getInstanceFilePath, isProcessRunning, isOpenchamberProcessRunning,
+  isOpenchamberCmdline, getOpenchamberProcessState, resolveTunnelProviders,
+  fetchTunnelProvidersFromPort, fetchSystemInfoFromPort, discoverRunningInstances,
+  discoverOpenChamberInstanceOnPort, discoverLifecycleInstances,
+  discoverUnconfirmedRegistryInstanceOnPort, ensureTunnelProfilesMigrated,
+  resolveToken, redactProfileForOutput, redactProfilesForOutput, maskToken,
+  findClosestMatch, generateCompletionScript, TunnelCliError, EXIT_CODE,
   warnIfUnsafeFilePermissions,
   ensureTunnelProfilesMigrated as ensureTunnelProfilesMigratedBase,
 } from './lib/cli-tunnel-profiles.js';

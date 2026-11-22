@@ -61,10 +61,6 @@ type Props = {
 
 const IDLE_BUTTON_CLASS = 'text-muted-foreground hover:text-foreground hover:bg-transparent';
 
-/**
- * Clears every unread mark at once. It mounts only with the open menu, so the
- * sidebar does not watch the whole session list for it.
- */
 function MarkAllReadItem(): React.ReactNode {
   const { t } = useI18n();
   const hasUnread = useHasUnreadSession();
@@ -78,8 +74,6 @@ function MarkAllReadItem(): React.ReactNode {
 
 export function SidebarHeader(props: Props): React.ReactNode {
   const { t } = useI18n();
-  // The header spans the sidebar: the sections manager opens beside its end
-  // edge, so the section being edited shows in the list as it stands.
   const headerRef = React.useRef<HTMLDivElement | null>(null);
   // The button toggles the manager, so a press on it is not a press outside.
   const sectionsTriggerRef = React.useRef<HTMLButtonElement | null>(null);
@@ -121,15 +115,9 @@ export function SidebarHeader(props: Props): React.ReactNode {
   const setSidebarGrouping = useSessionDisplayStore((state) => state.setSidebarGrouping);
   const projectDisplayMode = useSessionDisplayStore((state) => state.projectDisplayMode);
   const setProjectDisplayMode = useSessionDisplayStore((state) => state.setProjectDisplayMode);
-  // VS Code always groups under its workspace.
   const timeGrouping = showProjectDisplayControls && sidebarGrouping === 'time';
-  // The list by time shows every project, whatever the project display says.
   const isSingleProjectMode = showProjectDisplayControls && projectDisplayMode === 'single' && !timeGrouping;
 
-  // One choice per line, rarely touched orders behind submenus that name the
-  // current choice, so the menu stays short: selection first, then the view,
-  // its orders, the sections, and collapse. Choosing a view setting keeps the
-  // menu open, so several can be set in one go; the actions close it.
   const checkMark = <Icon name="check" className="h-4 w-4 text-primary" />;
   const choiceSubmenu = <T extends string>(
     { labelKey, icon }: { labelKey: I18nKey; icon: IconName },
@@ -175,10 +163,7 @@ export function SidebarHeader(props: Props): React.ReactNode {
       </DropdownMenuItem>
     </>,
   ];
-  // One view: works under their projects, or every project's works in one
-  // list by time, which has no project headers to sort.
   if (showProjectDisplayControls) {
-    // The grouping's icon follows the choice, so the menu says which one the list is in.
     displayMenuSections.push(choiceSubmenu({ labelKey: 'sessions.sidebar.header.listGrouping.label', icon: sidebarGrouping === 'time' ? 'time' : 'folders' }, [
       ['project', 'sessions.sidebar.header.listGrouping.project'],
       ['time', 'sessions.sidebar.header.listGrouping.time'],
@@ -187,8 +172,6 @@ export function SidebarHeader(props: Props): React.ReactNode {
       void updateDesktopSettings({ sidebarGrouping: grouping });
     }));
   }
-  // Grouped by time the list has no project headers to sort and shows every
-  // project, so this group is empty then and takes no separator.
   if (!timeGrouping) displayMenuSections.push(<>
     {choiceSubmenu({ labelKey: 'sessions.sidebar.header.actions.sortProjects', icon: 'arrow-up-down' }, [
       ['manual', 'sessions.sidebar.header.projectSort.manual'],
@@ -210,7 +193,6 @@ export function SidebarHeader(props: Props): React.ReactNode {
   </>);
   if (showSectionControls) {
     displayMenuSections.push(<>
-      {/* Rows that mix projects keep one line unless asked. */}
       {toggleItem({ labelKey: 'sessions.sidebar.header.displayMode.detailedZoneRows', icon: 'list-check-2' }, detailedZoneRows, () => {
         setDetailedZoneRows(!detailedZoneRows);
         void updateDesktopSettings({ sidebarDetailedZoneRows: !detailedZoneRows });

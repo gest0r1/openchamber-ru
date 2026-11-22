@@ -1,10 +1,3 @@
-/**
- * "Apply changes" in the Git panel of an isolated space (journey step 6): the panel where the
- * user reads the space's diff is where its work goes back to the project, as a branch or as
- * uncommitted changes, through the apply dialog. The space's row menu in the sidebar and the
- * phone's actions sheet open the same dialog. Nothing for a host directory, while the feature is
- * off, or in VS Code (decision 16).
- */
 
 import React from 'react';
 
@@ -23,7 +16,6 @@ export const SpaceApplyButton: React.FC<{ directory: string | null | undefined }
   const enabled = useUIStore((state) => state.isolatedSpacesEnabled);
   const spaceId = spaceIdOfDirectory(directory);
   const applicable = useSpacesStore((state) => isSpaceApplicable(spaceId ? state.journey?.get(spaceId) : undefined));
-  // As the row's menu: nothing new starts while another action on the space runs.
   const busy = useSpacesStore((state) => (spaceId ? state.actions.get(spaceId)?.kind === 'running' : false));
   if (!enabled || !spaceId || !applicable || isVSCodeRuntime()) return null;
   const label = t('spaces.gitPanel.apply');

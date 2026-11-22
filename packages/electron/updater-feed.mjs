@@ -6,10 +6,6 @@ export const PRODUCTION_UPDATER_FEED = Object.freeze({
   repo: 'openchamber-ru',
 });
 
-// Canary builds replace the files of one pre-release, tagged `canary`, every
-// night. The GitHub provider reads only the latest full release, so the
-// Canary channel reads that pre-release's files directly, and the Stable
-// channel never sees them.
 export const CANARY_UPDATER_FEED = Object.freeze({
   provider: 'generic',
   url: 'https://github.com/openchamber/openchamber/releases/download/canary/',
@@ -39,8 +35,6 @@ export const pickUpdaterSource = ({ mirrorFailedAt = null, now = Date.now() } = 
 // an update nobody asked for.
 export const isUpdateChannel = (value) => value === 'stable' || value === 'canary';
 
-// A Canary build's version is the release it leads to with a `canary`
-// pre-release part: 2.5.4-canary.20261030.123.
 export const isCanaryVersion = (version) => /-canary\./.test(String(version ?? ''));
 
 export const normalizeUpdateChannel = (value, appVersion) => {

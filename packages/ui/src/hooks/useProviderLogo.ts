@@ -13,9 +13,6 @@ interface UseProviderLogoReturn {
     isBundled: boolean;
 }
 
-// Vite rewrites `import.meta.glob` at build time into the matching modules. A runtime without
-// that transform (the bun test runner) throws on the call instead, so keep it failable and let
-// the hook fall back to the remote logo URL it already supports.
 const loadLocalLogoModules = (): Record<string, string> => {
     try {
         return import.meta.glob<string>('../assets/provider-logos/*.svg', {

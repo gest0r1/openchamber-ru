@@ -537,6 +537,31 @@ describe('sendMessage captured target', () => {
     expect(calls[0].directory).toBe('/captured/project');
   });
 
+  // The send path defers a waiting question only after a plain prompt reached its session (#5391).
+  test('reports the route the send took and the session it went to', async () => {
+    const target = { runtimeKey: getRuntimeKey(), sessionId: 'session-captured', directory: '/captured/project' };
+    const send = async (content, inputMode = 'normal') => {
+      let sent;
+      await useSessionUIStore.getState().sendMessage(
+        content, 'provider-a', 'model-a', undefined, undefined, undefined, undefined, undefined, inputMode, { target, onSent: (route) => { sent = route; } },
+      );
+      return sent;
+    };
+    const listCommands = spyOn(opencodeClient, 'listCommands').mockImplementation(async () => [{ name: 'goal-route-test' }]);
+    const sendCommand = spyOn(opencodeClient, 'sendCommand').mockImplementation(async () => {});
+    const shellSession = spyOn(opencodeClient, 'shellSession').mockImplementation(async () => 'msg');
+    try {
+      expect(await send('hello')).toEqual({ route: 'prompt', sessionId: 'session-captured' });
+      expect(await send('/goal-route-test pause')).toEqual({ route: 'command', sessionId: 'session-captured' });
+      expect(await send('pwd', 'shell')).toEqual({ route: 'shell', sessionId: 'session-captured' });
+      expect([calls.length, sendCommand.mock.calls.length, shellSession.mock.calls.length]).toEqual([1, 1, 1]);
+    } finally {
+      listCommands.mockRestore();
+      sendCommand.mockRestore();
+      shellSession.mockRestore();
+    }
+  });
+
   test('does not send a captured target through a different runtime', async () => {
     let error = null;
     try {
@@ -1037,6 +1062,27 @@ describe('openNewSessionDraft project binding', () => {
       expect(useConfigStore.getState().currentModelId).toBe('chosen');
     } finally {
       finishActivation();
+      useConfigStore.setState(original);
+    }
+  });
+
+  test('paints the Chats default on a chat draft before discovery, and the project default on a project draft', () => {
+    const original = useConfigStore.getState();
+    useConfigStore.setState({
+      activateDirectory: () => new Promise(() => {}),
+      providers: [], agents: [], settingsDefaultsLoaded: false, isConnected: false,
+      settingsDefaultModel: 'global/model', settingsDefaultAgent: 'build',
+      chatsDefaultModel: 'chat/model', chatsDefaultVariant: 'high', chatsDefaultAgent: 'plan',
+    });
+    useProjectsStore.setState({ projects: [{ ...projectA, defaultModel: 'project/model' }, projectB] });
+    try {
+      useSessionUIStore.getState().openNewSessionDraft({ target: 'chat' });
+      expect(useConfigStore.getState()).toMatchObject({ currentProviderId: 'chat', currentModelId: 'model', currentVariant: 'high', currentAgentName: 'plan' });
+      useSessionUIStore.getState().openNewSessionDraft({ selectedProjectId: projectA.id });
+      expect(useConfigStore.getState().currentProviderId).toBe('project');
+      useSessionUIStore.getState().openNewSessionDraft({ target: 'chat' });
+      expect(useConfigStore.getState()).toMatchObject({ currentProviderId: 'chat', currentModelId: 'model' });
+    } finally {
       useConfigStore.setState(original);
     }
   });
@@ -2025,6 +2071,31 @@ describe('routeMessage skill invocation', () => {
       modelID: 'model-a',
     })).rejects.toThrow();
     expect(sendMessageCalls).toHaveLength(0);
+  });
+
+  test('a send captured on another runtime instance writes no file and sends nothing', async () => {
+    const originalWrite = opencodeClient.writeOpenCodeTempFiles;
+    const writes = [];
+    opencodeClient.writeOpenCodeTempFiles = async (directory, files, options) => {
+      if (options?.isCurrentRuntime && !options.isCurrentRuntime()) throw new Error('The file was not saved because the runtime changed.');
+      writes.push(files);
+      return files.map(({ filename }) => ({ filename, path: `/tmp/${filename}` }));
+    };
+    try {
+      await expect(routeMessage({
+        isCurrentRuntime: () => false,
+        sessionId: 'session-skill',
+        directory: '/skills/project',
+        content: 'see the archive',
+        providerID: 'provider-a',
+        modelID: 'model-a',
+        files: [{ type: 'file', mime: 'application/zip', url: `data:application/zip;base64,${btoa('PK')}`, filename: 'bundle.zip' }],
+      })).rejects.toThrow('runtime changed');
+      expect(writes).toHaveLength(0);
+      expect(sendMessageCalls).toHaveLength(0);
+    } finally {
+      opencodeClient.writeOpenCodeTempFiles = originalWrite;
+    }
   });
 
   test('attaches a user-installed skill without caller-provided mentions', async () => {

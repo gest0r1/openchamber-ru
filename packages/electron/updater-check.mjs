@@ -26,12 +26,6 @@ export const describeCheckFailure = (error) => {
 const releaseNumbers = (version) => String(version ?? '').replace(/^v/, '').split('-')[0].split('.')
   .map((part) => Number.parseInt(part, 10) || 0);
 
-/**
- * Whether installing `nextVersion` over `currentVersion` goes back to an
- * older release. Only Stable after Canary does: the release before the one
- * the Canary build leads to (2.5.3 over 2.5.4-canary.20261030.1). The
- * release with the build's own number (2.5.4) is newer than the build.
- */
 export const isDowngrade = (nextVersion, currentVersion) => {
   const next = releaseNumbers(nextVersion);
   const current = releaseNumbers(currentVersion);
@@ -66,18 +60,11 @@ export const checkForDesktopUpdate = async ({ autoUpdater, currentVersion, pendi
   }
 
   const updateInfo = updateResult?.updateInfo;
-  // electron-updater's own verdict. It compares semver and honours
-  // `allowDowngrade`, which is how Stable after Canary offers the latest
-  // release even though that release is older than the Canary build.
   const available = updateResult?.isUpdateAvailable === true
     && typeof updateInfo?.version === 'string'
     && updateInfo.version.length > 0;
   const nextVersion = available ? updateInfo.version : currentVersion;
-  // Linux package managers refuse an older package unless told it is wanted.
   const downgrade = available && isDowngrade(nextVersion, currentVersion);
-  // A check must not drop the payload state of the version already on disk:
-  // desktop_restart installs only while `downloaded` is set, so replacing this
-  // object after a download turns "Restart to Update" into a plain restart.
   const sameVersion = pendingUpdate?.version === nextVersion;
   return {
     available,
@@ -115,7 +102,6 @@ export const downloadPendingDesktopUpdate = async ({ autoUpdater, state }) => {
   }
   if (pendingUpdate.downloaded) return;
 
-  // The promise also resolves for cached payloads, which may emit no event.
   state.updateDownloadPromise = Promise.resolve(autoUpdater.downloadUpdate()).then((files) => {
     markDesktopUpdateDownloaded(state.pendingUpdate, {
       version: pendingUpdate.version,

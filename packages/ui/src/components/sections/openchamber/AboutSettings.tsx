@@ -1,7 +1,8 @@
 import React from 'react';
 import { checkConnectedServerForUpdates, useUpdateStore } from '@/stores/useUpdateStore';
 import type { UpdateInfo } from '@/lib/desktop';
-import { isCapacitorApp } from '@/lib/platform';
+import { getClientPlatform, isCapacitorApp } from '@/lib/platform';
+import { openExternalUrl } from '@/lib/url';
 import { useShallow } from 'zustand/react/shallow';
 import { UpdateDialog } from '@/components/ui/UpdateDialog';
 import { useDeviceInfo } from '@/lib/device';
@@ -35,13 +36,8 @@ const GITHUB_URL = 'https://github.com/openchamber/openchamber';
 const DISCORD_URL = 'https://discord.gg/ZYRSdnwwKA';
 const X_URL = 'https://x.com/openchamber_dev';
 
-const MIN_CHECKING_DURATION = 800; // ms
+const MIN_CHECKING_DURATION = 800;
 
-/**
- * The channel a server installed from npm follows, the way its update check
- * reads it: the stored pick, else Canary for a Canary build installed from
- * the terminal. Null when the settings could not be read.
- */
 const loadServerUpdateChannel = async (serverVersion: string): Promise<UpdateChannel | null> => {
   const settings = await loadDesktopSettings();
   if (!settings) return null;
@@ -57,13 +53,6 @@ type ConnectedServerUpdate = {
 
 const IDLE_SERVER_UPDATE: ConnectedServerUpdate = { info: null, checking: false, available: false, error: null };
 
-/**
- * The server this window is connected to, when that is not the app itself:
- * the native app's server, or a desktop app's remote host. The shared update
- * store checks the app build, so the server check lives here, in page-local
- * state, and installs through the server's own update route (the dialog's
- * `web` flow).
- */
 function useConnectedServerUpdate(enabled: boolean) {
   const [state, setState] = React.useState<ConnectedServerUpdate>(IDLE_SERVER_UPDATE);
 
@@ -92,11 +81,6 @@ type OpenCodeUpgradePhase =
   | { kind: 'installed'; version: string | null }
   | { kind: 'failed'; error: string };
 
-/**
- * OpenCode on the connected server, checked and upgraded through the same
- * routes as the OpenCode update toast. Separate from the OpenChamber update:
- * it replaces the OpenCode CLI, not OpenChamber.
- */
 function useOpenCodeUpgrade(failedFallback: string) {
   const [status, setStatus] = React.useState<OpenCodeUpgradeStatus | null>(null);
   const [phase, setPhase] = React.useState<OpenCodeUpgradePhase>({ kind: 'idle' });
@@ -107,8 +91,6 @@ function useOpenCodeUpgrade(failedFallback: string) {
       setStatus(next);
       return next;
     } catch {
-      // Best effort: About still shows the OpenChamber half. The stale status
-      // stays rather than turning into "no update".
       return null;
     }
   }, []);
@@ -127,12 +109,6 @@ function useOpenCodeUpgrade(failedFallback: string) {
     }
   }, [failedFallback]);
 
-  /**
-   * Restarts OpenCode after an upgrade, then re-reads the running version.
-   * The "installed, reload to use it" phase is a temporary stand-in: once the
-   * server reports the installed version as running, the authoritative status
-   * replaces it.
-   */
   const reloadAfterUpgrade = React.useCallback(async (reload: () => Promise<void>) => {
     await reload().catch(() => undefined);
     const next = await refresh();
@@ -147,7 +123,6 @@ function useOpenCodeUpgrade(failedFallback: string) {
   return { status, phase, refresh, upgrade, reloadAfterUpgrade };
 }
 
-/** Version of the installed native app build (Capacitor only). */
 function useNativeAppVersion(enabled: boolean): string | null {
   const [version, setVersion] = React.useState<string | null>(null);
 
@@ -192,12 +167,10 @@ export const AboutSettings: React.FC<AboutSettingsProps> = ({ initialUpdateDialo
     restartToUpdate: s.restartToUpdate,
   })));
   const { isMobile } = useDeviceInfo();
-  // Native app: updates target the connected server; the app itself updates
-  // through its store, which is not actionable from here.
   const isNativeApp = React.useMemo(() => isCapacitorApp(), []);
+  const isAndroidApp = isNativeApp && getClientPlatform() === 'android';
   const isDesktopRemote = useDesktopRemoteHostActive();
   const serverUpdate = useConnectedServerUpdate(isNativeApp || isDesktopRemote);
-  // A desktop app on a remote host updates itself and its server separately.
   const remoteHostUpdate = isDesktopRemote ? serverUpdate : null;
   const checkRemoteHost = serverUpdate.check;
   React.useEffect(() => {
@@ -234,9 +207,6 @@ export const AboutSettings: React.FC<AboutSettingsProps> = ({ initialUpdateDialo
       runtimeType: updateStore.runtimeType,
     };
 
-  // A Canary build reads as the release it leads to and the day it was made:
-  // "2.5.4 Canary · 30 Oct" for 2.5.4-canary.20261030.123, with the build
-  // number when the build it is shown with was made the same day.
   const describeVersion = (version: string, beside?: string | null) => {
     const canary = parseCanaryVersion(version);
     return canary
@@ -291,9 +261,6 @@ export const AboutSettings: React.FC<AboutSettingsProps> = ({ initialUpdateDialo
   const openCodeUpdateVersion = openCode.phase.kind === 'installed' ? null : openCode.status?.availableVersion ?? null;
   const [commandCopied, setCommandCopied] = React.useState(false);
 
-  // The OpenChamber button names what it replaces. In the native app that is
-  // the server the phone is connected to (or the desktop app serving it),
-  // never the phone app itself, which updates through its store.
   const serverUpdateLabel = (info: UpdateInfo | null) => {
     const version = describeVersion(info?.version || '', info?.currentVersion);
     return info?.packageManager === 'electron'
@@ -327,7 +294,6 @@ export const AboutSettings: React.FC<AboutSettingsProps> = ({ initialUpdateDialo
     }
     void update.checkForUpdates();
   };
-  // The chosen Canary wears the colours of its icon: the blue tile and the yellow bird.
   const CANARY_COLOURS = 'bg-[var(--brand-canary)] text-[var(--brand-canary-foreground)] hover:bg-[var(--brand-canary)] hover:text-[var(--brand-canary-foreground)]';
   const updateChannelControl = updateChannel && (
     <SettingsChipGroup
@@ -349,6 +315,7 @@ export const AboutSettings: React.FC<AboutSettingsProps> = ({ initialUpdateDialo
   const checkAll = () => {
     void update.checkForUpdates();
     if (remoteHostUpdate) void remoteHostUpdate.check();
+    if (isAndroidApp) void updateStore.checkForUpdates();
     void openCode.refresh();
   };
 
@@ -363,7 +330,6 @@ export const AboutSettings: React.FC<AboutSettingsProps> = ({ initialUpdateDialo
     void openCode.reloadAfterUpgrade(async () => {
       await reloadOpenCodeConfiguration({
         message: t('opencodeUpdate.toast.reload.message'),
-        mode: 'projects',
         scopes: ['all'],
       });
     }).then(() => {
@@ -393,7 +359,6 @@ export const AboutSettings: React.FC<AboutSettingsProps> = ({ initialUpdateDialo
         </p>
       );
     }
-    // No command updates a copy that no package manager installed.
     if (info?.installBlocked === 'manual-install') {
       return (
         <p className="typography-meta text-muted-foreground">
@@ -455,8 +420,6 @@ export const AboutSettings: React.FC<AboutSettingsProps> = ({ initialUpdateDialo
     />
   ) : null;
 
-  // The OpenCode update as a button and a line of text, so the desktop layout
-  // can put the button in the OpenCode row and the text under the rows.
   const openCodeUpdate = (() => {
     const { phase } = openCode;
     if (phase.kind === 'installed') {
@@ -541,30 +504,30 @@ export const AboutSettings: React.FC<AboutSettingsProps> = ({ initialUpdateDialo
   const remoteHostUpdateChecking = remoteHostUpdate?.checking ?? false;
   const remoteHostUpdateAvailable = remoteHostUpdate?.available ?? false;
 
-  // Track if we initiated a check to show toast on completion
   const didInitiateCheck = React.useRef(false);
+  const appChecking = isAndroidApp && updateStore.checking;
+  const appUpdateOffered = Boolean(appDownloadUrl);
 
-  // Ensure minimum visible duration for checking animation
   React.useEffect(() => {
     if (update.checking) {
       setShowChecking(true);
       didInitiateCheck.current = true;
-    } else if (showChecking) {
+    } else if (showChecking && !appChecking) {
       const timer = setTimeout(() => {
         setShowChecking(false);
-        // Show toast if check completed with no update available. On a remote
-        // host "latest" would be wrong while the server still has an update.
         const remoteHostPending = remoteHostUpdateChecking || remoteHostUpdateAvailable;
         if (didInitiateCheck.current && !update.available && !update.error && !remoteHostPending) {
-          toast.success(isNativeApp
-            ? t('settings.openchamber.about.toast.serverLatestVersion')
-            : t('settings.openchamber.about.toast.latestVersion'));
+          toast.success(appUpdateOffered
+            ? t('settings.openchamber.about.toast.serverLatestAppUpdate')
+            : isNativeApp
+              ? t('settings.openchamber.about.toast.serverLatestVersion')
+              : t('settings.openchamber.about.toast.latestVersion'));
           didInitiateCheck.current = false;
         }
       }, MIN_CHECKING_DURATION);
       return () => clearTimeout(timer);
     }
-  }, [t, isNativeApp, update.checking, showChecking, update.available, update.error, remoteHostUpdateChecking, remoteHostUpdateAvailable]);
+  }, [t, isNativeApp, update.checking, showChecking, update.available, update.error, remoteHostUpdateChecking, remoteHostUpdateAvailable, appChecking, appUpdateOffered]);
 
   const isChecking = update.checking || showChecking;
 
@@ -612,7 +575,7 @@ export const AboutSettings: React.FC<AboutSettingsProps> = ({ initialUpdateDialo
               {isChecking ? <Spinner className="size-4" /> : <Icon name="refresh" className="size-4" />}
               {isChecking
                 ? t('settings.openchamber.about.state.checking')
-                : isNativeApp
+                : isNativeApp && !isAndroidApp
                   ? t('settings.openchamber.about.actions.checkServerForUpdates')
                   : t('settings.openchamber.about.actions.checkForUpdates')}
             </Button>
@@ -632,6 +595,8 @@ export const AboutSettings: React.FC<AboutSettingsProps> = ({ initialUpdateDialo
             </Button>
           )}
         </div>
+
+        {appUpdateButton && <div className="flex justify-center">{appUpdateButton}</div>}
 
         {manualUpdateNotice}
 
@@ -710,11 +675,6 @@ export const AboutSettings: React.FC<AboutSettingsProps> = ({ initialUpdateDialo
     );
   }
 
-  // Desktop layout: the brand with its links, then one run of one-line field
-  // rows with every value on the right: each version followed by its outcome
-  // or update action, then the channel with the check button. The outcome
-  // follows a version that does not change width, and the check button
-  // follows the channel, so a check moves neither.
   const statusSeparator = <span aria-hidden="true" className="typography-meta text-muted-foreground/60">·</span>;
   const openChamberStatus = isChecking ? (
     <>
@@ -738,9 +698,7 @@ export const AboutSettings: React.FC<AboutSettingsProps> = ({ initialUpdateDialo
   const versionValue = (version: string) => (
     <span className="typography-meta font-mono text-muted-foreground">{version}</span>
   );
-  // Rows without a button keep the height of rows with one; in a narrow pane
-  // a version and its update button wrap instead of overflowing.
-  const valueRow = 'min-h-8 flex-wrap @xl:flex-initial';
+  const valueRow = { alignEnd: false, controlClassName: 'min-h-8 flex-wrap @xl:flex-initial' };
   const notes = [
     manualUpdateNotice,
     remoteHostUpdateNotice,
@@ -782,20 +740,25 @@ export const AboutSettings: React.FC<AboutSettingsProps> = ({ initialUpdateDialo
       </SettingsSection>
 
       <SettingsSection contentClassName="space-y-4">
+        <AboutUpdateBanners describeVersion={describeVersion}
+          main={!isChecking && update.available && !installBlocked ? { info: update.info, owner: isDesktopRemote ? 'app' : isNativeApp ? 'server' : 'openchamber', onUpdate: () => setUpdateDialogOpen(true) } : null}
+          remoteHost={remoteHostUpdateButton ? { info: remoteHostUpdate?.info ?? null, onUpdate: () => setServerUpdateDialogOpen(true) } : null}
+          appDownload={appDownloadUrl ? { version: describeVersion(updateStore.info?.version || '', nativeAppVersion), url: appDownloadUrl } : null}
+        />
         <div>
           {isDesktopRemote ? (
             <>
-              <SettingsFieldRow label={t('settings.openchamber.about.field.appVersion')} controlClassName={valueRow}>
+              <SettingsFieldRow label={t('settings.openchamber.about.field.appVersion')} {...valueRow}>
                 {versionValue(appVersion)}
                 {openChamberStatus}
               </SettingsFieldRow>
-              <SettingsFieldRow label={t('settings.openchamber.about.field.serverVersion')} controlClassName={valueRow}>
+              <SettingsFieldRow label={t('settings.openchamber.about.field.serverVersion')} {...valueRow}>
                 {versionValue(remoteHostVersion)}
                 {remoteHostUpdateButton}
               </SettingsFieldRow>
             </>
           ) : (
-            <SettingsFieldRow label={t('settings.openchamber.about.field.version')} controlClassName={valueRow}>
+            <SettingsFieldRow label={t('settings.openchamber.about.field.version')} {...valueRow}>
               {versionValue(currentVersion)}
               {openChamberStatus}
             </SettingsFieldRow>
@@ -803,14 +766,15 @@ export const AboutSettings: React.FC<AboutSettingsProps> = ({ initialUpdateDialo
           <SettingsFieldRow
             label={t('settings.openchamber.about.field.updateChannel')}
             info={updateChannelControl ? t('settings.openchamber.about.field.updateChannelHint') : undefined}
-            controlClassName={valueRow}
+            {...valueRow}
           >
             {updateChannelControl}
-            <Button size="sm" variant="outline" onClick={checkAll} disabled={isChecking}>
+            <Button size="sm" variant="ghost" onClick={checkAll} disabled={isChecking}>
+              <Icon name="refresh" className="size-4" />
               {t('settings.openchamber.about.actions.checkForUpdates')}
             </Button>
           </SettingsFieldRow>
-          <SettingsFieldRow label={t('settings.openchamber.about.field.openCodeVersion')} controlClassName={valueRow}>
+          <SettingsFieldRow label={t('settings.openchamber.about.field.openCodeVersion')} {...valueRow}>
             {versionValue(openCodeVersion || t('settings.openchamber.about.state.unknown'))}
             {openCodeUpdate?.action}
           </SettingsFieldRow>

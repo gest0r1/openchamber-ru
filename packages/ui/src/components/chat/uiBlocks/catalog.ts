@@ -1,15 +1,6 @@
 import { z } from 'zod';
 import { createLibrary, createParser, defineComponent, evaluateRoot, tokenize, type ElementNode, type OpenUIError, type ParseResult } from '@openuidev/lang-core';
 
-/**
- * The fixed component catalog an agent writes UI blocks against.
- *
- * `blockProps` is what the renderer and the finished-block check read: each
- * component's props, with child slots as lists of nodes that their own entry
- * checks. The `lang-core` definitions below reuse those schemas and replace
- * the child slots with typed references, which is what the parser checks and
- * what the agent's signatures print.
- */
 
 export const tones = ['neutral', 'info', 'success', 'warning', 'error'] as const;
 const tone = z.enum(tones);
@@ -18,7 +9,6 @@ export type BlockValue = z.infer<typeof json>;
 const nodes = z.array(json);
 
 const choiceOptionObject = z.object({ label: z.string(), description: z.string().optional() });
-/** A Choice option read as its label and description, whichever way the agent wrote it. */
 export const choiceOption = z.union([
   z.string().transform((label) => ({ label, description: undefined })),
   choiceOptionObject,
@@ -27,8 +17,6 @@ export const choiceOption = z.union([
 export const blockProps = {
   Stack: z.object({ children: nodes }),
   Row: z.object({ children: nodes }),
-  // The title comes first and is required: a skipped first argument cannot
-  // be written positionally, so an empty title stands for none.
   Card: z.object({ title: z.string(), children: nodes }),
   Tabs: z.object({ tabs: nodes }),
   Tab: z.object({ label: z.string(), children: nodes }),
@@ -52,13 +40,11 @@ export const blockProps = {
   }),
   BarChart: z.object({ labels: z.array(z.string()), series: nodes, unit: z.string().optional(), whole: z.boolean().optional() }),
   LineChart: z.object({ labels: z.array(z.string()), series: nodes, unit: z.string().optional() }),
-  // null is a point with no data: the line breaks there, the bar is left out.
   Series: z.object({ name: z.string(), values: z.array(z.number().nullable()) }),
   Stat: z.object({ label: z.string(), value: z.union([z.string(), z.number()]), delta: z.string().optional(), tone: tone.optional() }),
   Progress: z.object({ label: z.string(), value: z.number(), max: z.number().positive().optional() }),
   Choice: z.object({
     name: z.string(),
-    // An option is its label, or a label with a line saying what choosing it means.
     options: z.array(z.union([z.string(), choiceOptionObject])),
     label: z.string().optional(),
     multiple: z.boolean().optional(),
@@ -69,7 +55,6 @@ export const blockProps = {
     placeholder: z.string().optional(),
     multiline: z.boolean().optional(),
   }),
-  // A local date, with a time when asked: YYYY-MM-DD or YYYY-MM-DDTHH:mm.
   DateInput: z.object({
     name: z.string(),
     label: z.string().optional(),
@@ -94,7 +79,6 @@ export type BlockName = keyof typeof blockProps;
 const blockNames = Object.keys(blockProps) as [BlockName, ...BlockName[]];
 export const blockName = z.enum(blockNames);
 
-/** A node as the parser emits it; its props are read through `blockProps`. */
 export const blockNode = z.object({
   type: z.literal('element'),
   typeName: z.string(),
@@ -165,8 +149,7 @@ const leaf = z.union([
   Stat.ref, Progress.ref, Choice.ref, Input.ref, DateInput.ref, Slider.ref, Button.ref,
 ]);
 
-// The guidance names what nests where (guidance.ts); these unions only feed
-// the parser's references, which it does not check against a parent.
+// external: https://github.com/thesysdev/openui/tree/main/packages/lang-core Child references do not enforce parent nesting; guidance defines it.
 const Row = defineComponent({
   name: 'Row',
   description: 'side by side, wraps',
@@ -211,7 +194,6 @@ const components = [
 
 export const uiBlockLibrary = createLibrary({ components, root: 'Stack' });
 
-// Evaluation needs only the language's built-in functions, not the components.
 const evaluationLibrary = createLibrary({ components: [] });
 
 const parser = createParser(uiBlockLibrary.toJSONSchema(), 'Stack');
@@ -388,7 +370,6 @@ function namedArgumentError(source: string, meta: ParseResult['meta']): string |
   return named.length ? `Named arguments aren't supported: pass ${named.join(', ')} by position` : null;
 }
 
-/** The parser's tree as plain JSON: absent optional fields drop out. */
 function toBlockValue(root: ElementNode): BlockValue {
   return json.parse(JSON.parse(JSON.stringify(root)));
 }
@@ -441,10 +422,8 @@ function soundNode(value: BlockValue, errors: string[], extensions: ExtensionBlo
   return broken ? null : { ...node.data, props };
 }
 
-/** A field of a block; `initial` is the value it starts with, which an answer carries unless the user changes it. */
 export type BlockField = { name: string; label: string; initial?: string };
 
-/** Every node of a block, parent before children, in reading order, with the title of the card it sits in. */
 function eachNode(root: BlockValue, visit: (node: z.infer<typeof blockNode>, cardTitle: string) => void, cardTitle = ''): void {
   const node = blockNode.safeParse(root);
   if (!node.success) return;
@@ -471,30 +450,22 @@ const fieldOf = (node: z.infer<typeof blockNode>): BlockField | null => {
   }
 };
 
-/** The time a date field shows before the user picks one. */
 export const DEFAULT_TIME = '09:00';
 
-/** What a prefilled date field holds, in the shape its answer takes: a time only when the field asks for one. */
 const dateStart = (field: z.infer<typeof blockProps.DateInput>): string | undefined => {
   if (!field.value) return undefined;
   const date = field.value.slice(0, 10);
   return field.time ? `${date}T${field.value.slice(11, 16) || DEFAULT_TIME}` : date;
 };
 
-/**
- * Where a slider starts: its value, else the middle, on the nearest step the
- * slider can stand on, so the label and the answer match the thumb.
- */
 export function sliderStart(slider: z.infer<typeof blockProps.Slider>): number {
   const step = slider.step ?? 1;
   const wanted = slider.value ?? slider.min + (slider.max - slider.min) / 2;
   const lastStep = Math.floor((slider.max - slider.min) / step);
   const steps = Math.min(lastStep, Math.max(0, Math.round((wanted - slider.min) / step)));
-  // Rounded to clear float noise such as 0.30000000000000004.
   return Number((slider.min + steps * step).toFixed(10));
 }
 
-/** The fields of a block, in reading order; their values make up an answer. */
 export function blockFields(root: BlockValue): BlockField[] {
   const fields: BlockField[] = [];
   eachNode(root, (node) => {
@@ -521,17 +492,10 @@ const isButtonRun = (value: BlockValue) => {
   const node = blockNode.safeParse(value);
   if (!node.success) return false;
   if (node.data.typeName === 'Button') return true;
-  // A row of buttons moves as one; the note never lands inside a row.
   return node.data.typeName === 'Row'
     && (childSlots.safeParse(node.data.props).data?.children ?? []).some((child) => blockNode.safeParse(child).data?.typeName === 'Button');
 };
 
-/**
- * Where a waiting form's note goes: before the last run of buttons in reading
- * order, outside tabs, so the user writes it before pressing one. `parent` is
- * the path of the node whose children hold the run, `index` the run's first
- * child. null when the block has no such run.
- */
 export function noteSlot(root: BlockValue): { parent: BlockPath; index: number } | null {
   let found: { parent: BlockPath; index: number } | null = null;
   const walk = (value: BlockValue, path: BlockPath) => {
@@ -549,12 +513,6 @@ export function noteSlot(root: BlockValue): { parent: BlockPath; index: number }
   return found;
 }
 
-/**
- * Titles of the cards that name their decision: those no other card in the
- * block shares. A card is one item, so all its buttons are one decision named
- * by its title, whatever values they carry: agents often give each option its
- * own value. Two cards with one title would merge, so they fall back to values.
- */
 export function decisionTitles(root: BlockValue): ReadonlySet<string> {
   const counts = new Map<string, number>();
   eachNode(root, (node) => {
@@ -564,11 +522,6 @@ export function decisionTitles(root: BlockValue): ReadonlySet<string> {
   return new Set([...counts].flatMap(([title, count]) => (count === 1 ? [title] : [])));
 }
 
-/**
- * Which decision a button of a reply answers: its card's title when that
- * names a decision (`decisionTitles`), else its value. Buttons that share a
- * value are one decision.
- */
 export const decisionOf = (titles: ReadonlySet<string>, cardTitle: string, buttonValue: string | undefined): string => (
   titles.has(cardTitle) ? cardTitle : buttonValue ?? ''
 );
@@ -585,15 +538,9 @@ const decisionsIn = (root: BlockValue, titles: ReadonlySet<string>) => {
   return { decisions, fields };
 };
 
-/**
- * The one decision a card in a reply asks for, when it holds no fields. Once
- * answered the card folds to one line; a card with fields stays open so they
- * stay readable. null for a card with no buttons, several decisions, or fields.
- */
 export function cardDecision(card: BlockValue, titles: ReadonlySet<string>): string | null {
   const { decisions, fields } = decisionsIn(card, titles);
   return !fields && decisions.length === 1 ? decisions[0] : null;
 }
 
-/** The decisions a reply's block asks for, in reading order (`decisionOf`). */
 export const blockDecisions = (root: BlockValue): string[] => decisionsIn(root, decisionTitles(root)).decisions;

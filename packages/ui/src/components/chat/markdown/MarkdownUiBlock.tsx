@@ -1,5 +1,5 @@
 import type { CustomRendererProps } from 'streamdown';
-import { useReplyUiBlockComponent } from '../uiBlocks/useUiBlockComponent';
+import { useReplyUiBlockComponent, useUiBlockComponent } from '../uiBlocks/useUiBlockComponent';
 import { useMarkdownPresentation } from './MarkdownPresentationContext';
 
 /**

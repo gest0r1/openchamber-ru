@@ -17,8 +17,6 @@ type TimelineRowProject = {
 };
 
 type Props = {
-  /** One-line rows (tree rows, Chats, Pinned, In work and the list by time):
-      title and meta on one line, no branch line. */
   compact?: boolean;
   /** Set on detailed rows where projects mix (Pinned, In work, the list by
       time): the second line opens with this project's icon, followed by its
@@ -26,7 +24,6 @@ type Props = {
       to the title.
       Rows under their project header pass null. */
   project: TimelineRowProject | null;
-  /** The project's name, spoken and shown on hover for its icon. */
   projectLabel: string | null;
   title: React.ReactNode;
   titleClassName: string;
@@ -35,8 +32,6 @@ type Props = {
       then carries the space's container mark, with this as its accessible
       name; a branch name shows no icon. */
   spaceMark?: string | null;
-  /** Replaces the branch on the second line (a run row puts its mark and
-      lane count there). */
   metaLineLead?: React.ReactNode;
   /** The chevron of a row with something nested under it: it takes the place
       of the second line's first icon (the project's, else the space's or the
@@ -55,16 +50,11 @@ type Props = {
       which has no branch, or a draft's pen. */
   leadIcon?: React.ReactNode;
   statusDot: React.ReactNode;
-  /** Pin glyph shown in the meta cluster while the row is pinned. */
   pinnedMarker: React.ReactNode;
-  /** The turn's duration while it runs and until it is read; no date otherwise
-      (the list is ordered by recency, the row's tooltip has the time). */
   timeSlot: React.ReactNode;
   directoryIndicator: React.ReactNode;
   prBadge: React.ReactNode;
   zombieIndicator: React.ReactNode;
-  /** Goal status glyph; opens the second line's state cluster, so it stays
-      visible while a turn runs and while the hover actions cover line one. */
   goal?: React.ReactNode;
   /** The marks extensions put on the row, right after the PR badge. They never
       open the second line: a mark that comes or goes leaves the row's height
@@ -72,21 +62,13 @@ type Props = {
       line's cluster, as on a one-line row. */
   marks?: React.ReactNode;
   badges: React.ReactNode;
-  /** Jev's "looks done" check: it sits in the time cluster, where the hover
-      Done action appears, left of the status dot so the dot stays by the time. */
   doneHint?: React.ReactNode;
-  /** Reserves room for permanently shown action buttons on the title line. */
   metaPaddingClass?: string;
   hideMetaOnHoverClass: string;
-  /** Sets how far hover-revealed actions reach into the title line
-      (`--oc-actions-reserve`). */
   actionsReserveClass?: string;
-  /** Fades the title's tail away under hover-revealed actions. */
   actionsMaskClass?: string;
 };
 
-// Only rows whose project carries a custom image pay for the theme
-// subscription the image resolution needs.
 const ProjectImageIcon: React.FC<{ project: TimelineRowProject; fallback: React.ReactNode }> = ({ project, fallback }) => {
   const { currentTheme } = useThemeSystem();
   return <ProjectIconImage
@@ -97,15 +79,12 @@ const ProjectImageIcon: React.FC<{ project: TimelineRowProject; fallback: React.
   />;
 };
 
-// `label` makes the icon speak and explain itself on hover, for rows where it
-// is the only word for the project; a row that prints the name passes null.
 export const TimelineProjectIcon: React.FC<{ project: TimelineRowProject; label: string | null }> = ({ project, label }) => {
   const iconName = project.icon ? PROJECT_ICON_MAP[project.icon] : null;
   const iconColor = resolveProjectColor(project.color);
   const glyph = iconName
     ? <Icon name={iconName} className={cn('h-3 w-3', !iconColor && 'text-muted-foreground')} style={iconColor ? { color: iconColor } : undefined} />
     : <Icon name="folder" className="h-3 w-3 text-muted-foreground" style={iconColor ? { color: iconColor } : undefined} />;
-  // The icon is the row's only word for its project, so it speaks.
   const labelProps = label ? { role: 'img', 'aria-label': label } : {};
   const mark = project.iconImage
     ? <span
@@ -185,7 +164,6 @@ export const SessionTimelineRowBody: React.FC<Props> = ({
     {compact ? badges : null}
     {directoryIndicator}
     {pinnedMarker}
-    {doneHint}
     {statusDot}
     {timeSlot ? <span className="typography-micro leading-none text-muted-foreground tabular-nums">{timeSlot}</span> : null}
   </span>;
@@ -229,8 +207,6 @@ export const SessionTimelineRowBody: React.FC<Props> = ({
   }
   const secondLine = Boolean(leadToggle || leadIcon || branchLine || goal || zombieIndicator || prBadge || badges);
   return <div className="flex w-full min-w-0 flex-col gap-px">
-    {/* Fixed 20px first line: the hover actions are positioned against the
-        row from outside and rely on this height to sit exactly on it. */}
     <div className={cn('@container relative flex h-5 w-full min-w-0 items-center gap-1', actionsReserveClass)}>
       {titleLine}
       {meta(!secondLine)}

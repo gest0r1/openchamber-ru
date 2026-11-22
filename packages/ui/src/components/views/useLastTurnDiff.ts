@@ -7,9 +7,6 @@ import type { TurnSnapshotDiff } from './turnSnapshotDiff';
 
 const EMPTY_DIFFS: TurnSnapshotDiff[] = [];
 
-// The answer of `GET /api/session/:id/diff` moves when a step is added and
-// when the newest step finishes (its end snapshot is recorded then), so both
-// the newest message and its completion stamp key the refetch.
 const selectTranscriptKey = (messages: Message[]): string => {
     const last = messages[messages.length - 1];
     if (!last) return '';
@@ -19,7 +16,6 @@ const selectTranscriptKey = (messages: Message[]): string => {
 
 type LastTurnDiff = {
     diffs: TurnSnapshotDiff[];
-    /** Files the last turn changed; null while unknown. */
     count: number | null;
     loaded: boolean;
     /** The list is the answer to the session's current state, not one kept from an earlier read. */
@@ -28,16 +24,10 @@ type LastTurnDiff = {
     retry: () => void;
 };
 
-/**
- * The last turn's per-file diff, computed by OpenCode from the turn's
- * snapshots. `live` follows a running turn step by step; without it a
- * running turn is not read (each read of a running step captures a fresh
- * working-copy snapshot) and the count is unknown until the turn ends.
- */
 export function useLastTurnDiff(
     sessionId: string | null,
     directory: string | undefined,
-    { enabled, live }: { enabled: boolean; live: boolean },
+    { enabled, live, from }: { enabled: boolean; live: boolean; from?: string },
 ): LastTurnDiff {
     const { t } = useI18n();
     const transcriptKey = useSessionMessagesSelector(enabled ? sessionId ?? '' : '', directory, selectTranscriptKey);
@@ -58,7 +48,7 @@ export function useLastTurnDiff(
     React.useEffect(() => {
         if (!enabled || !sessionId || waiting) return;
         let cancelled = false;
-        void opencodeClient.getSessionTurnDiff(sessionId, { directory })
+        void opencodeClient.getSessionTurnDiff(sessionId, { directory, from })
             .then((files) => {
                 if (cancelled) return;
                 setResult({
@@ -77,7 +67,7 @@ export function useLastTurnDiff(
             .catch((error) => {
                 if (cancelled) return;
                 console.warn('[last-turn-diff] turn diff unavailable:', error instanceof Error ? error.message : error);
-                setFailure({ sessionId, message: error instanceof Error && error.message ? error.message : t('diffView.state.failedToLoadDiff') });
+                setFailure({ sessionId, readKey, message: error instanceof Error && error.message ? error.message : t('diffView.state.failedToLoadDiff') });
             });
         return () => {
             cancelled = true;
@@ -86,10 +76,9 @@ export function useLastTurnDiff(
         // going idle changes the answer.
     }, [directory, enabled, readKey, sessionId, t, waiting]);
 
-    // Another session's turn is never shown while this one's loads.
-    const own = result && result.sessionId === sessionId ? result : null;
+    const own = result && result.sessionId === sessionId && result.directory === directory && result.from === from ? result : null;
     const diffs = own?.diffs ?? EMPTY_DIFFS;
-    const error = failure && failure.sessionId === sessionId ? failure.message : null;
+    const error = failure && failure.sessionId === sessionId && failure.readKey === readKey ? failure.message : null;
     return {
         diffs,
         count: own && !waiting ? diffs.length : null,

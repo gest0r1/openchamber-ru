@@ -73,8 +73,6 @@ const read = async (subdir, filename) => {
   }
 };
 
-// Hashes an installer already on the release, the way electron-builder
-// writes it into latest.yml: base64 sha512 and size of the whole file.
 const manifestFromReleaseAsset = async (assets, name, token) => {
   const asset = assets.find((entry) => entry.name === name);
   if (!asset) throw new Error(`Release asset ${name} is missing, so its update manifest cannot be built`);
@@ -102,7 +100,6 @@ if (windowsFromRelease) {
   const releaseId = process.env.RELEASE_ID;
   const token = process.env.GITHUB_TOKEN;
   if (!releaseId || !token) throw new Error('RELEASE_ID and GITHUB_TOKEN are required to read the Windows installers');
-  // The release can be a draft, which only the id reaches.
   const response = await fetch(`https://api.github.com/repos/${repo}/releases/${releaseId}`, {
     headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json' },
   });

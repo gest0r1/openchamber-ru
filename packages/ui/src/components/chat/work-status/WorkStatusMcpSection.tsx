@@ -171,8 +171,6 @@ export const WorkStatusMcpSection: React.FC<Props> = ({ sessionId, directory: se
             onCheckedChange={(checked) => { void handleToggle(name, checked); }}
           />
         );
-        // A server asking for sign-in or reporting a failure is asking to be
-        // acted on; the state is the affordance, so it is the button.
         const stateAction = needsAuth ? (
           <WorkStatusRowAction
             tone="warning"

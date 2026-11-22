@@ -67,8 +67,6 @@ export const MobileDeleteWorktreeDialog: React.FC<MobileDeleteWorktreeDialogProp
   const [isProcessing, setIsProcessing] = React.useState(false);
 
   const worktreePath = normalizePath(worktree?.path);
-  // The branch toggles appear only once the check allows them, so a worktree
-  // on the default branch never offers deleting it.
   const [canDeleteBranch, setCanDeleteBranch] = React.useState(false);
   const worktreeBranch = worktree?.branch ?? '';
   React.useEffect(() => {

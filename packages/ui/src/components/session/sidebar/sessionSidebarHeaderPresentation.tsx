@@ -36,7 +36,6 @@ const AddProjectButton: React.FC = () => {
   </Tooltip>;
 };
 
-/** The mark on the section being edited, which the sidebar draws as it stands. */
 const PreviewMark: React.FC = () => {
   const { t } = useI18n();
   return <span className="ms-1 rounded-full bg-interactive-selection px-1.5 typography-micro text-interactive-selection-foreground">
@@ -47,7 +46,6 @@ const PreviewMark: React.FC = () => {
 
 export const SessionSidebarActivityHeader: React.FC<{
   activityKey: SessionSidebarActivityKey;
-  /** The name of one of the user's sections. */
   label?: string;
   preview?: boolean;
   /** The zone's list is still loading and has nothing to show yet. */
@@ -71,10 +69,6 @@ export const SessionSidebarActivityHeader: React.FC<{
       className={cn('group flex w-full items-center gap-1 py-1 ps-4 text-start focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50', chats || timeline ? 'pe-10' : 'pe-3.5')}
       aria-expanded={!collapsed}
     >
-      {/* A zone's label is a bare muted word with room above it, so it reads
-          as the caption of what follows; the icons belong to projects and
-          rows. The chevron follows the word: always while the zone is closed,
-          on hover while it is open. */}
       <span className="min-w-0 truncate typography-ui-label font-medium text-muted-foreground" dir="auto">
         {label ?? (isBuiltinActivityKey(activityKey) ? t(ACTIVITY_TITLE_KEY[activityKey]) : '')}
       </span>
@@ -101,9 +95,7 @@ export const SessionSidebarActivityHeader: React.FC<{
   </div>;
 };
 
-/** The caption over the projects: a zone's label that folds every project away. */
 export const SessionSidebarCaption: React.FC<{
-  /** The name of a group of projects the user made; Projects otherwise. */
   label?: string;
   preview?: boolean;
   collapsed: boolean;

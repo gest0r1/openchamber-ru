@@ -18,7 +18,6 @@ import { changeRequestTermOfUrl, useRepositoryUrlMatcher } from '@/lib/source-co
 import { cn } from '@/lib/utils';
 import { ReasoningTimelineBlock } from './parts/ReasoningPart';
 
-// A worktree reads by its folder name; the full path is in the expanded text.
 const folderName = (path: string): string => path.replace(/[\\/]+$/, '').split(/[\\/]/).pop() || path;
 
 const useNoticeTitle = (notice: Exclude<SessionNotice, PullRequestNotice | ExtensionWaitNotice>): string => {

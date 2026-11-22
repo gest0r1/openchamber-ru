@@ -6,6 +6,7 @@ import { readWorktreeUse, sessionsInWorktree } from '@/lib/worktrees/worktreeUse
 import { archiveWorktreeWork } from '@/lib/worktrees/worktreeArchive';
 import { resolveGlobalSessionDirectory, useGlobalSessionsStore } from '@/stores/useGlobalSessionsStore';
 import { setSessionWorkState } from '@/sync/session-actions';
+import { settleRunningOperatorChildren } from '@/sync/operator-children-done';
 import { useSessionUIStore } from '@/sync/session-ui-store';
 import { useDirectoryStore } from '@/stores/useDirectoryStore';
 import { leaveFinishedSessions } from '@/lib/sessionTabs';
@@ -24,10 +25,6 @@ import type { WorktreeMetadata } from '@/types/worktree';
 import type { SessionGroup, SessionNode } from '../types';
 import type { SessionRowOrderWork } from '../sessions/sessionRowOrder';
 
-/**
- * Leave a worktree's or a space's work: close its sessions' tabs, and move
- * off it when it is on screen, as a session or as a draft in its folder.
- */
 const leaveWorkFolder = (sessions: readonly Session[], folder: string, projectId: string): void => {
   leaveFinishedSessions(sessions.map((session) => session.id), { projectId });
   const state = useSessionUIStore.getState();
@@ -36,7 +33,6 @@ const leaveWorkFolder = (sessions: readonly Session[], folder: string, projectId
   if (isPathWithinProject(directory, folder)) state.openNewSessionDraft({ selectedProjectId: projectId });
 };
 
-/** Every session of a work's trees, parents before their children. */
 export const collectWorkSessions = (nodes: readonly SessionNode[]): Session[] => {
   const sessions: Session[] = [];
   const stack = [...nodes].reverse();
@@ -52,23 +48,14 @@ export const collectWorkSessions = (nodes: readonly SessionNode[]): Session[] =>
   return sessions;
 };
 
-/** A session that grew out of another one (a review, a fork, a promoted `/btw`), not the work itself. */
 const isOffshoot = (session: Session): boolean => isReviewSession(session) || Boolean(session.fork?.sessionID);
 
-/**
- * The session a click on a worktree work opens: the one the user last worked
- * in, past reviews and forks, or the latest of any when there is nothing
- * else. `nodes` are the work's root sessions in the sidebar's order, most
- * recent first. Null when the worktree has no session, where a draft opens.
- */
 export const pickWorkSessionToOpen = (nodes: readonly SessionNode[]): Session | null => (
   nodes.find((node) => !isOffshoot(node.session))?.session ?? nodes[0]?.session ?? null
 );
 
-/** Whether the work is in the In work block: any of its sessions is in work. */
 export const isWorkInWork = (sessions: readonly Session[]): boolean => sessions.some(isSessionInWork);
 
-/** Puts a work back into In work through the session the user last worked in. */
 export const trackWork = async (session: Session): Promise<void> => {
   await setSessionWorkState(session.id, resolveGlobalSessionDirectory(session) ?? session.directory, 'open');
 };
@@ -107,15 +94,16 @@ export const markSessionsDone = async (
 };
 
 export type FinishWorktreeWorkOutcome =
-  /** Done; the worktree stays where it is, out of In work. */
   | { kind: 'done' }
-  /** Done, and the worktree is archived with its sessions and changes. */
   | { kind: 'archived' }
-  /** Done; a session there still runs, so the worktree stays. */
   | { kind: 'busy' }
-  /** Done; whether a session still runs there could not be read, so the worktree stays. */
   | { kind: 'unknown' }
-  | { kind: 'failed'; error: Error; doneFailed: number };
+  | { kind: 'failed'; error: Error; doneFailed: number }
+  | { kind: 'cancelled' };
+
+const sessionsToMarkDone = (sessions: readonly Session[], alreadyDone?: ReadonlySet<string>): Session[] => (
+  sessions.filter((session) => isSessionInWork(session) && !alreadyDone?.has(session.id))
+);
 
 /** Sessions of a work still to mark done: in work, and not marked already (by bulk Mark done). */
 const sessionsToMarkDone = (sessions: readonly Session[], alreadyDone?: ReadonlySet<string>): Session[] => (
@@ -136,7 +124,6 @@ export async function finishWorktreeWork(input: {
   archive: boolean;
   worktree: WorktreeMetadata;
   project: { id: string; path: string };
-  /** The name the row shows, which the archive keeps. */
   title?: string;
   alreadyDone?: ReadonlySet<string>;
 }): Promise<FinishWorktreeWorkOutcome> {
@@ -144,9 +131,6 @@ export async function finishWorktreeWork(input: {
   if (failed.length > 0) {
     return { kind: 'failed', error: new Error(`Could not mark ${failed.length} session(s) done`), doneFailed: failed.length };
   }
-  // Done work leaves the working set, as Mark done in the composer does: its
-  // tabs close and the app moves off it, which also frees the worktree for
-  // the clean-up below (it never removes one that is on screen).
   leaveWorkFolder(input.sessions, input.worktree.path, input.project.id);
   if (!input.archive) return { kind: 'done' };
   const use = await readWorktreeUse(input.worktree.path);
@@ -161,15 +145,6 @@ export async function finishWorktreeWork(input: {
   }
 }
 
-/**
- * Done on a space's work: its sessions in work are marked done and the work
- * is left, as a worktree's is, and the space is stopped. Stopping keeps every
- * file and gives back its memory and processor; it starts again with the next
- * message. A space an agent is still working in keeps running, so Done never
- * cuts a turn short. The space itself stays: what happens to its changes is
- * the apply dialog's question, never a side effect of Done (maintainer
- * decision 2026-10-26).
- */
 export async function finishSpaceWork(input: {
   sessions: readonly Session[];
   spaceId: string;
@@ -184,7 +159,6 @@ export async function finishSpaceWork(input: {
   leaveWorkFolder(input.sessions, input.directory, input.projectId);
   const running = useSpacesStore.getState().journey?.get(input.spaceId)?.state === 'running';
   if (running && !isAgentWorkingInSpace(useGlobalSessionStatusStore.getState(), input.spaceId)) {
-    // Its progress and a failure show on the space's row, as from its menu.
     void runSpaceAction(input.spaceId, 'stop');
   }
   return { kind: 'done' };

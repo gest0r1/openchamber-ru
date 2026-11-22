@@ -86,6 +86,9 @@ Each returns an unsubscribe function. State subscriptions replay the last known 
 | `onFileSaved(listener)` | `version: string` | File editors only: the snapshot with that version is on disk. Answer with `reportFileChange({ dirty, edited: false })` so edits made during the write stay unsaved |
 
 
+`ready.session` and `onSession` return the current session with optional `context` and `tokens` fields. `context` is `{ tokens, limit }` for the latest measured context fill: `tokens` counts the most recent assistant step, while `limit` is the context window of the model that answered that step, or `null` if unknown. It is `null` before a measured reply or after a compaction until another reply. `tokens` contains `{ prompt, output, reasoning, cacheRead, cacheWrite, cacheHitPercent }`, the cumulative session totals shown in the app. `prompt` includes uncached input and cache reads/writes; `cacheHitPercent` is `null` without prompt tokens. `tokens` is `null` before the session reports usage. Both fields update with the session and are optional for older hosts.
+
+
 `HostReadyContext`
 
 
@@ -247,6 +250,14 @@ Await subscription registration to handle refusal, then retain its returned unsu
 
 `readShellOutput` returns `{ output, cursor, skipped }`; omit `cursor` to start `tailBytes` before the end, and `skipped` says earlier output was dropped. OpenCode keeps an ended command's output until it evicts the command (the latest 25 ended commands per directory); a stopped command's output is removed with it. A shell OpenChamber has not seen, a stopped one, and one whose output OpenCode no longer keeps are `NOT_FOUND`; `stopShell` on a shell that is not running is `NOT_FOUND` too. An unapproved `shells` capability is `NOT_GRANTED`.
 
+### Microphone
+
+`openMicrophone()` needs the `microphone` capability and resolves to `{ stream, close, onEnded }`. `stream` is a `MediaStream` with one mono audio track carrying the user's microphone; hand it to an `RTCPeerConnection`, a `MediaRecorder` or an `AudioContext` as you would one from `getUserMedia`. The frame cannot call `getUserMedia` itself: its origin is opaque and the browser refuses it, so OpenChamber captures and streams the audio in.
+
+Call it from a click inside your frame, because the audio inside the frame starts only from the user's gesture. Check `features.microphone` on `onReady` first; older hosts and hidden background frames answer `UNSUPPORTED`. One microphone is open per frame at a time, and a second call while it is open is `HOST_REJECTED`. The user or the system refusing access is `DENIED`, no input device is `NOT_FOUND`, an unapproved capability is `NOT_GRANTED`. The open waits up to 120 s, since the system may be showing its permission prompt.
+
+`close()` stops the capture and ends the track; calling it twice is safe. `onEnded(listener)` hears the host stop on its own, with `revoked` when the user withdrew the grant or paused the extension and `device-lost` when the input device went away; the handle is closed by then. Reloading or removing the frame stops the capture too. Echo cancellation, noise suppression and auto gain are on.
+
 ### Extension storage
 
 `host.storage.get(key, options?)` returns JSON or `undefined` for a missing key. JSON `null` is a stored value. `set(key, value, options?)` and `delete(key, options?)` return `Promise<void>`; `keys(options?)` returns `Promise<string[]>` in sorted order.
@@ -382,7 +393,7 @@ Use `mountPopoverAnchor` from `@openchamber/sdk/ui` for DOM anchors. It measures
 | `DENIED`           | The operating system refused the file access  |
 | `NO_MODEL`         | `generate` with no usable Small Model         |
 | `MODEL_FAILED`     | The Small Model returned an error             |
-| `UNSUPPORTED`      | This host surface cannot do that (for example `openCommit` without a Diff view) |
+| `UNSUPPORTED`      | This host surface cannot do that (for example `openCommit` without a Diff view, or `openWalkthrough` on the phone or in Mini Chat) |
 | `SERVICE_FAILED`     | Service crashed or never became ready           |
 | `REQUEST_FAILED`     | `serviceRequest` was sent but got no usable answer; the service may have acted on it |
 | `RESPONSE_TOO_LARGE` | `request` / `serviceRequest` answer over 8 000 000 bytes; the call ran, ask for a smaller page |

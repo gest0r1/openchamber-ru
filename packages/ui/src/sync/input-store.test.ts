@@ -302,6 +302,22 @@ describe("input-store attachments", () => {
     expect(useInputStore.getState().attachedFiles.map((file) => file.filename)).toEqual(["restored.txt"])
   })
 
+  testWithMockFileReader("a selection added again comes back as the same attachment, whatever its chip is named", async () => {
+    useInputStore.getState().clearAttachedFiles()
+    const file = new File(["hello"], "app/[slug]/page.tsx:12", { type: "text/plain" })
+    const first = useInputStore.getState().addVSCodeSelectionAttachment("/repo/app/[slug]/page.tsx", file)
+    resolveReader(pendingReaders[0], "data:text/plain;base64,aGVsbG8=")
+    await first
+    const [attached] = useInputStore.getState().attachedFiles
+    expect(attached?.filename).toBe("app/(slug)/page.tsx:12")
+
+    await useInputStore.getState().addVSCodeSelectionAttachment("/repo/app/[slug]/page.tsx", file)
+    const again = useInputStore.getState().attachedFiles
+    expect(again).toHaveLength(1)
+    expect(again[0]?.filename).toBe(attached?.filename)
+    expect(again[0]?.id).not.toBe(attached?.id)
+  })
+
   testWithMockFileReader("does not attach a VS Code selection that finishes reading after attachments are cleared", async () => {
     const addPromise = useInputStore.getState().addVSCodeSelectionAttachment(
       "/workspace/hello.txt",
@@ -398,23 +414,38 @@ describe("input-store attachments", () => {
     expect(useInputStore.getState().attachedFiles[0]?.dataUrl).toBe("data:text/plain;base64,e30=")
   })
 
-  test("rejects an unknown binary file after inspecting its contents", async () => {
-    const attached = await useInputStore.getState().addAttachedFile(
-      new File([new Uint8Array([0, 1, 2, 3])], "archive.bin", { type: "application/octet-stream" })
-    )
-
-    expect(attached).toBe(false)
-    expect(pendingReaders).toHaveLength(0)
-    expect(useInputStore.getState().attachedFiles).toEqual([])
+  testWithMockFileReader("keeps an unknown binary file in the draft without saving it anywhere", async () => {
+    const write = spyOn(opencodeClient, "writeOpenCodeTempFiles")
+    try {
+      const adding = useInputStore.getState().addAttachedFile(
+        new File([new Uint8Array([0, 1, 2, 3])], "archive.zip", { type: "application/zip" }),
+      )
+      await waitForReaderCount(1)
+      resolveReader(pendingReaders[0], "data:application/zip;base64,AAECAw==")
+      expect(await adding).toBe(true)
+      expect(write).not.toHaveBeenCalled()
+      const [attached] = useInputStore.getState().attachedFiles
+      expect(attached.filename).toBe("archive.zip")
+      expect(attached.mimeType).toBe("application/zip")
+      expect(attached.dataUrl).toBe("data:application/zip;base64,AAECAw==")
+      expect(attached.agentPath).toBeUndefined()
+    } finally {
+      write.mockRestore()
+    }
   })
 
-  test("rejects unknown content with too many control bytes", async () => {
-    const attached = await useInputStore.getState().addAttachedFile(
-      new File([new Uint8Array([1, 2, 3, 65])], "encoded.custom", { type: "application/octet-stream" })
-    )
-
-    expect(attached).toBe(false)
-    expect(pendingReaders).toHaveLength(0)
+  test("a malformed HAR is still rejected instead of sharing unsanitized content", async () => {
+    const write = spyOn(opencodeClient, "writeOpenCodeTempFiles")
+    try {
+      const attached = await useInputStore.getState().addAttachedFile(
+        new File([new Uint8Array([1, 2, 3, 65])], "secret.har", { type: "application/octet-stream" }),
+      )
+      expect(attached).toBe(false)
+      expect(write).not.toHaveBeenCalled()
+      expect(pendingReaders).toHaveLength(0)
+    } finally {
+      write.mockRestore()
+    }
   })
 
   testWithMockFileReader("accepts an unknown MIME type when its contents are text", async () => {
@@ -740,5 +771,61 @@ describe("input-store draft submit", () => {
     useInputStore.getState().requestDraftSubmit(7, "Fix the build")
     expect(useInputStore.getState().consumePendingDraftSubmit(null)).toBeNull()
     expect(useInputStore.getState().pendingDraftSubmit).toBeNull()
+  })
+})
+
+describe("input-store draft content", () => {
+  const file = new File(["shared"], "notes.txt", { type: "text/plain" })
+
+  beforeEach(() => {
+    useInputStore.setState({ pendingDraftContent: null })
+  })
+
+  test("the requested draft takes the files and the text once", () => {
+    useInputStore.getState().requestDraftContent(7, { files: [file], text: "  https://example.com/x  " })
+
+    expect(useInputStore.getState().consumePendingDraftContent(7)).toEqual({
+      files: [file],
+      text: "https://example.com/x",
+      rejected: [],
+    })
+    expect(useInputStore.getState().consumePendingDraftContent(7)).toBeNull()
+  })
+
+  test("a text-only share carries no files", () => {
+    useInputStore.getState().requestDraftContent(7, { files: [], text: "Summarise this" })
+
+    expect(useInputStore.getState().consumePendingDraftContent(7)).toEqual({
+      files: [],
+      text: "Summarise this",
+      rejected: [],
+    })
+  })
+
+  test("blank text is stored as none", () => {
+    useInputStore.getState().requestDraftContent(7, { files: [file], text: "   " })
+
+    expect(useInputStore.getState().consumePendingDraftContent(7)).toEqual({ files: [file], text: null, rejected: [] })
+  })
+
+  test("a refusal the native side reported travels with the share", () => {
+    const rejected = [{ name: "huge.zip", reason: "too-large" }]
+    useInputStore.getState().requestDraftContent(7, { files: [file], rejected })
+
+    expect(useInputStore.getState().consumePendingDraftContent(7)?.rejected).toEqual(rejected)
+  })
+
+  test("another draft asking leaves the content for the draft it was requested for", () => {
+    useInputStore.getState().requestDraftContent(7, { files: [file], text: "hello" })
+    expect(useInputStore.getState().consumePendingDraftContent(8)).toBeNull()
+    expect(useInputStore.getState().pendingDraftContent).not.toBeNull()
+
+    expect(useInputStore.getState().consumePendingDraftContent(null)).toBeNull()
+    expect(useInputStore.getState().consumePendingDraftContent(7)).toEqual({
+      files: [file],
+      text: "hello",
+      rejected: [],
+    })
+    expect(useInputStore.getState().pendingDraftContent).toBeNull()
   })
 })

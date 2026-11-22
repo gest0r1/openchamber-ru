@@ -14,10 +14,13 @@ Run the discrete scripts from the repository root:
    bun run mobile:build:ios:simulator
    ```
 
+   The script runs `pod install` twice and can re-resolve pods, which changes `packages/mobile/ios/App/Podfile.lock` (GoogleUtilities 8.1.4 → 8.1.5 once). Unless the change is about pods, copy the lockfile to a snapshot of its own before building (`snap=$(mktemp) && cp packages/mobile/ios/App/Podfile.lock "$snap"`; a fixed path would collide with another worktree's build), and afterwards, if the build changed the file, copy `"$snap"` back, then delete `"$snap"`. Never `git checkout` or `git restore` the file: it may hold another session's or the maintainer's uncommitted edits, and the snapshot keeps them.
+
 2. Boot if needed, install, and launch:
    ```sh
    bun run mobile:sim:run
    ```
+   It reuses a simulator that is already booted; only when none is booted does it boot the one named `iPhone 17 Pro` (`packages/mobile/scripts/ios-sim.mjs`), which then has to exist. A fresh Xcode has no runtime and no devices. `xcrun simctl list runtimes` shows the installed runtimes; when none is there, `xcodebuild -downloadPlatform iOS` installs the one the selected Xcode ships with, and the list shows its identifier. Create the device with that identifier: `xcrun simctl create "iPhone 17 Pro" com.apple.CoreSimulator.SimDeviceType.iPhone-17-Pro <runtime identifier>`.
 
 3. Start the detached browser stream:
    ```sh

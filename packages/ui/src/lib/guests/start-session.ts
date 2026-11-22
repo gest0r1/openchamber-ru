@@ -416,14 +416,10 @@ export const startGuestSession = async (args: {
       const wait = await getWorktreeSetupWaitEnabled(project);
       assertCurrent();
       if (wait) await waitForWorktreeBootstrap(metadata.path);
-      // Rejects only when the checkout failed to populate: that is `bootstrap-failed`,
-      // and the SDK contract keeps the worktree for the guest to decide on (packages/sdk/API.md).
       directory = await resolveWorktreeStartDirectory(project, metadata.path);
     }
     assertCurrent();
     failure = 'session-create-failed';
-    // v2 creates the session on a selection, so the first prompt runs on the
-    // model the extension asked for without a switch message in the transcript.
     const session = await sessionActions.createSession(
       title,
       directory,

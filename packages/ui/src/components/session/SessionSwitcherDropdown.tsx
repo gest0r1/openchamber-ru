@@ -38,6 +38,7 @@ type SessionSwitcherDropdownProps = {
   variant?: SwitcherVariant;
   scopeProjectId?: string | null;
   align?: 'start' | 'center' | 'end';
+  recentOnly?: boolean;
 };
 
 export function SessionSwitcherDropdown({
@@ -45,6 +46,7 @@ export function SessionSwitcherDropdown({
   variant = 'default',
   scopeProjectId = null,
   align = 'start',
+  recentOnly = false,
 }: SessionSwitcherDropdownProps): React.ReactElement {
   const isOpen = useUIStore((state) => state.isSessionDropdownOpen);
   const setOpen = useUIStore((state) => state.setSessionDropdownOpen);
@@ -65,6 +67,7 @@ export function SessionSwitcherDropdown({
             onSelect={() => setOpen(false)}
             variant={variant}
             scopeProjectId={scopeProjectId}
+            recentOnly={recentOnly}
           />
         ) : null}
       </DropdownMenuContent>
@@ -76,9 +79,10 @@ type SwitcherContentProps = {
   onSelect: () => void;
   variant: SwitcherVariant;
   scopeProjectId: string | null;
+  recentOnly: boolean;
 };
 
-function SwitcherContent({ onSelect, variant, scopeProjectId }: SwitcherContentProps): React.ReactElement {
+function SwitcherContent({ onSelect, variant, scopeProjectId, recentOnly }: SwitcherContentProps): React.ReactElement {
   const currentSessionId = useSessionUIStore((state) => state.currentSessionId);
   const isNewSessionDraftOpen = useSessionUIStore((state) => state.newSessionDraft.open === true);
   // Plain recency, same as the mobile switcher: with pins first, a few pinned

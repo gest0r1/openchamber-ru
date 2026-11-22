@@ -22,13 +22,11 @@ export const SidebarTopBar: React.FC<{ actionsSlotRef: React.Ref<HTMLDivElement>
     className="flex shrink-0"
     style={{ height: 'var(--oc-header-height, 3rem)' }}
   >
-    {/* Drag region for the window-controls inset (traffic lights). */}
     <div
       aria-hidden
       className="app-region-drag shrink-0"
       style={{ width: 'var(--oc-titlebar-start-inset, 0.75rem)' }}
     />
-    {/* No-drag carve under the overlay buttons so they stay clickable. */}
     <div
       aria-hidden
       ref={titlebarControlsWidthReaderRef}

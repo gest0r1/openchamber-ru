@@ -11,6 +11,7 @@ import { useSessionUIStore } from '@/sync/session-ui-store';
 import { useInlineCommentDraftStore } from '@/stores/useInlineCommentDraftStore';
 import { useInlineCommentController } from '../useInlineCommentController';
 import { useProjectsStore } from '@/stores/useProjectsStore';
+import { textLineSource, type CommentLineSource } from '@/lib/commentAnchor';
 
 const directory = '/repo';
 
@@ -25,12 +26,21 @@ describe('inline comment target', () => {
   const saveComment = (text: string, range?: Range) => controller.saveComment(text, range);
   const sdk = OpenCode.make({ baseUrl: 'http://comments.test', fetch: () => new Promise<Response>(() => undefined) });
 
+  // The file's text for the tests where comments follow their code; null leaves the lines unknown.
+  let fileLines: CommentLineSource | null = null;
+  const showFile = async (...lines: string[]) => {
+    fileLines = textLineSource(lines.join('\n'));
+    await act(async () => root.render(tree()));
+  };
+
   const Harness = () => {
     controller = useInlineCommentController<Range>({
       source: 'file',
       fileLabel: 'src/a.ts',
       language: 'ts',
-      getCodeForRange: () => 'const answer = 42;',
+      getCodeForRange: (range) => fileLines?.lineAt(range.start) ?? 'const answer = 42;',
+      lineSource: () => fileLines,
+      contentVersion: fileLines,
       toStoreRange: (range) => ({ startLine: range.start, endLine: range.end }),
       fromDraftRange: (draft) => ({ start: draft.startLine, end: draft.endLine }),
     });
@@ -59,6 +69,14 @@ describe('inline comment target', () => {
       </I18nProvider>,
     ));
   });
+
+  const tree = () => (
+    <I18nProvider>
+      <SyncProvider sdk={sdk} directory={directory}>
+        <Harness />
+      </SyncProvider>
+    </I18nProvider>
+  );
 
   afterEach(async () => {
     await act(async () => root.unmount());

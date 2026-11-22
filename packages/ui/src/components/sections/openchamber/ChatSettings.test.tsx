@@ -120,11 +120,27 @@ describe('ChatSettings', () => {
 
   test('every Chat search result opens the tab that holds it', () => {
     const t = (key: I18nKey): string => key;
-    const results = buildSettingsSearchResults({ query: 'chat-page', runtimeCtx, t, getPageTitle: (page) => `${page}-page` })
-      .filter((result) => result.page === 'chat');
-    expect(results.length).toBeGreaterThan(20);
-    for (const result of results) {
-      expect({ id: result.id, tab: chatSettingsTabForSearchTarget(result.id) }).not.toEqual({ id: result.id, tab: null });
+    const result = buildSettingsSearchResults({ query: 'lgtm', runtimeCtx, t, getPageTitle: (page) => `${page}-page` })
+      .find((item) => item.id === 'chat.selection-approval-text');
+    expect(result?.page).toBe('chat');
+    expect(chatSettingsTabForSearchTarget('chat.selection-approval-text')).toBe('messages');
+    useChatSettingsTabStore.setState({ tab: 'messages' });
+    useUIStore.setState({ selectionApprovalText: 'Existing feedback' });
+    await act(async () => root.render(<I18nProvider><ChatSettings /></I18nProvider>));
+
+    const field = host.querySelector<HTMLInputElement>('[data-settings-item="chat.selection-approval-text"] input');
+    if (!field) throw new Error('Missing selection approval field');
+    expect(field.value).toBe('Existing feedback');
+    expect(field.placeholder).toBe('Sounds good');
+    const setValue = Object.getOwnPropertyDescriptor(windowInstance.HTMLInputElement.prototype, 'value')?.set;
+    if (!setValue) throw new Error('Missing input value setter');
+    for (const value of ['Ship this', '']) {
+      await act(async () => {
+        setValue.call(field, value);
+        field.dispatchEvent(new Event('input', { bubbles: true }));
+      });
+      expect(useUIStore.getState().selectionApprovalText).toBe(value);
+      expect(field.value).toBe(value);
     }
   });
 });

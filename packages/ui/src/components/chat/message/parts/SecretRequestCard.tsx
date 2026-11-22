@@ -6,6 +6,7 @@ import { toast } from '@/components/ui';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useI18n } from '@/lib/i18n';
 import type { ToolPart } from '@/lib/opencode/model';
 import type { RequestedSecret, RequestedSecretRun } from '@/lib/opencode/tools';

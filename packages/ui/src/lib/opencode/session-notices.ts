@@ -54,7 +54,9 @@ import { readContextPart } from "@/lib/messages/contextParts"
 import { readShellCancellation, readShellCompletion } from "./background-shell"
 import { readDispatchedSessionResult } from "./dispatched-session"
 import { readWorkflowReport } from "@/lib/workflows/report"
+import { readShareAnswer } from "@/lib/share-pages/answer"
 import type { Message, Metadata, Part, ToolPart } from "./model"
+import { LEAD_ANSWER_METADATA_KEY, leadReplySchema } from "@/lib/sessionLead"
 import { isSubagentCancellationNote, readSubagentRun } from "./subagent-run"
 
 const pullRequestNoticeSchema = z.object({
@@ -135,11 +137,13 @@ const readExtensionWaitWake = (text: string, metadata: Metadata): ExtensionWaitN
 export function readSessionNotice(message: Message): SessionNotice | undefined {
   if (message.role === "system") return readMove(message)
   if (message.role !== "synthetic") return undefined
+  const lead = readLeadNotice(message.text, message.metadata ?? {})
+  if (lead) return lead
   const description = message.description?.trim()
   if (!description) return undefined
   const metadata = message.metadata ?? {}
   if (readContextPart({ type: "text", metadata: message.metadata })) return undefined
-  if (readSubagentRun(message) || readDispatchedSessionResult(message) || readWorkflowReport(message)) return undefined
+  if (readSubagentRun(message) || readDispatchedSessionResult(message) || readWorkflowReport(message) || readShareAnswer(message)) return undefined
   if (readShellCompletion(message) || readShellCancellation(message) || isSubagentCancellationNote(message)) return undefined
   if (HIDDEN_DESCRIPTIONS.has(description) || instructionsLoadedSchema.safeParse(metadata).success) return undefined
   const text = message.text
@@ -148,12 +152,6 @@ export function readSessionNotice(message: Message): SessionNotice | undefined {
   return readPullRequestWake(text, metadata) ?? readExtensionWaitWake(text, metadata) ?? { kind: "plugin", label: description, text }
 }
 
-// --- Notice rows inside a turn's Activity -----------------------------------
-//
-// A notice that lands while the agent works belongs to that run, so it
-// renders as a row of the step it followed, like a tool call. The row is a
-// tool part only OpenChamber makes: Activity counts, trims and folds it with
-// the step's other rows, and `MessageBody` draws it as a notice.
 
 const SESSION_NOTICE_TOOL = "openchamber-session-notice"
 
@@ -170,14 +168,12 @@ const noticeSchema = z.discriminatedUnion("kind", [
 
 const noticePartMetadataSchema = z.object({ [NOTICE_METADATA_KEY]: noticeSchema })
 
-/** Whether a notice row sits before the step's own parts (it came before the step) or after them. */
 export type SessionNoticePlacement = "before" | "after"
 
 const PLACEMENT_METADATA_KEY = "openchamberSessionNoticePlacement"
 
 const placementMetadataSchema = z.object({ [PLACEMENT_METADATA_KEY]: z.enum(["before", "after"]) })
 
-/** The Activity row for a notice message, owned by the step `ownerMessageID`. */
 export function sessionNoticePart(
   message: Message,
   notice: SessionNotice,
@@ -202,17 +198,14 @@ export function sessionNoticePart(
   }
 }
 
-/** The notice an Activity row stands for, or undefined for any other part. */
 export function readSessionNoticePart(part: ToolPart): SessionNotice | undefined {
   if (part.tool !== SESSION_NOTICE_TOOL || part.state.status !== "completed") return undefined
   const parsed = noticePartMetadataSchema.safeParse(part.state.metadata ?? {})
   return parsed.success ? parsed.data[NOTICE_METADATA_KEY] : undefined
 }
 
-/** Whether a part is a notice row `sessionNoticePart` made. */
 export const isSessionNoticePart = (part: Part): boolean => part.type === "tool" && part.tool === SESSION_NOTICE_TOOL
 
-/** Where a notice row sits among its step's parts, or undefined for any other part. */
 export function sessionNoticePlacement(part: Part): SessionNoticePlacement | undefined {
   if (!isSessionNoticePart(part) || part.type !== "tool" || part.state.status !== "completed") return undefined
   const parsed = placementMetadataSchema.safeParse(part.state.metadata ?? {})

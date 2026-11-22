@@ -31,7 +31,6 @@ export async function readThemePackage(extension: ThemeExtension, signal: AbortS
     try {
       if (item.error) throw new Error('invalid');
       const definition = importVSCodeTheme(item.text, item.path);
-      // Manifest labels are display names, even when they resemble a slug.
       definition.metadata.name = item.name;
       definition.metadata.author = extension.namespace;
       return { status: 'ready' as const, key, name: item.name, definition, theme: requireTheme(definition) };

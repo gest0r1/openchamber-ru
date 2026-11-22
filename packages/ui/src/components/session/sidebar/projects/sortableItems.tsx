@@ -123,10 +123,6 @@ const ProjectHeaderIdentity: React.FC<ProjectHeaderIdentityProps> = ({
 
 interface SortableProjectItemProps extends ProjectIdentityProps {
   disabled?: boolean;
-  /**
-   * The projects this one sorts among: those under the same caption, Projects
-   * or a group of projects. A drag only lands among them.
-   */
   sortGroup?: string;
   projectDescription: string;
   projectDirectory?: string;
@@ -137,28 +133,46 @@ interface SortableProjectItemProps extends ProjectIdentityProps {
   alwaysShowActions: boolean;
   onToggle: () => void;
   onNewSession: () => void;
+  onNewLead?: () => void;
   onNewWorktreeSession?: () => void;
   onManageWorktrees?: () => void;
-  /** The project's isolated spaces page; absent while the feature is off, and always in VS Code. */
   onManageSpaces?: () => void;
-  /** The issues and PRs board on this project's repository; absent in VS Code. */
   onOpenSourceBoard?: () => void;
   onNewFolder?: () => void;
   onOpenFolder?: () => void;
   onRenameStart: () => void;
-  /** Archives the project's sessions except pinned, running and In work ones. */
   onArchiveAll?: () => void;
   onClose: () => void;
   children?: React.ReactNode;
   showCreateButtons?: boolean;
   hideHeader?: boolean;
-  /** Aggregated activity/attention indicator shown while the project is collapsed. */
   statusIndicator?: React.ReactNode;
   openSidebarMenuKey: string | null;
   setOpenSidebarMenuKey: (key: string | null) => void;
   projectPickerOptions?: ProjectPickerOption[];
   onProjectSelect?: (projectId: string) => void;
 }
+
+const NewSessionMenu: React.FC<{ onNewSession: () => void; onNewLead: (() => void) | undefined; children: React.ReactNode }> = ({ onNewSession, onNewLead, children }) => {
+  const { t } = useI18n();
+  const position = 'absolute inset-e-0.5 top-1/2 z-10 -translate-y-1/2';
+  if (!onNewLead) return <div className={position}>{children}</div>;
+  return (
+    <ContextMenu>
+      <ContextMenuTrigger render={<div className={position} />}>{children}</ContextMenuTrigger>
+      <ContextMenuContent className="min-w-[160px]">
+        <ContextMenuItem onClick={onNewSession}>
+          <Icon name="add" className="me-1.5 h-4 w-4" />
+          {t('sessions.sidebar.project.actions.newSession')}
+        </ContextMenuItem>
+        <ContextMenuItem onClick={onNewLead}>
+          <Icon name="lead" className="me-1.5 h-4 w-4" />
+          {t('sessions.sidebar.project.actions.newLead')}
+        </ContextMenuItem>
+      </ContextMenuContent>
+    </ContextMenu>
+  );
+};
 
 export const SortableProjectItem: React.FC<SortableProjectItemProps> = ({
   id,
@@ -178,6 +192,7 @@ export const SortableProjectItem: React.FC<SortableProjectItemProps> = ({
   alwaysShowActions,
   onToggle,
   onNewSession,
+  onNewLead,
   onNewWorktreeSession,
   onManageWorktrees,
   onManageSpaces,
@@ -198,7 +213,6 @@ export const SortableProjectItem: React.FC<SortableProjectItemProps> = ({
 }) => {
   const { t } = useI18n();
   const folderMissing = useProjectFolderMissing(projectDirectory);
-  // Project headers only exist in the projects view, which always pins them.
   const stickyZoneHeaders = true;
   const {
     attributes,
@@ -240,6 +254,12 @@ export const SortableProjectItem: React.FC<SortableProjectItemProps> = ({
         <Item onClick={onNewSession}>
           <Icon name="add" className="me-1.5 h-4 w-4" />
           {t('sessions.sidebar.project.actions.newSession')}
+        </Item>
+      )}
+      {showCreateButtons && !hideDirectoryControls && onNewLead && (
+        <Item onClick={onNewLead}>
+          <Icon name="lead" className="me-1.5 h-4 w-4" />
+          {t('sessions.sidebar.project.actions.newLead')}
         </Item>
       )}
       {isRepo && !hideDirectoryControls && onManageWorktrees && (
@@ -307,19 +327,11 @@ export const SortableProjectItem: React.FC<SortableProjectItemProps> = ({
     event.stopPropagation();
   }, []);
 
-  // Ctrl+click opens the context menu on macOS. Decided from the click itself:
-  // a right button press fires no click, so a flag set on press stayed set
-  // and swallowed the next real click.
   const handleToggleClick = React.useCallback((event: React.MouseEvent<HTMLButtonElement>) => {
     if (event.ctrlKey) return;
     onToggle();
   }, [onToggle]);
 
-  // Hover-revealed header actions swap in over the label's right end
-  // (`oc-actions-mask`) instead of pushing it; the reserve is how far they
-  // reach in past the header's 14px right padding: the new-session button
-  // 2px from the edge, then the worktree and menu buttons (24px, 4px apart)
-  // from 28px.
   const showWorktreeAction = showCreateButtons && isRepo && !hideDirectoryControls && Boolean(onNewWorktreeSession);
   // With a mouse the project's menu is its right-click menu (Shift+F10 from
   // the keyboard); the ⋯ button shows on touch only: always in touch layouts,
@@ -350,7 +362,6 @@ export const SortableProjectItem: React.FC<SortableProjectItemProps> = ({
     <div
       ref={setNodeRef}
       style={{ transform: CSS.Translate.toString(transform), transition }}
-      // Lifted, the header leaves its place open: its copy follows the pointer.
       className={cn('relative', isDragging && 'opacity-0')}
     >
       {!hideHeader ? (
@@ -358,11 +369,6 @@ export const SortableProjectItem: React.FC<SortableProjectItemProps> = ({
           <ContextMenu open={isContextMenuOpen} onOpenChange={setIsContextMenuOpen}>
             <ContextMenuTrigger
               render={
-                // Keep the live context-menu trigger when the shared zone
-                // header moves between the section and the pinned layer.
-                // Full-bleed band: pull past the list container's padding so
-                // the section band spans the entire sidebar width (ref: edge-
-                // to-edge section headers, not rounded pills).
                 <CrossfadeZoneHeader
                   className={cn(
                     '-ms-2.5 -me-2 text-start group/project select-none',
@@ -373,7 +379,6 @@ export const SortableProjectItem: React.FC<SortableProjectItemProps> = ({
                   )}
                   data-sidebar-sticky-header={stickyZoneHeaders ? 'true' : undefined}
                   onContextMenu={(event) => {
-                    // VS Code hides project actions entirely (hideDirectoryControls).
                     if (hideDirectoryControls) return;
                     event.preventDefault();
                     setIsContextMenuOpen(true);
@@ -381,9 +386,6 @@ export const SortableProjectItem: React.FC<SortableProjectItemProps> = ({
                 />
               }
             >
-            {/* The whole header lifts, its toggle too; its buttons stay buttons.
-                Enter and Space sort from the header itself and open or close
-                the project from its toggle. */}
             <div
               ref={setActivatorNodeRef}
               className={cn('relative flex items-center gap-1 py-1 ps-4 pe-3.5', !disabled && 'cursor-grab active:cursor-grabbing')}
@@ -526,7 +528,7 @@ export const SortableProjectItem: React.FC<SortableProjectItemProps> = ({
               </div>
 
               {showCreateButtons && onNewSession ? (
-                <div className="absolute inset-e-0.5 top-1/2 z-10 -translate-y-1/2">
+                <NewSessionMenu onNewSession={onNewSession} onNewLead={hideDirectoryControls ? undefined : onNewLead}>
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <button
@@ -552,7 +554,7 @@ export const SortableProjectItem: React.FC<SortableProjectItemProps> = ({
                         : t('sessions.sidebar.project.actions.newSession')}</p>
                     </TooltipContent>
                   </Tooltip>
-                </div>
+                </NewSessionMenu>
               ) : null}
             </div>
             </ContextMenuTrigger>

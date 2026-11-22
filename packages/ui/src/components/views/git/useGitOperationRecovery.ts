@@ -134,9 +134,6 @@ export function useGitOperationRecovery(
         const latest = currentEntries.current.get(key);
         if (!latest) return;
         action = latest;
-        // A transfer that finished as it should has nothing left to say; the
-        // card stays only for what still needs the person: a failure or an
-        // outcome nobody knows.
         const reads = action.reads.filter((read) => read.availability !== 'available' || read.operation.state !== 'succeeded');
         update({ executing: false, reads });
       },

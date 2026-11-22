@@ -122,8 +122,6 @@ export const SessionRetentionSettings: React.FC = () => {
         ) : null}
       </div>
 
-      {/* The period, the target and the action also drive "Run cleanup now",
-          so they stay editable while auto-cleanup is off. */}
       <div>
         <SettingsFieldRow
           settingsItem="sessions.retention-only-archived"

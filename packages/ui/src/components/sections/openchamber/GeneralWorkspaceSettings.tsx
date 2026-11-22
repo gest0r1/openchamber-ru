@@ -183,7 +183,6 @@ const FilesAndEditorSection: React.FC = () => {
   );
 };
 
-/** The built-in terminal: which shell, login mode, quick keys. Not in VS Code. */
 const TerminalSection: React.FC = () => {
   const { t } = useI18n();
   const { isMobile } = useDeviceInfo();
@@ -196,6 +195,8 @@ const TerminalSection: React.FC = () => {
   const setShowTerminalQuickKeysOnDesktop = useUIStore((state) => state.setShowTerminalQuickKeysOnDesktop);
   const terminalCloseOnExit = useUIStore((state) => state.terminalCloseOnExit);
   const setTerminalCloseOnExit = useUIStore((state) => state.setTerminalCloseOnExit);
+  const terminalOpenOnProjectAction = useUIStore((state) => state.terminalOpenOnProjectAction);
+  const setTerminalOpenOnProjectAction = useUIStore((state) => state.setTerminalOpenOnProjectAction);
   const [availableTerminalShells, setAvailableTerminalShells] = React.useState<TerminalShellOption[]>([]);
   const [terminalShellRuntimeEpoch, setTerminalShellRuntimeEpoch] = React.useState(0);
 
@@ -275,6 +276,16 @@ const TerminalSection: React.FC = () => {
           info={t('settings.openchamber.visual.field.terminalCloseOnExitInfo')}
           settingsItem="appearance.terminal-close-on-exit"
         />
+        {!isMobile ? (
+          <SettingsCheckboxRow
+            checked={terminalOpenOnProjectAction}
+            onChange={setTerminalOpenOnProjectAction}
+            label={t('settings.openchamber.visual.field.terminalOpenOnProjectAction')}
+            ariaLabel={t('settings.openchamber.visual.field.terminalOpenOnProjectAction')}
+            info={t('settings.openchamber.visual.field.terminalOpenOnProjectActionInfo')}
+            settingsItem="appearance.terminal-open-on-project-action"
+          />
+        ) : null}
         {!isMobile ? (
           <SettingsCheckboxRow
             checked={showTerminalQuickKeysOnDesktop}
@@ -430,7 +441,6 @@ export const GeneralConnectionAndPrivacySettings: React.FC = () => {
     void updateDesktopSettings({ messageStreamTransport: mode });
   }, [setMessageStreamTransport]);
 
-  // Sync reportUsage changes to server settings
   const handleReportUsageChange = React.useCallback((enabled: boolean) => {
     setReportUsage(enabled);
     void updateDesktopSettings({ reportUsage: enabled });

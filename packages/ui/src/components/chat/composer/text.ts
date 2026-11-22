@@ -1,12 +1,3 @@
-/**
- * Text-splicing rules for the composer.
- *
- * Everything that inserts into the prompt — dictation, preset chips, pasted
- * images, dropped files, revert-to-message — has to decide how the new text
- * meets the text already there. These are those decisions, kept together and
- * away from the component so they can be reasoned about (and tested) as plain
- * string functions.
- */
 
 import { isFenceClose, matchFenceOpen } from '../composerHighlight';
 
@@ -34,11 +25,6 @@ export function appendWithLineBreaks(base: string, next: string): string {
     return `${base}${separator}${nextWithTrailingBreaks}`;
 }
 
-/**
- * Append `next` to the end of the current sentence, with exactly one space
- * between them and a trailing space so the user can keep typing. Used for
- * dictation and for file mentions added from a drop.
- */
 export function appendInlineText(base: string, next: string): string {
     const nextTrimmed = next.trim();
     if (!nextTrimmed) {
@@ -92,10 +78,6 @@ export function withInlineInsertionBoundaries(
     return `${needsLeadingSpace ? ' ' : ''}${content}${needsTrailingSpace ? ' ' : ''}`;
 }
 
-/**
- * Pasting an image alongside text: the citation goes after whatever text came
- * with it, separated by a space.
- */
 export function buildImagePasteInsertion(pastedText: string, citationText: string): string {
     if (!pastedText) {
         return citationText;
@@ -103,17 +85,8 @@ export function buildImagePasteInsertion(pastedText: string, citationText: strin
     return `${pastedText}${/\s$/.test(pastedText) ? '' : ' '}${citationText}`;
 }
 
-/**
- * A single-line URL pasted over a selection becomes a markdown link rather
- * than replacing the selected text.
- */
 const PASTE_LINK_URL_PATTERN = /^(https?:\/\/|mailto:)\S+$/i;
 
-/**
- * Whether a pasted URL should wrap the selection as `[selected](url)`. A URL
- * containing whitespace is not one, and text that already looks like a link
- * is left alone rather than nested.
- */
 export function shouldWrapSelectionAsLink(url: string, selected: string): boolean {
     return PASTE_LINK_URL_PATTERN.test(url)
         && !/\s/.test(url)
@@ -133,11 +106,6 @@ const MARKDOWN_WRAP_PAIRS: Record<string, [string, string]> = {
     "'": ["'", "'"],
 };
 
-/**
- * Markdown source-mode conveniences handled before CodeMirror inserts a key.
- * The returned text change and selection belong to one editor transaction so
- * the caret cannot be applied against the previous document.
- */
 export function getMarkdownAutoPairEdit(
     value: string,
     key: string,

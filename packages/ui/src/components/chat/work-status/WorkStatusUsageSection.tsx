@@ -17,19 +17,6 @@ import { WorkStatusRow, WorkStatusCollapsibleSection, WorkStatusValue } from './
 import { useReportWorkStatusPresence } from './presenceContext';
 import { usageValueTone } from './usageValueTone';
 
-/**
- * Provider rate limits.
- *
- * The mobile popover renders these as filled cards; that language does not
- * survive here — the fills and their padding fight the panel's flat rows and
- * cost roughly twice the height. Only the data is shared
- * (`useUsageProviderGroups`); the presentation is the panel's own row
- * vocabulary, with each provider as a quiet sub-heading.
- *
- * Sits above Subagents and MCP: a spent quota stops the work outright, so it
- * belongs with the readouts that hold for the whole session rather than with
- * whatever happens to be running.
- */
 
 
 export const WorkStatusUsageSection: React.FC<{ visible?: boolean }> = ({ visible = true }) => {
@@ -43,8 +30,6 @@ export const WorkStatusUsageSection: React.FC<{ visible?: boolean }> = ({ visibl
   const timeFormatPreference = useUIStore((state) => state.timeFormatPreference);
   const currentProviderId = useConfigStore((state) => state.currentProviderId);
 
-  // Bootstrap once to discover providers. Confirmed absence renders no readout
-  // and creates no ongoing refresh demand; credential changes invalidate it.
   useQuotaAutoRefresh(visible && (groups.length > 0 || loadedRuntimeKey === null));
 
   React.useEffect(() => {
@@ -61,10 +46,6 @@ export const WorkStatusUsageSection: React.FC<{ visible?: boolean }> = ({ visibl
     ? t('header.services.remaining')
     : t('header.services.used');
 
-  // Collapsed, the section shows the tightest quota of the provider the
-  // composer is pointed at — the number that decides whether the next turn
-  // lands. With no match it falls back to the display-mode label rather than
-  // showing some other provider's quota as if it were the active one.
   const headline = pickUsageHeadline(groups, currentProviderId);
   const headlineMetric = headline
     ? formatQuotaWindowValueLabel(

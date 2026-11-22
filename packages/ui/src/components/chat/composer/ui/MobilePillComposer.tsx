@@ -1,17 +1,3 @@
-/**
- * The collapsed mobile composer.
- *
- * With the keyboard down the composer is a pill: attachments, a one-line
- * preview of the draft, and a mic. Tapping anywhere in it expands the real
- * composer and raises the keyboard in the same gesture — which is why the
- * expand handler must run synchronously from the tap rather than from an
- * effect.
- *
- * With content, the inner end slot sends while the session is idle. While it
- * is running, abort keeps that slot and a follow-up action appears just before
- * it, inside the pill: it queues or steers as Enter does under the follow-up
- * setting.
- */
 
 import React, { useState } from 'react';
 import type { SourceControlProvider } from '@/lib/api/types';
@@ -31,6 +17,7 @@ import { ComposerAttachmentControls, type ComposerTrackerPicker } from './Compos
 
 export interface MobilePillComposerProps {
     message: string;
+    messageContent?: React.ReactNode;
     sessionId: string | null;
     newSessionDraftOpen: boolean;
     hasContent: boolean;
@@ -40,17 +27,13 @@ export interface MobilePillComposerProps {
     iconSizeClass: string;
     sendIconSizeClass: string;
     stopIconSizeClass: string;
-    /** The composer's top rows (goal, queue, hints, suggested follow-up), inside the pill. */
     topRow?: React.ReactNode;
-    /** Attached files, shown inside the pill above the draft line. */
     attachments?: React.ReactNode;
-    /** Rendered as the pill's own last row (mobile model/agent controls). */
     bottomRow?: React.ReactNode;
     onExpand: () => void;
     onPrimaryAction: () => void;
     onPickLocalFiles: () => void;
     onOpenGitHubPicker: () => void;
-    /** The host the project's issues and change requests come from. */
     repositoryProvider?: SourceControlProvider | null;
     trackerPickers?: readonly ComposerTrackerPicker[];
     onOpenAttachSheet: () => void;
@@ -63,6 +46,7 @@ export function MobilePillComposer(props: MobilePillComposerProps) {
     const shortcutOverrides = useUIStore((state) => state.shortcutOverrides);
     const {
         message,
+        messageContent,
         sessionId: currentSessionId,
         newSessionDraftOpen,
         hasContent,
@@ -102,7 +86,6 @@ export function MobilePillComposer(props: MobilePillComposerProps) {
             >
             <div
                 data-mobile-composer-pill="true"
-                // The morph measures and animates this box (see mobileComposerMorph).
                 data-composer-box="true"
                 className={cn(
                     // Lit like the desktop composer box: top edge, hairline,
@@ -135,7 +118,6 @@ export function MobilePillComposer(props: MobilePillComposerProps) {
                 </div>
                 <button
                     type="button"
-                    // The morph moves the editor block to and from this line.
                     data-composer-morph-prompt="true"
                     className="flex h-full min-w-0 flex-1 cursor-text items-center px-1.5 text-start"
                     onClick={onExpand}
@@ -147,7 +129,7 @@ export function MobilePillComposer(props: MobilePillComposerProps) {
                         )}
                     >
                         {message.trim()
-                            ? message
+                            ? messageContent ?? message
                             : currentSessionId || newSessionDraftOpen
                                 ? t('chat.chatInput.placeholder.chatCompact')
                                 : t('chat.chatInput.placeholder.selectSession')}
@@ -160,8 +142,6 @@ export function MobilePillComposer(props: MobilePillComposerProps) {
                     <button
                         type="button"
                         className={footerIconButtonClass}
-                        // Starts recording in place; the composer morphs into the
-                        // voice variant once dictation actually goes live.
                         onClick={onStartDictation}
                         aria-label={t('chat.dictation.start')}
                     >

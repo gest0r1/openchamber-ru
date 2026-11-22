@@ -11,11 +11,6 @@ import { GeneratedImages } from './GeneratedImages';
 import { ShownPage } from './HtmlRenderFrame';
 import { SecretRequestCard, SecretRunCard } from './SecretRequestCard';
 
-/**
- * What a call the chat shows in place (`isShownInPlace`) draws instead of its
- * row: the run a `workflow.run` call proposed, the images `image.generate`
- * made, the card a secret request asks on, else the page it showed.
- */
 export function ShownToolCard({ part, onShowPopup }: { part: ToolPart; onShowPopup?: (content: ToolPopupContent) => void }) {
   const runId = React.useMemo(() => proposedWorkflowRunId(part.tool, part.state), [part.tool, part.state]);
   const images = React.useMemo(() => generatedImagePaths(part.tool, part.state), [part.tool, part.state]);
@@ -50,12 +45,37 @@ export function ShownPartCard({ part, onShowPopup }: { part: ShownPart; onShowPo
     return <ShownToolCard part={part} onShowPopup={onShowPopup} />;
   }
   return (
-    <AssistantTextPart
-      part={part}
-      sessionId={part.sessionID}
-      messageId={part.messageID}
-      streamPhase={part.time?.end === undefined ? 'streaming' : 'completed'}
-      onShowPopup={onShowPopup}
-    />
+    <div className="my-2">
+      <PageAskStatus ask={page.ask} answeredSummary={page.ask.kind === 'answered' ? page.ask.summary : undefined} />
+    </div>
+  );
+}
+
+export function ShownPartCard({ part, onShowPopup }: { part: ShownPart; onShowPopup?: (content: ToolPopupContent) => void }) {
+  if (part.type === 'tool') {
+    if (isSettledAsk(part)) return <SettledAskLine part={part} />;
+    return <ShownToolCard part={part} onShowPopup={onShowPopup} />;
+  }
+  return <ShownText part={part} onShowPopup={onShowPopup} />;
+}
+
+function ShownText({ part, onShowPopup }: { part: TextPart; onShowPopup?: (content: ToolPopupContent) => void }) {
+  const rootRef = React.useRef<HTMLDivElement>(null);
+  const surface = useChatSurfaceMode();
+  const showTTS = useConfigStore((state) => state.showMessageTTSButtons);
+  const streamPhaseOf = React.useContext(ShownPartStreamPhaseContext);
+  return (
+    <div data-message-id={part.messageID} data-message-hoisted={part.id}>
+      <div ref={rootRef} data-chat-quote-root="true" className="relative">
+        <TextSelectionMenu containerRef={rootRef} readingKey={part.messageID} canReadAloud={surface !== 'mini-chat' && showTTS} />
+        <AssistantTextPart
+          part={part}
+          sessionId={part.sessionID}
+          messageId={part.messageID}
+          streamPhase={streamPhaseOf(part.messageID)}
+          onShowPopup={onShowPopup}
+        />
+      </div>
+    </div>
   );
 }

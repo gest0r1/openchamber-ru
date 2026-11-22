@@ -51,22 +51,12 @@ import { cn } from '@/lib/utils';
 import { useMarkdownLocalAssets } from './files/previews/useMarkdownLocalAssets';
 import { watchFileOnScreen } from '@/lib/watchedFiles';
 
-/** The open plan's check while OpenCode watches its file: only for a watch lost on an OpenCode restart. */
 const WATCHED_PLAN_POLL_MS = 30_000;
 
 type PlanViewProps = {
-  /** False while the panel holding the view is closed: nothing to keep fresh. */
   visible?: boolean;
-  /** Saved project plan to open, with the project that owns it. The owner is
-      part of the prop so the view never guesses it from the current directory:
-      the Project knowledge panel and the mobile plan overlay keep a plan open
-      across directory changes, and for managed chats the owner is not a
-      registered project a directory lookup could ever find. */
   savedProjectPlan?: SavedProjectPlanTarget | null;
-  /** Called after a send action routes the user to the chat — hosts that show
-      PlanView in an overlay (mobile fullscreen surface) close it here. */
   onNavigatedToChat?: () => void;
-  /** Rendered before the title, e.g. the project knowledge panel's back control. */
   leading?: React.ReactNode;
   /** Closes the view: the host calls it when the plan is deleted from its menu. */
   onClose?: () => void;
@@ -173,8 +163,6 @@ export const PlanView: React.FC<PlanViewProps> = ({ visible = true, savedProject
     () => resolveProjectRefForDirectory(projectDirectory, projects, activeProjectId),
     [activeProjectId, projectDirectory, projects],
   );
-  // Destructured to primitives so the load/save effects key on stable values
-  // instead of a descriptor object rebuilt on every parent render.
   const savedPlanProjectId = savedProjectPlan?.projectRef.id ?? null;
   const savedPlanProjectPath = savedProjectPlan?.projectRef.path ?? null;
   const savedPlanProjectRef = React.useMemo(
@@ -199,16 +187,9 @@ export const PlanView: React.FC<PlanViewProps> = ({ visible = true, savedProject
   const savedPlanKey = savedPlanProjectRef && savedPlanId
     ? JSON.stringify(['saved-plan', activeRuntimeKey, resolveProjectContextId(savedPlanProjectRef), savedPlanId])
     : null;
-  // Managed chats have no project directory to create a session in: their
-  // sessions live in per-session directories under the chats root, which
-  // createSession cannot prepare. Until a managed-chat send path exists,
-  // Improve/Implement stay unavailable for plans stored under the Chats
-  // owner — an OpenCode session created directly in the shared root would
-  // break the managed-chats model.
   const isManagedChatPlan = savedPlanProjectRef?.id === CHAT_DRAFT_PROJECT_ID;
   const canCreateWorktree = React.useMemo(
     () => {
-      // Worktree creation follows the session the plan would be sent to.
       const sendTarget = savedPlanProjectRef ?? currentProjectRef;
       return sendTarget ? gitDirectories.get(sendTarget.path)?.isGitRepo === true : false;
     },
@@ -217,10 +198,7 @@ export const PlanView: React.FC<PlanViewProps> = ({ visible = true, savedProject
   const [pendingPlanSend, setPendingPlanSend] = React.useState<PendingPlanSend | null>(null);
   const [isPlanSendSubmitting, setIsPlanSendSubmitting] = React.useState(false);
 
-  // Set once a saved project plan has actually loaded.
   const [loadedProjectPlanId, setLoadedProjectPlanId] = React.useState<string | null>(null);
-  // Where a saved plan's markdown lives, only to name it in comments: an
-  // agent given just "plan" cannot tell which plan a comment is about.
   const [loadedProjectPlanPath, setLoadedProjectPlanPath] = React.useState<string | null>(null);
   const hasDocument = Boolean(loadedProjectPlanId);
   const [content, setContent] = React.useState<string>('');
@@ -229,7 +207,6 @@ export const PlanView: React.FC<PlanViewProps> = ({ visible = true, savedProject
   const [saveError, setSaveError] = React.useState<string | null>(null);
   const [loadError, setLoadError] = React.useState<string | null>(null);
   const planFileLabel = t('planView.file.defaultName');
-  // Comments name the plan by its full path, as Files does for a file.
   const commentFileLabel = loadedProjectPlanPath ?? planFileLabel;
   const parsedTitle = React.useMemo(() => {
     if (!content.trim()) {
@@ -402,13 +379,6 @@ export const PlanView: React.FC<PlanViewProps> = ({ visible = true, savedProject
     return extensions;
   }, [currentTheme, editorFontSize]);
 
-  // Pending-save bookkeeping for the open document. One ref record, not state:
-  // debounced writes and close-time flushes must read the newest buffer and
-  // revision without another render. `editRevision` advances on every editor
-  // change; `savedRevision` only after a successful write of that exact
-  // revision, so a slow in-flight save can never mark newer edits as saved.
-  // `key` and `runtimeKey` make every write self-identifying: content never
-  // crosses documents or runtimes, no matter when a queued write settles.
   const docRef = React.useRef<{
     key: string | null;
     target: SavedProjectPlanTarget | null;
@@ -419,11 +389,6 @@ export const PlanView: React.FC<PlanViewProps> = ({ visible = true, savedProject
   }>({ key: null, target: null, content: '', editRevision: 0, savedRevision: 0, runtimeKey: '' });
   const saveQueue = React.useState(createPlanSaveQueue)[0];
 
-  // Queue any unflushed edits. Runs on document switches and on unmount, both
-  // of which cancel the debounced save — without this the last 350ms of typing
-  // is silently dropped. The queue orders it behind any write already in
-  // flight for the same document, and the captured runtime key stops content
-  // from one host being written into another after a runtime switch.
   const scheduleSave = React.useCallback(() => {
     const doc = docRef.current;
     if (!doc.key || !doc.target || doc.editRevision <= doc.savedRevision) {
@@ -438,15 +403,12 @@ export const PlanView: React.FC<PlanViewProps> = ({ visible = true, savedProject
     };
     saveQueue.schedule(captured.key, captured.revision, async () => {
       if (getRuntimeKey() !== captured.runtimeKey) {
-        // The runtime switched while this write waited: writing through the
-        // new connection would land one host's edits on another.
         return;
       }
       await savePlanDocument(captured.target, captured.content);
       const current = docRef.current;
       if (current.key === captured.key) {
         current.savedRevision = Math.max(current.savedRevision, captured.revision);
-        // A recovered save clears the stale failure banner.
         setSaveError(null);
       }
     }).catch((error) => {
@@ -470,9 +432,6 @@ export const PlanView: React.FC<PlanViewProps> = ({ visible = true, savedProject
     let cancelled = false;
 
     const run = async () => {
-      // Flush the outgoing document before the bookkeeping is replaced, so
-      // edits typed within the debounce window survive a plan switch. React
-      // reuses this component instance across saved-plan tabs.
       scheduleSave();
       docRef.current = { key: null, target: null, content: '', editRevision: 0, savedRevision: 0, runtimeKey: '' };
       setLoadedProjectPlanId(null);
@@ -485,10 +444,6 @@ export const PlanView: React.FC<PlanViewProps> = ({ visible = true, savedProject
         return;
       }
 
-      // A plan re-opened while its own flush is still writing must read the
-      // post-write state, not race it. The queue reset afterwards is safe:
-      // every write for this key has settled, and the reloaded document
-      // restarts its revision counter at zero.
       await saveQueue.pendingFor(savedPlanKey);
       if (cancelled) return;
       saveQueue.reset(savedPlanKey);
@@ -497,9 +452,6 @@ export const PlanView: React.FC<PlanViewProps> = ({ visible = true, savedProject
         const plan = await fetchProjectPlan(savedPlanProjectRef, savedPlanId);
         if (cancelled) return;
         if (!plan) {
-          // The plan or its markdown is gone. Leave the view empty and
-          // unsaveable rather than presenting an editor that would recreate
-          // a document the user deleted.
           setLoadError('Plan not found');
           return;
         }
@@ -562,7 +514,6 @@ export const PlanView: React.FC<PlanViewProps> = ({ visible = true, savedProject
       readContent: async () => {
         await saveQueue.pendingFor(savedPlanKey);
         const plan = await fetchProjectPlan(savedPlanProjectRef, savedPlanId);
-        // A deleted plan keeps its text on screen; the next save reports it gone.
         if (!plan) throw new Error('Plan not found');
         return plan.raw;
       },
@@ -575,7 +526,6 @@ export const PlanView: React.FC<PlanViewProps> = ({ visible = true, savedProject
       },
     });
     let polling = false;
-    // A change reported while a check runs gets a check of its own after it.
     let pollAgain = false;
     const poll = async () => {
       if (document.visibilityState === 'hidden') return;
@@ -596,9 +546,6 @@ export const PlanView: React.FC<PlanViewProps> = ({ visible = true, savedProject
     };
     const release = observeProjectContext(savedPlanProjectRef, poll);
     let interval = window.setInterval(() => { void poll(); }, 2000);
-    // A plan kept in the repository is watched by OpenCode, so its change
-    // event starts the check and the poll only covers a watch lost on an
-    // OpenCode restart. A plan in OpenChamber's own data folder keeps polling.
     const watch = loadedProjectPlanPath
       ? watchFileOnScreen(savedPlanProjectRef.path, loadedProjectPlanPath, () => { void poll(); })
       : null;
@@ -617,10 +564,6 @@ export const PlanView: React.FC<PlanViewProps> = ({ visible = true, savedProject
     };
   }, [loadedProjectPlanId, loadedProjectPlanPath, savedPlanId, savedPlanKey, savedPlanProjectRef, saveQueue, visible]);
 
-  // Synchronous buffer tracking: if an edit and an unmount land in the same
-  // batch, the passive content effect would never run and a flush would save
-  // a stale buffer. The editor echoes text it was given as a change; that
-  // echo is not an edit and must not schedule a save.
   const handleContentChange = React.useCallback((next: string) => {
     if (next === docRef.current.content) return;
     docRef.current.content = next;
@@ -628,9 +571,6 @@ export const PlanView: React.FC<PlanViewProps> = ({ visible = true, savedProject
     setContent(next);
   }, []);
 
-  // The debounced write and the close/switch flush go through the same queue
-  // (scheduleSave), so two saves of one document can never complete out of
-  // order and a flush never duplicates a debounce of the same revision.
   React.useEffect(() => {
     if (!loadedProjectPlanId) {
       return;
@@ -645,9 +585,6 @@ export const PlanView: React.FC<PlanViewProps> = ({ visible = true, savedProject
     };
   }, [content, loadedProjectPlanId, scheduleSave]);
 
-  // Closing the view inside the 350ms debounce window would drop the last
-  // edits: the cleanup above cancels the timer. Same for switching documents,
-  // which the load effect handles before replacing the bookkeeping.
   React.useEffect(() => {
     return () => {
       scheduleSave();
@@ -661,25 +598,19 @@ export const PlanView: React.FC<PlanViewProps> = ({ visible = true, savedProject
 
   const handleConfirmPlanSend = React.useCallback(
     async (dialogExecution: TodoSendExecution) => {
-      // A saved plan sends against its own project — the one it is stored
-      // under — not against whatever directory the viewer is currently in.
       const sendTargetProject = savedPlanProjectRef ?? currentProjectRef;
       if (!sendTargetProject || !pendingPlanSend || isManagedChatPlan) {
         return;
       }
 
-      // A saved plan is a markdown file too, so the agent reads it and ticks
-      // its steps there like any other plan file.
       const planFilePath = loadedProjectPlanPath;
       setIsPlanSendSubmitting(true);
 
       try {
         let prompts: MagicPromptSnapshot;
         try {
-          // The plan's project owns the prompts, also when the session lands in a new worktree.
           prompts = await loadMagicPrompts(sendTargetProject.path);
         } catch (error) {
-          // Nothing was created yet; the send dialog stays open with its choices.
           toast.error(t('magicPrompts.toast.loadFailed'), { description: error instanceof Error ? error.message : undefined });
           return;
         }
@@ -696,8 +627,6 @@ export const PlanView: React.FC<PlanViewProps> = ({ visible = true, savedProject
             plan_path: planFilePath ?? '',
           },
         );
-        // A server that answered without the plan's path leaves the agent no
-        // file to read, so the plan substance rides along in the message.
         const planSubstance = planFilePath
           ? instructionsText
           : [
@@ -758,25 +687,9 @@ export const PlanView: React.FC<PlanViewProps> = ({ visible = true, savedProject
         }
 
         setCurrentSession(sessionId, directoryHint);
-        // The plan's card leads to the session working on it. A failed link
-        // costs only that shortcut, so it never holds up the send.
         if (savedPlanProjectRef && savedPlanId) {
           void useProjectContextStore.getState().linkPlanSession(savedPlanProjectRef, savedPlanId, sessionId);
         }
-        // "Run as goal" rides the same arm mechanism as the composer target
-        // button; set explicitly either way so a stray armed flag cannot
-        // leak into a non-goal plan send. The objective override carries the
-        // plan substance — "Implement this plan: X" alone would give the
-        // progress audit nothing to judge against. Plans that exceed the
-        // objective limit are distilled into completion criteria by the
-        // small model (the working agent always reads the full plan from
-        // its file); on distillation failure a head+tail excerpt keeps the
-        // intent (top) and acceptance criteria (bottom), sacrificing the
-        // implementation middle the agent reads from the file anyway.
-        // Oversized objectives (huge plans) are distilled into audit
-        // criteria inside setSessionGoal — the shared path for every goal
-        // source. Here we only compose header + full content.
-        // Improve stops before implementation, so only Implement runs as a goal.
         const runAsGoal = pendingPlanSend.action === 'implement' && execution.runAsGoal === true;
         const goalObjective = runAsGoal
           ? [
@@ -829,7 +742,6 @@ export const PlanView: React.FC<PlanViewProps> = ({ visible = true, savedProject
     });
   }, [commentText, deleteDraft, editingDraftId, handleCancelComment, handleSaveComment, isDragging, lineSelection, planFileDrafts, planFileLabel, setCommentText, startEdit]);
 
-  // Improve and implement each open the same choice of where the plan goes.
   const sendMenu = (action: 'improve' | 'implement') => (
     <>
       <DropdownMenuItem
@@ -984,7 +896,6 @@ export const PlanView: React.FC<PlanViewProps> = ({ visible = true, savedProject
                 {viewMode === 'preview' ? (
                   <>
                   <div className="overlay-scrollbar-target overlay-scrollbar-container h-full overflow-auto p-3" ref={setPreviewContainer}>
-                    {/* Same comment-on-selection as a markdown file preview. */}
                     <FilePreviewCommentMenu
                       containerRef={previewRef}
                       filePath={commentFileLabel}

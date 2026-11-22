@@ -222,32 +222,12 @@ import { applyOutboundProxyFromEnv } from './lib/outbound-proxy.js';
 import { applySystemCertificates } from './lib/system-ca.js';
 import { readOpenCodeLoad } from './lib/diagnostics/opencode-load.js';
 
-// Background CLI launches enter here in a fresh process, without CLI defaults.
-applyConnectAttemptTimeout();
-applySystemCertificates();
-applyOutboundProxyFromEnv();
+nodeModule.setSourceMapsSupport?.(true, { nodeModules: true });
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const sourceLoader = new URL('../scripts/register-server-sources.mjs', import.meta.url);
+if (!process.versions.bun && existsSync(sourceLoader)) await import(sourceLoader.href);
 
-const DEFAULT_PORT = 3000;
-const DESKTOP_NOTIFY_PREFIX = '[OpenChamberDesktopNotify] ';
-const uiNotificationClients = new Set();
-const uiNotificationWsClients = new Set();
-const uiOpenChamberEventClients = new Set();
-const HEALTH_CHECK_INTERVAL = 15000;
-const SHUTDOWN_TIMEOUT = 10000;
-const MODELS_DEV_API_URL = 'https://models.dev/api.json';
-const MODELS_METADATA_CACHE_TTL = 5 * 60 * 1000;
-const CLIENT_RELOAD_DELAY_MS = 800;
-const OPEN_CODE_READY_GRACE_MS = 12000;
-const LONG_REQUEST_TIMEOUT_MS = resolveProxyRequestTimeoutMs(process.env, console);
-const TUNNEL_BOOTSTRAP_TTL_DEFAULT_MS = 30 * 60 * 1000;
-const TUNNEL_BOOTSTRAP_TTL_MIN_MS = 60 * 1000;
-const TUNNEL_BOOTSTRAP_TTL_MAX_MS = 24 * 60 * 60 * 1000;
-const TUNNEL_SESSION_TTL_DEFAULT_MS = 8 * 60 * 60 * 1000;
-const TUNNEL_SESSION_TTL_MIN_MS = 5 * 60 * 1000;
-const TUNNEL_SESSION_TTL_MAX_MS = 30 * 24 * 60 * 60 * 1000;
+const runtime = await import('./runtime.js');
 
 function headerIncludesEventStream(value) {
   if (typeof value === 'string') {
@@ -3614,6 +3594,6 @@ export {
   gracefulShutdown,
   setupProxy,
   restartOpenCode,
-  main as startWebUiServer,
-  parseServeCliOptions as parseArgs,
-};
+  startWebUiServer,
+  parseArgs,
+} = runtime;

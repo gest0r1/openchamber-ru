@@ -21,7 +21,6 @@ export function PullRequestComparisonSelector({ comparison, mobile = false }: {
   mobile?: boolean;
 }) {
   const { t: translate } = useI18n();
-  // The provider's own words and numbers: `!` and merge requests on a GitLab project.
   const descriptor = useSourceControlProvider(comparison.provider);
   const t = (key: I18nKey) => translate(changeRequestCopy(key, descriptor.terminology.changeRequest));
   const reference = (number: number) => formatChangeRequestReference(descriptor, number);

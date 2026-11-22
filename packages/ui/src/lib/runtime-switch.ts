@@ -20,7 +20,6 @@ const RUNTIME_ENDPOINT_WILL_CHANGE_EVENT = 'openchamber:runtime-endpoint-will-ch
 let activeApiBaseUrl = '';
 let activeRuntimeKey = '';
 let instanceGeneration = 0;
-// Null reads the native boot injection; an explicit switch replaces it, even when local.
 let activeSshForwarded: boolean | null = null;
 
 const setWindowRuntimeValue = <K extends '__OPENCHAMBER_API_BASE_URL__' | '__OPENCHAMBER_CLIENT_TOKEN__' | '__OPENCHAMBER_RUNTIME_HEADERS__'>(
@@ -45,10 +44,7 @@ const normalizeRuntimeUrlKey = (value: string): string => {
     const url = new URL(value);
     url.hash = '';
     url.search = '';
-    // Normalise pathname so root `/` becomes empty and no path ends with `/`.
     url.pathname = url.pathname.replace(/\/+$/, '') || '/';
-    // url.toString() still appends `/` when pathname is `/`; strip it
-    // so every key uses the bare-origin form: `url:https://example.com`.
     return `url:${url.toString().replace(/\/+$/, '')}`;
   } catch {
     return `url:${value.trim().replace(/\/+$/, '') || 'default'}`;
@@ -102,16 +98,6 @@ export const isSshForwardedRuntime = (): boolean => {
   return Boolean(apiBaseUrl && apiBaseUrl === globalThis.window?.__OPENCHAMBER_SSH_FORWARD_API_URL__);
 };
 
-// `getRuntimeKey` keys caches, stores, and persisted state across the whole UI,
-// so it runs on store reads, event handling, and render paths. Before the
-// runtime endpoint is explicitly initialised, every call re-derived the key by
-// trimming two injected globals and constructing three `URL` objects, which
-// made this one of the most expensive functions during streaming.
-//
-// The result depends only on `activeApiBaseUrl` and the two injected globals,
-// and `switchRuntimeEndpoint` writes the injected API base URL at runtime, so
-// the cache is validated against the raw, untrimmed values. That comparison
-// allocates nothing and still recomputes the moment any input changes.
 let cachedRuntimeKey = '';
 let cachedActiveApiBaseUrl: string | null = null;
 let cachedRawApiBaseUrl: string | undefined;
@@ -149,7 +135,6 @@ export const getRuntimeKey = (): string => {
   return cachedRuntimeKey;
 };
 
-/** A read's owner survives transport changes, but never an instance round trip. */
 export const captureRuntimeInstance = (): (() => boolean) => {
   const generation = instanceGeneration;
   const runtimeKey = getRuntimeKey();
@@ -168,8 +153,6 @@ export const initializeRuntimeEndpoint = (options: { apiBaseUrl?: string | null;
     return;
   }
 
-  // An empty API base uses same-origin HTTP, including Electron's Vite proxy.
-  // Give it an instance identity while keeping requests relative to that proxy.
   const localOrigin = readInjectedLocalOrigin();
   const isLocal = localOrigin && (!apiBaseUrl || sameOrigin(apiBaseUrl, localOrigin));
   activeApiBaseUrl = apiBaseUrl;
@@ -205,9 +188,6 @@ export const switchRuntimeEndpoint = (options: { apiBaseUrl: string; clientToken
   configureRuntimeUrlResolver({ apiBaseUrl, realtimeBaseUrl: apiBaseUrl });
   setRuntimeExtraHeaders(options.requestHeaders || null);
   setRuntimeBearerToken(options.clientToken || null);
-  // Relay mode routes runtime HTTP/WS through an E2EE tunnel instead of the
-  // network. Activate the tunnel BEFORE minting the url token, since the mint
-  // itself rides the tunnel (runtimeFetch -> tunnel.fetch).
   if (options.relay) {
     activateRelayTunnel(options.relay);
   } else {

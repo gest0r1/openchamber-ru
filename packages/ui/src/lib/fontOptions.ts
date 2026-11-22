@@ -15,11 +15,6 @@ interface DirectFontFaceSource {
     urls: Record<number, string>;
 }
 
-/**
- * One variable file that covers every weight in `weightRange`, so a text
- * weight between two named weights (450) renders as itself instead of
- * snapping to Regular or Medium.
- */
 interface FontsourceVariableFaceSource {
     family: string;
     weightRange: [number, number];
@@ -32,7 +27,6 @@ export type FontFaceSource = FontsourceFaceSource | DirectFontFaceSource | Fonts
 export const UI_FONT_WEIGHT_OPTIONS = ['regular', 'balanced', 'strong'] as const;
 export type UiFontWeight = typeof UI_FONT_WEIGHT_OPTIONS[number];
 
-/** CSS weight of regular interface text; `font-medium` and up stay as they are. */
 export const UI_FONT_WEIGHT_VALUES = { regular: 400, balanced: 450, strong: 500 } as const satisfies Record<UiFontWeight, number>;
 export const DEFAULT_UI_FONT_WEIGHT: UiFontWeight = 'regular';
 
@@ -199,7 +193,6 @@ export const CODE_FONT_OPTION_MAP = buildFontMap(CODE_FONT_OPTIONS);
 export const DEFAULT_UI_FONT: UiFontOption = 'system';
 export const DEFAULT_MONO_FONT: MonoFontOption = 'system-mono';
 
-/** The option that uses a font installed on this device, named by the user. */
 export const CUSTOM_FONT_ID = 'custom';
 
 export const isUiFontOption = (value: unknown): value is UiFontOption =>

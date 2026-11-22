@@ -152,10 +152,47 @@ import { useKeybind, useKeybinds } from '@/hooks/useKeybind';
 import { isEditableEventTarget } from '@/hooks/keyboard-shortcut-dom';
 import { formatShortcutForDisplay, getEffectiveShortcutCombo } from '@/lib/shortcuts';
 import { useI18n } from '@/lib/i18n';
-import { sessionEvents } from '@/lib/sessionEvents';
-import { syncScheduledTaskLoops } from '@/lib/scheduledTasksApi';
-import { useProjectsStore } from '@/stores/useProjectsStore';
-import { watchFileOnScreen } from '@/lib/watchedFiles';
+import { useRuntimeAPIs } from '@/hooks/useRuntimeAPIs';
+import { useDeviceInfo } from '@/lib/device';
+import { useGuestActions } from '@/hooks/useGuestSurfaces';
+import { isBrowserClientRuntime } from '@/lib/desktop';
+import { type FilesViewProps } from './files/view/fileViewTypes';
+import { Dialogs } from './files/view/FileOperationDialogs';
+import { useFileThemes } from './files/view/useFileThemes';
+import { useFileScope } from './files/view/useFileScope';
+import { useFileLayout } from './files/view/useFileLayout';
+import { useFileTabs } from './files/view/useFileTabs';
+import { useFileViewModes, useFileDiagram, useFilePreviewModes } from './files/view/useFilePreviewModes';
+import { useFileDocument } from './files/view/useFileDocument';
+import { useFileDraft, useFileSaving } from './files/view/useFileSaving';
+import { useFileCanvasState, useFileCanvas } from './files/view/useFileCanvas';
+import { useFileEditor, useFileEditorPanels, useFileEditorExtensions } from './files/view/useFileEditorExtensions';
+import { useFileMarkdownPreview, useFileMarkdownOutline } from './files/view/useFileMarkdownPreview';
+import { useFileCloseState, useFileClosing } from './files/view/useFileClosing';
+import { useFileNavigationRequests, useFileNavigationMask, useFileNavigation } from './files/view/useFileNavigation';
+import { useFileExternalActions } from './files/view/useFileExternalActions';
+import { useFileComments } from './files/view/useFileComments';
+import { useFileDirectory } from './files/view/useFileDirectory';
+import { useFileUploads } from './files/view/useFileUploads';
+import { useFileOperations } from './files/view/useFileOperations';
+import { useFileSearch } from './files/view/useFileSearch';
+import { useFileKeybinds, useFileEditorKeybinds } from './files/view/useFileKeybinds';
+import { useFileOpening } from './files/view/useFileOpening';
+import { useFileFreshness } from './files/view/useFileFreshness';
+import { useFileTreeRendering } from './files/view/useFileTreeRendering';
+import { useFileKinds } from './files/view/useFileKinds';
+import { useFileImageNavigation } from './files/view/useFileImageNavigation';
+import { useFileLanguage } from './files/view/useFileLanguage';
+import { useFileMobileKeyboard } from './files/view/useFileMobileKeyboard';
+import { useFileAssets } from './files/view/useFileAssets';
+import { useArtifactPreview } from './files/view/useArtifactPreview';
+import { useFileImageLoading } from './files/view/useFileImageLoading';
+import { useFilePreviewRendering } from './files/view/useFilePreviewRendering';
+import { useFileToolbar } from './files/view/useFileToolbar';
+import { renderFileViewer } from './files/view/renderFileViewer';
+import { renderFileTreePanel } from './files/view/renderFileTreePanel';
+import { useFileImageFullscreen } from './files/view/useFileImageFullscreen';
+import { renderFileImageFullscreen } from './files/view/renderFileImageFullscreen';
 
 // Table, data and office previews load when a file needs one. A module that
 // cannot be fetched, such as a chunk an antivirus quarantined, then fails only
@@ -795,8 +832,8 @@ export const FilesView: React.FC<FilesViewProps> = ({ mode = 'full', visible = t
   const { t } = useI18n();
   const guestActions = useGuestActions();
   const { files, runtime, git } = useRuntimeAPIs();
-  const { currentTheme, availableThemes, lightThemeId, darkThemeId } = useThemeSystem();
-  const { isMobile, isTablet, screenWidth } = useDeviceInfo();
+  const { isMobile, isTablet } = useDeviceInfo();
+  const guestActions = useGuestActions();
   const isBrowserClient = isBrowserClientRuntime(runtime.platform);
   const alwaysShowActions = isMobile || isTablet;
   const showHidden = useDirectoryShowHidden();
@@ -3588,15 +3625,9 @@ export const FilesView: React.FC<FilesViewProps> = ({ mode = 'full', visible = t
 
     setIsGoToLineOpen(true);
   });
-
-  useKeybind('open_document_symbols', (event) => {
-    if (!canEdit || textViewMode !== 'edit' || isMobile) {
-      return false;
-    }
-    const target = event.target as Element | null;
-    if (target?.closest('[role="dialog"]')) return false;
-    if (!(target instanceof Node) || !editorWrapperRef.current?.contains(target)) return false;
-    setIsSymbolsOpen(true);
+  const fileOpening = useFileOpening({
+    canvasState, closeState, diagram, draft, fileDirectory, fileDocument, fileSaving, layout, scope, search, tabs,
+    viewModes, isMobile, runtime, t, visible,
   });
 
   const editorFontSize = useUIStore((state) => state.editorFontSize);
@@ -5558,8 +5589,6 @@ export const FilesView: React.FC<FilesViewProps> = ({ mode = 'full', visible = t
   );
 
   return (
-    // Marks Files as a surface with its own Cmd/Ctrl+F, so Changes and the
-    // walkthrough leave the key alone while focus is in here.
     <div ref={rootRef} data-find-surface="" className="flex h-full min-h-0 overflow-hidden bg-background relative">
       <Dialogs
         activeDialog={activeDialog}
@@ -5571,32 +5600,22 @@ export const FilesView: React.FC<FilesViewProps> = ({ mode = 'full', visible = t
         onClose={handleCloseDialog}
         inputRef={dialogInputRef}
       />
+      {imageFullscreenViewer}
       {uploadElements}
-      {fullscreenViewer}
+      {fileComments.codeSelectionComment.menu}
       {isMobile ? (
         showMobilePageContent ? (
           fileViewer
         ) : (
-          treePanel
+          fileTreePanel
         )
-       ) : mode === 'editor-only' ? (
-         <div className="flex flex-1 min-h-0 min-w-0 overflow-hidden">
-            <div className="flex-1 min-h-0 min-w-0 overflow-hidden bg-background">
-             {fileViewer}
-            </div>
+      ) : (
+        <div className="flex flex-1 min-h-0 min-w-0 overflow-hidden">
+          <div className="flex-1 min-h-0 min-w-0 overflow-hidden bg-background">
+            {fileViewer}
           </div>
-       ) : (
-         <div className="flex flex-1 min-h-0 min-w-0 gap-3 px-3 pb-3 pt-2">
-            {screenWidth >= 700 && (
-              <div className="w-72 flex-shrink-0 min-h-0 overflow-hidden">
-               {treePanel}
-             </div>
-           )}
-           <div className="flex-1 min-h-0 min-w-0 overflow-hidden rounded-xl border border-edge bg-background">
-             {fileViewer}
-           </div>
-         </div>
-       )}
+        </div>
+      )}
     </div>
   );
 };

@@ -4,6 +4,12 @@
 
 This module owns official OpenCode SDK calls and translation from wire records
 to the shared UI domain model. Sync owns transcript membership and store writes.
+Wire session and message shapes stay inside this adapter. Stores and rendering
+consume the domain model across web, desktop, VS Code and both mobile clients.
+The domain model also exports integration connections, authentication methods,
+form fields, answers and conditions, and permission effects for shared UI consumers.
+Tool-name branching belongs in `tools.ts`; unknown plugin and MCP tools retain
+generic rendering.
 
 ## Invariants
 
@@ -28,6 +34,12 @@ to the shared UI domain model. Sync owns transcript membership and store writes.
 
 ## Decisions
 
+### Why unchanged catalog and form types use domain aliases
+
+Integration, form and permission contracts retain their complete SDK shapes
+through aliases in `model.ts`. Consumers import these names from the adapter so
+an upstream API change has one owning folder without adding runtime conversion.
+
 ### Why fresh provider reads wait for post-call requests
 
 Provider, model and default-model reads share one catalog promise per directory
@@ -37,6 +49,18 @@ the replacement started afterward. Joining an earlier fresh request lost a
 second catalog change arriving during that request. Catalog invalidations
 coalesce by resource revision above this adapter. Reconnect clears the request map;
 obsolete completions cannot remove the replacement runtime's entries.
+
+### Why the Zen provider is renamed in the provider read
+
+OpenCode names the `opencode` provider "OpenCode", or "<workspace> / OpenCode"
+after a Console sign-in, and the same sign-in also connects `opencode-go`, so
+users read the pair as one provider listed twice. `getProvidersForConfig`
+renames it to "OpenCode Zen", which reaches every surface that shows provider
+names: Settings, the model pickers, Context and usage. A label on the Settings
+card alone was rejected because the pickers would keep the confusing name. The
+workspace name stays visible on the provider's Console account. Other Console
+providers keep OpenCode's name, where the workspace prefix tells them apart
+from a provider connected with the user's own key.
 
 ### Why a missing agent stops the send instead of being skipped
 
@@ -55,3 +79,37 @@ existing shell needs that result, but broadening strict reads would make pins
 and references attribute parent messages to a child and make existence checks
 accept messages outside that session's history. All shared UI runtimes use the
 same completion path through the runtime-aware SDK transport.
+
+### Why tool shells use capability discovery and not unconditional headers
+
+A restored session can request its first page before discovery completes. Pages
+share a bounded wait so the first page can omit large results without hanging
+all later reads. Discovery failure remains retryable. A plain-page success after
+a header failure disables shells for that runtime; relay connection loss keeps
+them enabled because the tunnel has no CORS or proxy header filter.
+
+### Why command blocks use linking notes and not shell metadata
+
+`session.shell` accepts no metadata, so a synthetic note is the durable link
+between a reply block and its shell run after reload. The note has no description
+to avoid a notice row. A shell row hides only when its reply is loaded, keeping
+the result visible somewhere; a run the user stops needs no continuation.
+
+### Why usage details load on demand and not with the report
+
+The initial report sends `tools: "none"` because the server's default summary
+scans every tool call. Detail loading recomputes the report using its loaded
+range so the counts cover the same window. The viewer's timezone defines day
+buckets, and a project filter names an OpenCode project ID.
+
+### Why attachments use OpenCode's temp folder and not the UI's filesystem
+
+OpenCode's temp directory is on the machine its agents can read, including when
+the UI and OpenChamber server run elsewhere. Each upload uses a fresh folder to
+prevent repeated filenames from overwriting earlier attachments. File names are
+restricted to their basename so they cannot escape that folder.
+`temp-files.ts` writes a batch one file at a time. A file's bytes may be a
+reader called right before its own write, so a batch of large documents holds
+one in memory at a time. A caller that passes `runtimeKey` gets a batch that
+stops before its next request once the runtime switched, so the rest of one
+draft's files never reach the new runtime.

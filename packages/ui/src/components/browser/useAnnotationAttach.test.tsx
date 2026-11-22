@@ -36,10 +36,11 @@ test('a saved annotation callback captures both current destinations and keeps t
   useInputStore.setState({
     composerAddress: fork,
     attachedFiles: [], attachmentDraftKey: null, attachmentDrafts: new Map(),
-    addAttachedFile: async (file, target) => {
+    addAttachedFile: async (file, target, onAttached) => {
       expect(target).toEqual(parent.attachments);
       await screenshotReady;
       useInputStore.getState().addRestoredAttachment({ url: 'data:image/png;base64,AA==', mimeType: file.type, filename: file.name }, target);
+      onAttached?.(useInputStore.getState().getAttachedFiles(target).slice(-1));
       return true;
     },
   });
@@ -63,6 +64,7 @@ test('a saved annotation callback captures both current destinations and keeps t
     await act(async () => { await pending; });
     const drafts = useInlineCommentDraftStore.getState();
     expect(drafts.getDrafts({ directory, sessionKey: 'ses_parent' })[0]?.code).toContain('Screenshot: attached');
+    expect(drafts.getDrafts({ directory, sessionKey: 'ses_parent' })[0]?.screenshot).toBe('annotation.png');
     expect(drafts.getDrafts({ directory, sessionKey: 'ses_fork' })).toEqual([]);
     expect(useInputStore.getState().getAttachedFiles(parent.attachments)).toHaveLength(1);
     expect(useInputStore.getState().getAttachedFiles(fork.attachments)).toEqual([]);

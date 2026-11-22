@@ -54,7 +54,6 @@ const parseGuestServiceProxyResponse = async (
 export const proxyGuestServiceRequest = async (
   guestId: string,
   request: GuestRequest,
-  /** The shared-surface viewer open in this window (`surface-viewers.ts`). */
   viewerId?: string,
 ): Promise<GuestRequestProxyResult> => {
   try {

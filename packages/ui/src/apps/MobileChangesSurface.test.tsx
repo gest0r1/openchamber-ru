@@ -6,6 +6,7 @@ import { SyncProvider } from '@/sync/sync-context';
 import { opencodeClient } from '@/lib/opencode/client';
 import { useSessionUIStore } from '@/sync/session-ui-store';
 import type { GitLogEntry, GitStatus } from '@/lib/api/types';
+import type { MobileChangesInitialDiff } from '@/hooks/useMobileChangesNavigation';
 import type {
   ChangeRequest, ChangeRequestStatus, PageResult, Project, SourceControlAuthStatus, SourceControlIdentity, SourceControlUser,
 } from '@/lib/source-control/types';
@@ -411,11 +412,6 @@ test('bounds Revert All fan-out to two in-flight revert requests', async () => {
   const container = document.createElement('div');
   document.body.append(container);
   const root = createRoot(container);
-  const settle = async (done: () => boolean) => {
-    for (let tick = 0; tick < 20 && !done(); tick += 1) {
-      await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
-    }
-  };
   try {
     await act(async () => {
       root.render(<SyncProvider sdk={SYNC_SDK} directory="/repo"><I18nProvider><RuntimeAPIContext.Provider value={apis}>
@@ -431,15 +427,12 @@ test('bounds Revert All fan-out to two in-flight revert requests', async () => {
     if (!confirm) throw new Error('Missing Revert all confirmation');
     await act(async () => { confirm.click(); });
     // Two paths hold the only in-flight slots; the other six wait for one.
-    await settle(() => revertCalls >= 2);
     expect(revertCalls).toBe(2);
     expect(peakReverts).toBeLessThanOrEqual(2);
-    releaseReverts();
-    await settle(() => revertCalls >= files.length);
+    await act(async () => { releaseReverts(); });
     expect(revertCalls).toBe(files.length);
     expect(peakReverts).toBeLessThanOrEqual(2);
-    // Let the post-revert refresh finish so the surface does not update after unmount.
-    await settle(() => !container.textContent?.includes('Revert all'));
+    expect(container.textContent).not.toContain('Revert all');
   } finally {
     await act(async () => root.unmount());
     globalThis.fetch = originalFetch;

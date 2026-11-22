@@ -10,7 +10,6 @@ type GuestFrameOptions = {
   entry: string | null;
   instanceKey: string;
   enabled: boolean;
-  /** Approved `contributes.origins`; relay documents carry them in their policy. Part of `instanceKey`. */
   origins: readonly string[];
 };
 

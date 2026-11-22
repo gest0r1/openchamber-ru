@@ -29,11 +29,10 @@ import { useChatColumnActions, useChatColumnSession } from '../../chatColumnSess
 import { appendInlineText, appendWithLineBreaks, withLeadingSlashCommand } from '../text';
 
 export interface PendingComposerTextOptions {
-    /** Column role: null for the main chat's composer, a session id for a pinned one. */
     target: string | null;
-    /** The session this composer is showing, which a session-scoped restore addresses. */
     sessionId?: string | null;
-    setMessage: React.Dispatch<React.SetStateAction<string>>;
+    text: ComposerText;
+    setMessage: (text: string) => void;
     focus: () => void;
     /** Leave `slash-command` text pending, as while a `/btw` fork holds the composer. */
     holdSlashCommand?: boolean;
@@ -51,7 +50,6 @@ export function usePendingComposerText({
 }: PendingComposerTextOptions): void {
     const column = useChatColumnSession();
     const { pinned } = useChatColumnActions();
-    // A pinned column keeps its own session and takes only text addressed to it.
     const columnBehindSelection = useSessionUIStore((state) => (
         column !== null && !pinned && column.sessionId !== state.currentSessionId
     ));
@@ -74,11 +72,7 @@ export function usePendingComposerText({
         if (restored !== null) setTimeout(() => focusRef.current(), 0);
         if (!pending?.text) return;
         if (pending.mode === 'append') {
-            setMessage((prev) => {
-                const next = pending.text;
-                if (!next.trim()) return prev;
-                return appendWithLineBreaks(prev, next);
-            });
+            if (pending.text.trim()) setMessage(appendWithLineBreaks(text.get(), pending.text));
         } else if (pending.mode === 'append-inline') {
             setMessage((prev) => appendInlineText(prev, pending.text));
         } else if (pending.mode === 'slash-command') {

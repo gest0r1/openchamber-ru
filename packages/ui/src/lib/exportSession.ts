@@ -44,8 +44,6 @@ function formatAssistantModel(record: SessionMessageRecord): string {
   const modelID = record.info.modelID.trim();
   const model = providerID && modelID ? `${providerID}/${modelID}` : (modelID || providerID);
 
-  // OpenCode records `default` when no level was picked; like the chat
-  // footer, the export names only a level the user chose.
   const variant = record.info.variant?.trim();
   if (!model || !variant || ['default', 'none'].includes(variant.toLowerCase())) {
     return model;
@@ -65,11 +63,6 @@ function formatMessageHeader(record: SessionMessageRecord): string {
   return details ? `**${label}**\n\n*${details}*` : `**${label}**`;
 }
 
-/**
- * A message's text the way the Markdown export renders it. Guest message and
- * session items carry the same text, so an extension sees what the export
- * file would.
- */
 export function formatMessageRecordText(record: SessionMessageRecord): string {
   return formatMessageText(record.parts, { user: record.info.role === 'user' });
 }

@@ -1,6 +1,5 @@
 import { GUEST_SCROLLBAR_CSS } from '../scrollbar-style.ts';
 
-/** Host CSS variable → `--oc-*` alias written by `theme.ts`. */
 const OC_ALIAS = {
   'surface-background': 'bg',
   'surface-elevated': 'elevated',
@@ -52,7 +51,6 @@ const errorText = v('error-text', 'inherit');
 const font = v('font-sans', 'inherit');
 const mono = v('font-mono', 'monospace');
 const radius = v('radius', '9px');
-/** The app's controls round a step below the host radius: 7px against its 9px. */
 const controlRadius = `calc(${radius} - 2px)`;
 const smallRadius = `calc(${radius} - 4px)`;
 
@@ -60,24 +58,8 @@ const mix = (color: string, pct: number, base = 'transparent'): string => (
   `color-mix(in srgb, ${color} ${pct}%, ${base})`
 );
 
-/** Keyboard focus draws no ring, like the app: the focused control takes the hover fill. */
 const focusFill = `background-image: linear-gradient(${hover}, ${hover});`;
 
-/**
- * The app's `oc-field`, `oc-raised` and `oc-raised-button` light. Theme-dependent
- * parts live in custom properties on the root, which `applyHostReady` marks with
- * `data-oc-theme`: light themes press a field in and give a raised control the
- * canvas colour; dark themes give fields, controls and tinted buttons one lit
- * top line and one short shadow, and wash a field halfway toward the page so it
- * sits a tone below the buttons beside it. Without the attribute (a preview
- * outside the host) the light form applies.
- *
- * Buttons, triggers, tabs and popups keep a 1px border in their geometry so a
- * tinted variant, whose border is coloured, has the same size. Their hairline
- * is that border: an inset ring would paint inside it, 1px in from the edge,
- * with a strip of fill around it. Fields have no border and keep the ring.
- */
-// Half a pixel at rest; a focused or invalid field takes a full one.
 const field = (edge: string, width = '0.5px'): string => `box-shadow: inset 0 0 0 ${width} ${edge}, var(--oc-sdk-field-lift);`;
 const raised = 'border-color: var(--oc-sdk-edge); box-shadow: var(--oc-sdk-raised-lift);';
 const litButton = 'box-shadow: var(--oc-sdk-lit);';
@@ -234,14 +216,6 @@ textarea.oc-sdk-input { height: auto; padding: ${len(8)} ${len(10)}; resize: ver
 }
 `;
 
-/**
- * Appearance: colours, fonts, borders, corner radii, shadows, and the hover,
- * pressed, selected and focus states. The kit carries it for previews outside
- * the host, and the server appends the running app's copy to every served
- * extension document, after the kit's own style element, so installed bundles
- * follow the app's look without a rebuild. Selectors here keep the specificity
- * of the rules they override in older bundles.
- */
 export const GUEST_UI_LOOK_CSS = `${THEME_VARS}
 .oc-sdk { color: ${fg}; font-family: ${font}; }
 .oc-sdk :focus-visible, .oc-sdk:focus-visible { outline: none; }

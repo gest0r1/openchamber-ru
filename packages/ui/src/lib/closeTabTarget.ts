@@ -43,8 +43,6 @@ const handleUse = (event: Event): void => {
     const place = area ? placeOf(area) : null;
     if (place?.contains(node)) hits.push({ target, place });
   }
-  // Only the innermost places count: a click in a zone with tabs goes to
-  // them, not to a target around the zone.
   for (const hit of hits) {
     const outer = hits.some((other) => other.place !== hit.place && hit.place.contains(other.place));
     if (!outer) hit.target.usedAt = ++clock;
@@ -68,8 +66,6 @@ export const registerCloseTabTarget = (
   if (!listening) {
     window.addEventListener('openchamber:close-tab', handleCloseTab);
     window.addEventListener('pointerdown', handleUse, true);
-    // `focus`, captured: a click into a browser tab's page focuses its
-    // `<webview>` with a `focus` event only, no `focusin` and no pointer event.
     window.addEventListener('focus', handleUse, true);
     listening = true;
   }

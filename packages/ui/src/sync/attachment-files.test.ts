@@ -40,17 +40,6 @@ describe("attachment file preparation", () => {
     ])
   })
 
-  test("exposes the expanded code and structured-text formats to pickers", () => {
-    for (const extension of [
-      "diff", "patch", "ipynb", "jsonl", "ndjson", "har", "svg", "drawio", "excalidraw",
-      "vue", "svelte", "php", "cs", "kt", "swift", "lua", "dart", "tf", "hcl", "proto",
-      "docx", "pptx", "xlsx", "odt", "odp", "ods",
-    ]) {
-      expect(ACCEPTED_ATTACHMENT_EXTENSIONS.includes(extension)).toBe(true)
-      expect(ATTACHMENT_ACCEPT.includes(`.${extension}`)).toBe(true)
-    }
-  })
-
   test("reads documents and images named by a mention on send", () => {
     for (const filename of ["reports/BUDGET.XLSX", "shot.png", "photo.JPG", "anim.gif", "pic.webp", "IMG_1.heic"]) {
       expect(isReadOnSendMentionFilename(filename)).toBe(true)

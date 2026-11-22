@@ -20,11 +20,6 @@ type Args = {
   isInlineEditing: boolean;
   showDeletionDialog: boolean;
   foldersMap: Record<string, SessionFolder[]>;
-  /**
-   * Selection scope is the project id (flat per-project session list); this
-   * map resolves it to the project's folder scopes (root + worktrees). When
-   * the scope is missing here it is treated as a plain directory scope.
-   */
   getFolderScopesForProject: (projectId: string) => readonly { scopeKey: string; directory: string | null }[];
   folderOwnerKeyBySessionId: ReadonlyMap<string, string>;
   addSessionsToFolder: (scopeKey: string, folderId: string, sessionIds: string[]) => void;
@@ -63,7 +58,6 @@ export const resolveSelectionFolderIds = (
   for (const sessionId of sessionIds) {
     const owner = folderOwnerKeyBySessionId.get(sessionId);
     if (!owner) return [];
-    // Subtree selection also includes descendants displayed under another owner.
     if (owner === ownerKey) ids.push(sessionId);
   }
   return ids;
@@ -94,9 +88,6 @@ export const resolveBulkDeleteConfirmation = (
   | { ready: false; value: NonNullable<BulkDeleteSessionsConfirmState> | null } => {
   const sessionIds = value.sessionIds.filter((id) => sessionsById.has(id));
   if (sessionIds.length === 0) return { ready: false, value: null };
-  // `archivedBucket` names the action (true = permanent delete). A requested
-  // delete stays a delete; a requested archive turns into a delete only when
-  // every remaining session is already archived and cannot be archived again.
   const archivedBucket = value.archivedBucket
     || deriveSessionRowSelectionArchived(new Set(sessionIds), sessionsById);
   const next = { sessionIds, sessionCount: sessionIds.length, archivedBucket };
@@ -106,20 +97,6 @@ export const resolveBulkDeleteConfirmation = (
   };
 };
 
-/**
- * Bulk-action logic for the sidebar. The hot-path concern is that this
- * hook subscribes to `useSessionMultiSelectStore` — which can fire on
- * every selection toggle and on every setRange/toggleSelected call —
- * but the rest of the Sidebar tree only needs the boolean
- * `selectionModeEnabled` flag to decide whether to render the
- * selection chrome.
- *
- * To keep that subscription narrow, the heavy work (folders lookup,
- * DOM-attribute scanning for the active/archived scope, etc.) is
- * deferred behind a `selectedIds.size > 0` check inside the hook itself.
- * Scope and archive state come from the selection store rather than mounted
- * row DOM, so virtual eviction cannot change the available actions.
- */
 export const useSidebarBulkActions = (args: Args) => {
   const { t } = useI18n();
   const failureDescription = React.useCallback((ids: readonly string[]): { description: string } | undefined => {
@@ -177,8 +154,6 @@ export const useSidebarBulkActions = (args: Args) => {
     Array.from(selectedIds), derivedSelectionScope, folderOwnerKeyBySessionId,
   ), [selectedIds, derivedSelectionScope, folderOwnerKeyBySessionId]);
 
-  // The selection scope is a project id; folders live per directory scope
-  // (project root + each worktree). Resolve all of them, in project order.
   const selectionFolderScopes = React.useMemo<string[]>(() => {
     return resolveSelectionFolderScopes(derivedSelectionScope, getFolderScopesForProject);
   }, [derivedSelectionScope, getFolderScopesForProject]);
@@ -212,8 +187,6 @@ export const useSidebarBulkActions = (args: Args) => {
   const moveSelectionToFolder = React.useCallback((targetScope: string, folderId: string) => {
     const ids = folderSelectionIds;
     if (ids.length === 0) return;
-    // Clear memberships in every other scope first — the store only dedupes
-    // within one scope, and a session must live in a single folder.
     for (const scope of selectionFolderScopes) {
       if (scope === targetScope) continue;
       removeSessionsFromFolders(scope, ids);
@@ -286,7 +259,6 @@ export const useSidebarBulkActions = (args: Args) => {
     }
     setBulkDeleteConfirm({ sessionIds, sessionCount: sessionIds.length, archivedBucket: hardDelete });
   }, [executeBulkDelete, selectedIds, showDeletionDialog, setBulkDeleteConfirm, hasSelection]);
-  /** Archive active sessions; already-archived ones can only be deleted. */
   const handleBulkDelete = React.useCallback(() => requestBulkDestructive(bulkScopeIsArchived), [bulkScopeIsArchived, requestBulkDestructive]);
   const handleBulkArchive = React.useCallback(() => requestBulkDestructive(false), [requestBulkDestructive]);
   const handleBulkHardDelete = React.useCallback(() => requestBulkDestructive(true), [requestBulkDestructive]);

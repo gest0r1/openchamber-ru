@@ -17,6 +17,7 @@ import { HoverTooltip } from '@/components/ui/row-tooltip';
 import { useI18n } from '@/lib/i18n';
 import { MarkdownSvgFailureContext, useMarkdownPresentation, type MarkdownPresentation } from './MarkdownPresentationContext';
 import { activateMarkdownFile, useOpenMarkdownFile } from './markdownFileReferences';
+import { stripAnsi } from './highlightsEngine';
 import type { MarkdownCodePlugin } from './streamdownCode';
 import { MarkdownDiff } from './MarkdownDiff';
 import { MarkdownSuggestionContext, isSuggestionLanguage, suggestionPatch } from './markdownSuggestion';
@@ -25,8 +26,6 @@ import { isRunnableLanguage } from '@/lib/opencode/reply-command';
 import { onDemand } from '../uiBlocks/useUiBlockComponent';
 import type { RenderedCommand } from './ReplyCommand';
 
-// Complete prefix rows keep their identity in the worker client, so appending
-// code only renders changed rows. React owns every node; no HTML patching.
 const CodeLine = React.memo(function CodeLine({ tokens }: { tokens: HighlightToken[] }) {
   const empty = tokens.length === 0 || (tokens.length === 1 && tokens[0].content === '');
   return (
@@ -50,8 +49,7 @@ const MarkdownCodeBody = React.memo(function MarkdownCodeBody({ source, language
   plugin: MarkdownCodePlugin;
 }) {
   const input = React.useMemo(() => ({
-    code: source,
-    language,
+    ...shownCode(source, language),
     isIncomplete: incomplete,
     themes: plugin.getThemes(),
   }), [source, language, incomplete, plugin]);
@@ -61,8 +59,6 @@ const MarkdownCodeBody = React.memo(function MarkdownCodeBody({ source, language
   const committed = React.useRef<{
     input: typeof input; plugin: MarkdownCodePlugin; lineage: symbol; display: Display; exact: boolean;
   } | null>(null);
-  // An edit or context change starts a new lineage, even if later input returns
-  // to an older source. Results from the abandoned lineage must not reappear.
   const lineage = React.useMemo(() => {
     const previous = committed.current;
     return previous?.plugin === plugin && previous.input.language === input.language
@@ -72,7 +68,6 @@ const MarkdownCodeBody = React.memo(function MarkdownCodeBody({ source, language
   const display = React.useMemo<Display>(() => {
     const current = resolved?.lineage === lineage ? resolved : null;
     if (current?.input === input) return current;
-    // Exact hits include policy-driven plain results (copy/export and line budgets).
     if (initial) return { input, result: initial };
     const previous = committed.current;
     const retained = previous?.lineage === lineage ? previous.display : null;
@@ -170,9 +165,13 @@ function MarkdownCodeBlock({ children, className, node, command, ...props }: Cod
   const code = node?.children.map((child) => child.type === 'text' ? child.value : '').join('') ?? '';
   const copySource = sourceOf(node);
   const { purpose, onExportCode } = presentation;
+  const customRenderer = language === 'mermaid' || (language === 'openui-lang' && presentation.uiBlocks);
   React.useLayoutEffect(() => {
-    if (purpose && language !== 'mermaid') onExportCode?.(code, language);
-  }, [purpose, onExportCode, code, language]);
+    if (purpose && !customRenderer) {
+      const shown = shownCode(code, language);
+      onExportCode?.(shown.code, shown.language);
+    }
+  }, [purpose, customRenderer, onExportCode, code, language]);
 
   if (language === 'svg' && presentation.svgFences && !activeSvg.test(code) && failedSvg !== code) {
     return (

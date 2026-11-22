@@ -102,9 +102,10 @@ export const OpenChamberToolsSettings: React.FC = () => {
   const setAgentWebToolEnabled = useUIStore((state) => state.setAgentWebToolEnabled);
   const browserProvider = useUIStore((state) => state.browserProvider);
   const setBrowserProvider = useUIStore((state) => state.setBrowserProvider);
+  const agentBrowserSharesLogins = useUIStore((state) => state.agentBrowserSharesLogins);
+  const setAgentBrowserSharesLogins = useUIStore((state) => state.setAgentBrowserSharesLogins);
   const guests = useGuestsStore((state) => state.guests);
   const agentMemoryToolEnabled = useUIStore((state) => state.agentMemoryToolEnabled);
-  // Absent where no OpenChamber server answers settings (VS Code).
   const agentMemoryAvailable = useUIStore((state) => state.agentMemoryFeatureAvailable);
   const setAgentMemoryToolEnabled = useUIStore((state) => state.setAgentMemoryToolEnabled);
   const agentMemoryDreamingEnabled = useUIStore((state) => state.agentMemoryDreamingEnabled);
@@ -128,7 +129,6 @@ export const OpenChamberToolsSettings: React.FC = () => {
   const setAgentImageModel = useUIStore((state) => state.setAgentImageModel);
   const agentSecretToolEnabled = useUIStore((state) => state.agentSecretToolEnabled);
   const setAgentSecretToolEnabled = useUIStore((state) => state.setAgentSecretToolEnabled);
-  // Absent without an OpenChamber server, like memory.
   const agentWorkflowAvailable = useUIStore((state) => state.agentWorkflowFeatureAvailable);
   const agentWorkflowToolEnabled = useUIStore((state) => state.agentWorkflowToolEnabled);
   const setAgentWorkflowToolEnabled = useUIStore((state) => state.setAgentWorkflowToolEnabled);
@@ -168,14 +168,11 @@ export const OpenChamberToolsSettings: React.FC = () => {
     void updateDesktopSettings({ agentImageToolEnabled: enabled });
   }, [setAgentImageToolEnabled]);
 
-  // Read by the server on every call; no OpenCode restart involved.
   const handleAgentImageModelChange = React.useCallback((value: string) => {
     setAgentImageModel(value);
     void updateDesktopSettings({ agentImageModel: value });
   }, [setAgentImageModel]);
 
-  // Only models that generate images, read when the page opens: a provider
-  // connected meanwhile shows up on the next visit.
   const [imageModels, setImageModels] = React.useState<{ status: 'loading' | 'failed' } | { status: 'ready'; models: Array<{ value: string; name: string; providerID: string }> }>({ status: 'loading' });
   React.useEffect(() => {
     let cancelled = false;
@@ -209,27 +206,17 @@ export const OpenChamberToolsSettings: React.FC = () => {
     void loadGuestCatalog();
   }, []);
   const providerGuests = React.useMemo(() => browserProviderGuests(guests), [guests]);
-  // A selection whose extension is gone shows as the built-in: the server
-  // already routes to it and resets the setting on the next action.
   const providerValue = providerGuests.some((guest) => guest.id === browserProvider)
     ? browserProvider
     : BUILTIN_BROWSER_PROVIDER;
 
-  // Read by the server on the next browser action; no OpenCode restart involved.
   const handleBrowserProviderChange = React.useCallback((value: string) => {
     setBrowserProvider(value);
     void updateDesktopSettings({ browserProvider: value });
   }, [setBrowserProvider]);
 
-  // Turning memory off removes the whole feature, not just the tool: the panel
-  // tab goes with it and sessions stop being given the index. Showing the user
-  // what is stored would be pointless once the agent can no longer manage it.
   const handleAgentMemoryToolChange = React.useCallback((enabled: boolean) => {
     setAgentMemoryToolEnabled(enabled);
-    // Re-read after the write lands, not before. The switch flips the client
-    // immediately, which makes the panel ask the server straight away — and
-    // while the setting is still being written the server truthfully answers
-    // "disabled", which used to leave the tab hidden until a restart.
     void updateDesktopSettings({ agentMemoryToolEnabled: enabled })
       .finally(() => {
         if (enabled) {
@@ -285,7 +272,28 @@ export const OpenChamberToolsSettings: React.FC = () => {
             title={t('settings.openchamber.tools.name.workflow')}
             summary={t('settings.openchamber.tools.field.agentWorkflowToolSummary')}
             ariaLabel={t('settings.openchamber.tools.field.agentWorkflowToolAria')}
-          />
+            reveals={['sessions.agent-workflow-auto-approve']}
+          >
+            {agentWorkflowToolEnabled ? (
+              <div data-settings-item="sessions.agent-workflow-auto-approve" className="mt-2 flex min-w-0 items-center gap-2 ps-7">
+                <span className="truncate typography-meta text-muted-foreground">
+                  {t('settings.openchamber.tools.workflowAutoApprove.label')}
+                </span>
+                <SettingsChipGroup
+                  value={workflowAutoApproveMode}
+                  onChange={handleWorkflowAutoApproveChange}
+                  aria-label={t('settings.openchamber.tools.workflowAutoApprove.label')}
+                  options={[
+                    { value: 'ask', label: t('settings.openchamber.tools.workflowAutoApprove.ask') },
+                    { value: 'leads', label: t('settings.openchamber.tools.workflowAutoApprove.leads') },
+                    { value: 'all', label: t('settings.openchamber.tools.workflowAutoApprove.all') },
+                  ]}
+                />
+                <SettingsNewBadge items={['sessions.agent-workflow-auto-approve']} />
+                <SettingsInfoHint>{t('settings.openchamber.tools.workflowAutoApprove.info')}</SettingsInfoHint>
+              </div>
+            ) : null}
+          </ToolRow>
         ) : null}
         <ToolRow
           icon="calendar-schedule"

@@ -1,12 +1,3 @@
-/**
- * The parts a user message shows.
- *
- * Two things happen here. Linked issues and pull requests render as link
- * attachments rather than context cards, so their context parts are mapped to
- * the display-only file part `FileAttachment` understands. And a file part that
- * merely repeats the range an inline comment already quotes is dropped, so the
- * message does not show the same lines twice.
- */
 
 import type { FilePart, Part, TextPart } from '@/lib/opencode/model';
 import { readContextPart, type ContextPartPayload } from '@/lib/messages/contextParts';
@@ -14,7 +5,6 @@ import { formatChangeRequestLabel } from '@/lib/source-control/providers/termino
 import type { SourceControlDescriptorOf } from '@/lib/source-control/providers/registry';
 import { repositoryIssueLinkMime, trackerItemLinkMime } from '@/lib/messages/attachmentPreview';
 
-// An issue part written before providers other than GitHub existed names none: it is GitHub's.
 const LEGACY_ISSUE_PROVIDER = 'github';
 
 const redundantCommentFileUrls = (parts: Part[]): Set<string> => {
@@ -81,7 +71,6 @@ const displayPartOf = (part: TextPart, payload: ContextPartPayload, descriptorOf
             return {
                 ...identity,
                 type: 'file',
-                // The type names the provider so the chip shows its mark.
                 mime: repositoryIssueLinkMime(payload.provider ?? LEGACY_ISSUE_PROVIDER),
                 filename: `Issue #${payload.number}: ${payload.title}`,
                 url: payload.url,
@@ -90,7 +79,6 @@ const displayPartOf = (part: TextPart, payload: ContextPartPayload, descriptorOf
             return {
                 ...identity,
                 type: 'file',
-                // Drawn like an issue chip, with the provider's mark.
                 mime: repositoryIssueLinkMime(payload.provider),
                 filename: `Discussion #${payload.number}: ${payload.title}`,
                 url: payload.url,
@@ -107,7 +95,6 @@ const displayPartOf = (part: TextPart, payload: ContextPartPayload, descriptorOf
             return {
                 ...identity,
                 type: 'file',
-                // The type names the tracker so the chip shows its mark.
                 mime: trackerItemLinkMime(payload.provider),
                 filename: `${payload.identifier}: ${payload.title}`,
                 url: payload.url,
@@ -134,12 +121,6 @@ const displayPartOf = (part: TextPart, payload: ContextPartPayload, descriptorOf
     }
 };
 
-/**
- * `descriptorOf` names a change request's provider (`!12` for a merge request).
- * React callers pass `useSourceControlDescriptorOf()` and keep it in their memo
- * inputs, so a label first drawn before the provider list arrived is redrawn
- * when it does.
- */
 export const normalizeUserDisplayParts = (parts: Part[], descriptorOf: SourceControlDescriptorOf): Part[] => {
     const redundantFileUrls = redundantCommentFileUrls(parts);
     return parts

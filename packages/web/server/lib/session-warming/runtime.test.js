@@ -248,6 +248,20 @@ describe('session warming runtime', () => {
     expect(runtime.snapshot().sessions[0].warmUntil).toBeNull();
   });
 
+  it('ignores unrelated and malformed event payloads', async () => {
+    const { runtime, fetchImpl } = makeRuntime();
+    runtime.setEnabled(true);
+    runtime.processPayload(status('busy'));
+    runtime.setSessionWarm(SESSION, DIRECTORY, true);
+    const before = runtime.snapshot();
+    for (const payload of [null, 'idle', {}, { type: 'session.status', properties: { sessionID: SESSION, status: { type: 'unknown' } } }, { type: 'session.deleted', properties: {} }]) {
+      runtime.processPayload(payload);
+    }
+    expect(runtime.snapshot()).toEqual(before);
+    await vi.advanceTimersByTimeAsync(WARMING_DURATION_MS);
+    expect(pings(fetchImpl)).toHaveLength(0);
+  });
+
   it('broadcasts a snapshot with a rising revision on every change', () => {
     const { runtime, events } = makeRuntime();
     runtime.setEnabled(true);

@@ -9,6 +9,10 @@ other.
 
 ## Boundaries
 
+`error.ts` carries optional unchecked task details and the scheduler's
+`'queued' | 'running'` busy values through `OpenChamberControlError`. The
+constructor retains its existing `Object.assign` behavior.
+
 - `service.js` validates and executes the fixed project, model, session, and
   scheduled-task action allowlist. `actions.js` marks CLI-only actions with
   `agentExposed: false` (currently `schedule.status`); the agent tool consumes
@@ -92,7 +96,11 @@ other.
 - `render-page.js` runs `render.page` for the `openchamber_render` agent tool. It takes `html` or `ui` (a program in the UI block language, which the chat draws with its own components; the server cannot parse it, so a client that cannot draw it answers the wait with `notDrawn` errors, and the agent gets them in its result). Only one of them is required: a page sent without a title is named after its own `<title>`, else its first h1 to h3, else "Page", with the same rule the chat uses (`renderedPage` in `packages/ui/src/lib/opencode/tools.ts`). Weaker models sent title and html in separate calls, each refused call costing the whole page again; a missing html now also asks for both in one call.
   The chat draws the page from the call's own input, so the action stores
   nothing: it checks `html` (at most 200,000 characters) and `title` (at most
-  120) and answers `403` while `agentRenderToolEnabled` is `false`. With
+  120) and answers `403` while `agentRenderToolEnabled` is `false`. A call
+  with `share` is refused first when sharing is unavailable (`403`,
+  `code: 'enterprise_mode'`) and with `awaitAnswer` or `answerLater` (`400`), then makes its
+  group through `sharePages` (`../share-pages/`) and returns at once without
+  any link or PIN. With
   `awaitAnswer` the action waits in `createPageAnswers`, keyed by session and
   call id, until `answerPage` resolves it (`POST /api/openchamber/render/answer`
   from the chat: a summary of at most 500 characters and data of at most
@@ -104,7 +112,8 @@ other.
   Before it waits, the action reads the session's OpenCode inbox. A message
   the user steered into the turn that the agent has not read yet means they
   wrote before the page appeared (a queued one waits for the turn to end
-  anyway, so it does not count); OpenCode delivers it only after this call returns, so
+  anyway, and one an agent or OpenCode's scheduler sent, `isAgentPrompt`, is
+  not the user writing, so neither counts); OpenCode delivers it only after this call returns, so
   waiting held it back and an answer on the page reached the agent first.
   The call then returns at once with `{ answered: false, reason:
   "chat-sent-earlier" }` and a note that the message is not an answer to the
@@ -188,6 +197,51 @@ other.
 
 ## Invariants
 
+- A directory whose OpenCode configuration runs untrusted code requires the
+  user's approval in the app before the control service opens it. Agent-selected
+  directories, including pull request checkouts, pass the same trust check.
+- Hidden sessions are excluded from lists and active counts. Sessions in pinned
+  worktrees cannot enter In work, under `../session-work/membership.js`.
+- A scheduled task's thinking level belongs to its selected model. Replacing
+  that model clears the previous level before any new level is applied.
+- The OpenCode client receives the server origin because it adds `/api` itself;
+  directory scope travels in `x-opencode-directory`. Message records carry user
+  text in `text` and assistant text in `content`, without an `info`/`parts` wrapper.
+- Session lists deduplicate ids and stop at a repeated cursor to bound malformed
+  upstream pagination. Message reads send `order` only on the first page because
+  OpenCode rejects it alongside a cursor; they stop at an empty page or repeated
+  cursor and return gathered text oldest first. A bounded read stops once enough
+  matching text messages are collected.
+- Model search follows the picker's hidden, favorite and recent preferences.
+  Family folding keeps every unranked candidate tied for the newest release,
+  since distinct models can share a release date.
+- Rendered content's character cap leaves room for multibyte text inside the
+  callback's 1 MB JSON body. Answer limits reserve the reply for choices and
+  values. The local-image budget bounds memory because the chat holds data URLs
+  and the browser also holds decoded images.
+- Local-image matching stays aligned with
+  `packages/ui/src/components/chat/message/parts/renderPageImages.ts` because
+  the rendered page cannot read files itself. Quoted paths allow spaces;
+  unquoted CSS URLs end at whitespace or parentheses. Once a readable image
+  exceeds the page budget, subsequent readable images are also omitted so the
+  visible images remain a prefix. Unreadable files consume no budget.
+- Later-page writes wait for a successful load, so a read failure cannot erase
+  saved pages. A failed write undoes its memory change. Revisions increase across
+  restarts and rollbacks because clients discard older updates. One invalid
+  stored page is dropped without discarding valid pages.
+- Secret redaction finds overlapping matches in the original output before
+  replacing them, so one replacement cannot create a new partial match. The
+  longest covering value names each hidden character. A byte-truncated output
+  window also hides a leading secret suffix after skipping replacement characters
+  from a split UTF-8 sequence. NUL values are refused because a process cannot
+  receive them and a runtime error could quote them.
+- Secret answer bodies are never logged or echoed. An unread user message
+  prevents `secret.run` even when all values are remembered, since it can arrive
+  during command approval. Remembered values are kept before execution so a
+  failed command can be corrected without asking for them again.
+- Screenshot result paths use forward slashes because Windows separators act
+  as escapes in Markdown and commit messages. Stored tool envelopes accept
+  JSON quoted once more by Code Mode, which can return the envelope as a string.
 - `projects.list` offers registered projects and the server's Chats destination.
   `session.create` accepts its `openchamber:chats` id to create a separate managed
   chat directory. With no explicit scope, creation still uses the caller's directory.
@@ -195,8 +249,9 @@ other.
   by session id. The Chats id is a creation destination, not a registered project.
   Chats creation and directory-scoped send/fork do not infer a project or its defaults from Git,
   including when the configured Chats root is inside a registered checkout.
-  Membership compares the canonical directory and root so symlink aliases keep
-  the same projectless behavior.
+  They take the Chats defaults from Settings > Sessions in the project's place,
+  then the global ones. Membership compares the canonical directory and root, so
+  symlink aliases keep the same projectless behavior and the same Chats defaults.
 - Chats creation belongs to the session service. It reuses the directory allocator
   in `../scheduled-tasks/chats-scope.js`, including the configured Chats root.
   Failed creation removes only an empty directory. Once OpenCode creates the
@@ -229,6 +284,33 @@ other.
   result carries `resultDelivery`: `pending` with a note for the agent, or
   `not-scheduled` with the reason (the prompt never landed, or registering
   failed); the session keeps running either way, so neither is thrown.
+- `session.create` with `ownWork: true` makes a session that is part of the
+  calling agent's own work (an operator's child), not one the user asked for.
+  It needs a calling session (400 without one) and applies to create only.
+  The session service creates it with `metadata.openchamber` `{ kind:
+  'operator-child', parentID: <caller> }`, session permission rules that
+  deny the `question` and `openchamber_secret` tools (OpenCode drops a wholly
+  denied tool from the model's list; nobody is there to answer either), and, before any prompt, a synthetic message with
+  `resume: false` (`source: 'openchamber-operator-child'`) telling the agent
+  that the user does not interact with it, to ask in plain text in its answer
+  and that the answer goes to the agent that started it
+  (`../openchamber-sessions/create-session.js`). A failed note is logged and
+  the session stays: the refusals below still tell the agent. With a prompt
+  `returnResult` defaults to true, so the answer comes back; an explicit
+  `false` turns that off. `sessionParentId` (`../session-lineage.js`) reads
+  the link, so the session is a subsession for In work, goals, assist,
+  auto-accept lineage and `session.list`, and the UI nests it under the
+  caller wherever it lives. `render.page` refuses `awaitAnswer` and
+  `answerLater` in such a session with a 403 that says to ask in text, read
+  from the session record per call; a failed read lets the page wait as
+  before. The user takes a session over only from its sidebar menu or its
+  worktree's (`packages/ui/src/sync/session-take-over.ts`): the link goes, the
+  `question` rule goes and the session opens in In work. A fork of such a
+  session is the user's from the start: both fork repairs (`fork-inheritance.js`
+  here, `sessionForkInheritance.ts` in the UI) drop the link and the rule,
+  which OpenCode copies into a fork. The metadata store's
+  `onWritten` tells the lineage cache and the auto-accept cache, which then
+  read the session again.
 - `returnResult` and `wait` must be booleans when present. Both are compared
   with `=== true`, so a string `"true"` (the tool path forwards raw JSON, and a
   model or harness can stringify a boolean) would read as false: a dispatch
@@ -336,17 +418,29 @@ other.
   directory the request names, the project's own folder, as before: a new worktree
   does not exist yet, and its start folder mirrors that one. Git work (carrying
   changes, removal) stays on the worktree root.
-- Default agents resolve from the owning project before global settings and
+- Default agents resolve from the owning project, or for a chat from the Chats
+  defaults, before global settings and
   OpenCode defaults. Directory-based requests identify the project before
   creating a worktree; existing linked worktrees resolve through Git's primary
   worktree root. Send/fork fallback uses that same owner. Configured model IDs
   and effort preferences survive missing catalog entries rather than silently
   dispatching with a different model.
 - A create with a prompt resolves its selection in the target directory before
-  creating an OpenCode session. It reads discovery once with a 10-second request
-  deadline. Unavailable agent/config reads, an empty agent list, or a configured
-  agent absent from the list produce 503; no fallback model is dispatched from
-  those snapshots. A missing saved default agent is named in the error with a
+  creating an OpenCode session. Each discovery read takes two steps with a
+  10-second request deadline each: the model list first, then the agent list
+  and config in parallel (`../openchamber-sessions/selection-inputs.js`). The
+  agent list of a folder whose OpenCode location is not running yet (a new chat
+  or worktree, a project first used since start, one idle for an hour) is only
+  complete once that location's plugins have activated, and the model read is
+  what waits for them. When the plugins did not activate within OpenCode's
+  limit, a selection that still needs a default produces 503 with OpenCode's
+  reason, even if some agents and the config arrived: the list may be partial.
+  A failed agent or config read, an empty agent list, or a configured agent
+  absent from the list produce 503 too, and so does an explicitly requested
+  agent missing from a list read after activation failed. No fallback model is
+  dispatched from those snapshots. Validating an explicit model, agent or
+  level reads discovery too, so it also waits for the plugins of a cold
+  location, up to OpenCode's limit. A missing saved default agent is named in the error with a
   hint to update the default or pass an explicit agent; it never silently picks
   another agent. An explicit agent that needs only a model does not require the
   saved default agent to exist. Model precedence stays unchanged.
@@ -356,12 +450,21 @@ other.
   setup, with the deadlines above, then check the final status once. Git-ready
   alone is insufficient. Creating in an existing checkout subdirectory checks
   bootstrap at the checkout root while retaining the session's requested folder.
-  If a create prerequisite fails after making a worktree,
-  the error carries `partialAction: worktree-created` and `directory`, with no
-  session ID. The caller can retry that directory without a `worktree` parameter.
+  If a create prerequisite fails after making a worktree (plugins that did not
+  activate, a missing default agent, setup still running), the error carries
+  `partialAction: worktree-created` and `directory`, with no session ID. The
+  caller can retry that directory without a `worktree` parameter.
   The CLI prints the retained directory and a retry command preserving the
   prompt and selection options without creating another worktree.
-  An empty-session create without a prompt keeps its existing selection behavior.
+  An empty-session create stores any requested model and variant on the
+  OpenCode session, so a later send can reuse them. A variant without a model
+  resolves the model first; a create with no selection leaves defaults unset.
+  The stored model is the catalog id of the session directory's checkout, so a
+  model named by its upstream id, or one a new worktree does not offer, never
+  lands as an unusable selection; when the catalog cannot be read, the create
+  fails as not ready instead of pinning an unverified model. A malformed model reference is rejected, and
+  Auto needs a prompt to select a model; both are refused for an empty session
+  before any worktree is created.
 - Usage errors name the missing or conflicting input so CLI and agent-tool
   callers can correct an invalid request without an upfront usage manual.
 - Explicit `projectId` or `directory` scope takes precedence over the managed
@@ -539,9 +642,19 @@ workflow report or a restart resume can arrive while a page or a secret card wai
 in the session's inbox until the waiting call returns, and the agent reads it at
 the next step, right after the user's answer. The alternative, ending the wait
 so the agent reads the message at once and asks again, loses the question the
-user was reading. A message the user writes in the chat still ends the wait, and
-`hasUnreadChat` counts only those. The chat keeps such a message out of the
-transcript while the wait lasts (`holdPendingSynthetic` in `packages/ui`, read
+user was reading, and the result told the agent the user had written. A
+queued prompt would not even follow the result: OpenCode delivers it only
+after the turn. A message the user writes in the chat still ends the wait, as
+does an undelivered prompt the user moves (back) to steer, and `hasUnreadChat` counts only
+the user's steered messages. A prompt counts as an agent's when its metadata names a sending session in
+`openchamber.promptedBy.sessionID`, as `session.send` writes it, or carries the `schedule: { id }` marker of OpenCode's
+scheduler (`isAgentPrompt` in `render-page.js`); the sender is not checked,
+since this decides what the agent reads and grants nothing. Any other prompt
+counts as the user's, because a person typing in the TUI or calling the API is
+the user too. An agent's `session.send` of a slash command is the known gap:
+it reaches OpenCode's command endpoint without that metadata (see
+`../agent-tool/DOCUMENTATION.md`). The chat keeps a
+background synthetic message out of the transcript while the wait lasts (`holdPendingSynthetic` in `packages/ui`, read
 through `SyntheticMessage.pending`): drawn as a new turn, it took the question
 out of the chat.
 
@@ -615,15 +728,36 @@ discovery cannot establish the default choice. Checking it once before creation
 lets the caller retry a known directory without polling, sending a prompt with
 an unintended model, or accumulating empty sessions.
 
-### Why a dispatched session links back from its prompt and does not nest in the sidebar
+### Why selection reads the models before the agents, and does not poll
 
-A dispatched session used to nest under the caller's work in the sidebar
-(`metadata.openchamber.originSessionID` on the session). These sessions are
-the user's own conversations, such as PRs a triage session splits off for a
-separate discussion: nesting hid them under one chevron, reshuffled them when
-the caller was archived, and made `work.name` in each of them rename the
-caller. They stay roots now, and the link sits on the prompt that started
-them, where it says who sent which message.
+OpenCode 2.3 builds the agent registry from plugins, the built-in agents
+included, and starts them when a location is first used. `agent.list` answers
+from the registry at once, so a parallel read on a new location got an empty
+list, while `model.list` waits up to 5 seconds for the plugins. Reading the
+models first makes that wait OpenCode's own activation barrier: one read gives
+the real agent list in every folder. It replaced a worktree-only loop that
+re-read every half second for up to 15 seconds, which guessed at readiness
+from an empty list, left new chats and evicted folders failing, and hid the
+real reason when activation failed. The order is a workaround for this server
+selection path only; it costs a second round trip before the agent read. When
+`agent.list` itself waits for activation upstream, read the three in parallel
+again.
+
+### Why only ownWork nests a dispatched session, and by metadata
+
+A dispatched session the user asked for is their own conversation, such as a
+PR a triage session splits off for a separate discussion. It stays a root,
+with the link on the prompt that started it, where it says who sent which
+message. An older build nested every dispatched session under the caller
+(`metadata.openchamber.originSessionID`): that hid the user's conversations
+under one chevron, reshuffled them when the caller was archived, and made
+`work.name` in each rename the caller. So nesting is now the agent's explicit
+claim, `ownWork`, for a worker it runs and collects itself; overnight an
+operator starts a dozen of them, and as roots they crowded the user's own
+sessions and In work. The link is OpenChamber metadata, as for workflow
+agents, and never OpenCode's `parentID`: OpenCode wakes a `parentID` parent
+with a `<subagent>` report after every round, while an operator decides when
+it reads its workers (`returnResult`, `session.messages`).
 
 ### Why Chats uses an explicit destination id
 

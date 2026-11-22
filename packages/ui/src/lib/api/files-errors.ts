@@ -50,8 +50,6 @@ export const parseFilesystemErrorReason = (value: unknown): FilesystemErrorReaso
   }
 };
 
-// Web rejects with an Error; the VS Code bridge rejects with a plain object
-// that carries the message.
 const messageCarrierSchema = z.object({ message: z.string() });
 
 export const isFileMissingError = (error: unknown): boolean => {
@@ -66,4 +64,3 @@ export const isFileMissingError = (error: unknown): boolean => {
     || normalized.includes('no such file')
     || normalized.includes('does not exist');
 };
-

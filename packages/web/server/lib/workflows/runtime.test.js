@@ -10,6 +10,7 @@ import { createWorkflowRunStore } from './store.js';
 const directories = [];
 
 afterEach(async () => {
+  vi.useRealTimers();
   vi.restoreAllMocks();
   // A run saves itself once more after its report is sent, so a test that waits
   // for the report ends with that save in flight. Retrying outlasts it.
@@ -22,7 +23,12 @@ const waitFor = async (check, timeoutMs = 5_000) => {
     const value = await check();
     if (value) return value;
     if (Date.now() > deadline) throw new Error('timed out');
-    await new Promise((resolve) => setTimeout(resolve, 10));
+    if (vi.isFakeTimers()) {
+      await vi.advanceTimersByTimeAsync(10);
+      await new Promise((resolve) => setImmediate(resolve));
+    } else {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
   }
 };
 
@@ -36,13 +42,15 @@ const fakeAgentSessions = ({ answer = (prompt) => `done: ${prompt}`, hang = [], 
   const fake = {
     started: [],
     allowed: [],
+    calls: [],
     followUps: [],
     interrupted: [],
     maxRunning: 0,
     reports: [],
-    start: async ({ text, allowTools, signal, onSession }) => {
+    start: async ({ text, allowTools, signal, onSession, ...rest }) => {
       nextSession += 1;
       const sessionId = `ses_agent${nextSession}`;
+      fake.calls.push({ text, allowTools, ...rest });
       fake.started.push(text);
       fake.allowed.push(allowTools);
       await onSession(sessionId);
@@ -71,6 +79,8 @@ const fakeAgentSessions = ({ answer = (prompt) => `done: ${prompt}`, hang = [], 
       fake.interrupted.push(sessionId);
     },
     createSession: async ({ title }) => `ses_new_${title}`,
+    gone: new Set(),
+    sessionGone: async ({ sessionId }) => fake.gone.has(sessionId),
     readUsage: async ({ sessionId }) => ({
       model: 'openai/gpt-6-luna',
       usage: { cost: 0.01, input: 100, output: sessionId.length, reasoning: 0, cacheRead: 0, cacheWrite: 0 },
@@ -689,6 +699,7 @@ describe('workflow runtime', () => {
   });
 
   it('keeps a run deleted while its report was still on its way', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
     const agents = fakeAgentSessions();
     let release = () => {};
     const held = new Promise((resolve) => { release = resolve; });
@@ -701,7 +712,7 @@ describe('workflow runtime', () => {
 
     await runtime.remove({ runId });
     release();
-    await new Promise((resolve) => setTimeout(resolve, 20));
+    await vi.advanceTimersByTimeAsync(20);
     await store.flush();
     expect(await store.get(runId)).toBeNull();
   });
@@ -801,6 +812,89 @@ describe('workflow runtime', () => {
     expect(status.agents.map((agent) => [agent.label, Boolean(agent.replayed)])).toEqual([['one', true], ['two', false]]);
   });
 
+  it('forks a named agent once it completed, and fails the run on a bad name, an unknown forkFrom or a duplicate id', async () => {
+    const agents = fakeAgentSessions();
+    const { runtime, act, finished } = await setup(agents);
+    const body = "await agent('explore', { id: 'a' })\nreturn parallel([() => agent('branch one', { forkFrom: 'a' }), () => agent('branch two', { forkFrom: 'a', label: 'B2' })])";
+    const { runId } = await act('workflow.run', { script: script(body) });
+    await runtime.approve({ runId });
+    const status = await finished(runId);
+    expect(status.state).toBe('completed');
+    // The explore call made its own session; both branches fork its id.
+    expect(agents.calls[0].forkFromSessionId).toBeNull();
+    const sourceId = status.agents[0].sessionId;
+    expect(agents.calls[1].forkFromSessionId).toBe(sourceId);
+    expect(agents.calls[2].forkFromSessionId).toBe(sourceId);
+    expect(await act('workflow.result', { runId })).toMatchObject({ result: ['done: branch one', 'done: branch two'] });
+
+    for (const [name, scriptBody, message] of [
+      ['bad id', "return agent('x', { id: 5 })", 'id must be a non-empty string'],
+      ['long forkFrom', `return agent('x', { forkFrom: '${'n'.repeat(121)}' })`, 'forkFrom must be a non-empty string'],
+      ['unknown forkFrom', "return agent('x', { forkFrom: 'nope' })", 'forkFrom "nope" must name a successfully completed agent'],
+      ['unawaited forkFrom', "return parallel([() => agent('a', { id: 'a' }), () => agent('b', { forkFrom: 'a' })])", 'forkFrom "a" must name a successfully completed agent'],
+      ['duplicate id', "await agent('a', { id: 'a' })\nreturn agent('b', { id: 'a' })", 'Duplicate agent id "a"'],
+      ['a failed source', "await agent('gone', { id: 'dead' })\nreturn agent('b', { forkFrom: 'dead' })", 'forkFrom "dead" must name a successfully completed agent'],
+    ]) {
+      const agents2 = fakeAgentSessions({ answer: (prompt) => (prompt === 'gone' ? null : `done: ${prompt}`) });
+      const failed = await setup(agents2);
+      const proposed = await failed.act('workflow.run', { script: script(scriptBody) });
+      await failed.runtime.approve({ runId: proposed.runId });
+      const ended = await failed.finished(proposed.runId);
+      expect(ended.state, name).toBe('failed');
+      expect(ended.error, name).toContain(message);
+      // The invalid call dispatched no prompt (the parallel case may have run 'a').
+      expect(agents2.started.filter((prompt) => prompt === 'b' || prompt === 'x'), name).toEqual([]);
+    }
+  });
+
+  it('replays a fork call by the session its source ran in, and reforks after resume', async () => {
+    const agents = fakeAgentSessions({ answer: (prompt) => (prompt === 'branch' ? null : `done: ${prompt}`) });
+    const { runtime, act, finished } = await setup(agents);
+    const body = "await agent('explore', { id: 'a' })\nconst branch = await agent('branch', { forkFrom: 'a' })\nif (branch === null) throw new Error('branch failed')\nreturn branch";
+    const { runId } = await act('workflow.run', { script: script(body) });
+    await runtime.approve({ runId });
+    expect((await finished(runId)).state).toBe('failed');
+    expect(agents.calls.map((call) => call.forkFromSessionId)).toEqual([null, 'ses_agent1']);
+
+    // Resume: the explore call replays by key (id/forkFrom changed nothing for
+    // it), the name table learns its session again, and the branch reforks it.
+    agents.start = async ({ text, allowTools, onSession, ...rest }) => {
+      const sessionId = `ses_agent${agents.calls.length + 1}`;
+      agents.calls.push({ text, allowTools, ...rest });
+      agents.started.push(text);
+      await onSession(sessionId);
+      return { sessionId, outcome: { state: 'completed', text: `done: ${text}`, errorMessage: '' } };
+    };
+    await act('workflow.resume', { runId });
+    const status = await finished(runId);
+    expect(status.state).toBe('completed');
+    expect(agents.calls).toHaveLength(3);
+    expect(agents.calls[2].forkFromSessionId).toBe('ses_agent1');
+    expect(status.agents.map((agent) => [agent.label, Boolean(agent.replayed)])).toEqual([['explore', true], ['branch', false]]);
+  });
+
+  it('runs a named source again on resume when OpenCode confirms its session is gone', async () => {
+    let branchFails = true;
+    const agents = fakeAgentSessions({ answer: (prompt) => (prompt === 'branch' && branchFails ? null : `done: ${prompt}`) });
+    const { runtime, act, finished } = await setup(agents);
+    const body = "await agent('explore', { id: 'a' })\nconst branch = await agent('branch', { forkFrom: 'a' })\nif (branch === null) throw new Error('branch failed')\nreturn branch";
+    const { runId } = await act('workflow.run', { script: script(body) });
+    await runtime.approve({ runId });
+    expect((await finished(runId)).state).toBe('failed');
+
+    // The source session was deleted in OpenCode: replaying its answer would
+    // hand the branch a session it cannot fork, on this and every resume.
+    agents.gone.add('ses_agent1');
+    branchFails = false;
+    await act('workflow.resume', { runId });
+    const status = await finished(runId);
+    expect(status.state).toBe('completed');
+    expect(agents.calls.map((call) => [call.text, call.forkFromSessionId])).toEqual([
+      ['explore', null], ['branch', 'ses_agent1'], ['explore', null], ['branch', 'ses_agent3'],
+    ]);
+    expect(status.agents.map((agent) => [agent.label, Boolean(agent.replayed)])).toEqual([['explore', false], ['branch', false]]);
+  });
+
   it('counts the agent limit across attempts, not per attempt', async () => {
     const agents = fakeAgentSessions({ answer: () => null });
     const { runtime, act, finished } = await setup(agents, { maxAgentsPerRun: 3 });
@@ -834,6 +928,7 @@ describe('workflow runtime', () => {
   });
 
   it('honours a stop that arrives right after the approval', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
     const agents = fakeAgentSessions();
     const { runtime, act, finished } = await setup(agents);
     const { runId } = await act('workflow.run', { script: script("return agent('x')") });

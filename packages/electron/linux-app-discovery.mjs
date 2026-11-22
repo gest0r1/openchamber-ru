@@ -162,10 +162,7 @@ export const readLinuxDesktopEntries = async (options = {}) => {
       const values = parseDesktopValues(await fsp.readFile(filePath, 'utf8'));
       const parsed = desktopEntryFromValues(values, filePath);
       if (!parsed) {
-        // A user-level file that hides an app also removes the system entry with
-        // the same id: Hidden means "strictly equivalent to the .desktop file not
-        // existing at all" (Desktop Entry Spec), and NoDisplay shadows it the same
-        // way any other same-id file does.
+        // external: https://specifications.freedesktop.org/desktop-entry-spec/latest/recognized-keys.html Hidden and NoDisplay user entries shadow system entries with the same desktop id.
         if (hidesDesktopEntry(values)) seen.add(desktopIdFromPath(filePath));
         continue;
       }
@@ -182,9 +179,6 @@ const desktopEntryMatchesApp = (entry, appName, appId = '') => {
   const needles = uniqueStrings([appName, appId]).flatMap((value) => [normalizeComparable(value), normalizeCompactComparable(value)]).filter(Boolean);
   const haystacks = [entry.name, entry.id, path.basename(entry.filePath || ''), entry.exec]
     .flatMap((value) => [normalizeComparable(value), normalizeCompactComparable(value)])
-    // A value with no ASCII letters or digits (e.g. a CJK-only Name) normalizes to the empty
-    // string, and needle.includes('') is true for every app — drop it so such entries can
-    // only match through a field that still carries comparable text.
     .filter(Boolean);
   return needles.some((needle) => haystacks.some((haystack) => haystack === needle || haystack.includes(needle) || needle.includes(haystack)));
 };
@@ -550,7 +544,6 @@ const listThemeNames = (iconsRoot) => {
   const themes = entries
     .filter((entry) => entry.isDirectory())
     .map((entry) => entry.name);
-  // Prefer the freedesktop fallback theme first, then whatever else is installed.
   themes.sort((left, right) => {
     if (left === 'hicolor') return -1;
     if (right === 'hicolor') return 1;
@@ -566,7 +559,6 @@ const lookForIconInTheme = (themeRoot, iconName) => {
     for (const category of ICON_CATEGORIES) {
       const pngPath = path.join(themeRoot, size, category, `${iconName}.png`);
       if (pathExistsSync(pngPath)) {
-        // Prefer mid-size PNGs that UI list icons can display without SVG tooling.
         if (size !== 'scalable') return pngPath;
         pngMatch = pngMatch || pngPath;
       }

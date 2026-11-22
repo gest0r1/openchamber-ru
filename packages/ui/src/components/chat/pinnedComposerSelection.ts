@@ -42,13 +42,6 @@ export const resolvePinnedComposerSelection = ({ savedAgent, savedModel, savedVa
     };
 };
 
-/**
- * The model, agent and effort a pinned column's composer (a chat open in the
- * side panel) sends with. The app-wide current model belongs to the main
- * chat, so a pinned composer keeps its own: what was picked in it, saved for
- * its session the way the `/btw` composer saves its picks, and otherwise what
- * the session record names. Null outside a pinned column.
- */
 export const usePinnedComposerSelection = ({ enabled, sessionId, directory }: {
     enabled: boolean;
     sessionId: string | null;

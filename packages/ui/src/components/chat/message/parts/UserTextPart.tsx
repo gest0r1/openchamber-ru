@@ -45,12 +45,6 @@ type UserTextPartProps = {
     part: Part;
     isMobile: boolean;
     agentMention?: AgentMentionInfo;
-    /**
-     * Message-level collapse: all parts of the user message share one expanded
-     * state owned by the message body, expanding any part expands the whole
-     * message, and the message body renders the single show more / show less
-     * control from the truncation each part reports.
-     */
     messageExpanded: boolean;
     onExpandMessage: () => void;
     partIndex: number;
@@ -59,11 +53,8 @@ type UserTextPartProps = {
     onCollapsedLinesChange: (partIndex: number, lines: number) => void;
     /** Names of the files attached to this message; `[name]` in the text renders as a file chip. */
     attachmentFilenames: readonly string[];
-    /** The message's file parts; a citation of one the app can show opens it on click. */
     attachmentFiles?: readonly FilePart[];
-    /** The message's popup opener, for images and inline text. */
     onShowPopup?: (content: ToolPopupContent) => void;
-    /** Sessions and messages the message mentioned; their links in the text draw as chips. */
     sessionMentionChips?: SessionMentionChips;
     /** Issues, change requests and tracker items the message links; their links in the text draw as chips. */
     referenceLinkChips?: ReferenceLinkChips;
@@ -94,8 +85,6 @@ const UserTextPart: React.FC<UserTextPartProps> = ({
     sessionMentionChips = NO_SESSION_MENTIONS,
     referenceLinkChips = NO_REFERENCE_LINKS,
 }) => {
-    // Structured context (inline comments, terminal selections, annotations,
-    // PR context) renders as a dedicated block instead of raw prompt text.
     const contextPayload = React.useMemo(() => readContextPart(part), [part]);
     const guestLinks = useGuestLinkRules();
 
@@ -149,10 +138,6 @@ const UserTextPart: React.FC<UserTextPartProps> = ({
         openContextFile(effectiveDirectory || getDirectoryForFilePath('', skill.path) || '/', skill.path);
     }, [effectiveDirectory, openContextFile, skillByName]);
 
-    // Measured before paint, and reported to the message (which renders the
-    // show-full-message link) before paint too: measured after it, a sent
-    // message painted without the link and grew by its height a frame later,
-    // and the list placed the grown row 28px too high before settling it.
     React.useLayoutEffect(() => {
         const el = textRef.current;
         if (!el) return;
@@ -165,17 +150,8 @@ const UserTextPart: React.FC<UserTextPartProps> = ({
         };
 
         checkTruncation();
-        // A just-sent message mounts while its turn is still settling, so the
-        // synchronous read can land before the clamp has its final geometry.
-        // One deferred re-read covers that without waiting for an observer.
         const initialFrame = window.requestAnimationFrame(checkTruncation);
 
-        // `el` is the clamped box: once line-clamp pins it to two lines its own
-        // size stops changing, so observing it alone freezes the first
-        // measurement. Markdown settles after mount (highlighting, late layout),
-        // and a message measured while still short would never regain the
-        // expand affordance. The children keep their natural height under the
-        // clamp, so they are what reports content growth.
         const resizeObserver = new ResizeObserver(checkTruncation);
         resizeObserver.observe(el);
 
@@ -186,7 +162,6 @@ const UserTextPart: React.FC<UserTextPartProps> = ({
         };
         observeChildren();
 
-        // The renderer swaps subtrees as it settles; re-observe the new children.
         const mutationObserver = new MutationObserver(() => {
             observeChildren();
             checkTruncation();
@@ -226,8 +201,6 @@ const UserTextPart: React.FC<UserTextPartProps> = ({
     const handleClick = React.useCallback((event: React.MouseEvent<HTMLDivElement>) => {
         const target = event.target as HTMLElement | null;
 
-        // A file-name citation opens what its attachment chip opens, unless
-        // the click ends a text selection over it.
         const citationChip = target?.closest<HTMLElement>('[data-attachment-open]');
         if (citationChip) {
             event.preventDefault();
@@ -256,16 +229,11 @@ const UserTextPart: React.FC<UserTextPartProps> = ({
             return;
         }
 
-        // Measure at click time instead of trusting the observed flag: whether
-        // the text is clipped right now is what decides if expanding does
-        // anything, and the flag can still be catching up on a fresh message.
         if (collapsibleUserMessages && !messageExpanded && element.scrollHeight > element.clientHeight) {
             handleExpand();
         }
     }, [collapsibleUserMessages, messageExpanded, handleExpand, openCitedAttachment, openSkill]);
 
-    // The Markdown chip is a focusable span with the button role; the plain
-    // one is a real button, which turns Enter and Space into a click itself.
     const handleKeyDown = React.useCallback((event: React.KeyboardEvent<HTMLDivElement>) => {
         if (event.key !== 'Enter' && event.key !== ' ') return;
         if (!(event.target instanceof HTMLElement) || event.target.tagName === 'BUTTON') return;
@@ -306,7 +274,6 @@ const UserTextPart: React.FC<UserTextPartProps> = ({
                     type="button"
                     dir="ltr"
                     className={cn(INTERACTIVE_REFERENCE_CHIP_CLASS, '[unicode-bidi:isolate]')}
-                    // Inline minimums opt out of the mobile 36px button floor.
                     style={{ minHeight: 0, minWidth: 0 }}
                     title={`$${skillName}`}
                     onClick={(event) => {

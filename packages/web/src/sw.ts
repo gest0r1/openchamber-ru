@@ -1,9 +1,9 @@
 /// <reference lib="webworker" />
 
-// NOTE: keep the Workbox injection point so vite-plugin-pwa can build.
-// We intentionally do not use Workbox runtime helpers here: iOS Safari can be
-// fragile with more complex SW bundles. For push notifications we only need a
-// minimal SW.
+
+
+
+
 
 declare const self: ServiceWorkerGlobalScope & {
   __WB_MANIFEST: Array<string | { url: string; revision?: string }>;
@@ -58,13 +58,17 @@ self.addEventListener('push', (event) => {
     const icon = payload.icon ?? '/apple-touch-icon-180x180.png';
     const badge = payload.badge ?? '/favicon-32.png';
 
-    await self.registration.showNotification(title, {
+    const options: NotificationOptions & { renotify?: boolean } = {
       body,
       icon,
       badge,
       tag: payload.tag,
       data: payload.data,
-    });
+    };
+    if (payload.tag) {
+      options.renotify = true;
+    }
+    await self.registration.showNotification(title, options);
   })());
 });
 

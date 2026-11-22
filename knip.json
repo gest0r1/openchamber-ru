@@ -4,6 +4,7 @@
     "packages/mobile/android/app/src/main/assets/public/**",
     "packages/mobile/ios/App/App/public/**",
     "packages/sdk/examples/**",
+    "packages/web/build/**",
   ],
   "workspaces": {
     ".": {
@@ -46,6 +47,7 @@
       "project": [
         "bin/**/*.js",
         "server/**/*.{js,mjs,cjs}",
+        "server/lib/routing/runtime.ts",
         "src/**/*.{ts,tsx}"
       ]
     },

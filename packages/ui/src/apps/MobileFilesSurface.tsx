@@ -16,6 +16,7 @@ import { Icon } from '@/components/icon/Icon';
 import { useFileTreeUpload } from '@/components/views/files/useFileTreeUpload';
 import { AUTO_RELIST_MAX_ENTRIES, useFileTreeChanges, type FileTreeChangeBatch } from '@/components/views/files/useFileTreeChanges';
 import { useRuntimeAPIs } from '@/hooks/useRuntimeAPIs';
+import { getRuntimeKey } from '@/lib/runtime-switch';
 import { useEffectiveDirectory } from '@/hooks/useEffectiveDirectory';
 import { useDraftSpaceTarget } from '@/lib/spaces/useDraftSpaceTarget';
 import { panelContentDirectory } from '@/lib/spaces/space-creation-requests';
@@ -38,15 +39,9 @@ import { runGuestAction } from '@/lib/guests/run-action';
 import { MobileRowMenu } from './mobileSidebar/MobileRowMenu';
 import { MOBILE_HEADER_BUTTON_CLASS, MOBILE_HEADER_CLASS, MOBILE_HEADER_TITLE_CLASS } from '@/components/ui/mobileHeader';
 
-// The full desktop file editor, loaded on demand — it's a heavy chunk and only
-// needed once a file is actually opened.
 const LazyFilesEditor = React.lazy(() =>
   import('@/components/views/FilesView').then((module) => ({ default: module.FilesView })),
 );
-
-type MobileFilesRoute =
-  | { type: 'browser'; directory: string }
-  | { type: 'file'; path: string; returnDirectory: string };
 
 const normalizePath = (value: string | null | undefined): string => normalizePathImpl(value) ?? '';
 
@@ -85,14 +80,11 @@ const formatFileSize = (size?: number): string => {
 };
 
 type MobileFilesSurfaceProps = {
-  /** When provided, the header gets a close X that calls this. */
   onClose?: () => void;
-  /** The surface is on screen; file changes wait for it. */
   visible?: boolean;
 };
 
 export const MobileFilesSurface: React.FC<MobileFilesSurfaceProps> = ({ onClose, visible = true }) => {
-  // A draft waiting for a new space lists the space, and nothing of this computer's until it runs.
   const draftSpace = useDraftSpaceTarget();
   const root = normalizePath(panelContentDirectory(draftSpace, useEffectiveDirectory()));
   if (draftSpace?.kind === 'preparing') return <SpacePreparing />;
@@ -106,10 +98,12 @@ const MobileFilesSurfaceForRoot: React.FC<MobileFilesSurfaceProps & { root: stri
   const setSelectedPath = useFilesViewTabsStore((state) => state.setSelectedPath);
   const [route, setRoute] = React.useState<MobileFilesRoute>(() => ({ type: 'browser', directory: root }));
   const [entries, setEntries] = React.useState<FileListEntry[]>([]);
+  const [entriesDirectory, setEntriesDirectory] = React.useState<string | null>(null);
   const [isLoadingDirectory, setIsLoadingDirectory] = React.useState(false);
   const [directoryError, setDirectoryError] = React.useState<string | null>(null);
   const [query, setQuery] = React.useState('');
   const [searchResults, setSearchResults] = React.useState<FileSearchResult[]>([]);
+  const [searchResultsFor, setSearchResultsFor] = React.useState<MobileFilesListedFor | null>(null);
   const [isSearching, setIsSearching] = React.useState(false);
   const directoryLoadRequestIdRef = React.useRef(0);
 
@@ -117,8 +111,6 @@ const MobileFilesSurfaceForRoot: React.FC<MobileFilesSurfaceProps & { root: stri
   const currentDirectoryRef = React.useRef(currentDirectory);
   currentDirectoryRef.current = currentDirectory;
 
-  // A background reload (a file change, not a navigation) keeps the listing
-  // on screen when it fails.
   const loadDirectory = React.useCallback(async (directory: string, options?: { background?: boolean }) => {
     if (!directory) return;
     const respectGitignore = !showGitignored;
@@ -134,6 +126,7 @@ const MobileFilesSurfaceForRoot: React.FC<MobileFilesSurfaceProps & { root: stri
         if (a.isDirectory !== b.isDirectory) return a.isDirectory ? -1 : 1;
         return a.name.localeCompare(b.name);
       }));
+      setEntriesDirectory(directory);
     } catch (error) {
       if (directoryLoadRequestIdRef.current !== requestId) return;
       if (options?.background) {
@@ -141,6 +134,7 @@ const MobileFilesSurfaceForRoot: React.FC<MobileFilesSurfaceProps & { root: stri
         return;
       }
       setEntries([]);
+      setEntriesDirectory(directory);
       setDirectoryError(error instanceof Error ? error.message : t('mobile.files.error.listFailed'));
     } finally {
       if (directoryLoadRequestIdRef.current === requestId) {
@@ -154,8 +148,6 @@ const MobileFilesSurfaceForRoot: React.FC<MobileFilesSurfaceProps & { root: stri
     void loadDirectory(route.directory);
   }, [loadDirectory, route]);
 
-  // The folder on screen reloads when the agent changed it, also after the
-  // drawer was closed meanwhile; a file being viewed reloads its folder on return.
   const routeRef = React.useRef(route);
   routeRef.current = route;
   const entriesRef = React.useRef(entries);
@@ -169,7 +161,6 @@ const MobileFilesSurfaceForRoot: React.FC<MobileFilesSurfaceProps & { root: stri
   }, [loadDirectory]);
   useFileTreeChanges({ root, active: visible, whileInactive: 'hold', onChanges: reloadChangedDirectory });
 
-  // Reload the listing only when the upload landed in the folder still on screen.
   const refreshUploadedDirectory = React.useCallback(async (directory: string) => {
     if (normalizePath(directory) !== normalizePath(currentDirectoryRef.current)) return;
     await loadDirectory(currentDirectoryRef.current);
@@ -191,19 +182,27 @@ const MobileFilesSurfaceForRoot: React.FC<MobileFilesSurfaceProps & { root: stri
     const normalizedQuery = query.trim();
     if (!normalizedQuery) {
       setSearchResults([]);
+      setSearchResultsFor(null);
       setIsSearching(false);
       return;
     }
 
     let cancelled = false;
+    const directory = route.directory;
     const timeoutId = window.setTimeout(() => {
       setIsSearching(true);
-      void files.search({ directory: route.directory, query: normalizedQuery, maxResults: 40 })
+      void files.search({ directory, query: normalizedQuery, maxResults: 40 })
         .then((results) => {
-          if (!cancelled) setSearchResults(results);
+          if (!cancelled) {
+            setSearchResults(results);
+            setSearchResultsFor({ directory, query: normalizedQuery });
+          }
         })
         .catch(() => {
-          if (!cancelled) setSearchResults([]);
+          if (!cancelled) {
+            setSearchResults([]);
+            setSearchResultsFor(null);
+          }
         })
         .finally(() => {
           if (!cancelled) setIsSearching(false);
@@ -222,37 +221,29 @@ const MobileFilesSurfaceForRoot: React.FC<MobileFilesSurfaceProps & { root: stri
   };
 
   const openFile = (path: string) => {
-    // FilesView (editor-only) reads its target from the files-view tabs store.
     setSelectedPath(root, path);
     setRoute({ type: 'file', path, returnDirectory: currentDirectory || root });
   };
 
-  // Chat tool rows (read/skill/edit) stage a pending file focus/navigation in
-  // the UI store — the same channel desktop's context panel consumes. Route
-  // straight to the editor for any requested target, inside or outside this
-  // workspace: a skill or an agent output under /tmp is a real file the user
-  // asked to read, and the editor reads it through allowOutsideWorkspace. The
-  // browser tree itself stays rooted at `root`.
   const pendingFileFocusPath = useUIStore((state) => state.pendingFileFocusPath);
   const pendingFileNavigation = useUIStore((state) => state.pendingFileNavigation);
   React.useEffect(() => {
     const target = normalizePath(pendingFileNavigation?.path ?? pendingFileFocusPath ?? '');
     if (!target || !root) return;
     setSelectedPath(root, target, { allowOutsideRoot: true });
-    // From a file already open (the image preview's arrows), Back still leads
-    // to the folder the user was browsing.
     setRoute((current) => ({ type: 'file', path: target, returnDirectory: current.type === 'file' ? current.returnDirectory : root }));
     if (pendingFileFocusPath) useUIStore.getState().setPendingFileFocusPath(null);
   }, [pendingFileFocusPath, pendingFileNavigation, root, setSelectedPath]);
+
+  const list = mobileFilesList({
+    runtimeKey: getRuntimeKey(), route, query, entriesDirectory, directoryError, searchResultsFor, isSearching,
+  });
 
   if (!root) {
     return <MobileFilesState message={t('mobile.files.empty.noDirectory')} />;
   }
 
   if (route.type === 'file') {
-    // Full desktop file editor (toolbar, dirty/save, wrap, search, md/html
-    // preview, open-file tabs) — FilesView is already mobile-aware (keyboard
-    // nudge, touch menus); this host only adds the back row.
     return (
       <div className="flex h-full flex-col overflow-hidden bg-background text-foreground">
         <header className={cn(MOBILE_HEADER_CLASS, 'border-b border-edge text-foreground')}>
@@ -272,7 +263,7 @@ const MobileFilesSurfaceForRoot: React.FC<MobileFilesSurfaceProps & { root: stri
         <div className="min-h-0 flex-1 overflow-hidden">
           <ErrorBoundary>
             <React.Suspense fallback={<MobileFilesState loading message={t('filesView.state.loading')} />}>
-              <LazyFilesEditor mode="editor-only" />
+              <LazyFilesEditor visible={visible} />
             </React.Suspense>
           </ErrorBoundary>
         </div>
@@ -283,8 +274,6 @@ const MobileFilesSurfaceForRoot: React.FC<MobileFilesSurfaceProps & { root: stri
   const directoryLabel = route.directory === root ? t('mobile.files.rootDirectory') : getNameFromPath(route.directory);
   const visibleSearchResults = query.trim() ? searchResults : [];
 
-  // Cap parent navigation at the project root: only allow stepping up while
-  // the parent stays inside (or equal to) the root.
   const rawParent = getParentDirectory(route.directory);
   const parentWithinRoot =
     route.directory !== root && rawParent !== null && (rawParent === root || rawParent.startsWith(`${root}/`));

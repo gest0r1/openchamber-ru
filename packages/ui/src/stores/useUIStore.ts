@@ -1,6 +1,4 @@
 import { create } from 'zustand';
-import { DEFAULT_SESSION_GOAL_MAX_AUTO_TURNS, isSessionGoalMaxAutoTurns } from '@/lib/sessionGoalTurnLimit';
-import { z } from 'zod';
 import { devtools, persist } from 'zustand/middleware';
 import type { SidebarSection } from '@/constants/sidebar';
 import { createDeferredSafeJSONStorage } from './utils/safeStorage';
@@ -4086,8 +4084,6 @@ export const useUIStore = create<UIStore>()(
         })
       }
     ),
-    {
-      name: 'ui-store'
-    }
-  )
+    { name: 'ui-store' },
+  ),
 );

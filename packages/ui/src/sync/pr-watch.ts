@@ -45,7 +45,6 @@ const NONE: ReadonlyMap<string, readonly PrWatch[]> = new Map();
 
 export const usePrWatchStore = create<PrWatchState>(() => ({ bySession: NONE }));
 
-/** Revision last applied per session, and of the last full snapshot. */
 const appliedRevisions = new Map<string, number>();
 let snapshotRevision = -1;
 
@@ -65,7 +64,6 @@ export const applyPrWatches = (revision: number, sessionID: string, watches: rea
   publish(next);
 };
 
-/** The server's full list, replacing what is known except changes newer than it. */
 export const applyPrWatchSnapshot = (snapshot: z.infer<typeof prWatchSnapshotSchema>): void => {
   if (snapshotRevision > snapshot.revision) return;
   snapshotRevision = snapshot.revision;
@@ -83,7 +81,6 @@ export const applyPrWatchSnapshot = (snapshot: z.infer<typeof prWatchSnapshotSch
 /** What an optimistic stop took, and what the projection knew when it did. */
 type TakenPrWatches = { sessionID: string; watches: readonly PrWatch[]; revision: number | undefined; snapshotRevision: number; generation: number };
 
-// Bumped by a runtime switch, so a stop begun on one runtime never restores into another.
 let generation = 0;
 
 /** Removes the session's watch of `url`, or every one without it, for an optimistic stop; returns what it took. */

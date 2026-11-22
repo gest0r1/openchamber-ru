@@ -18,8 +18,6 @@ export type ShortcutAction = (typeof SHORTCUT_SCHEMA)[number];
 export type ShortcutActionId = ShortcutAction['id'];
 export type ShortcutCategory = ShortcutAction['category'];
 export type CustomizableShortcutAction = Extract<ShortcutAction, { customizable: true }>;
-/** 'contextual-prefix' is kept in the union for the recording dialog's
-    messaging even though no default layout produces it any more. */
 export type ShortcutBindingConflictKind = ShortcutConflict | 'contextual-prefix';
 export type ShortcutBindingConflict = {
   action: ShortcutAction;

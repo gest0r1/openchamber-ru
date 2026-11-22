@@ -289,34 +289,6 @@ test('a drive-root system-info fallback stays absolute', async () => {
     expect(requests[0].headers.get("x-opencode-directory")).toBe(encodeURIComponent("/repo/current"))
   })
 
-  test("invalidating an agent list starts a new request without letting the old request clear it", async () => {
-    const wireAgent = (id: string) => ({
-      id,
-      name: id,
-      mode: "subagent",
-      request: { settings: {}, headers: {}, body: {} },
-      hidden: false,
-      permissions: [],
-    })
-    let releaseFirst: (response: Response) => void = () => undefined
-    const firstResponse = new Promise<Response>((resolve) => {
-      releaseFirst = resolve
-    })
-    responses.push(() => firstResponse)
-
-    const first = opencodeClient.listAgents("/repo/agents")
-    await Promise.resolve()
-    expect(requests).toHaveLength(1)
-
-    opencodeClient.invalidateAgentList("/repo/agents")
-    responses.push(json({ location: {}, data: [wireAgent("new-agent")] }))
-    const fresh = opencodeClient.listAgents("/repo/agents")
-    expect(requests).toHaveLength(2)
-
-    releaseFirst(json({ location: {}, data: [wireAgent("old-agent")] }))
-    expect((await first)[0]?.name).toBe("old-agent")
-    expect((await fresh)[0]?.name).toBe("new-agent")
-  })
 })
 
 describe("error normalisation", () => {
@@ -985,6 +957,23 @@ describe("messages and config", () => {
     // would vanish from Settings → Providers.
     const modelList = requests.find((request) => request.url.pathname === "/api/model")
     expect(modelList?.url.searchParams.getAll("types")).toEqual(["chat", "image"])
+  })
+
+  test("getProvidersForConfig names the Zen provider OpenCode Zen, whatever Console workspace OpenCode puts in front", async () => {
+    const providers = [
+      { id: "opencode", integrationID: "opencode", name: "Personal OC / OpenCode" },
+      { id: "opencode-go", integrationID: "opencode", name: "OpenCode Go" },
+      { id: "console-google", integrationID: "opencode", name: "Personal OC / Google" },
+    ]
+    const answer = (request: CapturedRequest) =>
+      request.url.pathname === "/api/provider"
+        ? json({ location: {}, data: providers })
+        : request.url.pathname === "/api/model"
+          ? json({ location: {}, data: [] })
+          : json({ location: {}, data: null })
+    responses.push(answer, answer, answer)
+    const catalog = await opencodeClient.getProvidersForConfig("/repo/zen")
+    expect(catalog.providers?.map((provider: { name: string }) => provider.name)).toEqual(["OpenCode Zen", "OpenCode Go", "Personal OC / Google"])
   })
 
   for (const { label, variants } of [

@@ -258,7 +258,7 @@ ${kt("success")}${kt("warning")}${kt("error")}${kt("info")}
 .oc-sdk-spinner-ring { border-color: ${Ae}; border-top-color: ${_e}; border-radius: 9999px; }
 
 /* Set apart by its tint alone, like the app's banners. */
-.oc-sdk-banner { border-color: transparent; border-radius: 8px; background: ${z("var(--oc-sdk-tone)",10)}; }
+.oc-sdk-banner { border-color: transparent; border-radius: 8px; background: ${V("var(--oc-sdk-tone)",10)}; }
 .oc-sdk-banner-title { color: var(--oc-sdk-tone-text, var(--oc-sdk-tone)); }
 .oc-sdk-banner-body { color: ${L}; }
 

@@ -25,16 +25,17 @@ export interface InlineCommentDraft {
   endLine: number;
   side?: 'original' | 'modified';
   code: string;
+  contextBefore?: string;
+  contextAfter?: string;
+  changedCode?: string;
   language: string;
   text: string;
-  /** Owning terminal session; set only for `source: 'terminal'`. */
   terminalId?: string;
-  /** Where the quote sits in its message; set only for `source: 'chat-quote'`. */
   anchor?: ChatQuoteAnchor;
-  /** Whose change request it came from; set only for `pr-comment` and `pr-check`, absent means GitHub. */
   provider?: SourceControlProvider;
-  /** The diff a `diff` comment was written on; absent for uncommitted changes. */
   origin?: DiffCommentOrigin;
+  composing?: boolean;
+  screenshot?: string;
   createdAt: number;
 }
 
@@ -154,12 +155,17 @@ const persistedDraftSchema = z.object({
   endLine: z.number(),
   side: z.enum(['original', 'modified']).optional(),
   code: z.string(),
+  contextBefore: z.string().optional(),
+  contextAfter: z.string().optional(),
+  changedCode: z.string().optional(),
   language: z.string(),
   text: z.string(),
   terminalId: z.string().optional(),
   anchor: chatQuoteAnchorSchema.optional(),
+  screenshot: z.string().optional(),
   provider: sourceControlProviderIdSchema.optional(),
   origin: diffCommentOriginSchema.optional(),
+  composing: z.boolean().optional(),
   createdAt: z.number(),
 });
 
@@ -169,12 +175,6 @@ export const persistedDraftEnvelopeSchema = z.object({
 
 type PersistedDraftEnvelopeResult = z.ZodSafeParseResult<z.infer<typeof persistedDraftEnvelopeSchema>>;
 
-/**
- * v2 → v3: terminal drafts carried their terminal id in `language`; move it to
- * the dedicated `terminalId` field. Drafts from the removed 'preview-console'
- * source are dropped, as are malformed entries. Pre-v2 or unreadable payloads
- * reset entirely (the pre-v3 behavior).
- */
 export const migratePersistedDrafts = (envelope: PersistedDraftEnvelopeResult, version: number): InlineCommentDraftState => {
   if (version < 2) return EMPTY_PERSISTED_STATE;
   if (!envelope.success) return EMPTY_PERSISTED_STATE;
@@ -214,10 +214,6 @@ export const useInlineCommentDraftStore = create<InlineCommentDraftStore>()(
         addDraft: (target, draft, options) => {
           const key = getCurrentKey(target);
           if (!key || (draft.source === 'terminal' && !draft.code.trim())) return null;
-          // A caller that owns its own view of the draft (the VS Code editor
-          // thread) supplies the id so it can correlate without a round trip.
-          // A colliding id would silently retarget edits and removals at an
-          // unrelated draft, so it is refused rather than reused.
           const requestedId = draft.id?.trim();
           const idIsTaken = Boolean(requestedId) && (get().drafts[key] ?? []).some((item) => item.id === requestedId);
           const id = requestedId && !idIsTaken

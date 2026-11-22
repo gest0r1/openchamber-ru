@@ -7,7 +7,6 @@ export interface EnterKeyPolicyInput {
     ctrlKey: boolean;
     metaKey: boolean;
     altKey: boolean;
-    /** Mobile return-key send (enterkeyhint="send"); desktop ignores it. */
     returnKeySends?: boolean;
 }
 

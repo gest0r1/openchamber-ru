@@ -72,13 +72,6 @@ const ShellElapsed: React.FC<{ startedAt: number }> = ({ startedAt }) => {
 
 const STOP_BUTTON_CLASS = 'shrink-0 text-status-error/80 hover:bg-transparent hover:text-status-error';
 
-/**
- * Stops commands through the same flow as a command's row in the chat: the
- * agent is told first, then the commands are removed. Commands of one session
- * go in one call, so stopping several tells that agent once and its
- * completions arrive together. A row stays disabled until OpenCode reports
- * its command ended and it leaves the list.
- */
 const useStopShells = (rootSessionId: string, rootDirectory: string | undefined) => {
   const { t } = useI18n();
   const [stoppingIds, setStoppingIds] = React.useState<ReadonlySet<string>>(() => new Set());
@@ -104,8 +97,6 @@ const useStopShells = (rootSessionId: string, rootDirectory: string | undefined)
         sessionDirectory,
         shells: [toStop(first), ...rest.map(toStop)],
       }).catch(() => {
-        // A command whose kill went through leaves the list on its own; the
-        // rest become stoppable again.
         setStoppingIds((current) => {
           const next = new Set(current);
           for (const shell of [first, ...rest]) next.delete(shell.id);
@@ -137,8 +128,6 @@ const ShellRow: React.FC<{
             {shell.command}
           </span>
         </TooltipTrigger>
-        {/* The row shows one truncated line; the tooltip keeps the command's
-            own line breaks and indentation and wraps only overlong lines. */}
         <TooltipContent side="top" sideOffset={6} className="max-w-[min(36rem,90vw)] [text-wrap:wrap]">
           <ScrollableOverlay as="pre" outerClassName="max-h-[50vh]" className="whitespace-pre-wrap break-words font-mono typography-code" disableHorizontal>
             {shell.command}
@@ -249,8 +238,6 @@ export const BackgroundShellsStrip: React.FC<BackgroundShellsStripProps> = React
     );
   }
 
-  // The header toggles the list, as the queue header does, and stops every
-  // command in it at once.
   return (
     <div role="group" className="border-b border-edge" aria-label={ariaLabel}>
       <div className="flex oc-composer-row items-center gap-2 ps-3 pe-1.5">

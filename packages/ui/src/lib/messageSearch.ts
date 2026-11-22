@@ -4,12 +4,7 @@ import { runtimeFetch } from '@/lib/runtime-fetch';
 import type { MatchSegment } from '@/lib/search/matchSegments';
 import type { OmniLifecycle } from '@/lib/search/omniQuery';
 
-// Full-text search over the server's conversations
-// (packages/web/server/lib/message-search). The server keeps the index; this
-// module asks it and parses the answer once, at the boundary.
 
-// Snippets mark each match with these private-use characters (server
-// store.js). They are split here, never rendered as markup.
 export const MATCH_START = '';
 export const MATCH_END = '';
 
@@ -18,7 +13,6 @@ export const MIN_QUERY_TERM_LENGTH = 3;
 const hitSchema = z.object({
   id: z.string().min(1),
   sessionId: z.string().min(1),
-  /** `reasoning`: the match is in the agent's reasoning of message `id`. */
   role: z.enum(['user', 'assistant', 'reasoning']),
   createdAt: z.number(),
   sessionTitle: z.string(),
@@ -46,7 +40,6 @@ export type MessageSearchIndexStatus = NonNullable<z.infer<typeof indexSchema>>;
 type MessageSearchResult =
   | { status: 'ok'; hits: MessageSearchHit[]; next: string | null; index: MessageSearchIndexStatus | null }
   | { status: 'query-too-short' }
-  /** This server keeps no index (no SQLite builtin, or a server without the route). */
   | { status: 'unavailable' };
 
 type MessageSearchRequest = {
@@ -54,7 +47,6 @@ type MessageSearchRequest = {
   sessionId?: string | null;
   directories?: readonly string[];
   role?: MessageSearchRole | null;
-  /** False leaves reasoning hits out, e.g. while the reader hides reasoning. */
   includeReasoning?: boolean;
   order?: 'asc' | 'desc';
   before?: string | null;
@@ -82,10 +74,6 @@ export const isSearchableQuery = (query: string): boolean => (
   query.trim().split(/\s+/).some((term) => Array.from(term).length >= MIN_QUERY_TERM_LENGTH)
 );
 
-/**
- * Asks the server. A failed request throws: it is not an empty result, and a
- * caller showing "nothing found" for a network error would be lying.
- */
 export const searchMessages = async (request: MessageSearchRequest): Promise<MessageSearchResult> => {
   const params = new URLSearchParams({ q: request.query, limit: String(request.limit) });
   if (request.sessionId) params.set('session', request.sessionId);
@@ -133,17 +121,14 @@ const parseStatus = async (response: Response): Promise<MessageSearchServerStatu
   return parsed.data;
 };
 
-/** Whether this server keeps an index right now, how big it is, how far indexing got. */
 export const readMessageSearchStatus = async (signal?: AbortSignal): Promise<MessageSearchServerStatus> => (
   parseStatus(await runtimeFetch('/api/openchamber/message-search/status', { signal }))
 );
 
-/** Deletes the index file; while search is on the server starts a new one at once. */
 export const deleteMessageSearchIndex = async (): Promise<MessageSearchServerStatus> => (
   parseStatus(await runtimeFetch('/api/openchamber/message-search/index', { method: 'DELETE' }))
 );
 
-/** A snippet as plain-text runs, the matched ones flagged. */
 export const splitSnippet = (snippet: string): MatchSegment[] => {
   const segments: MatchSegment[] = [];
   let rest = snippet;

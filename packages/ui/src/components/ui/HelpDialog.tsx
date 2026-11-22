@@ -29,7 +29,6 @@ type ShortcutItem = {
 
 type ShortcutSection = {
   categoryKey: I18nKey;
-  // Sections are split by hand so both columns end up about the same height.
   column: 'left' | 'right';
   items: ShortcutItem[];
 };
@@ -133,6 +132,12 @@ export const HelpDialog: React.FC = () => {
           id: 'new_chat_worktree',
           descriptionKey: "helpDialog.item.createNewWorktreeDraft",
           icon: "git-branch",
+          keys: '',
+        },
+        {
+          id: 'new_lead',
+          descriptionKey: "helpDialog.item.createNewLead",
+          icon: "lead",
           keys: '',
         },
         {
@@ -289,6 +294,11 @@ export const HelpDialog: React.FC = () => {
           keys: '',
         },
         {
+          id: 'toggle_reasoning_traces',
+          icon: 'brain-ai-3',
+          keys: '',
+        },
+        {
           id: 'toggle_services_menu',
           descriptionKey: 'helpDialog.item.toggleServicesMenu',
           icon: "stack",
@@ -442,8 +452,6 @@ export const HelpDialog: React.FC = () => {
             {(['left', 'right'] as const).map((column) => (
               <div key={column} className="space-y-4">
                 {shortcuts.filter((section) => section.column === column).map(renderSection)}
-                {/* The right column is one row shorter, so the tips fill its
-                    tail instead of adding a full-width block below both. */}
                 {column === 'right' && (
                   <ul className="space-y-0.5 px-2 typography-meta text-muted-foreground">
                     <li>

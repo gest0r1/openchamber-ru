@@ -1,61 +1,23 @@
-/**
- * The composer's `@mention` grammar — the single source of truth for what an
- * `@token` means.
- *
- * Before this module the same rule was re-implemented four times inside
- * ChatInput.tsx with subtly different cleanup (highlighting, send-time
- * extraction, deletion, and the autocomplete trigger). Each new reference
- * type had to be taught to all four. Everything
- * that needs to know where mentions are now scans with `scanMentions` and
- * decides what they are with `classifyMention`.
- *
- * A mention is `@` at a token boundary followed by non-whitespace. The visible
- * span (`start`..`end`) covers the raw token including any punctuation that
- * merely brushes against it; `name` is that token cleaned of wrapping
- * punctuation, and is what gets matched against agents and file paths.
- */
 
-/**
- * Characters that may sit directly before `@`. Anything else (a letter, digit
- * or `/`) means the `@` belongs to the preceding word — an email address, a
- * scoped npm package, a path segment — and is not a mention.
- */
 const MENTION_BOUNDARY_BEFORE = /[\s()[\]{}<>"'`,.;:]/;
 
-/**
- * Punctuation that commonly wraps a mention and is never part of the name.
- * The two sets are deliberately symmetric: every bracket accepted before `@`
- * is also stripped from the tail, so `[@plan]` and `(@plan)` both reference
- * `plan`. The pre-unification rules allowed `[`/`{` in front but only stripped
- * `)` behind, which left `@plan]` as the resolved name.
- */
 const LEADING_NOISE = /^[`"'<([{]+/;
 const TRAILING_NOISE = /[)\]},.;:!?`"'>]+$/;
 
 const MENTION_SCAN = /@([^\s]+)/g;
 
 export interface MentionToken {
-    /** Offset of the `@`. */
     start: number;
-    /**
-     * Offset just past the reference itself — the `@` plus the cleaned name.
-     * This is the span to highlight: in `see @a/b.ts, ok` the comma is
-     * punctuation of the sentence, not part of the file being referenced.
-     */
     end: number;
-    /** The raw token including `@` and any brushing punctuation. */
     raw: string;
-    /** The token with `@` and wrapping punctuation removed. */
     name: string;
 }
 
-/** True when `@` at `index` starts a mention rather than continuing a word. */
 export function isMentionBoundary(text: string, index: number): boolean {
     if (index <= 0) return true;
     return MENTION_BOUNDARY_BEFORE.test(text[index - 1]);
 }
 
-/** Strip the punctuation that wraps a mention without belonging to it. */
 export function cleanMentionName(rawName: string): string {
     return rawName
         .trim()
@@ -63,14 +25,8 @@ export function cleanMentionName(rawName: string): string {
         .replace(TRAILING_NOISE, '');
 }
 
-/** Characters that may directly follow a confirmed path that contains spaces. */
 const CONFIRMED_END_BOUNDARY = /[\s)\]},.;:!?`"'>]/;
 
-/**
- * The longest confirmed path containing whitespace that starts right after the
- * `@` at `start` and ends at a boundary. Paths without whitespace are already
- * captured whole by the plain scan, so only spaced paths need this lookup.
- */
 function matchSpacedConfirmedPath(
     text: string,
     start: number,
@@ -84,14 +40,6 @@ function matchSpacedConfirmedPath(
     return null;
 }
 
-/**
- * Find every `@mention` in `text`. Tokens whose name cleans away to nothing
- * (a bare `@`, `@...`) are skipped — there is nothing to reference.
- *
- * `confirmedMentions` lets a path the picker inserted keep its spaces:
- * `@docs/my document.md` is one mention when that path was confirmed, while an
- * unconfirmed `@docs/my document.md` still stops at the first space.
- */
 export function scanMentions(
     text: string,
     confirmedMentions?: ReadonlySet<string>,
@@ -127,8 +75,6 @@ export function scanMentions(
         const name = cleanMentionName(rawName);
         if (!name) continue;
 
-        // The cleaned name is a substring of the raw one, so its offset inside
-        // the token is exactly how much leading noise was stripped.
         const nameStart = start + 1 + rawName.indexOf(name);
 
         tokens.push({
@@ -145,7 +91,6 @@ export function scanMentions(
 export type MentionKind = 'agent' | 'file';
 
 export interface MentionClassifier {
-    /** Lowercased names of the agents that can be mentioned. */
     knownAgentNames: ReadonlySet<string>;
     /**
      * What the composer settled about mention names: paths confirmed by the

@@ -5,6 +5,7 @@ import { isDesktopShell, isVSCodeRuntime } from '@/lib/desktop';
 import { toast } from '@/components/ui';
 import { getRegisteredRuntimeAPIs } from '@/contexts/runtimeAPIRegistry';
 import { useWaitingBlink } from '@/hooks/useDurationTicker';
+import { pushDeliveryLocalOnlyHintKey, usePushDeliveryLocalOnly } from '@/hooks/usePushDeliveryLocalOnly';
 import { cn } from '@/lib/utils';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -49,9 +50,6 @@ export const NotificationSettings: React.FC = () => {
   const { t } = useI18n();
   const isDesktop = React.useMemo(() => isDesktopShell(), []);
   const isVSCode = React.useMemo(() => isVSCodeRuntime(), []);
-  // The native Capacitor app runs in a WKWebView with no Web Notification API; it has its
-  // own native (Local Notifications) permission. Treat it as a native runtime, not a
-  // browser, so the toggle isn't gated on Notification.permission (which is stuck there).
   const isNativeApp = React.useMemo(() => {
     if (typeof window === 'undefined') return false;
     const capacitor = (window as typeof window & { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor;
@@ -152,7 +150,11 @@ export const NotificationSettings: React.FC = () => {
     }
   };
 
-  const canShowNotifications = isDesktop || isVSCode || isNativeApp || (isBrowser && typeof Notification !== 'undefined' && Notification.permission === 'granted');
+  const pushLocalOnly = usePushDeliveryLocalOnly(isNativeApp);
+  const localOnlyDevice = pushLocalOnly === 'device';
+  const pushLocalOnlyHintKey = pushDeliveryLocalOnlyHintKey(pushLocalOnly);
+
+  const canShowNotifications = isDesktop || isVSCode || (isNativeApp && !localOnlyDevice) || (isBrowser && typeof Notification !== 'undefined' && Notification.permission === 'granted');
 
   const updateTemplate = (
     event: 'completion' | 'error' | 'question' | 'subtask',
@@ -472,6 +474,8 @@ export const NotificationSettings: React.FC = () => {
                 void handleToggleChange(checked);
               }}
               label={t('settings.notifications.page.delivery.enableLabel')}
+              disabled={localOnlyDevice}
+              description={pushLocalOnlyHintKey ? t(pushLocalOnlyHintKey) : undefined}
               info={
                 isBrowser
                   ? t('settings.notifications.page.delivery.browserPermissionHint')
@@ -487,9 +491,6 @@ export const NotificationSettings: React.FC = () => {
               )}
             />
 
-            {/* The native Capacitor app never notifies while focused (hard rule) and uses
-                generic, non-customizable text, so the "notify while focused" toggle and the
-                test button are hidden there. */}
             {nativeNotificationsEnabled && canShowNotifications && !isNativeApp && (
               <>
                 <SettingsCheckboxRow

@@ -1,42 +1,18 @@
-/**
- * The composer's prompt language as a CodeMirror extension.
- *
- * `tokenizeComposer` already answers "what does this text mean"; this module
- * is the thin adapter that turns its ranges into mark decorations and keeps
- * them in sync with the document and with the workspace registries.
- *
- * Why this replaces the mirror overlay: a transparent textarea painted over a
- * mirror div can only use styles that do not change glyph advance width, or
- * the two layers drift apart and the caret lands in the wrong place. That is
- * why bold and italic were never highlighted, and why the overlay had to be
- * switched off entirely on mobile. CodeMirror owns the caret and the text, so
- * there is no second layer to keep aligned and no metric restriction.
- */
 
 import { RangeSetBuilder, StateEffect, StateField, type Transaction } from '@codemirror/state';
 import { Decoration, Direction, EditorView, WidgetType, type DecorationSet } from '@codemirror/view';
 
 import { CHIP_TRAILING_PUNCTUATION, INLINE_REFERENCE_CHIP_CLASS, REFERENCE_CHIP_LABEL_CLASS, SKILL_CHIP_ICON_HREF } from '@/lib/messages/inlineMessageLinks';
 import { getFileTypeIconHref } from '@/lib/fileTypeIcons';
-import { findAttachmentCitationRanges } from '../../attachmentCitations';
+import { findAttachmentCitationRanges, findLocalFileLinks } from '../../attachmentCitations';
 import { resolveHighlightSegments, DEFAULT_HIGHLIGHT_CLASS, type HighlightRange } from '../../composerHighlight';
 import { findSessionLinks, sessionLinkKey } from '@/lib/sessionLinks';
 import { findWebLinks } from '../referenceLinks';
 import { filterKnownTokens, scanPrefixTokens } from '../language/prefixTokens';
 import { tokenizeComposer, tokenizeMentions, type ComposerLanguageContext } from '../language/tokenize';
 
-/**
- * Replace the workspace knowledge the tokenizer resolves against. Dispatched
- * when the agent, command, skill, snippet or attachment registries change —
- * not on every keystroke, which only changes the document.
- */
 export const setLanguageContext = StateEffect.define<ComposerLanguageContext>();
 
-/**
- * The context lives in editor state rather than in a closure so the decoration
- * field can recompute from `(document, context)` alone, and so a context change
- * repaints without remounting the view.
- */
 const languageContextField = StateField.define<ComposerLanguageContext>({
     create: () => EMPTY_CONTEXT,
     update(value, transaction) {
@@ -73,8 +49,6 @@ function technicalIsolates(ranges: HighlightRange[]): DecorationSet {
     const builder = new RangeSetBuilder<Decoration>();
     let start = -1;
     let end = -1;
-    // One isolation boundary per technical fragment, outside syntax colors.
-    // Overlapping highlights must not split paths or code into separate runs.
     for (const range of technical) {
         if (range.start <= end) {
             end = Math.max(end, range.end);
@@ -108,6 +82,10 @@ class ReferenceChipWidget extends WidgetType {
         super();
     }
 
+    get dismissName() { return this.options.dismissName; }
+    get unavailable() { return this.options.unavailable === true; }
+    get openTarget() { return this.options.openTarget; }
+
     eq(other: ReferenceChipWidget): boolean {
         return other.label === this.label && other.title === this.title && other.iconHref === this.iconHref
             && other.isSessionLink === this.isSessionLink && other.dismissName === this.dismissName;
@@ -135,7 +113,6 @@ class ReferenceChipWidget extends WidgetType {
         return chip;
     }
 
-    // Clicks on the chip place the caret like clicks on text.
     ignoreEvent(): boolean {
         return false;
     }
@@ -152,18 +129,6 @@ const basename = (path: string): string => {
     return trimmed.split(/[\\/]/).pop() || path;
 };
 
-/**
- * Chips for the references the composer recognizes: attachment citations,
- * file and agent mentions, skills, snippets, and mentioned sessions and
- * messages. Commands keep their color.
- *
- * `typingEnd` is where the change being typed right now ended. A token ending
- * exactly there is still being written and stays text, so `$review` does not
- * turn into a chip on the way to `$review-pr` (or mid-sentence, where a space
- * already follows the caret). It becomes a chip once anything is typed after
- * it or an edit happens elsewhere. Citations are complete when inserted.
- */
-/** The chips, and the marks that keep each one on a line with the punctuation after it. */
 type ReferenceChipDecorations = { chips: DecorationSet; glue: DecorationSet };
 
 function referenceChips(text: string, context: ComposerLanguageContext, typingEnd: number | null): ReferenceChipDecorations {
@@ -180,7 +145,26 @@ function referenceChips(text: string, context: ComposerLanguageContext, typingEn
             const filename = text.slice(range.start + 1, range.end - 1).trim();
             chips.push({
                 ...range,
-                widget: new ReferenceChipWidget(filename, filename, getFileTypeIconHref(filename, { themeVariant })),
+                widget: new ReferenceChipWidget(filename, filename, getFileTypeIconHref(filename, { themeVariant }), { openTarget: `attachment:${filename}` }),
+            });
+        }
+    }
+    const missing = context.missingAttachments;
+    if (missing && missing.names.length > 0 && text.includes('[')) {
+        for (const range of findAttachmentCitationRanges(text, [...missing.names])) {
+            const filename = text.slice(range.start + 1, range.end - 1).trim();
+            chips.push({
+                ...range,
+                widget: new ReferenceChipWidget(filename, `${filename}\n${missing.title}`, getFileTypeIconHref(filename, { themeVariant }), { unavailable: true }),
+            });
+        }
+    }
+    if (text.includes('](')) {
+        for (const link of findLocalFileLinks(text)) {
+            chips.push({
+                start: link.start,
+                end: link.end,
+                widget: new ReferenceChipWidget(link.name, link.path, getFileTypeIconHref(link.name, { themeVariant }), { openTarget: `path:${link.path}` }),
             });
         }
     }
@@ -210,11 +194,17 @@ function referenceChips(text: string, context: ComposerLanguageContext, typingEn
         addToken(token.start, token.end, new ReferenceChipWidget(token.name, `#${token.name}`, SNIPPET_CHIP_ICON_HREF));
     }
 
-    // A mentioned session or message is complete once resolved, like a citation.
     if (context.sessionLinkChips?.size) {
         for (const range of findSessionLinks(text, context.sessionLinkOrigins ?? [])) {
             const chip = context.sessionLinkChips.get(sessionLinkKey(range.target));
-            if (chip) chips.push({ start: range.start, end: range.end, widget: new ReferenceChipWidget(chip.label, chip.title, chip.iconHref, true) });
+            if (chip) chips.push({ start: range.start, end: range.end, widget: new ReferenceChipWidget(chip.label, chip.title, chip.iconHref) });
+        }
+    }
+
+    if (context.referenceLinkChips?.size) {
+        for (const range of findWebLinks(text)) {
+            const chip = context.referenceLinkChips.get(range.link);
+            if (chip) chips.push({ start: range.start, end: range.end, widget: new ReferenceChipWidget(chip.label, chip.title, chip.iconHref, { openTarget: `link:${chip.openUrl ?? range.link}` }) });
         }
     }
 
@@ -240,20 +230,12 @@ function referenceChips(text: string, context: ComposerLanguageContext, typingEn
     return { chips: builder.finish(), glue: glue.finish() };
 }
 
-// Keeps a chip and the punctuation typed after it on one line, as a word and
-// its comma are; outside the chip, so the punctuation stays ordinary text.
 const chipGlue = Decoration.mark({ attributes: { style: 'white-space: nowrap' } });
 
-/**
- * Reuse the prompt's existing tokenization for both color and direction.
- * The composer already retokenizes on edits; bidi adds no second text scan.
- */
 function buildDecorations(text: string, context: ComposerLanguageContext, typingEnd: number | null = null) {
     const ranges = tokenizeComposer(text, context);
     const builder = new RangeSetBuilder<Decoration>();
     for (const segment of resolveHighlightSegments(text, ranges)) {
-        // Unstyled stretches need no decoration — the editor's own base text
-        // color already renders them.
         if (segment.className === DEFAULT_HIGHLIGHT_CLASS) continue;
         builder.add(segment.start, segment.end, Decoration.mark({ class: segment.className }));
     }
@@ -266,7 +248,6 @@ function buildDecorations(text: string, context: ComposerLanguageContext, typing
     };
 }
 
-/** Where the change being typed ended, or null when the last edit was not typing. */
 function typedChangeEnd(transaction: Transaction): number | null {
     if (!transaction.isUserEvent('input') && !transaction.isUserEvent('delete')) return null;
     let end: number | null = null;
@@ -288,7 +269,6 @@ const decorationField = StateField.define<DecorationState>({
     update(value, transaction) {
         const contextChanged = transaction.effects.some((effect) => effect.is(setLanguageContext));
         if (!transaction.docChanged && !contextChanged) return value;
-        // A registry update mid-word keeps the word being typed as text.
         const typingEnd = transaction.docChanged
             ? typedChangeEnd(transaction)
             : value.typingEnd;

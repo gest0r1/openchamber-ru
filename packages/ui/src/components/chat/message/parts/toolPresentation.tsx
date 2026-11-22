@@ -6,12 +6,6 @@ import { opencodeNamespaceTool } from '@/lib/opencode/tools';
 import type { GuestToolRule } from '@/lib/guests/tool-presentation';
 import { getRuntimeUrlResolver } from '@/lib/runtime-url';
 
-/**
- * Icon for a tool row, dialog header, or error fallback. An extension rule
- * with an icon wins: a package SVG drawn as a currentColor mask, or a
- * Remixicon the sprite knows; otherwise the built-in mapping runs on the
- * normalized name, and an unknown tool gets the generic wrench.
- */
 export const getToolIcon = (toolName: string, presentation?: GuestToolRule | null) => {
     const iconClass = 'h-3.5 w-3.5 flex-shrink-0';
     const guestIcon = presentation

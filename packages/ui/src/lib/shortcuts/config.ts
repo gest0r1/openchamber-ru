@@ -5,8 +5,6 @@ type ShortcutCategory = 'session' | 'models' | 'panels' | 'navigation' | 'applic
 type ShortcutConfig = {
   id: string;
   defaultBinding: ShortcutCombo;
-  /** The binding is a bare-modifier chord prefix (completed by another key);
-      conflict resolution compares its prefix rather than a full combo. */
   prefixStyle?: true;
   /** The handler matches single key presses, so Settings records one chord. */
   singleChord?: true;
@@ -22,13 +20,6 @@ type ShortcutConfig = {
     }
 );
 
-// Default layout, unified around three modes:
-// - Single chords for everyday actions.
-// - The mod+k leader for "open/go" actions, second key mnemonic.
-// - Held mod + digit switches header session tabs; held mod+alt + digit
-//   switches context panel surfaces (mod+shift+digit is reserved by macOS
-//   screenshots).
-// Everything else lives only in the command palette, outside this schema.
 const SHORTCUT_GROUPS = {
   session: [
     {
@@ -79,7 +70,6 @@ const SHORTCUT_GROUPS = {
         'settings.openchamber.keyboardShortcuts.action.switch_session_next.label',
     },
     {
-      // Browser-style back/forward over the sessions opened in this window.
       id: 'session_history_back',
       defaultBinding: 'mod+[',
       customizable: true,
@@ -149,6 +139,12 @@ const SHORTCUT_GROUPS = {
         'settings.openchamber.keyboardShortcuts.action.new_chat_worktree.label',
     },
     {
+      id: 'new_lead',
+      defaultBinding: 'mod+shift+alt+l',
+      customizable: true,
+      settingsLabelKey: 'settings.openchamber.keyboardShortcuts.action.new_lead.label',
+    },
+    {
       id: 'new_mini_chat',
       defaultBinding: 'mod+alt+n',
       customizable: true,
@@ -201,9 +197,6 @@ const SHORTCUT_GROUPS = {
     },
     { id: 'abort_run', defaultBinding: 'escape', customizable: false },
     {
-      // Not ctrl+b (the OpenCode TUI's key): the composer editor's macOS
-      // emacs keymap moves the caret on it, and elsewhere it is mod+b
-      // (toggle_sidebar).
       id: 'background_session_work',
       defaultBinding: 'mod+shift+b',
       customizable: true,
@@ -282,8 +275,6 @@ const SHORTCUT_GROUPS = {
     {
       id: 'switch_session_tab',
       defaultBinding: 'mod',
-      // The binding is a bare modifier acting as a chord prefix (completed by
-      // a digit); conflict resolution must compare its PREFIX, not a combo.
       prefixStyle: true,
       customizable: true,
       settingsLabelKey:
@@ -456,7 +447,6 @@ const SHORTCUT_GROUPS = {
       settingsLabelKey: 'settings.openchamber.keyboardShortcuts.action.open_help.label',
     },
     {
-      // mod+alt keeps it off the browser's own reload (mod+r, mod+shift+r).
       id: 'open_project_actions',
       defaultBinding: 'mod+alt+r',
       customizable: true,
@@ -604,9 +594,6 @@ const SHORTCUT_GROUPS = {
       settingsLabelKey: 'settings.openchamber.keyboardShortcuts.action.zoom_reset.label',
     },
   ],
-  // Desktop-shell capabilities: registered as OS-level global shortcuts rather
-  // than in-app keybindings, so they carry no in-app default binding. The
-  // Settings shortcut list renders only the categories above, never this one.
   desktop: [
     {
       id: 'mini_chat_global',
@@ -623,7 +610,6 @@ const SHORTCUT_GROUPS = {
   ],
 } as const satisfies Record<ShortcutCategory, readonly ShortcutConfig[]>;
 
-/** All application shortcuts, flattened in the same order used by Settings. */
 export const SHORTCUT_SCHEMA = [
   ...SHORTCUT_GROUPS.session.map((shortcut) => ({
     ...shortcut,

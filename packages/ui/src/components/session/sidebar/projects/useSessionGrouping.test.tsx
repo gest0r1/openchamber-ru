@@ -5,7 +5,6 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import type { Session } from '@/lib/opencode/model';
 import type { WorktreeMetadata } from '@/types/worktree';
 import { I18nProvider } from '@/lib/i18n';
-import { useSessionActions } from '../sessions/useSessionActions';
 import { createSessionOwnershipIndex } from '../sessions/sessionOwnership';
 import { buildSidebarSessionProjection } from '../list/sessionCollection';
 import { useSessionGrouping } from './useSessionGrouping';

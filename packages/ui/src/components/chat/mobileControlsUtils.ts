@@ -3,18 +3,12 @@ import { getProviderModelDisplayName, type DisplayProvider } from '@/lib/modelDi
 
 export type MobileControlsPanel = 'model' | 'agent' | 'variant' | null;
 
-/** What agent cycling reads from an agent. */
 type CyclableAgent = Pick<Agent, 'name' | 'mode'>;
 
 export const isPrimaryMode = (mode?: string) => mode === 'primary' || mode === 'all' || mode === undefined || mode === null;
 
 const getCyclablePrimaryAgents = (agents: readonly CyclableAgent[]) => agents.filter((agent) => isPrimaryMode(agent.mode));
 
-/**
- * The agent Tab moves to. While any starred agent is available, the cycle runs
- * through the starred ones only (from a non-starred agent it enters at the
- * first or last of them); otherwise through every primary agent, as before.
- */
 export const getCycledPrimaryAgentName = (
     agents: readonly CyclableAgent[],
     currentAgentName: string | undefined,

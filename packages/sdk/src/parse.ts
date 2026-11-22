@@ -63,7 +63,6 @@ import {
   isOpenCodeProviderId,
   SOURCE_CONTROL_DEFAULT_INSTANCES_MAX,
   SOURCE_CONTROL_GUEST_ID_MAX,
-  SOURCE_CONTROL_URL_TEMPLATES_MAX,
   SOURCE_CONTROL_URL_TEMPLATE_MAX,
   SOURCE_CONTROL_URL_TOKENS,
   type SourceControlContribution,
@@ -80,6 +79,7 @@ import {
   isBuildableLinkTemplate,
 } from './manifest.ts';
 import { isGuestRequestPath } from './contract.ts';
+import { sourceControlUrlsSchema } from './source-control-urls.ts';
 import { GUEST_SESSION_EVENT_TYPES } from './session-events.ts';
 import { SERVICE_SCHEDULE_MAX, SERVICE_SCHEDULE_TIMEZONE_MAX, isServiceScheduleCron } from './service-host.ts';
 import {
@@ -116,8 +116,6 @@ export const isHttpsUrl = (value: string): boolean => {
   }
 };
 
-// An origin the host writes into the frame's CSP as is: a literal hostname,
-// so no `*` or other CSP syntax can widen what the user approved.
 const APPROVABLE_HOSTNAME = /^[a-z0-9-]+(?:\.[a-z0-9-]+)+$/;
 const isApprovableOrigin = (value: string): boolean => {
   if (!isHttpsOrigin(value)) return false;
@@ -151,8 +149,6 @@ const ACCOUNT_NAME = /^[A-Za-z][A-Za-z0-9_]*(\.[A-Za-z][A-Za-z0-9_]*)*$/;
 
 const attachModeSchema = z.enum(['panel', 'dialog']);
 
-// `entry` only means something for the dialog; a panel-mode object naming one
-// is a misconfiguration and fails closed rather than carrying a dead field.
 const attachObjectSchema = z.object({
   mode: attachModeSchema,
   entry: z.string().trim().refine(isSafeAssetPath).optional(),
@@ -292,23 +288,13 @@ const serviceSchema = z.object({
     .optional(),
 });
 
-// SVG path data only, the same rule the UI applies to a provider's icon path:
-// commands, numbers and separators, nothing that could close the attribute.
 const SVG_PATH_DATA = /^[MmLlHhVvCcSsQqTtAaZz0-9eE.,\s+-]+$/;
-// A literal URL template segment: no placeholder braces, no regex syntax.
 const URL_TEMPLATE_LITERAL = /^[A-Za-z0-9._~-]+$/;
 const URL_TEMPLATE_TOKENS: ReadonlySet<string> = new Set(SOURCE_CONTROL_URL_TOKENS);
 
-/**
- * A web path template of a change request or issue: `/`, then segments that
- * are each a literal or one of the known placeholders. `{repo}` and
- * `{number}` appear exactly once, and the repository's owner exactly once as
- * `{owner}` (`owner/name` paths) or `{namespace+}` (`namespace/name` paths).
- */
 const isUrlTemplate = (value: string, repositoryPath: SourceControlContribution['repositoryPath']): boolean => {
   if (!value.startsWith('/') || value.length > SOURCE_CONTROL_URL_TEMPLATE_MAX) return false;
   const segments = value.slice(1).split('/');
-  // A normalized URL never has a `.` or `..` segment, so a template with one matches nothing.
   if (segments.some((segment) => segment === '.' || segment === '..')) return false;
   if (segments.some((segment) => !URL_TEMPLATE_TOKENS.has(segment) && !URL_TEMPLATE_LITERAL.test(segment))) return false;
   const count = (token: string) => segments.filter((segment) => segment === token).length;
@@ -317,14 +303,14 @@ const isUrlTemplate = (value: string, repositoryPath: SourceControlContribution[
   return count('{repo}') === 1 && count('{number}') === 1 && count(owner) === 1 && count(other) === 0;
 };
 
-// A file inside the repository, as a change request template names it:
-// relative, no `.` or `..` segment, dot-folders like `.gitea/` allowed.
 const REPOSITORY_FILE_SEGMENT = /^[A-Za-z0-9._-]+$/;
 const isRepositoryFilePath = (value: string): boolean => value.length > 0 && value.split('/')
   .every((segment) => REPOSITORY_FILE_SEGMENT.test(segment) && segment !== '.' && segment !== '..');
 
 const prefixSchema = z.string().min(1).max(4).regex(/^\S+$/);
 const literalSchema = z.string().trim().min(1).max(64);
+
+const DECLARED_CAPABILITIES_MESSAGE = `contributes.capabilities may list ${DECLARED_GUEST_CAPABILITIES.map((capability) => `"${capability}"`).join(', ')}.`;
 
 const sourceControlCapabilitiesSchema = z.object({
   projects: z.boolean().default(false),
@@ -337,27 +323,28 @@ const sourceControlCapabilitiesSchema = z.object({
     z.object({
       methods: z.array(z.enum(['merge', 'squash', 'rebase', 'submit'])).min(1).max(3)
         .refine((methods) => new Set(methods).size === methods.length, { message: 'merge methods must be unique' })
-        // A host that submits a change merges it the one way its project is set up.
         .refine((methods) => !methods.includes('submit') || methods.length === 1, { message: '"submit" is the only merge method when present' }),
     }).strict(),
   ]).default(false),
   ci: z.boolean().default(false),
   comments: z.boolean().default(false),
+  commentEdit: z.boolean().default(false),
   reviews: z.boolean().default(false),
   state: z.boolean().default(false),
   labels: z.boolean().default(false),
   reviewers: z.boolean().default(false),
   changeRequestPatch: z.boolean().default(false),
   liveSummaries: z.boolean().default(false),
-  // Left out rather than defaulted, so a manifest that does not use them parses as before.
   reviewModel: z.enum(['verdict', 'votes']).optional(),
   revisions: z.boolean().optional(),
 }).strict();
 
-// A Git username OpenChamber puts before the token in an HTTPS credential.
 const FIXED_USERNAME = /^[A-Za-z0-9._-]{1,64}$/;
 
-const urlTemplatesSchema = z.array(z.string().trim().min(1)).max(SOURCE_CONTROL_URL_TEMPLATES_MAX);
+export const sourceControlServiceLoginSchema = z.object({
+  kind: z.literal('service'),
+  hint: z.string().min(1).max(2_000),
+});
 
 /** Shared service-login shape for manifests and public provider descriptors. */
 export const sourceControlServiceLoginSchema = z.object({
@@ -400,7 +387,6 @@ const sourceControlSchema = z.object({
     (token) => (token.header === 'private-token') === (token.scheme === 'none'),
     { message: 'private-token takes the bare token; authorization takes a bearer, token or basic scheme' },
   ).refine(
-    // Basic sends `login:token`, so Settings must ask for the login; no other scheme uses one.
     (token) => (token.scheme === 'basic') === (token.username === true),
     { message: 'the basic scheme needs username: true, and username is only for the basic scheme' },
   ).optional(),
@@ -423,10 +409,12 @@ const sourceControlSchema = z.object({
     promptNoun: literalSchema,
     sharedNumberSpace: z.boolean(),
     iconPath: z.string().max(8192).regex(SVG_PATH_DATA).optional(),
-    urls: z.object({ changeRequest: urlTemplatesSchema, issue: urlTemplatesSchema }).strict(),
+    urls: sourceControlUrlsSchema,
     features: z.object({
       authorCanReview: z.boolean().default(false),
       issueCloseReason: z.boolean().default(false),
+      issueEdit: z.boolean().optional(),
+      changeRequestEdit: z.boolean().optional(),
       submitRequirements: z.boolean().optional(),
     }).strict(),
     changeRequestTemplates: z.array(z.string().trim().max(256).refine(isRepositoryFilePath, {
@@ -446,8 +434,6 @@ const sourceControlSchema = z.object({
       });
     });
   }
-  // Change request patterns are matched first, so an issue template that is
-  // also a change request template would read every issue link as one.
   const changeRequestTemplates = new Set(value.presentation.urls.changeRequest);
   value.presentation.urls.issue.forEach((template, index) => {
     if (!changeRequestTemplates.has(template)) return;
@@ -458,8 +444,6 @@ const sourceControlSchema = z.object({
   });
 });
 
-// The token block of a notification channel follows the Git host's rules: a
-// bare token travels only as `private-token`, and `basic` needs the login.
 const notificationsTokenSchema = z.object({
   header: z.enum(['authorization', 'private-token']),
   scheme: z.enum(['bearer', 'token', 'basic', 'none']),
@@ -494,12 +478,10 @@ const uniqueBy = <T,>(items: T[], key: (item: T) => string): boolean => (
   new Set(items.map(key)).size === items.length
 );
 
-// A state filter id: the neutral categories and a tracker's own (`inReview`).
 const TRACKER_STATE_FILTER = /^[a-z][a-zA-Z0-9-]{0,31}$/;
 
 const trackerTokenSchema = notificationsTokenSchema;
 
-// An OAuth endpoint: an https URL, or a path on the instance the user names.
 const trackerOauthEndpointSchema = z.string().trim().min(1).max(2_048).refine(
   (value) => isHttpsUrl(value) || isSafeApiPath(value),
   { message: 'must be an https URL, or a path on the instance starting with "/"' },
@@ -847,15 +829,10 @@ const contributesSchema = z.object({
   links: linksSchema.optional(),
 });
 
-/**
- * Contributions that need either the panel or background execution frame.
- */
-/** A section the host draws from the service's answers: the host is the service's caller. */
 const hasStatusSource = (contributes: z.output<typeof contributesSchema>): boolean => (
   Boolean(contributes.statusSection && contributes.statusSection !== true && contributes.statusSection.source)
 );
 
-/** A section the host loads as a frame: `true`, or an object with an `entry`. */
 const hasStatusFrame = (contributes: z.output<typeof contributesSchema>): boolean => (
   contributes.statusSection === true || Boolean(contributes.statusSection?.entry)
 );
@@ -924,7 +901,6 @@ export const openChamberManifestSchema = z.object({
       });
       return;
     }
-    // The notification channel and the role that serves it come together, named `ext-<panel.id>` as well.
     const providesNotifications = contributes.service?.provides?.includes('notifications') === true;
     if (providesNotifications !== (contributes.notifications !== undefined)) {
       ctx.addIssue({
@@ -940,7 +916,6 @@ export const openChamberManifestSchema = z.object({
       });
       return;
     }
-    // The tracker and the role that serves it come together, named `ext-<panel.id>` as well.
     const providesTracker = contributes.service?.provides?.includes('tracker') === true;
     if (providesTracker !== (contributes.tracker !== undefined)) {
       ctx.addIssue({
@@ -956,8 +931,6 @@ export const openChamberManifestSchema = z.object({
       });
       return;
     }
-    // Tracker and Git host ids share one namespace (tracked items, the read
-    // cache, session links), and both would be `ext-<panel.id>`.
     if (providesTracker && providesSourceControl) {
       ctx.addIssue({
         code: 'custom', path: ['service', 'provides'],
@@ -990,7 +963,6 @@ export const openChamberManifestSchema = z.object({
       });
       return;
     }
-    // `true` reuses the panel page; without one the section has nothing to load.
     if (contributes.statusSection === true && !hasGuestPage(contributes)) {
       ctx.addIssue({
         code: 'custom', path: ['statusSection'],
@@ -998,7 +970,6 @@ export const openChamberManifestSchema = z.object({
       });
       return;
     }
-    // The host reads a source from the extension's service; without one it has nothing to ask.
     if (hasStatusSource(contributes) && !contributes.service) {
       ctx.addIssue({
         code: 'custom', path: ['statusSection', 'source'],
@@ -1006,7 +977,6 @@ export const openChamberManifestSchema = z.object({
       });
       return;
     }
-    // Session events are posted to the extension's service; without one there is nothing to post to.
     if (contributes.sessionEvents !== undefined && !contributes.service) {
       ctx.addIssue({
         code: 'custom', path: ['sessionEvents'],
@@ -1122,13 +1092,10 @@ const fail = (code: ParseManifestErrorCode, message: string): ParseManifestFailu
   message,
 });
 
-/** `contributes.sourceControl.instances.defaultInstances[0]`, relative to the `openchamber` block. */
 const fieldPath = (issuePath: ReadonlyArray<PropertyKey>): string => (issuePath[0] === 'openchamber' ? issuePath.slice(1) : issuePath)
   .reduce<string>((field, segment) => (Number.isInteger(segment) ? `${field}[${String(segment)}]` : `${field ? `${field}.` : ''}${String(segment)}`), '');
 
 const failureFromIssue = (issue: { path: ReadonlyArray<PropertyKey>; code: string; message: string }): ParseManifestFailure => {
-  // Paths are reported relative to the `openchamber` block whether the
-  // document was a bare manifest or a package.json envelope.
   const segments = issue.path.map(String);
   const path = (segments[0] === 'openchamber' ? segments.slice(1) : segments).join('.');
   const isPackageEnvelope = segments[0] === 'openchamber';
@@ -1173,7 +1140,7 @@ const failureFromIssue = (issue: { path: ReadonlyArray<PropertyKey>; code: strin
     case 'contributes.panel.mobile':
       return fail('invalid-panel', 'panel.mobile is true or left out.');
     case 'contributes.capabilities':
-      return fail('invalid-capabilities', 'contributes.capabilities may list "prompt", "sessions", and "files".');
+      return fail('invalid-capabilities', DECLARED_CAPABILITIES_MESSAGE);
     default:
       break;
   }
@@ -1195,7 +1162,7 @@ const failureFromIssue = (issue: { path: ReadonlyArray<PropertyKey>; code: strin
     );
   }
   if (path.startsWith('contributes.capabilities')) {
-    return fail('invalid-capabilities', 'contributes.capabilities may list "prompt", "sessions", and "files".');
+    return fail('invalid-capabilities', DECLARED_CAPABILITIES_MESSAGE);
   }
   if (path.startsWith('contributes.filesystem')) {
     return fail(
@@ -1286,7 +1253,6 @@ const failureFromIssue = (issue: { path: ReadonlyArray<PropertyKey>; code: strin
     );
   }
   if (path.startsWith('contributes.sourceControl')) {
-    // The field is named either way: a refine's message alone does not say which entry failed.
     const field = fieldPath(issue.path);
     return fail('invalid-service', issue.code === 'custom'
       ? `${field}: ${issue.message}`

@@ -1,12 +1,3 @@
-/**
- * Layers the Android back button closes before the mobile shell's own
- * surfaces and drawers: the newest one first, one per press.
- *
- * Two kinds of layer sit above a shell surface. Base UI popups (dialogs,
- * selects, menus) already close on Escape and move focus into themselves, so
- * back sends Escape to the focused element and only the popup holding focus
- * reacts. MobileOverlayPanel sheets manage no focus, so they register here.
- */
 
 const OPEN_POPUP_SELECTOR = [
   '[data-open][role="dialog"]',
@@ -23,7 +14,6 @@ const notifyOverlayListeners = (): void => {
   overlayListeners.forEach((listener) => listener());
 };
 
-/** Registers an open overlay; the returned function unregisters it. */
 export function registerBackLayer(close: () => void): () => void {
   const layer = { close };
   overlayLayers.push(layer);

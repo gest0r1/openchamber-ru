@@ -21,11 +21,6 @@ import { selectProjectMemoryForPath, useAgentMemoryStore } from '@/stores/useAge
 import { useUIStore } from '@/stores/useUIStore';
 import { startMemoryTidy, startMemoryToDocs } from './memoryTidy';
 
-/**
- * Starts the tidy-up session. Offered only while both scopes are loaded for
- * this project: a store that failed to load would reach the agent as empty,
- * and it would tidy against half the data.
- */
 const MemoryTidyButton: React.FC<{ projectPath: string | null }> = ({ projectPath }) => {
   const { t } = useI18n();
   const [starting, setStarting] = React.useState(false);
@@ -188,7 +183,6 @@ const MemoryBadgePill: React.FC<{ badge: MemoryBadge }> = ({ badge }) => {
   );
 };
 
-/** Type and the withheld warning: the card footer and the open entry's toolbar. */
 const MemoryMeta: React.FC<{ entry: AgentMemoryEntry; scopeLabel?: string }> = ({ entry, scopeLabel }) => {
   const { t } = useI18n();
   const typeLabel = t(`rightSidebar.contextNotesTodo.memory.type.${entry.type}` as Parameters<typeof t>[0]);
@@ -202,8 +196,6 @@ const MemoryMeta: React.FC<{ entry: AgentMemoryEntry; scopeLabel?: string }> = (
       ) : null}
       <span>{typeLabel}</span>
       {entry.flagged ? (
-        // Shown rather than hidden: an entry withheld from the agent is
-        // exactly the one the user needs to look at.
         <span className="flex items-center gap-1 text-[var(--status-error)]">
           <Icon name="error-warning" className="h-3 w-3 flex-shrink-0" />
           {t('rightSidebar.contextNotesTodo.memory.flagged')}
@@ -213,13 +205,6 @@ const MemoryMeta: React.FC<{ entry: AgentMemoryEntry; scopeLabel?: string }> = (
   );
 };
 
-/**
- * One stored memory in the list. A click opens it.
- *
- * There is no confirm button. A badge that the user has to dismiss by hand asks
- * them to do work that tells the agent nothing — the agent already has the
- * memory either way — so the badge clears itself once they have looked.
- */
 const MemoryCard: React.FC<{
   entry: AgentMemoryEntry;
   badge: MemoryBadge;
@@ -259,15 +244,6 @@ const MemoryCard: React.FC<{
   );
 };
 
-/**
- * An open memory, in place of the list, with its title and text editable.
- *
- * Editable on purpose. A memory worded badly enough to mislead should be
- * fixable where it is read; deleting it and hoping the agent learns it again,
- * better, is not a repair. Changes save when a field loses focus and when the
- * entry is left. A rewrite by the agent is adopted while the user has not
- * changed anything since the last version they saw.
- */
 const MemoryView: React.FC<{
   entry: AgentMemoryEntry;
   badge: MemoryBadge;
@@ -299,8 +275,6 @@ const MemoryView: React.FC<{
   commitRef.current = () => {
     const title = titleDraft.trim();
     const body = bodyDraft.trim();
-    // An emptied field is a rejected write, not a delete: restore it rather
-    // than sending something the server will refuse.
     if (!title || !body) {
       setTitleDraft(entry.title);
       setBodyDraft(entry.body);
@@ -367,20 +341,11 @@ const MemoryView: React.FC<{
   );
 };
 
-/**
- * What the agent has chosen to remember, in the two scopes it writes to.
- *
- * The scopes are a switch rather than one merged list: a claim about the user
- * reaches every project, so which store a memory sits in is the most important
- * thing about it and must never be something the reader has to infer.
- */
 export const MemorySection: React.FC<{
   projectPath: string | null;
   query: string;
-  /** The open entry, owned by the panel so its back control can close it. */
   openMemoryId: string | null;
   onOpenMemory: (memoryId: string | null) => void;
-  /** Wide panel: the list and the open entry side by side. */
   split: boolean;
 }> = ({ projectPath, query, openMemoryId, onOpenMemory, split }) => {
   const { t } = useI18n();
@@ -388,9 +353,6 @@ export const MemorySection: React.FC<{
 
   const globalEntries = useAgentMemoryStore((state) => state.global);
   const projectEntries = useAgentMemoryStore((state) => selectProjectMemoryForPath(state, projectPath));
-  // Opens on the scope that has something to show. Starting on an empty
-  // Project scope read as "no memory at all" while About you had entries.
-  // Once the user picks a scope, it stays theirs.
   const scopePickedRef = React.useRef(false);
   React.useEffect(() => {
     if (scopePickedRef.current) return;
@@ -409,11 +371,6 @@ export const MemorySection: React.FC<{
   const viewKey = memoryViewKey(scope, projectPath);
   const storedViewedAt = useUIStore((state) => state.agentMemoryViewedAt[viewKey] ?? 0);
 
-  /**
-   * The mark is frozen for the length of the visit and only advanced on the way
-   * out. Reading the live value would clear every badge the instant the tab
-   * opened, which is the one moment the user is trying to read them.
-   */
   const baselineRef = React.useRef(storedViewedAt);
   const [baseline, setBaseline] = React.useState(storedViewedAt);
   React.useEffect(() => {
@@ -431,10 +388,6 @@ export const MemorySection: React.FC<{
     [entries, pendingDeletes, query, scope],
   );
 
-  // The section strip counts both scopes, so a search whose hits are all in
-  // the other one would open on "no matches". Follow the search there, the
-  // way the strip follows it between sections.
-  // Only when the query changes, so a scope picked by hand stays picked.
   const followedQueryRef = React.useRef('');
   React.useEffect(() => {
     const trimmed = query.trim();
@@ -453,7 +406,6 @@ export const MemorySection: React.FC<{
     [entries, openMemoryId],
   );
 
-  // An entry forgotten elsewhere (the agent, another window) closes if open.
   React.useEffect(() => {
     if (openMemoryId && !openEntry) onOpenMemory(null);
   }, [onOpenMemory, openEntry, openMemoryId]);
@@ -464,7 +416,6 @@ export const MemorySection: React.FC<{
       key: memoryDeleteKey(scope, memoryId),
       message: t('rightSidebar.contextNotesTodo.deleted.memory'),
       undoLabel: t('rightSidebar.contextNotesTodo.undo'),
-      // Asked in this project; the panel may have moved on by the time it runs.
       run: () => deleteEntry(scope, memoryId, projectPath),
       onFailure: () => {
         const detail = useAgentMemoryStore.getState().error;
@@ -533,10 +484,6 @@ export const MemorySection: React.FC<{
 
   const list = (
     <div className="flex flex-col gap-2">
-      {/* Chips rather than a tab strip: these pick which store you are reading,
-          not which view you are in, and the chip's pressed state says which one
-          is selected far more plainly than a pill sitting on a matching
-          background did. */}
       <div className="flex items-center gap-1">
         <div role="group" aria-label={t('rightSidebar.contextNotesTodo.memory.scope.label')} className="flex items-center gap-1">
           {scopeOptions.map((option) => (
@@ -571,8 +518,6 @@ export const MemorySection: React.FC<{
           {t('rightSidebar.contextNotesTodo.memory.empty.noProject')}
         </p>
       ) : scopeFailed ? (
-        // Said plainly rather than shown as an empty list: an empty tab would
-        // read as the agent having forgotten everything it knew.
         <p className="typography-meta text-muted-foreground">
           {t('rightSidebar.contextNotesTodo.memory.empty.unavailable')}
         </p>

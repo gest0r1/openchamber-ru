@@ -64,8 +64,6 @@ export const DesktopAppSettings: React.FC = () => {
   const [minimizeToTraySupported, setMinimizeToTraySupported] = React.useState(false);
   const [minimizeToTrayEnabled, setMinimizeToTrayEnabled] = React.useState(false);
   const [isSavingMinimizeToTray, setIsSavingMinimizeToTray] = React.useState(false);
-  // The menu bar icon and the Linux window frame apply on the next launch, so
-  // they stay drafts until "Save + restart".
   const [savedMacMenuBarEnabled, setSavedMacMenuBarEnabled] = React.useState(true);
   const [draftMacMenuBarEnabled, setDraftMacMenuBarEnabled] = React.useState(true);
   const [savedLinuxNativeFrame, setSavedLinuxNativeFrame] = React.useState(false);
@@ -183,8 +181,6 @@ export const DesktopAppSettings: React.FC = () => {
   const hasPendingRestart = useDesktopRestartDrafts((state) => Boolean(state.patches.app || state.patches.network));
   const restartBlocked = useDesktopRestartDrafts((state) => Boolean(state.blocked.network));
 
-  // Publishes this section's pending changes, so a restart from the network
-  // section saves them too.
   React.useEffect(() => {
     setRestartDraft('app', restartDraftsDirty ? {
       ...(draftMacMenuBarEnabled !== savedMacMenuBarEnabled ? { desktopMacMenuBarEnabled: draftMacMenuBarEnabled } : {}),
@@ -482,10 +478,6 @@ export const DesktopQuickAccessSettings: React.FC = () => {
     }
   }, [isSavingMiniChatGlobalShortcut, miniChatGlobalShortcutSupported, t]);
 
-  // Mirrors the in-app shortcut save flow: when the recorded combo collides
-  // with a customizable in-app action, free that binding so the global
-  // shortcut owns the combo (both would otherwise fire simultaneously). The
-  // in-app binding is released only after the global combo was stored.
   const handleMiniChatGlobalRecorderSave = React.useCallback((
     _actionId: string,
     combo: string,

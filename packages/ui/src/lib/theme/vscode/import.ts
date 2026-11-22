@@ -41,7 +41,6 @@ function scopeEntries(rules: TokenRule[]) {
   });
 }
 
-/** General TextMate scopes only. A JS-only rule must not color every language. */
 function textMateColor(entries: ReturnType<typeof scopeEntries>, candidates: string[]): string | undefined {
   for (const candidate of candidates) {
     let best: string | undefined;
@@ -71,7 +70,6 @@ function semanticColor(colors: SemanticColors, candidates: string[]): string | u
 }
 
 function formatImportedThemeName(name: string): string {
-  // Humanize lowercase slugs, keeping authored capitalization and punctuation.
   if (!/^[a-z0-9]+(?:[-_][a-z0-9]+)+$/.test(name)) return name;
   return name.split(/[-_]/).map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
 }

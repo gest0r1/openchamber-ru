@@ -176,7 +176,6 @@ function Tooltip({
 
   const handleOpenChange = React.useCallback((nextOpen: boolean, event: TooltipChangeEventDetails) => {
     onOpenChange?.(nextOpen, event)
-    // A caller that cancels the change keeps the tooltip as it was.
     if (!controlled && !event.isCanceled) {
       setLongPressOpen(nextOpen)
     }
@@ -258,7 +257,6 @@ type ContentProps = React.ComponentProps<typeof BaseTooltip.Popup> & {
   side?: "top" | "right" | "bottom" | "left";
   align?: "start" | "center" | "end";
   showArrow?: boolean;
-  /** An element to place the tooltip by other than its trigger, for one tooltip shared by many rows. */
   anchor?: React.ComponentProps<typeof BaseTooltip.Positioner>["anchor"];
   /**
    * `label` (default) is a short hint on the tooltip glass. `card` is a block

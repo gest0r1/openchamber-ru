@@ -23,26 +23,18 @@ import { isSameLocalDay, rangeStart, type UsageRange } from './usageStatsModel';
 export type UsageStatsRequest = { range: UsageRange; projectDirectory: string | null };
 
 export type UsageStatsEntry = {
-  /** Last successful report; kept on screen through refreshes and failed refreshes. */
   stats: UsageStats | null;
   /** When the read of `stats` started, so a read that crosses midnight counts as the old day's. */
   fetchedAt: number | null;
   loading: boolean;
-  /** Message of the last failed read; cleared by the next success. */
   error: string | null;
 };
 
 export type UsageStatsFetcher = (request: UsageStatsRequest, signal: AbortSignal) => Promise<UsageStats>;
 
-/**
- * Tool calls for a loaded report, fetched only on request: counting them makes
- * OpenCode read every tool call in the range. `range` is the loaded report's
- * window, so the tool numbers match the rest of the page.
- */
 export type UsageToolsEntry = {
   tools: UsageTools | null;
   loading: boolean;
-  /** Message of the last failed read; never shown as zero calls. */
   error: string | null;
 };
 
@@ -64,27 +56,14 @@ type UsageStatsStore = {
    */
   load: (request: UsageStatsRequest, options?: { force?: boolean }) => Promise<void>;
   toolEntries: Record<string, UsageToolsEntry>;
-  /**
-   * Set once the user asks for tool calls; from then on every loaded report
-   * fetches its tools after it lands, for the rest of the app session.
-   */
   toolsRequested: boolean;
-  /**
-   * Loads tool calls for the request's loaded report. Without `force` this
-   * only reads a key that has no tools, no error and no read running; with no
-   * loaded report there is no window to count, so it does nothing.
-   */
   loadTools: (request: UsageStatsRequest, options?: { force?: boolean }) => Promise<void>;
-  /** Forgets every entry and ignores reads still in flight. */
   reset: () => void;
 };
 
 const viewerTimeZone = (): string => Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
 
 const fetchFromOpencode: UsageStatsFetcher = async ({ range, projectDirectory }, signal) => {
-  // The `project` filter takes OpenCode's project id, which only OpenCode
-  // knows: ask it for the id of the project's directory. A failed lookup is
-  // an error for this choice, never an unfiltered or empty report.
   const projectID = projectDirectory ? await resolveUsageProjectID(projectDirectory) : undefined;
   signal.throwIfAborted();
   return fetchUsageStats({ from: rangeStart(range, new Date()), projectID, timezone: viewerTimeZone() }, signal);
@@ -105,8 +84,6 @@ export function createUsageStatsStore(
   now: () => number = Date.now,
   toolsFetcher: UsageToolsFetcher = fetchToolsFromOpencode,
 ) {
-  // Aborted and replaced on reset, so reads from a previous runtime can
-  // neither commit nor keep a key marked as loading.
   let controller = new AbortController();
   // The tool read each key still wants: a read left over from an expired
   // Today report must not land on the new day's tools, whichever finishes last.
@@ -161,7 +138,6 @@ export function createUsageStatsStore(
           if (get().toolsRequested) void get().loadTools(request, { force: Boolean(get().toolEntries[key]?.tools) });
         } catch (error) {
           if (signal.aborted) return;
-          // A failed read keeps the last report; it never becomes zeros.
           patch(key, { loading: false, error: error instanceof Error ? error.message : String(error) });
         }
       },

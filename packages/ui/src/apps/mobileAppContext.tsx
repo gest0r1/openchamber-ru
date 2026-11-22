@@ -10,7 +10,6 @@ export type MobileAppActions = {
   openChanges: (options?: { diffPath?: string | null; staged?: boolean; scope?: 'turn' }) => void;
   /** Open the Files surface as a modal. */
   openFiles: () => void;
-  /** Open the issues and PRs board page; what it shows is set in its store first. */
   openSourceBoard: () => void;
   /** Open a saved plan full screen, as a tap on it in Project knowledge does. */
   openPlan: (plan: { id: string; title: string; projectRef: ProjectRef }) => void;
@@ -25,11 +24,4 @@ export const DedicatedMobileAppProvider: React.FC<{
   <DedicatedMobileAppContext.Provider value={actions}>{children}</DedicatedMobileAppContext.Provider>
 );
 
-/**
- * Returns the dedicated mobile app's surface-opening actions, or null when
- * not inside the dedicated mobile root. Components living in shared chat /
- * input code can use this to route navigation to mobile-native surfaces
- * (e.g. open the Changes diff for a file) instead of
- * desktop sidebars.
- */
 export const useMobileAppActions = (): MobileAppActions | null => React.useContext(DedicatedMobileAppContext);

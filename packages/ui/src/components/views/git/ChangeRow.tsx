@@ -28,9 +28,7 @@ interface ChangeRowProps {
   stats?: { insertions: number; deletions: number };
   rowPaddingClassName?: string;
   indentPx?: number;
-  /** Place the stage/unstage action at the row start (flat view) instead of the end (tree view). */
   actionAtStart?: boolean;
-  /** Tree view: the directory rows above already say where the file lives. */
   nameOnly?: boolean;
   showRevert?: boolean;
 }
@@ -175,9 +173,6 @@ export const ChangeRow = React.memo<ChangeRowProps>(function ChangeRow({
             {revertButton}
           </>
         ) : (
-          // Tree view: on hover the actions take the place of the stats, so
-          // nothing in the row moves. Narrow (touch) layouts have no hover and
-          // show both side by side.
           <span className="flex shrink-0 items-center justify-items-end gap-2 md:grid">
             <span
               className={cn(

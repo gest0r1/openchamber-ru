@@ -107,8 +107,6 @@ export const useFileSearchStore = create<FileSearchStoreState>()(
         const runtimeFiles = type === 'file' && (includeHidden || !respectGitignore)
           ? getRegisteredRuntimeAPIs()?.files
           : undefined;
-        // Through the plain search's own entry, so a caller showing those hits
-        // before the supplement answers costs no second OpenCode request.
         const indexedSearch = runtimeFiles
           ? get().searchFiles(normalizedDirectory, normalizedQuery, limit, { type })
           : opencodeClient.searchFiles(normalizedQuery, {

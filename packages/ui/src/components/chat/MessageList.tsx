@@ -1,5 +1,5 @@
 import React from 'react';
-import { LegendList, type LegendListRef } from '@legendapp/list/react';
+import type { LegendListRef } from '@legendapp/list/react';
 
 import ChatMessage from './ChatMessage';
 import { TimelineNotice } from './message/TimelineNotice';
@@ -25,10 +25,8 @@ import { buildTimelineRows, type TimelineRow } from './lib/turns/timelineRows';
 import { getNormalizedMessageForDisplay } from './lib/messageDisplayNormalization';
 import { attachSyntheticContext } from './lib/attachSyntheticContext';
 import { useUIStore } from '@/stores/useUIStore';
-import { cn } from '@/lib/utils';
 import { FadeInDisabledProvider } from './message/FadeInOnReveal';
-import { hasPendingUserSendAnimation, consumePendingUserSendAnimation } from '@/lib/userSendAnimation';
-import { streamPerfCount, streamPerfMark, streamPerfMeasure } from '@/stores/utils/streamDebug';
+import { streamPerfCount, streamPerfMark } from '@/stores/utils/streamDebug';
 import type { StreamPhase } from './message/types';
 import { useGlobalSessionsStore } from '@/stores/useGlobalSessionsStore';
 import { useSessionPartsForMessages } from '@/sync/sync-context';
@@ -107,6 +105,7 @@ const isAssistantMessageCompleted = (message: ChatMessageEntry): boolean => {
 
 
 
+export type { MessageListHandle } from './timeline/types';
 
 interface MessageListProps {
     sessionKey: string;
@@ -114,28 +113,16 @@ interface MessageListProps {
     sessionIsWorking?: boolean;
     activeStreamingMessageId?: string | null;
     activeStreamingPhase?: StreamPhase | null;
-    retryOverlay?: {
-        sessionId: string;
-        message: string;
-        confirmedAt?: number;
-        fallbackTimestamp?: number;
-    } | null;
+    retryOverlay?: RetryOverlay | null;
     isLoadingOlder: boolean;
     scrollToBottom?: () => void;
     directory?: string;
-    // The list owns its scroll container; the timeline scroll hook drives it
-    // through this ref and observes it through the callbacks below.
     registerList?: (list: LegendListRef | null) => void;
-    // True while a real gesture owns the scroll; releases the list's own
-    // end pinning so the state machine, not the library heuristic, decides.
     endPinningReleased?: boolean;
     composerOverlayHeight?: number;
     onIsAtEndChange?: (isAtEnd: boolean) => void;
-    onListMetricsChange?: (metrics: { readonly headerSize: number; readonly footerSize: number }) => void;
+    onListMetricsChange?: (metrics: ListMetrics) => void;
     onTimelineDataChange?: () => void;
-    // Content that used to sit as siblings of the list inside the scroll
-    // container. The list owns that container now, so they render as its
-    // header/footer and scroll with the rows exactly as before.
     listHeader?: React.ReactNode;
     listFooter?: React.ReactNode;
     scrollContainerProps?: TimelineScrollContainerProps;
@@ -935,85 +922,24 @@ const MessageList = React.forwardRef<MessageListHandle, MessageListProps>(({
     const reviewTransferDirection = useGlobalSessionsStore((state) => {
         return state.reviewTransferBySessionId.get(sessionKey) ?? null;
     });
-    const [turnExpansion, setTurnExpansion] = React.useState<Map<string, boolean>>(() => readTurnExpansionCache(activityRenderMode));
-    const userAnimationRef = React.useRef<{
-        sessionKey: string | undefined;
-        previousOrder: string[];
-        animatedIds: Set<string>;
-    }>({ sessionKey: undefined, previousOrder: [], animatedIds: new Set() });
     const stableScrollToBottom = useStableEvent(() => {
         scrollToBottom?.();
     });
 
-    const turnExpansionModeRef = React.useRef(activityRenderMode);
-    React.useEffect(() => {
-        if (turnExpansionModeRef.current === activityRenderMode) return;
-        turnExpansionModeRef.current = activityRenderMode;
-        setTurnExpansion(readTurnExpansionCache(activityRenderMode));
-    }, [activityRenderMode]);
-
-    const toggleTurnActivity = React.useCallback((turnId: string) => {
-        setTurnExpansion((previous) => {
-            const expanded = previous.get(turnId) !== true;
-            writeTurnExpansionCache(turnId, expanded);
-            return new Map(previous).set(turnId, expanded);
-        });
-    }, []);
-
-
-    const runningSubagentRuns = useRunningSubagentRuns(sessionKey, directory);
-
-    const baseDisplayMessages = React.useMemo(() => streamPerfMeasure('ui.message_list.base_display_ms', () => {
-        const timeline = withRunningSubagentRuns(messages, runningSubagentRuns);
-        const seenIds = new Set<string>();
-        const latestById = new Map<string, ChatMessageEntry>();
-        const dedupedMessages: ChatMessageEntry[] = [];
-        for (const message of timeline) {
-            const messageId = message.info?.id;
-            if (typeof messageId === 'string') latestById.set(messageId, message);
-        }
-
-        // Preserve the first occurrence's chronological position, but use the last
-        // value because prepended history can overlap with newer live store data.
-        for (let index = 0; index < timeline.length; index += 1) {
-            const message = timeline[index];
-            const messageId = message.info?.id;
-            if (typeof messageId === 'string') {
-                if (seenIds.has(messageId)) {
-                    continue;
-                }
-                seenIds.add(messageId);
-            }
-            dedupedMessages.push(getNormalizedMessageForDisplay(
-                typeof messageId === 'string' ? latestById.get(messageId) ?? message : message,
-            ));
-        }
-
-        // v2 gives compaction, shell commands and subtasks their own message
-        // roles and tool parts, so the timeline needs no bridge-message
-        // stitching. What is left is folding the messages injected around a
-        // prompt back where they belong: composer context onto its user
-        // message, plumbing out of the list entirely.
-        return attachSyntheticContext(dedupedMessages);
-    }), [messages, runningSubagentRuns]);
-
-    // A retained hidden list must never fall back to another session's DOM.
-    const resolveScrollContainer = React.useCallback((): HTMLElement | null => {
-        return listRef.current?.getScrollableNode() ?? null;
-    }, []);
-
-    const displayMessages = React.useMemo(() => streamPerfMeasure('ui.message_list.retry_overlay_ms', () => {
-        return applyRetryOverlay(baseDisplayMessages, {
-            sessionId: retryOverlay?.sessionId ?? null,
-            message: retryOverlay?.message ?? 'Quota limit reached. Retrying automatically.',
-            confirmedAt: retryOverlay?.confirmedAt,
-            fallbackTimestamp: retryOverlay?.fallbackTimestamp ?? 0,
-        });
-    }), [baseDisplayMessages, retryOverlay]);
-
-    const { projection, staticTurns, streamingTurn } = useTurnRecords(displayMessages, {
+    const { turnExpansion, toggleTurnActivity, expandTurnActivity } = useTurnExpansion(activityRenderMode);
+    const { baseDisplayMessages, displayMessages } = useDisplayMessages(
+        messages,
         sessionKey,
+        directory,
+        retryOverlay,
+    );
+    const { projection, allEntries, trailingStreamingEntry, rows, stickyRowIndices } = useTimelineRows(sessionKey, displayMessages, {
         showTurnChangedFiles,
+        showReasoningTraces,
+        stickyUserHeader,
+        defaultActivityExpanded,
+        keepActivityText: activityRenderMode === 'text',
+        turnExpansion,
     });
     const uiPageProjectionRef = React.useRef({ projection, defaultActivityExpanded });
     React.useLayoutEffect(() => {
@@ -1133,124 +1059,14 @@ const MessageList = React.forwardRef<MessageListHandle, MessageListProps>(({
     }, [rows, stickyUserHeader]);
 
     const [liveTail] = React.useState(createLiveTailStore);
-
-    // Stable identities: these reach the list, where a changing callback would
-    // re-render every mounted row.
-    const stableIsAtEndChange = useStableEvent((isAtEnd: boolean) => {
-        if (listRef.current) onIsAtEndChange?.(isAtEnd);
-    });
-
-    const stableTimelineDataChange = useStableEvent(() => {
-        if (listRef.current) onTimelineDataChange?.();
-    });
-
-    const stableListMetricsChange = useStableEvent((metrics: { readonly headerSize: number; readonly footerSize: number }) => {
-        if (listRef.current) onListMetricsChange?.(metrics);
-    });
-
-    const currentUserOrder = React.useMemo(() => {
-        return messages
-            .filter((message) => resolveMessageRole(message) === 'user')
-            .map((message) => message.info.id);
-    }, [messages]);
-
-    // Detect new user messages SYNCHRONOUSLY during render.
-    // Must happen during render (not in useEffect) so that the new message
-    // receives animate=true on its FIRST render,
-    // starting it hidden (opacity 0). An effect-based approach causes
-    // the message to flash visible before the animation starts.
-    {
-        const anim = userAnimationRef.current;
-
-        // Reset on session switch
-        if (anim.sessionKey !== sessionKey) {
-            anim.sessionKey = sessionKey;
-            anim.previousOrder = currentUserOrder;
-            anim.animatedIds = new Set();
-        }
-
-        // Detect appended user messages
-        const prev = anim.previousOrder;
-        if (currentUserOrder.length > prev.length) {
-            const isAppendOnly = prev.every((id, i) => currentUserOrder[i] === id);
-            if (isAppendOnly && hasPendingUserSendAnimation(sessionKey)) {
-                for (let i = prev.length; i < currentUserOrder.length; i += 1) {
-                    const id = currentUserOrder[i];
-                    if (id && !anim.animatedIds.has(id)) {
-                        if (!consumePendingUserSendAnimation(sessionKey)) break;
-                        anim.animatedIds.add(id);
-                    }
-                }
-            }
-        }
-        anim.previousOrder = currentUserOrder;
-    }
-
-    const shouldAnimateUserMessage = React.useCallback((message: ChatMessageEntry): boolean => {
-        if (resolveMessageRole(message) !== 'user') return false;
-        return userAnimationRef.current.animatedIds.has(message.info.id);
-    }, []);
-
-    const onUserAnimationConsumed = React.useCallback((messageId: string) => {
-        userAnimationRef.current.animatedIds.delete(messageId);
-    }, []);
-
-    // Row lookups for navigation, built in one pass over the rows. A message
-    // maps to the row it starts in; one without a row of its own (a step
-    // under a closed fold) to its turn's fold, else its prompt. Assistant
-    // messages before a turn's last one are collapsible: in a collapsed turn
-    // their text sits inside the folded activity. Reasoning of any of a
-    // turn's messages, the last one included, sits in that fold too.
     const {
-        messageIndexMap,
-        turnIndexMap,
-        rowIndexByKey,
-        collapsibleTurnByMessageId,
-        turnByAssistantMessageId,
-    } = React.useMemo(() => {
-        const messageIndexes = new Map<string, number>();
-        const turnIndexes = new Map<string, number>();
-        const rowIndexes = new Map<string, number>();
-        const collapsible = new Map<string, string>();
-        const all = new Map<string, string>();
-        const foldIndexes = new Map<string, number>();
-        rows.forEach((row, index) => {
-            rowIndexes.set(row.key, index);
-            if (row.kind === 'ungrouped') {
-                messageIndexes.set(row.entry.message.info.id, index);
-                return;
-            }
-            const { turnId } = row.entry.turn;
-            if (row.kind === 'turn-head') {
-                turnIndexes.set(turnId, index);
-                messageIndexes.set(row.entry.turn.userMessage.info.id, index);
-            } else if (row.kind === 'turn-fold') {
-                foldIndexes.set(turnId, index);
-            } else if (row.kind === 'turn-message' && !row.slice?.from) {
-                messageIndexes.set(row.messageId, index);
-            }
-        });
-        for (const entry of allEntries) {
-            if (entry.kind !== 'turn') continue;
-            const { turnId, assistantMessages } = entry.turn;
-            const fallback = foldIndexes.get(turnId) ?? turnIndexes.get(turnId);
-            assistantMessages.forEach((message, assistantIndex) => {
-                const messageId = message.info.id;
-                if (!messageIndexes.has(messageId) && fallback !== undefined) messageIndexes.set(messageId, fallback);
-                all.set(messageId, turnId);
-                if (assistantIndex < assistantMessages.length - 1) collapsible.set(messageId, turnId);
-            });
-        }
-        return {
-            messageIndexMap: messageIndexes,
-            turnIndexMap: turnIndexes,
-            rowIndexByKey: rowIndexes,
-            collapsibleTurnByMessageId: collapsible,
-            turnByAssistantMessageId: all,
-        };
-    }, [allEntries, rows]);
-    const turnExpansionRef = React.useRef(turnExpansion);
-    turnExpansionRef.current = turnExpansion;
+        listRef,
+        handleRegisterList,
+        stableIsAtEndChange,
+        stableTimelineDataChange,
+        stableListMetricsChange,
+    } = useTimelineListBinding({ registerList, onIsAtEndChange, onTimelineDataChange, onListMetricsChange });
+    const { shouldAnimateUserMessage, onUserAnimationConsumed } = useUserSendAnimation(sessionKey, messages);
 
     /** The row an anchor names: the slice of a long answer it was taken in, else its message's first row. */
     const anchorRowIndex = React.useCallback((anchor: MessageViewportAnchor): number | undefined => (
@@ -1562,30 +1378,26 @@ const MessageList = React.forwardRef<MessageListHandle, MessageListProps>(({
     ]);
 
     return (
-        // Virtualized rows unmount/remount during scroll; re-running the reveal
-        // fade on every remount reads as blinking. Rows are never "new" from the
-        // list's point of view, so fade-in is disabled for them — content
-        // arriving inside the streaming tail keeps its own animations.
         <FadeInDisabledProvider disabled>
             <LiveTailSource entry={trailingStreamingEntry} directory={directory}
                 showTurnChangedFiles={showTurnChangedFiles} store={liveTail} />
             <TimelineList
-                    key={sessionKey}
-                    rows={rows}
-                    stickyRowIndices={stickyRowIndices}
-                    registerList={handleRegisterList}
-                    composerOverlayHeight={composerOverlayHeight}
-                    onIsAtEndChange={stableIsAtEndChange}
-                    onListMetricsChange={stableListMetricsChange}
-                    onTimelineDataChange={stableTimelineDataChange}
-                    listHeader={listHeader}
-                    listFooter={footerWithApprovals}
-                    scrollContainerProps={scrollContainerProps}
-                    rowContext={rowContext}
-                    endPinningReleased={endPinningReleased}
-                    showReasoningTraces={showReasoningTraces}
-                    collapsibleThinkingBlocks={collapsibleThinkingBlocks}
-                />
+                key={sessionKey}
+                rows={rows}
+                stickyRowIndices={stickyRowIndices}
+                registerList={handleRegisterList}
+                composerOverlayHeight={composerOverlayHeight}
+                onIsAtEndChange={stableIsAtEndChange}
+                onListMetricsChange={stableListMetricsChange}
+                onTimelineDataChange={stableTimelineDataChange}
+                listHeader={listHeader}
+                listFooter={footerWithApprovals}
+                scrollContainerProps={scrollContainerProps}
+                rowContext={rowContext}
+                endPinningReleased={endPinningReleased}
+                showReasoningTraces={showReasoningTraces}
+                collapsibleThinkingBlocks={collapsibleThinkingBlocks}
+            />
         </FadeInDisabledProvider>
     );
 });

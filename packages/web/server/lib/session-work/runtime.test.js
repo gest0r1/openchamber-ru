@@ -5,6 +5,8 @@ import { createSessionWorkRuntime } from './runtime.js';
 import { createSessionLineage } from '../session-lineage.js';
 
 const ENDPOINT = { url: 'https://jev.test', model: 'jev', headers: {} };
+const OPEN_RETRY_DELAYS_MS = [5, 5];
+const DONE_HINT_DELAY_MS = 5;
 
 // v2 serves a session's messages newest first.
 const settledPair = [
@@ -44,13 +46,18 @@ const makeRuntime = ({
   activityProbe = null,
 } = {}) => {
   const records = new Map([['ses_1', metadata]]);
+  const written = Promise.withResolvers();
   const readMetadata = vi.fn(async (id) => records.get(id) ?? {});
   const updateMetadata = vi.fn(async (id, decide) => {
     const current = records.get(id) ?? {};
     const patch = decide(current);
-    if (!patch) return { metadata: current, changed: false };
+    if (!patch) {
+      written.resolve();
+      return { metadata: current, changed: false };
+    }
     const merged = mergeMetadataPatch(current, patch);
     records.set(id, merged);
+    written.resolve();
     return { metadata: merged, changed: true };
   });
   const jev = { ask: vi.fn(async () => { if (askError) throw askError; return { answers, ms: 5 }; }) };
@@ -72,7 +79,7 @@ const makeRuntime = ({
     doneHintDelayMs,
     activityProbe,
   });
-  return { runtime, jev, readMetadata, updateMetadata, records };
+  return { runtime, jev, readMetadata, updateMetadata, records, written: written.promise };
 };
 
 const restored = { type: 'session.unarchived', properties: { sessionID: 'ses_1' } };
@@ -93,6 +100,7 @@ const settle = async (check) => {
 };
 
 afterEach(() => {
+  vi.useRealTimers();
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
 });
@@ -113,10 +121,10 @@ describe('session work decisions', () => {
 describe('session work runtime: a message was sent', () => {
   it('opens the session on a sent message without asking Jev', async () => {
     stubOpenCode();
-    const { runtime, jev, records } = makeRuntime();
+    const { runtime, jev, records, written } = makeRuntime();
 
     runtime.processPayload(sent());
-    await settle(() => records.get('ses_1').openchamber);
+    await written;
 
     expect(jev.ask).not.toHaveBeenCalled();
     expect(records.get('ses_1')).toMatchObject({ openchamber: { work: { state: 'open', openedBy: 'auto' } } });
@@ -140,20 +148,20 @@ describe('session work runtime: a message was sent', () => {
 
   it('opens the session on a message with only an attachment or attached context', async () => {
     stubOpenCode();
-    const { runtime, records } = makeRuntime();
+    const { runtime, records, written } = makeRuntime();
 
     runtime.processPayload(sent('msg_files', ''));
-    await settle(() => records.get('ses_1').openchamber);
+    await written;
 
     expect(records.get('ses_1')).toMatchObject({ openchamber: { work: { state: 'open', openedBy: 'auto' } } });
   });
 
   it('opens the session on a shell command the user ran', async () => {
     stubOpenCode();
-    const { runtime, records } = makeRuntime();
+    const { runtime, records, written } = makeRuntime();
 
     runtime.processPayload({ type: 'session.shell.started', id: 'evt_shell', created: 50, properties: { sessionID: 'ses_1' } });
-    await settle(() => records.get('ses_1').openchamber);
+    await written;
 
     expect(records.get('ses_1')).toMatchObject({ openchamber: { work: { state: 'open', openedBy: 'auto' } } });
   });
@@ -163,12 +171,12 @@ describe('session work runtime: a message was sent', () => {
     // `sent()` is created at 50.
     const reopened = makeRuntime({ metadata: { openchamber: { work: { state: 'done', doneAt: 40 } } } });
     reopened.runtime.processPayload(sent());
-    await settle(() => reopened.records.get('ses_1').openchamber.work.state === 'open');
+    await reopened.written;
     expect(reopened.records.get('ses_1').openchamber.work.state).toBe('open');
 
     const kept = makeRuntime({ metadata: { openchamber: { work: { state: 'done', doneAt: 60 } } } });
     kept.runtime.processPayload(sent());
-    await settle(() => kept.updateMetadata.mock.calls.length > 0);
+    await kept.written;
     expect(kept.records.get('ses_1').openchamber.work.state).toBe('done');
   });
 
@@ -228,35 +236,39 @@ describe('session work runtime: a message was sent', () => {
 
 describe('session work runtime: recovering an open that failed', () => {
   it('opens after a failed metadata read, session read or write, with no second delivery', async () => {
+    vi.useFakeTimers();
     vi.spyOn(console, 'warn').mockImplementation(() => {});
     for (const fail of ['metadata', 'session', 'write']) {
       const fetchMock = stubOpenCode();
-      const { runtime, readMetadata, updateMetadata, records } = makeRuntime();
+      const { runtime, readMetadata, updateMetadata, records, written } = makeRuntime();
       if (fail === 'metadata') readMetadata.mockRejectedValueOnce(new Error('store unreadable'));
       if (fail === 'session') fetchMock.mockRejectedValueOnce(new Error('ECONNRESET'));
       if (fail === 'write') updateMetadata.mockRejectedValueOnce(new Error('write failed'));
 
       runtime.processPayload(sent('msg_retry'));
-      await settle(() => workState(records) === 'open');
+      await vi.advanceTimersByTimeAsync(OPEN_RETRY_DELAYS_MS[0]);
+      await written;
       expect(workState(records), fail).toBe('open');
       vi.unstubAllGlobals();
     }
   });
 
   it('gives up after its bounded retries', async () => {
+    vi.useFakeTimers();
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     stubOpenCode();
     const { runtime, updateMetadata } = makeRuntime();
     updateMetadata.mockRejectedValue(new Error('write failed'));
 
     runtime.processPayload(sent('msg_retry'));
-    await new Promise((resolve) => setTimeout(resolve, 100));
+    for (const delay of OPEN_RETRY_DELAYS_MS) await vi.advanceTimersByTimeAsync(delay);
     // The first try and one per retry delay.
     expect(updateMetadata).toHaveBeenCalledTimes(3);
     expect(warn).toHaveBeenLastCalledWith(expect.stringContaining('gave up'), 'write failed');
   });
 
   it('does not retry a session OpenCode no longer has', async () => {
+    vi.useFakeTimers();
     vi.spyOn(console, 'warn').mockImplementation(() => {});
     const fetchMock = vi.fn(async () => new Response(
       JSON.stringify({ _tag: 'SessionNotFoundError', sessionID: 'ses_1', message: 'Session not found' }),
@@ -266,7 +278,7 @@ describe('session work runtime: recovering an open that failed', () => {
     const { runtime } = makeRuntime();
 
     runtime.processPayload(sent('msg_gone'));
-    await new Promise((resolve) => setTimeout(resolve, 60));
+    for (const delay of OPEN_RETRY_DELAYS_MS) await vi.advanceTimersByTimeAsync(delay);
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
@@ -334,17 +346,21 @@ describe('session work runtime: recovering an open that failed', () => {
   });
 
   it('does not start another turn when it retries: the current turn still gets its hint', async () => {
+    vi.useFakeTimers();
     vi.spyOn(console, 'warn').mockImplementation(() => {});
     stubOpenCode();
-    const { runtime, jev, updateMetadata, records } = makeRuntime({ settings: { enabled: true, reviewOffer: true } });
+    const { runtime, jev, updateMetadata, records, written } = makeRuntime({ settings: { enabled: true, reviewOffer: true } });
+    const asked = Promise.withResolvers();
     let answer;
-    jev.ask.mockImplementation(() => new Promise((resolve) => { answer = resolve; }));
+    jev.ask.mockImplementation(() => new Promise((resolve) => { answer = resolve; asked.resolve(); }));
     updateMetadata.mockRejectedValueOnce(new Error('write failed'));
 
     runtime.processPayload(sent('msg_turn'));
     runtime.processPayload(busy);
     const pending = runtime.evaluateTurnEnd({ sessionId: 'ses_1', directory: '/repo', assist: { recap: false, suggestion: false } });
-    await settle(() => answer !== undefined && workState(records) === 'open');
+    await asked.promise;
+    await vi.advanceTimersByTimeAsync(OPEN_RETRY_DELAYS_MS[0]);
+    await written;
     expect(workState(records)).toBe('open');
 
     answer({ answers: { review_ready: { noul: 0.9 } }, ms: 5 });
@@ -370,6 +386,7 @@ describe('session work runtime: a turn ended', () => {
   });
 
   it('asks only about the end of the work and a review in a session already in work, and a new turn retires the hint', async () => {
+    vi.useFakeTimers();
     stubOpenCode();
     const { runtime, jev, records, updateMetadata } = makeRuntime({
       metadata: { openchamber: { work: { state: 'open', openedAt: 1 } } },
@@ -386,7 +403,7 @@ describe('session work runtime: a turn ended', () => {
     const busy = { type: 'session.status', properties: { sessionID: 'ses_1', status: { type: 'busy' } } };
     runtime.processPayload(busy);
     runtime.processPayload(busy);
-    await settle(() => records.get('ses_1').openchamber.work.suggestDoneAt === undefined);
+    await updateMetadata.mock.results.at(-1).value;
     expect(records.get('ses_1').openchamber.work).not.toHaveProperty('suggestDoneAt');
     // One write for the hint, one to retire it: the second busy found nothing to retire.
     expect(updateMetadata).toHaveBeenCalledTimes(2);
@@ -448,7 +465,7 @@ describe('session work runtime: a turn ended', () => {
     expect(Object.keys(solo.jev.ask.mock.calls[0][0].questions)).toEqual(['review_ready']);
     expect(solo.records.get('ses_1')).toEqual({ openchamber: { reviewOffer: { at: expect.any(Number) } } });
     solo.runtime.processPayload({ type: 'session.status', properties: { sessionID: 'ses_1', status: { type: 'busy' } } });
-    await settle(() => !solo.records.get('ses_1').openchamber?.reviewOffer);
+    await solo.updateMetadata.mock.results.at(-1).value;
     expect(solo.records.get('ses_1').openchamber).not.toHaveProperty('reviewOffer');
 
     const off = makeRuntime({ settings: { reviewOffer: false }, answers: { recap: { noul: 0.1 } } });
@@ -457,6 +474,7 @@ describe('session work runtime: a turn ended', () => {
   });
 
   it('drops a late done answer once the next turn started', async () => {
+    vi.useFakeTimers();
     stubOpenCode();
     const { runtime, jev, records } = makeRuntime({
       metadata: { openchamber: { work: { state: 'open', openedAt: 1 } } },
@@ -471,10 +489,11 @@ describe('session work runtime: a turn ended', () => {
       answer = undefined;
       runtime.processPayload(busy);
       const pending = runtime.evaluateTurnEnd({ sessionId: 'ses_1', directory: '/repo', assist: { recap: false, suggestion: false } });
-      await settle(() => answer !== undefined);
+      await vi.advanceTimersByTimeAsync(0);
       runtime.processPayload(busy);
       answer({ answers: looksDone, ms: 5 });
       await pending;
+      await vi.advanceTimersByTimeAsync(5);
       expect(records.get('ses_1').openchamber.work).not.toHaveProperty('suggestDoneAt');
     }
 
@@ -488,14 +507,61 @@ describe('session work runtime: a turn ended', () => {
     expect(records.get('ses_1').openchamber.work.suggestDoneAt).toBeTypeOf('number');
   });
 
-  it('never closes: a closing turn in a session in work only hints', async () => {
+  it('neither hints done nor suggests a next step while the agent waits on its own background work', async () => {
+    vi.useFakeTimers();
     stubOpenCode();
     const { runtime, records } = makeRuntime({
       metadata: { openchamber: { work: { state: 'open', openedAt: 1 } } },
       answers: looksDone,
     });
-    await runtime.evaluateTurnEnd({ sessionId: 'ses_1', directory: '/repo', assist: { recap: false, suggestion: false } });
-    expect(records.get('ses_1').openchamber.work.state).toBe('open');
+    const continues = { ...looksDone, agent_continues: { noul: 0.9 } };
+    const assist = { recap: false, suggestion: true };
+    // The turn's user message was sent at 3; `now` starts at 100.
+    const waiting = [
+      [{ kind: 'subagent', sessionID: 'ses_child', startedAt: 1 }],
+      [{ kind: 'shell', sessionID: 'ses_1', command: 'bun test', startedAt: 50 }],
+      [],
+    ];
+    for (const [index, jobs] of waiting.entries()) {
+      const done = makeRuntime({ metadata: open, answers: looksDone, activityProbe: probe(jobs, index === 2) });
+      expect(await done.runtime.evaluateTurnEnd({ sessionId: 'ses_1', directory: '/repo', assist })).toMatchObject({ suggestion: false });
+      const next = makeRuntime({ answers: continues, activityProbe: probe(jobs, index === 2) });
+      expect(await next.runtime.evaluateTurnEnd({ sessionId: 'ses_1', directory: '/repo', assist })).toMatchObject({ suggestion: false });
+      await vi.advanceTimersByTimeAsync(DONE_HINT_DELAY_MS);
+      expect(done.records.get('ses_1').openchamber.work).not.toHaveProperty('suggestDoneAt');
+    }
+
+    // Known background work still rules out a next step when Jev fails.
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const failed = makeRuntime({ askError: new Error('Jev timed out'), activityProbe: probe(waiting[0]) });
+    expect(await failed.runtime.evaluateTurnEnd({ sessionId: 'ses_1', directory: '/repo', assist })).toEqual({ recap: true, suggestion: false });
+
+    // A dev server started before this turn is not work the agent waits on.
+    const server = [{ kind: 'shell', sessionID: 'ses_1', command: 'bun run dev', startedAt: 1 }];
+    const free = makeRuntime({ answers: continues, activityProbe: probe(server) });
+    expect(await free.runtime.evaluateTurnEnd({ sessionId: 'ses_1', directory: '/repo', assist })).toMatchObject({ suggestion: true });
+    const finished = makeRuntime({ metadata: open, answers: looksDone, activityProbe: probe(server) });
+    await finished.runtime.evaluateTurnEnd({ sessionId: 'ses_1', directory: '/repo', assist });
+    await vi.advanceTimersByTimeAsync(DONE_HINT_DELAY_MS);
+    expect(finished.records.get('ses_1').openchamber.work.suggestDoneAt).toBeTypeOf('number');
+  });
+
+  it('asks about a review only when the turn changed files on disk, or when OpenCode took no snapshot', async () => {
+    const withSnapshot = (files) => [
+      answeredTurn[0],
+      { ...answeredTurn[1], snapshot: { start: 'a', end: 'b', files } },
+      { id: 'msg_step', type: 'assistant', content: [], finish: 'tool-calls', snapshot: { start: 'a', end: 'a', files: [] } },
+      ...answeredTurn.slice(2),
+    ];
+    const questionsFor = async (records) => {
+      stubOpenCode({ records });
+      const { runtime, jev } = makeRuntime({ settings: { enabled: false }, answers: { review_ready: { noul: 0.9 } } });
+      await runtime.evaluateTurnEnd({ sessionId: 'ses_1', directory: '/repo', assist: { recap: true, suggestion: false } });
+      return Object.keys(jev.ask.mock.calls[0][0].questions);
+    };
+    expect(await questionsFor(withSnapshot([]))).toEqual(['recap']);
+    expect(await questionsFor(withSnapshot(['src/app.ts']))).toEqual(['review_ready', 'recap']);
+    expect(await questionsFor(answeredTurn)).toEqual(['review_ready', 'recap']);
   });
 
   it('neither hints done nor suggests a next step while the agent waits on its own background work', async () => {

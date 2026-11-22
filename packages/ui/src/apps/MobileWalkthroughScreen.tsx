@@ -29,9 +29,7 @@ import { MOBILE_HEADER_BUTTON_CLASS, MOBILE_HEADER_CLASS, MOBILE_HEADER_TITLE_CL
 export const MobileWalkthroughScreen: React.FC<{
   directory: string;
   target: WalkthroughTarget;
-  /** What is being walked through, such as "Commit · e1d7e102". */
   subtitle: string;
-  /** Moves when the subject's content moves, so the walkthrough reads again. */
   revision: string;
   visible: boolean;
   onBack: () => void;
@@ -41,8 +39,6 @@ export const MobileWalkthroughScreen: React.FC<{
   const { view } = review;
   const commentOrigin = React.useMemo(() => diffCommentOriginFromTarget(target), [target]);
   const [optionsOpen, setOptionsOpen] = React.useState(false);
-  // The walkthrough being read, by when it was generated: a new one starts
-  // again from its contents.
   const generatedAt = review.entry.result?.generatedAt ?? null;
   const [readingAt, setReadingAt] = React.useState<string | null>(null);
   const reading = view !== null && readingAt !== null && readingAt === generatedAt;

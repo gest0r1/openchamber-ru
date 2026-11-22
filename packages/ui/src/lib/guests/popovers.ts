@@ -73,7 +73,6 @@ export type GuestPopoverActivation = {
   close: (reason: 'escape' | 'outside' | 'anchor' | 'owner' | 'closed' | 'replaced') => void;
 };
 
-/** One document-owned lease. A stale owner may never release a replacement. */
 export class GuestPopoverController {
   #active: GuestPopoverActivation | null = null;
 
@@ -116,7 +115,6 @@ export const getGuestPopoverController = (ownerDocument: Document): GuestPopover
 
 const clamp = (value: number, min: number, max: number): number => Math.min(Math.max(value, min), max);
 
-/** Converts an owner-frame CSS-pixel anchor into a host viewport position. */
 export const positionGuestPopover = (request: PopoverPositionRequest): GuestPopoverPosition | null => {
   const { anchor, frame, viewport } = request;
   if (frame.clientWidth <= 0 || frame.clientHeight <= 0 || viewport.width <= GUTTER * 2 || viewport.height <= GUTTER * 2) return null;

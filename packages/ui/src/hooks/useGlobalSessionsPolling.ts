@@ -19,7 +19,6 @@ const STARTUP_RETRY_DELAYS_MS = [1_000, 2_000, 4_000];
 type ScheduleTimeout = (callback: () => void, delay: number) => number;
 type ClearTimeout = (timeoutId: number) => void;
 
-/** Whether anyone can see the app, and a way to hear when they can again. */
 type PollingVisibility = {
   isHidden: () => boolean;
   onVisible: (listener: () => void) => () => void;
@@ -27,7 +26,6 @@ type PollingVisibility = {
 
 const NEVER_HIDDEN: PollingVisibility = { isHidden: () => false, onVisible: () => () => undefined };
 
-/** Hears when OpenCode first answers, the moment a failed startup load can succeed. */
 type SubscribeServerReady = (listener: () => void) => () => void;
 
 const NEVER_READY: SubscribeServerReady = () => () => undefined;
@@ -106,7 +104,6 @@ export const startGlobalSessionsPolling = (
   let startupRetries = 0;
   let hasSucceeded = false;
   let running = false;
-  // OpenCode answered while a load that started before it was in flight.
   let readyDuringRun = false;
   let fullRefreshPending = false;
   // A stream gap ended while a load ran: that load may have read the list
@@ -162,7 +159,6 @@ export const startGlobalSessionsPolling = (
       return;
     }
     if (!hasSucceeded && readyDuringRun) {
-      // That load may have failed only because OpenCode was still starting.
       void run(refresh);
       return;
     }
@@ -239,7 +235,6 @@ export const useGlobalSessionsPolling = (enabled: boolean): void => {
         else await refreshGlobalSessions();
         if (!active || getRuntimeKey() !== runtimeKey) return false;
         void seedGlobalSessionStatusFromHost();
-        // The store preserves cached sessions on failure instead of throwing.
         return useGlobalSessionsStore.getState().status === 'ready';
       };
       const stop = startGlobalSessionsPolling(

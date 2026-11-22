@@ -20,7 +20,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { SessionSearchInput } from '@/components/session/SessionSearchInput';
 import { requestReasoningReveal } from '@/components/chat/search/reasoningReveal';
 import { refreshSpaceArchives, useSpaceArchivesStore } from '@/lib/spaces/space-archives';
-import { isRestorableOnItsOwn } from '@/sync/session-restore-rule';
+import { selectArchivedSessions, selectActiveArchiveSessions, selectArchiveParentTitles } from './archive/sessionSelectors';
 import { createSessionOwnershipIndex } from '@/components/session/sidebar/sessions/sessionOwnership';
 import { formatProjectLabel } from '@/components/session/sidebar/utils';
 import { resolveSidebarSessionLocations, type SidebarSessionLocation } from '@/components/session/sidebar/recent/sessionLocation';
@@ -46,26 +46,17 @@ import { searchScopeQuery, type OmniAuthor, type SearchScope } from '@/lib/searc
 import { MatchHighlight } from '@/components/ui/MatchHighlight';
 import { leadWithMatch, splitSnippet } from '@/lib/messageSearch';
 
-/**
- * A group in the panel on the left: a project with its worktrees (archived
- * ones included), the chats of a deleted isolated space (named after the
- * space, with no way to restore them), or everything else.
- */
 type ArchiveBucket = {
   key: string;
   kind: 'project' | 'space' | 'other';
   label: string;
-  /** The project's root or the space's directory; empty for everything else. */
   directory: string;
-  /** The project's id, for a project bucket. */
   projectId?: string;
   sessions: Session[];
 };
 
 const OTHER_BUCKET_KEY = '\u0000other';
 
-// Bound the mounted DOM: archives grow into the hundreds; batch rendering
-// keeps the list responsive without a virtualizer.
 const PAGE_SIZE = 100;
 
 const NO_SEARCH_LOCATIONS: ReadonlyMap<string, SidebarSessionLocation> = new Map();
@@ -184,8 +175,6 @@ export function ArchiveSessionsView({ layout, onLeave }: {
   const searchScopes = useSearchScopes();
   const { searchIn, author } = searchScopeQuery(effectiveSearchScope(searchScope, searchScopes));
 
-  // The chats of deleted spaces are read-only and named after their space; read which they are
-  // each time the page opens, since a space may have been deleted from another window.
   React.useEffect(() => {
     void refreshSpaceArchives().catch(() => {});
   }, []);
@@ -276,9 +265,6 @@ export function ArchiveSessionsView({ layout, onLeave }: {
     return () => { current = false; };
   }, [unadmittedOwnedDirectories]);
 
-  // A subsession under an archived parent comes back with that parent and is
-  // not listed. One archived while its parent stays active would otherwise
-  // show nowhere, so it is listed under its parent's title and restored alone.
   const sortedSessions = React.useMemo(
     () => listedSessions.filter((session) => {
       const directory = resolveGlobalSessionDirectory(session);
@@ -295,7 +281,6 @@ export function ArchiveSessionsView({ layout, onLeave }: {
     return titles;
   }, [parentTitlePairs]);
 
-  // The parent's title, shown once above the first of its subsessions' rows.
   const parentTitleAbove = (rows: Session[], index: number): string | null => {
     const parentID = rows[index]?.parentID;
     if (!parentID || rows[index - 1]?.parentID === parentID) return null;
@@ -305,8 +290,6 @@ export function ArchiveSessionsView({ layout, onLeave }: {
   const archivesByProject = useWorktreeArchivesByProject();
   const archiveActions = useWorktreeArchiveActions();
 
-  // Archived worktrees live in each project's repository; read them each time
-  // the page opens, like the spaces above.
   React.useEffect(() => {
     for (const project of projects) void loadWorktreeArchives(project.path).catch(() => undefined);
   }, [projects]);
@@ -343,7 +326,6 @@ export function ArchiveSessionsView({ layout, onLeave }: {
       }
       bucketFor(OTHER_BUCKET_KEY, () => ({ key: OTHER_BUCKET_KEY, kind: 'other', label: t('sessions.archivePage.other'), directory: '' })).sessions.push(session);
     }
-    // A project whose only archive is a worktree without sessions is listed too.
     for (const [root, entry] of archivesByProject) {
       if (entry.archives.length > 0) projectBucket(root);
     }
@@ -445,7 +427,6 @@ export function ArchiveSessionsView({ layout, onLeave }: {
   const searchFailure = useSearchFailureText(contentStatus, searchIn === 'messages');
 
   const selectedProject = selectedBucket?.projectId ? { id: selectedBucket.projectId, path: selectedBucket.directory } : null;
-  // The selected project's archived worktrees, each with its own sessions.
   const worktreeGroups = React.useMemo(() => {
     if (hasSearchQuery || selectedBucket?.kind !== 'project') return [];
     const listed = new Map(selectedBucket.sessions.map((session) => [session.id, session] as const));
@@ -609,17 +590,9 @@ export function ArchiveSessionsView({ layout, onLeave }: {
   ) : null;
 
   if (layout === 'mobile') {
-    // The desktop's page in one column. Its groups (every session, each
-    // project, a deleted space's chats, everything else) become a row of
-    // chips that scrolls sideways; a project's archived worktrees are tiles
-    // holding their sessions above its loose ones. Touch has no hover, so
-    // Restore and a worktree's Delete are always shown. Deleting a session
-    // stays on the desktop, whose confirmation dialog the mobile shell does
-    // not mount.
     const renderMobileSessionRow = (session: Session, index: number, rows: Session[], inTile: boolean) => {
       const sessionDirectory = normalizePath(resolveGlobalSessionDirectory(session)) ?? '';
       const title = session.title || t('sessions.sidebar.session.untitled');
-      // A deleted space's chat has nowhere to be restored to.
       const restorable = !(spaceArchives?.has(sessionDirectory) ?? false);
       const parentTitle = parentTitleAbove(rows, index);
       // Only a list that mixes groups names each row's group.
@@ -800,7 +773,6 @@ export function ArchiveSessionsView({ layout, onLeave }: {
                       render={<div
                         className={cn(
                           'group relative flex cursor-pointer items-center gap-3 rounded-md py-1 pe-2 transition-[padding] hover:bg-interactive-hover/40 hover:pe-14 focus-within:pe-14',
-                          // In a worktree's tile the titles line up with the worktree's name, past its icon.
                           indent ? (session.parentID ? 'ps-[2.875rem]' : 'ps-[1.875rem]') : (session.parentID ? 'ps-6' : 'ps-2'),
                         )}
                         onClick={() => openSession(session)}
@@ -893,7 +865,6 @@ export function ArchiveSessionsView({ layout, onLeave }: {
           </ScrollableOverlay>
         </div>
 
-        {/* Session list */}
         <div className="flex min-w-0 flex-1 flex-col">
           {/* The search shares the list's column, so the two line up. */}
           <div data-archive-toolbar className="px-6 pt-3">

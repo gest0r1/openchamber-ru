@@ -7,8 +7,6 @@ import { completeToolContent } from '@/sync/tool-content-completion';
 
 type ToolContentCompletion =
   | { status: 'whole' }
-  // `showProgress` turns true once the request is slow enough to be worth
-  // saying so; a quick completion would only flash the message.
   | { status: 'loading'; showProgress: boolean }
   | { status: 'failed'; retry: () => void };
 

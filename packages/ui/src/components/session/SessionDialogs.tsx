@@ -105,8 +105,6 @@ export const SessionDialogs: React.FC = () => {
 
     const hasDirtyWorktrees = hasCompletedDirtyCheck && dirtyWorktreePaths.size > 0;
 
-    // The branch toggles appear only once the check allows them, so a
-    // worktree on the default branch never offers deleting it.
     const [canDeleteBranch, setCanDeleteBranch] = React.useState(false);
     const branchCheckWorktree = deleteDialog?.mode === 'worktree'
         ? deleteDialog.worktree ?? deleteDialogSummaries[0]?.metadata ?? null
@@ -165,7 +163,6 @@ export const SessionDialogs: React.FC = () => {
     );
     const keepSessions = deleteDialogShouldKeepSessions && keepSessionCount > 0;
 
-    // Session loading is handled by sync bootstrap — no manual loadSessions needed.
 
     const openDeleteDialog = React.useCallback((payload: { sessions: Session[]; dateLabel?: string; mode?: 'session' | 'worktree'; worktree?: WorktreeMetadata | null }) => {
         setDeleteDialog({
@@ -387,7 +384,6 @@ export const SessionDialogs: React.FC = () => {
                 }
             );
 
-            // A directory inside the removed checkout, such as `<worktree>/sub`, goes with it.
             const isInRemovedWorktree = (directory: string): boolean => Boolean(
                 normalizedWorktreePath
                 && directory
@@ -515,8 +511,6 @@ export const SessionDialogs: React.FC = () => {
         return run(false, sessionIds);
     }, [archiveSession, archiveSessions, canRemoveRemoteBranches, childStores, deleteDialogShouldRemoveRemote, getProjectRefForWorktree, removeSelectedWorktree, t, unarchiveSessions]);
 
-    // Paths whose quick delete is being checked or removed, so a repeated
-    // Shift+click cannot remove the same worktree twice.
     const quickDeletePathsRef = React.useRef<Set<string>>(new Set());
 
     const deleteWorktreeWithoutDialogIfSafe = React.useCallback(async (
@@ -529,7 +523,6 @@ export const SessionDialogs: React.FC = () => {
         }
         quickDeletePathsRef.current.add(pathKey);
         try {
-            // A failed check counts as unsafe: the dialog shows what it can.
             const status = await getWorktreeStatus(worktree.path).catch(() => undefined);
             if (!canDeleteWorktreeWithoutConfirm(status)) {
                 openDeleteDialog({ sessions, mode: 'worktree', worktree });

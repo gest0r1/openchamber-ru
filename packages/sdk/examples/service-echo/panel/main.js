@@ -210,7 +210,7 @@ ${Xe("success")}${Xe("warning")}${Xe("error")}${Xe("info")}
 /* The app's floating level: the glass edge (a hairline ring and a lit top line, dark outside and light inside in dark themes) over soft shadows. The outer ring is the border, over the page like the app's. */
 .oc-sdk-popup { --surface-foreground: ${Te}; border-color: var(--oc-sdk-float-edge); border-radius: 12px; background: ${We}; background-clip: padding-box; color: ${Te}; box-shadow: var(--oc-sdk-float); }
 .oc-sdk-option { border-radius: 8px; }
-.oc-sdk-option[data-active="true"] { background: ${W}; }
+.oc-sdk-option[data-active="true"] { background: ${K}; }
 /* A selected option shows a check mark in the text colour, like the app's own pickers. Options without the mark come
    from bundles built before it existed and keep the selection fill as their only sign of the choice. */
 .oc-sdk-option[aria-selected="true"]:not([data-mark]) { background: ${xt}; color: ${At}; }

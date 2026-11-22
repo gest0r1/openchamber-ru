@@ -3,9 +3,13 @@ import { toast } from 'sonner';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { useI18n } from '@/lib/i18n';
 import { Icon } from '@/components/icon/Icon';
-import { selectAvailableSkillsForDirectory, useSkillsStore } from '@/stores/useSkillsStore';
+import { selectAvailableSkillsForDirectory, selectSkillsForDirectory, useSkillsStore } from '@/stores/useSkillsStore';
 import { useMcpStore } from '@/stores/useMcpStore';
-import { useSession } from '@/sync/sync-context';
+import { useSession, useSessionMessagesSelector } from '@/sync/sync-context';
+import type { State } from '@/sync/types';
+import type { Message } from '@/lib/opencode/model';
+import { RuntimeAPIContext } from '@/contexts/runtimeAPIContext';
+import { resolveLoadedSkillTarget, sameLoadedSkills, selectLoadedSkills, type LoadedSkill } from './loadedSkills';
 import { getDistinctLinkedIssues, getLinkedSidebarChanges, getLinkedSidebarIssues, getRepositoryThreadRef, isLinkedChange, type LinkedIssue, type RepositoryThreadRef } from '@/lib/linkedIssues';
 import { useRepositoryUrlMatcher } from '@/lib/source-control/repositoryUrlMatcher';
 import { formatChangeRequestReference } from '@/lib/source-control/providers/terminology';
@@ -75,16 +79,6 @@ type Props = {
   directory: string | null;
 };
 
-/**
- * What is loaded into the agent's context: the issues and change requests this
- * session was pointed at, plus how much ambient material is available.
- *
- * Agents are deliberately absent — an agent is who does the work, not material
- * the work is done with. Tools are absent for want of an honest source:
- * `Agent.tools` is a per-agent override map, not a registry, so its size would
- * report something other than "tools available".
- */
-/** A linked item's number, its repository when that is not the project's, and its state. */
 const LinkedReference: React.FC<{ reference: string; status?: string | null; url: string; directory: string | null }> = ({ reference, status, url, directory }) => {
   const repository = useOutsideRepository(url, directory);
   return <>{[reference, repository, status].filter(Boolean).join(' · ')}</>;
@@ -100,38 +94,23 @@ export const WorkStatusContextSection: React.FC<Props> = ({ sessionId, directory
   const projects = useProjectsStore((state) => state.projects);
   const isDraft = sessionId === null && newSessionDraft.open;
   const skills = useSkillsStore((state) => selectAvailableSkillsForDirectory(state));
+  const installedSkills = useSkillsStore((state) => selectSkillsForDirectory(state, directory));
+  const loadedSkills = useSessionMessagesSelector(sessionId ?? '', directory ?? undefined, selectSessionLoadedSkills, sameLoadedSkills, true);
   const mcpStatus = useMcpStore(
     React.useCallback((state) => state.getStatusForDirectory(directory), [directory]),
   );
 
-  // Skills were previously fetched only when the composer's slash autocomplete
-  // opened, so this row reported whatever count happened to be cached — often
-  // none — until the user typed "/". The panel states a count, so it is the
-  // panel's business to have one. Re-run per directory because skills are
-  // discovered relative to the active project. No background-network wrap
-  // here: `loadSkills` already gates its own fetch, and wrapping it again
-  // would hold a second slot idle for the length of the first.
   const loadSkills = useSkillsStore((state) => state.loadSkills);
-  // `isConnected` is a dependency, not a gate: skills are discovered on the
-  // connected instance and their caches are dropped when instances switch, so
-  // the count has to be asked for again once the new instance is up. Two
-  // instances can hold the same project path, which leaves `directory`
-  // unchanged across a switch.
   const isConnected = useConfigStore((state) => state.isConnected);
   React.useEffect(() => {
     void loadSkills();
+    if (directory) void loadSkills(directory);
   }, [directory, isConnected, loadSkills]);
 
-  /**
-   * What this session carries. Read from the server
-   * rather than from the notes panel's store, because this must be right
-   * whether or not that panel has ever been opened.
-   */
   const [knowledge, setKnowledge] = React.useState<SessionKnowledgeSummary>(
     { notes: [], plans: [], memory: { global: 0, project: 0 } },
   );
 
-  // Re-read when source content or memory changes, not only when the session does.
   const contextEntries = useProjectContextStore((state) => state.entries);
   const loadProjectContext = useProjectContextStore((state) => state.load);
   const memoryProject = useAgentMemoryStore((state) => state.project);
@@ -181,9 +160,6 @@ export const WorkStatusContextSection: React.FC<Props> = ({ sessionId, directory
     return { ...knowledge, ...pinned };
   }, [draftContextEntry?.notes, draftContextEntry?.plans, isDraft, knowledge, newSessionDraft.projectContextPins]);
 
-  // Unpinning from here, like the pinned-messages section: a panel that says
-  // what is attached should be able to detach it, or the user has to go find
-  // the surface that can.
   const unpinNote = React.useCallback((noteId: string) => {
     if (isDraft) {
       setDraftProjectContextPin('note', noteId, false);
@@ -205,11 +181,6 @@ export const WorkStatusContextSection: React.FC<Props> = ({ sessionId, directory
     });
   }, [directory, isDraft, sessionId, setDraftProjectContextPin]);
 
-  // Removing a linked thread, like unpinning: the panel that says what the
-  // session carries is the one that can take it back off, or an agent's link
-  // would be permanent unless metadata were edited by hand. The write is the
-  // same metadata patch the attach flows use, so the row leaves when the
-  // session's stored list loses the entry.
   const unlinkLinkedThread = React.useCallback((issue: LinkedIssue) => {
     if (!directory || !sessionId) return;
     void sessionActions.setLinkedIssue(sessionId, directory, issue, false).catch(() => {
@@ -236,9 +207,6 @@ export const WorkStatusContextSection: React.FC<Props> = ({ sessionId, directory
 
   const urlMatcher = useRepositoryUrlMatcher();
   const linked = React.useMemo(() => getDistinctLinkedIssues(session, urlMatcher), [session, urlMatcher]);
-  // Live state of the session's linked change requests and issues, from the
-  // server's tracked items. This panel follows its own session too: the
-  // session need not be on screen in the sidebar.
   const repositoryChanges = React.useMemo(
     () => getLinkedSidebarChanges(session, urlMatcher).flatMap((change) => (
       change.repository ? [{ ref: change.repository, item: repositoryThread('pull', change.repository), url: change.url, title: change.title }] : []
@@ -265,17 +233,12 @@ export const WorkStatusContextSection: React.FC<Props> = ({ sessionId, directory
   const changeSummaries = useTrackedPullVisualSummaries(repositoryChanges);
   const repositoryIssueStates = useTrackedIssueStates(repositoryIssueItems);
   const linkedWorkItemStates = useTrackedWorkItemStates(linkedWorkItems);
-  // The pull request of the branch checked out here, read-only as in the
-  // repository readout. When it is also linked, its row shows this state, as
-  // the sidebar row does: a full status read carries more than a live summary,
-  // and the linked item's own state may not have arrived yet.
   const gitDirectory = useEffectiveGitDirectory(directory);
   const branch = useGitStore(React.useCallback(
     (state) => (gitDirectory ? state.directories.get(gitDirectory)?.status?.current?.trim() || null : null),
     [gitDirectory],
   ));
   const branchPrSummary = useFreshestSourceControlVisualSummaryForBranch(gitDirectory, branch);
-  // Repository thread key, or a tracker entry's id (`linear:ENG-12`) lowercased -> the coloured status line.
   const liveLookById = React.useMemo(() => {
     const looks = new Map<string, { color: string; reference: string; status: string | null }>();
     const changeLook = (summary: PrVisualSummary, ref: RepositoryThreadRef) => {
@@ -284,9 +247,6 @@ export const WorkStatusContextSection: React.FC<Props> = ({ sessionId, directory
       const label = getPrStatusLabel(summary, descriptor.terminology.changeRequest, t);
       return { color: `var(--pr-${summary.visualState})`, reference, status: label };
     };
-    // A summary belongs to the link at its own index: the same owner/repo#number
-    // can be linked from two instances in one session, and only the position
-    // tells those two apart.
     repositoryChanges.forEach(({ ref }, index) => {
       const summary = changeSummaries[index];
       if (summary) looks.set(ref.key, changeLook(summary, ref));
@@ -298,7 +258,6 @@ export const WorkStatusContextSection: React.FC<Props> = ({ sessionId, directory
       const identifier = `${urlMatcher.descriptorOf(ref.provider).terminology.issuePrefix}${ref.number}`;
       looks.set(ref.key, { color: look.color, reference: identifier, status: t(look.statusKey) });
     });
-    // A tracker shows its own state name; the colour comes from its category.
     linkedTrackerEntries.forEach(({ key, identifier }, index) => {
       const state = linkedWorkItemStates[index];
       if (!state) return;
@@ -321,11 +280,7 @@ export const WorkStatusContextSection: React.FC<Props> = ({ sessionId, directory
   }, [branchPrSummary, changeSummaries, linkedTrackerEntries, linkedWorkItemStates, repositoryChanges, repositoryIssueRefs, repositoryIssueStates, t, urlMatcher]);
   const openTrackerItem = useOpenTrackerItem();
   const copyLink = useCopyReferenceLink();
-  const leaveWorkStatus = useLeaveWorkStatus();
   const trackerDescriptors = useTrackerDescriptors();
-  // Connected servers only. A disabled server contributes nothing to the
-  // context, so counting it here contradicts the MCP section right above,
-  // which shows the same servers switched off.
   const mcpCount = React.useMemo(
     () => Object.values(mcpStatus ?? {}).filter((entry) => entry?.status.status === 'connected').length,
     [mcpStatus],
@@ -340,12 +295,8 @@ export const WorkStatusContextSection: React.FC<Props> = ({ sessionId, directory
     return null;
   }
 
-  // The heading names what is distinctive about this session when there is
-  // something — an attached thread — and falls back to the ambient counts
-  // when there is not. `1 · 33 · 2` said nothing without opening the section.
   const linkedChanges = linked.filter(isLinkedChange);
   const prCount = linkedChanges.length;
-  // A provider's own word only when every attached change shares it.
   const changeTerms = new Set(linkedChanges.map((entry) => {
     const ref = getRepositoryThreadRef(entry, urlMatcher);
     return ref ? urlMatcher.descriptorOf(ref.provider).terminology.changeRequest : 'pullRequest';
@@ -368,7 +319,6 @@ export const WorkStatusContextSection: React.FC<Props> = ({ sessionId, directory
       ? t(changeRequestCopy('chat.workStatus.breakdown.prCountSingle', changeTerm), { count: prCount })
       : t(changeRequestCopy('chat.workStatus.breakdown.prCountPlural', changeTerm), { count: prCount }));
   }
-  // Pinned knowledge outranks ambient counts because the user chose it for this session.
   if (summaryParts.length === 0 && pinnedCount > 0) {
     summaryParts.push(pinnedCount === 1
       ? t('chat.workStatus.breakdown.pinnedKnowledgeSingle', { count: pinnedCount })
@@ -387,12 +337,6 @@ export const WorkStatusContextSection: React.FC<Props> = ({ sessionId, directory
     }
   }
 
-  // Identifier and state lead, the title follows and is what truncates: the
-  // number and state are what tell links apart, as in the sidebar. A GitHub
-  // thread with a known state shows it in the sidebar's colours; anything
-  // else keeps the plain muted identifier.
-  // Keyed by the repository thread, so an extension's link to a change request
-  // shows the same live state as a direct one.
   const liveLookOf = (entry: (typeof linked)[number]) => {
     if (entry.kind === 'tracker') return liveLookById.get(entry.id.toLowerCase());
     const ref = getRepositoryThreadRef(entry, urlMatcher);
@@ -408,16 +352,11 @@ export const WorkStatusContextSection: React.FC<Props> = ({ sessionId, directory
   };
   const openLinkedAriaLabel = (entry: Extract<(typeof linked)[number], { kind: 'issue' | 'pull' }>) => {
     const ref = getRepositoryThreadRef(entry, urlMatcher);
-    // A link no served provider recognises names no provider.
     return ref
       ? t('chat.workStatus.linkedIssues.openOnProvider', { reference: renderedIdentifier(entry), provider: urlMatcher.descriptorOf(ref.provider).label })
       : t('chat.workStatus.linkedIssues.openGuest', { id: renderedIdentifier(entry) });
   };
   const trackerNameOf = (provider: string) => trackerDescriptors.find((descriptor) => descriptor.id === provider)?.name ?? provider;
-  // The kind, never the author: an agent's link has no avatar, and a mix of
-  // faces and icons hid which row was a PR. An issue reads as an issue
-  // wherever it lives (GitHub, GitLab, an agent's or an extension's link) and
-  // wears its state's colour, as on a sidebar row.
   const renderLinkedIcon = (entry: (typeof linked)[number]) => {
     const color = liveLookOf(entry)?.color;
     return (
@@ -503,22 +442,13 @@ export const WorkStatusContextSection: React.FC<Props> = ({ sessionId, directory
           key={entry.id}
           leading={renderLinkedIcon(entry)}
           label={renderLinkedLabel(entry)}
-          // The title truncates in a narrow panel; the full one shows on hover.
           tooltip={entry.title ? renderLinkedLabel(entry) : undefined}
           muted
-          // In the Tracker, read through this session's project; Cmd or Ctrl,
-          // and anything the app cannot show, opens the link.
           onClick={(event) => {
             openTrackerItem(entry.url, directory, event);
             leaveWorkStatus?.();
           }}
           className="group/linked"
-          // The panel that shows what a session carries is the one that can
-          // take an item back off; a pinned row's control is the precedent.
-          // This sits in the trailing value slot, where row actions live.
-          // Copying the link appears on hover and takes no space at rest, so
-          // the title keeps the full width; focus inside the row shows it for
-          // the keyboard, and a touch screen, which has no hover, shows it always.
           value={(
             <>
               <Tooltip>
@@ -585,6 +515,17 @@ export const WorkStatusContextSection: React.FC<Props> = ({ sessionId, directory
           leading={renderUnpinButton(() => unpinPlan(plan.id))}
           label={plan.title}
           value={<WorkStatusValue tone="muted">{t('chat.workStatus.breakdown.pinnedPlan')}</WorkStatusValue>}
+        />
+      ))}
+      {loadedSkills.map((skill) => (
+        <WorkStatusRow
+          key={`skill:${skill.id}`}
+          muted
+          icon="book"
+          label={<span dir="auto">{skill.name}</span>}
+          tooltip={skill.name}
+          onClick={() => openLoadedSkill(skill)}
+          ariaLabel={t('chat.workStatus.loadedSkills.open', { name: skill.name })}
         />
       ))}
       {memoryCount > 0 ? (

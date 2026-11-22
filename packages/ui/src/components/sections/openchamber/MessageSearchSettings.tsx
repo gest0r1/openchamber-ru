@@ -17,8 +17,6 @@ import {
 } from '@/lib/messageSearch';
 import { useUIStore } from '@/stores/useUIStore';
 
-// The server follows the switch after the debounced settings save, and fills
-// the index in the background: the status is read again until it settles.
 const STATUS_POLL_MS = 2_000;
 const REASONING_WALK_GRACE_POLLS = 3;
 
@@ -58,9 +56,6 @@ export const MessageSearchSettings: React.FC = () => {
   const [view, setView] = React.useState<StatusView>({ kind: 'loading' });
   const [working, setWorking] = React.useState(false);
 
-  // Turning reasoning on starts a walk that re-reads every conversation. The
-  // save reaches the server after a debounce, so a settled answer right after
-  // the switch may predate it: a few more reads wait for the walk to show up.
   const previousReasoningRef = React.useRef(reasoning);
   React.useEffect(() => {
     const expectWalk = enabled && reasoning && !previousReasoningRef.current;
@@ -123,7 +118,6 @@ export const MessageSearchSettings: React.FC = () => {
       size,
     });
   } else {
-    // Switched on, the server has not picked it up yet.
     statusText = t('settings.openchamber.messageSearch.status.loading');
   }
 

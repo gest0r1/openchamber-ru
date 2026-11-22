@@ -12,9 +12,9 @@ Small Model is worth waking.
 
 ## Files
 
-- `questions.js` — the turn-end Jev questions (measured wording, see
+- `questions.ts` — the turn-end Jev questions (measured wording, see
   "Measurement"), the thresholds, and the decisions taken from the answers.
-- `state.js` — `metadata.openchamber.work` and the merge patches that change
+- `state.ts` — `metadata.openchamber.work` and the merge patches that change
   it. Every patch is decided against the record at write time.
 - `membership.js` — which sessions can be in work and which ones the block
   shows.
@@ -35,6 +35,9 @@ Small Model is worth waking.
 handed over changes the user could look over. It lives outside `work` so it
 needs neither the In work block nor a session in work.
 
+`metadata.openchamber.pinned` is the UI's pin record
+(`packages/ui/src/lib/sessionPins.ts`); this module only parses it.
+
 The UI parser is `packages/ui/src/lib/sessionWorkMetadata.ts`; the user's own
 Track / Done go through the generic metadata route
 (`setSessionWorkState` in `packages/ui/src/sync/session-actions.ts`), which
@@ -52,6 +55,9 @@ runtime and for the agent tool's `session.list`.
   closes, in the app or through an agent they asked.
 - A message reopens a closed session only when it was sent after the user
   closed it (`openPatch` compares the message's `time.created` with `doneAt`).
+- Track (`userStatePatch` with `open`) and Done drop Jev's hint; Done keeps
+  `openedAt` and `openedBy`. The UI writes the same record
+  (`withSessionWorkState` in packages/ui).
 - Writes go through `updateSessionMetadata`, which decides the patch inside the
   store's per-session write queue, so a user's Done written a moment earlier
   is seen and kept.
@@ -86,9 +92,15 @@ runtime and for the agent tool's `session.list`.
 - A known subsession costs nothing: `../session-lineage.js` remembers which
   sessions have a parent (from `session.created` events and from any record
   read anyway), and a known one is skipped before any read or Jev call.
+  A session an agent runs for its own work (`session.create` with `ownWork`)
+  is a subsession by its metadata link, so it never opens on its own: its
+  work is its parent's, and it leaves In work with it. When the user takes it
+  over, the link goes and the lineage forgets it, so its next message opens
+  it like any root.
 - Every failure (no classification provider, Jev error or timeout, an
   unreadable session) leaves state unchanged and returns an unknown gate, so
-  session assist runs exactly as it did without Jev.
+  session assist runs exactly as it did without Jev. A failed Jev call still
+  rules out a next-step suggestion when background work was already known.
 
 ## When a session opens
 
@@ -109,11 +121,13 @@ metadata read, session read or write is tried again after 2s, 10s and 60s,
 then given up with a warning. A session archived when the message arrived
 waits for OpenCode's `session.unarchived` and is tried again then; sending to
 an archived session restores it right after the send, so this is the usual
-order there. One open is pending per session, the newest message's, and a
-retry never moves the turn counter: the message id is taken once, and only
-taking it starts a turn. Recovery is local because nothing delivers the same
-message again: the hub hands each event to a server subscriber once and does
-not retry a subscriber that failed.
+order there. A restore that lands while a try already read the session as
+archived triggers the next try at once; a session OpenCode no longer has
+(`SessionNotFoundError`) is not retried. One open is pending per session, the
+newest message's, and a retry never moves the turn counter: the message id is
+taken once, and only taking it starts a turn. Recovery is local because
+nothing delivers the same message again: the hub hands each event to a server
+subscriber once and does not retry a subscriber that failed.
 
 ## When Jev is asked
 
@@ -139,7 +153,8 @@ not retry a subscriber that failed.
   next-step suggestion is worth waking the Small Model when `agent_continues`
   and not `waits_reader`; an unanswered sign leaves it allowed.
 - Jev reads the request's first 1500 characters, the answer's first and last
-  500, and three earlier turns cut as routing cuts them.
+  500 (what changed sits early, the outcome late), and three earlier turns cut
+  as routing cuts them.
 
 ## Measurement
 
@@ -163,7 +178,49 @@ done winning it hinted after 271 of 362 edit turns and after 14 of 823 turns
 without edits.
 `recap` stayed high (0.86–0.96) after a closing "thanks"/"commit" that followed
 real work, because it reads the same three turns the recap does. Do not change
-the wording or thresholds without re-running this measurement.
+the wording or thresholds without re-running this measurement. Keep the
+criteria general common sense about coding-agent work, never phrased after one
+user's habits.
+
+### What counts as done
+
+The boundary to use when labelling turns, judging a looks-done hint, or
+rewording the signs. A commit, push, merge or "thanks" closes the work only
+when nothing more is planned in the conversation. The work is not done when
+the same request says more comes next ("after that", "then we continue",
+"now I need…"); when the step is interim (a commit to keep the branch clean,
+a sync to test); when the agent's answer names what is left (unchecked parts,
+open questions, next steps); or when the thanks is for undoing a trial or
+experiment. Models asked "is this done" call such turns done at every
+thinking level, so judge them against this boundary, not a model's verdict.
+
+### Why looks done waits 10 minutes and not shows at once
+
+In a long session almost every turn finishes something, so a closing-looking
+turn is often a subtask the user moves past within minutes, and nothing in the
+agent's message tells it from the last one. The pause is that signal: on the
+95 sessions above, the signs shown at once would stand on 150-210 turns the
+user went on from; after 10 quiet minutes, 34. 20 minutes would cut that to
+about 25 for 3 fewer timely hints; 10 was chosen so the hint does not feel
+late. The review offer does not wait, because it is useful while the user
+looks at the changes.
+
+### Why plain signs of the message and not one question about the turn
+
+A question such as "does this turn close out the work" makes the model weigh
+the request against the answer, and it latched onto words like "commit" or
+"thanks" instead. Signs of one text are what a small model recognises
+consistently: Jev and another model agree on them far more (kappa 0.52-0.74
+against 0.34-0.70), so the same signs can train a local model later. The code
+combines them, so changing what the hint means changes code, not wording. The
+signs read `answer` alone; the request and earlier turns stay in the state only
+for `review_ready` and `recap`.
+
+### Why the directory travels in an encoded header and not the URL
+
+OpenCode v2 scopes requests by the `x-opencode-directory` header rather than
+the URL, and rejects non-ASCII header values, so the runtime sends
+`encodeURIComponent(directory)`.
 
 ### What counts as done
 

@@ -22,7 +22,6 @@ import { create } from 'zustand';
 export type SessionTreeMoveMessages = {
   success: string;
   failure: string;
-  /** Description under the failure toast when the answer was lost and the new worktree was kept. */
   outcomeUnknown: string;
 };
 
@@ -60,8 +59,6 @@ export type SessionTreeMoveIntent =
       messages: SessionTreeMoveMessages;
     }
   | {
-      // The conversation moves to a folder the user picked, usually a
-      // project's root; files the session wrote stay where they are.
       kind: 'project';
       root: Session;
       descendants: Session[];
@@ -70,10 +67,7 @@ export type SessionTreeMoveIntent =
       messages: SessionTreeMoveMessages;
     };
 
-// OpenCode 2.x `session.move` relocates the session only; uncommitted changes
-// stay in the source worktree. v1 could carry them along and asked the user
-// which to do, so this module once held a confirmation step. There is nothing
-// to choose now, and a move starts as soon as it is requested.
+// external: https://github.com/anomalyco/opencode/blob/v2.3.0/packages/core/src/session/move.ts OpenCode session moves leave uncommitted changes in the source worktree.
 type SessionMoveState = {
   pendingSessionIds: Set<string>;
 };
@@ -132,7 +126,6 @@ type RollbackFailure = {
   error: Error;
 };
 
-/** Rollback left sessions in the destination; the toast names them. */
 class IncompleteRollbackError extends Error {
   readonly moveError: Error;
 
@@ -209,8 +202,6 @@ const refreshMovedDirectories = async (sourceDirectory: string, destinationDirec
   try {
     await refreshGlobalSessionsForDirectories(directories);
   } catch (error) {
-    // Direct action updates already reconciled both stores. Keep the outcome
-    // unchanged if this best-effort authoritative refresh is unavailable.
     console.warn('[session-worktree-move] Failed to refresh moved sessions', error);
   }
 };
@@ -223,7 +214,6 @@ const moveSessionTreeTransaction = async (
   },
   prepareDestination: () => Promise<{
     directory: string;
-    /** Null for a project root, which is not a worktree. */
     metadata: WorktreeMetadata | null;
     onMoveFailure?: (error: Error) => Promise<never>;
   }>,
@@ -272,9 +262,6 @@ const moveSessionTreeTransaction = async (
         try {
           await moveSessionToDirectory(session, input.sourceDirectory, destination.directory, isCurrent);
         } catch (error) {
-          // A transport failure leaves the outcome unknown: the server may have
-          // moved the session before the response was lost. Definite rejections
-          // keep this false.
           if (isAmbiguousSendFailure(error)) moveOutcomeUnknown = true;
           throw error;
         }
@@ -297,18 +284,12 @@ const moveSessionTreeTransaction = async (
       );
       if (!isCurrent()) throw new TreeMoveOwnerChangedError();
       if (moveOutcomeUnknown) {
-        // The move request may have completed server-side, so the session's
-        // directory is unknown too. Reconcile both directories now instead of
-        // letting the sidebar contradict the toast until the next poll.
         await refreshMovedDirectories(input.sourceDirectory, destination?.directory);
       }
       if (rollbackFailures.length > 0) {
         throw createIncompleteRollbackError(moveError, rollbackFailures);
       }
-      // OpenCode admits a move durably before it answers, so a lost response
-      // does not cancel it: the session may already sit in the destination or
-      // land there once the inbox drains. Only a definite rejection proves the
-      // destination is unused and safe to delete.
+      // external: https://github.com/anomalyco/opencode/blob/v2.3.0/packages/core/src/session/move.ts A lost response does not cancel an admitted OpenCode session move.
       if (destination?.onMoveFailure && !moveOutcomeUnknown) {
         return destination.onMoveFailure(moveError);
       }
@@ -343,8 +324,6 @@ export const moveSessionTreeToExistingWorktree = async (input: {
   }
 
   return moveSessionTreeTransaction(input, async () => {
-    // The project of the session being moved decides the folder, as the server does;
-    // the destination worktree can be shared by several projects of one repository.
     const project = await resolveFolderProjectRef(input.sourceDirectory);
     return {
       directory: project ? await resolveWorktreeStartDirectory(project, input.destination.path) : input.destination.path,
@@ -510,20 +489,13 @@ const moveSessionTreeToQuickWorktree = async (input: {
       const setupError = error instanceof Error ? error : new Error(String(error));
       return removeFailedWorktree(project, worktree, setupError);
     }
-    // The worktree belongs to the project that owns the list; the session keeps its own project's folder.
     const folderProject = await resolveFolderProjectRef(input.sourceDirectory) ?? project;
     return {
       directory: await resolveWorktreeStartDirectory(folderProject, worktree.path),
       metadata: worktree,
-      // removeFailedWorktree force-deletes the worktree and its branch; the
-      // session's files never move, so nothing of the user's is in it yet.
-      // Called only for a definite rejection; the transaction keeps the
-      // worktree when the move outcome is unknown.
       onMoveFailure: async (error) => removeFailedWorktree(project, worktree, error),
     };
   });
-  // Seed from the current session title. Generated titles stay agent-owned so
-  // work.name can replace them; an explicit user title keeps its ownership.
   const taskTitle = input.root.title?.trim();
   if (taskTitle) {
     await setGitWorktreeTitle(directory, taskTitle, carriedWorkTitleOwner(input.root.metadata)).catch((error) => {

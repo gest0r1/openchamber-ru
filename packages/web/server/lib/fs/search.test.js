@@ -139,6 +139,7 @@ describe('filesystem search', () => {
       process.env.OPENCHAMBER_GIT_CHECK_IGNORE_TIMEOUT_MS = '50';
 
       const kills = [];
+      const started = Promise.withResolvers();
       const neverCloses = () => {
         const child = new EventEmitter();
         child.stdout = new EventEmitter();
@@ -147,6 +148,7 @@ describe('filesystem search', () => {
           kills.push(signal);
           child.emit('close');
         };
+        queueMicrotask(() => started.resolve());
         return child;
       };
 

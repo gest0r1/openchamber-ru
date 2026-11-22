@@ -2,22 +2,14 @@ import { FilesystemError } from '@/lib/api/files-errors';
 import type { AttachedFile } from '@/stores/types/sessionTypes';
 import { isLikelyAbsolutePath, normalizeDroppedPath } from './filePaths';
 
-/** Minimal surface of the directory listing used for existence checks. */
 export interface DirectoryLister {
     listLocalDirectory(directory: string): Promise<Array<{ path: string }>>;
 }
 
-/**
- * ID prefix for attachments synthesized from inline `@`-mentions at send
- * time (see `extractInlineFileMentions` in ChatInput). The prefix is the only
- * marker distinguishing a guessed mention path from a file the user picked
- * deliberately, so keep both sites on this constant.
- */
 export const INLINE_SERVER_ATTACHMENT_ID_PREFIX = 'inline-server-';
 
 const normalizePath = (path: string): string => {
     const normalized = path.replace(/\\/g, '/').replace(/\/+/g, '/');
-    // `@src/` names the directory itself; its listing entry has no slash.
     return normalized.length > 1 ? normalized.replace(/\/$/, '') : normalized;
 };
 
@@ -31,13 +23,11 @@ const parentDirectoryOf = (path: string): string => {
 const comparablePath = (raw: string | undefined): string | null => {
     if (!raw) return null;
     const input = raw.trim();
-    // The dropped-path decoder omits URL hosts, which are part of file identity.
     if (/^file:\/\/[^/]/i.test(input) && !/^file:\/\/localhost\//i.test(input)) return null;
     const path = normalizeDroppedPath(input).replace(/\\/g, '/');
     return isLikelyAbsolutePath(path) ? path.replace(/\/$/, '') : null;
 };
 
-/** A restored file URL and a resolved mention must identify the same full path. */
 export function isMentionAlreadyAttached(
     mention: { serverPath: string; filename: string },
     attachments: readonly AttachedFile[],
@@ -56,19 +46,7 @@ export interface FilteredInlineAttachments {
     skippedNames: string[];
 }
 
-/**
- * Drop inline `@`-mention attachments whose file does not exist (#3898).
- *
- * Mention paths are guessed from text, so a handle or email domain
- * (`@masha.conner`) resolves to a `file://` URI that OpenCode stats on send
- * and rejects the whole prompt with a 400 when missing. The prompt text
- * itself is untouched — only the phantom attachment is dropped, so the rest
- * still submits.
- *
- * Fail open per directory: when a listing errors for any reason other than
- * the directory not existing, that directory's attachments are kept rather
- * than blocking the send on a check that could not run.
- */
+// external: #3898 OpenCode rejects the whole prompt when a guessed file attachment does not exist.
 type InlineServerAttachment = AttachedFile & { serverPath: string };
 
 const isInlineServerAttachment = (
@@ -111,8 +89,6 @@ export async function findMissingPaths(
         byDirectory.set(directory, group);
     }
 
-    // Directories are listed in parallel: on a remote or relayed connection
-    // each listing is a round-trip the send waits on.
     const results = await Promise.all([...byDirectory].map(async ([directory, files]) => {
         try {
             return { files, entries: await lister.listLocalDirectory(directory) };

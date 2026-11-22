@@ -33,7 +33,6 @@ type ComposerActionButtonsProps = {
     newSessionDraftOpen: boolean;
     onPrimaryAction: () => void;
     onAbort: () => void;
-    /** Replaces "Send message" as the accessible name and tooltip (parallel mode says how many runs start). */
     sendLabel?: string;
     /**
      * Double Escape in this composer stops its run (abortShortcutReach). With
@@ -62,7 +61,6 @@ export const ComposerActionButtons = React.memo(function ComposerActionButtons(p
     const { t } = useI18n();
     const shortcutOverrides = useUIStore((state) => state.shortcutOverrides);
     const queuesFollowUp = useMessageQueueStore((state) => state.followUpBehavior) === 'queue';
-    // Stopping takes Escape twice (a single press only arms it).
     const escapeKey = escapeStops ? formatShortcutForDisplay(getEffectiveShortcutCombo('abort_run', shortcutOverrides), '') : '';
     const abortShortcut = escapeKey ? `${escapeKey} ${escapeKey}` : undefined;
 

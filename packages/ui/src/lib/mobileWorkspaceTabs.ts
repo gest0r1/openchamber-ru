@@ -85,12 +85,6 @@ export const shownMobileWorkspaceTabs = (
   return shown.length > 0 ? shown : all;
 };
 
-/**
- * The tabs the strip offers right now: the ones the user keeps, plus the open
- * tab while something opened it although it is hidden (a changed file tapped
- * in the chat opens Changes either way). It leaves the strip once the user
- * switches away.
- */
 export const stripMobileWorkspaceTabs = (
   order: readonly string[],
   hidden: readonly string[],

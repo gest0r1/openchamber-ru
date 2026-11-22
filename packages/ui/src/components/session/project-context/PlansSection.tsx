@@ -25,11 +25,6 @@ import { planDeleteKey, usePendingKnowledgeDeletes } from './pendingKnowledgeDel
 import { usePlanActions } from './usePlanActions';
 import { useUIStore } from '@/stores/useUIStore';
 
-/**
- * Agents tick plan steps with their own file tools, which announce nothing,
- * so the list re-reads while it is on screen. The server answers with each
- * plan's step counts, never its text, and re-reads only files that changed.
- */
 const PLAN_LIST_REFRESH_MS = 10_000;
 
 /** Ticked steps of the plan's `## Steps` checklist, or a check once all are. */
@@ -54,23 +49,13 @@ export const PlanProgressLabel: React.FC<{ progress: ProjectPlanProgress }> = ({
   );
 };
 
-/**
- * Saved plan markdown for the project.
- *
- * Plan mutations touch neither notes nor todos, so this section talks to the
- * store directly instead of routing writes through the container.
- */
 export const PlansSection: React.FC<{
   projectRef: ProjectRef;
   plans: ProjectPlanLink[];
-  /** Panel-wide filter, matched against plan titles. */
   query: string;
-  /** Opens the plan: in place in the panel, or the host's own viewer (mobile).
-      The plan carries its owner so a host viewer never guesses the project. */
   onOpenPlan: (plan: { id: string; title: string; projectRef: ProjectRef }) => void;
   pinnedPlanIds: ReadonlySet<string>;
   onTogglePinned: (planId: string, pinned: boolean) => Promise<boolean>;
-  /** The plan open beside the list (split layout), marked as selected. */
   selectedPlanId: string | null;
   /** A plan moved to or from the team's folder: its project, and its id before and after. */
   onPlanMoved: (projectId: string, previousId: string, movedId: string) => void;
@@ -149,7 +134,6 @@ export const PlansSection: React.FC<{
     }
 
     if (result.error === 'Native file picker not available') {
-      // Fall back to the HTML file input for web/non-desktop runtimes.
       fileInputRef.current?.click();
     }
   }, [importPlanFromText, isImporting, projectRef.path, t]);
@@ -197,17 +181,12 @@ export const PlansSection: React.FC<{
     [onOpenPlan, projectRef]
   );
 
-  // Which project the section shows now, read after an await: a create that
-  // resolves once the user has left the section or the project must not open
-  // its plan over whatever is on screen by then.
   const shownProjectIdRef = React.useRef<string | null>(resolveProjectContextId(projectRef));
   React.useEffect(() => {
     shownProjectIdRef.current = resolveProjectContextId(projectRef);
     return () => { shownProjectIdRef.current = null; };
   }, [projectRef]);
 
-  // A new plan opens straight away: the title is all the composer asks for,
-  // and the rest is written in the editor.
   const handleCreatePlan = React.useCallback(async (title: string) => {
     const createdFor = resolveProjectContextId(projectRef);
     const created = await createPlan(projectRef, { title, body: '' });

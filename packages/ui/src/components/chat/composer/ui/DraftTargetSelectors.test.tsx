@@ -9,6 +9,10 @@ import { themes } from '@/lib/theme/themes';
 import type { DraftTargetProject } from '../state/useDraftTarget';
 import { sessionEvents } from '@/lib/sessionEvents';
 import { MobileDraftTargetSheets } from './DraftTargetSelectors';
+import { DraftFolderTarget } from './DraftFolderTarget';
+import { ComposerDraftTargets } from './ComposerDraftTargets';
+import { useSessionFoldersStore } from '@/stores/useSessionFoldersStore';
+import { useSessionUIStore } from '@/sync/session-ui-store';
 
 const project: DraftTargetProject = { id: 'p1', path: '/repo', label: 'repo', kind: 'project' };
 

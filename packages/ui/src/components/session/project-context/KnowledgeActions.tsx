@@ -16,7 +16,6 @@ import { KNOWLEDGE_ICON_BUTTON_CLASS, useKnowledgeRevealClass } from './knowledg
 export const KnowledgePinToggle: React.FC<{
   pinned: boolean;
   onToggle: () => void;
-  /** An opened entry shows its controls without waiting for hover. */
   alwaysVisible?: boolean;
 }> = ({ pinned, onToggle, alwaysVisible = false }) => {
   const { t } = useI18n();
@@ -36,7 +35,6 @@ export const KnowledgePinToggle: React.FC<{
       aria-label={label}
       data-row-tooltip={label}
     >
-      {/* Filled while attached; the outline offers to attach. */}
       <Icon name={pinned ? 'pushpin-2-fill' : 'pushpin-2'} className="h-3.5 w-3.5" />
     </button>
   );
@@ -45,7 +43,6 @@ export const KnowledgePinToggle: React.FC<{
 export type KnowledgeMenuItem = {
   id: string;
   label: string;
-  /** A longer explanation shown as the item's tooltip. */
   hint?: string;
   destructive?: boolean;
   disabled?: boolean;
@@ -55,7 +52,6 @@ export type KnowledgeMenuItem = {
 export const KnowledgeMenu: React.FC<{
   items: KnowledgeMenuItem[];
   disabled?: boolean;
-  /** An opened entry shows its controls without waiting for hover. */
   alwaysVisible?: boolean;
 }> = ({ items, disabled, alwaysVisible = false }) => {
   const { t } = useI18n();

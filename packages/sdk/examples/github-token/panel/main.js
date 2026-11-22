@@ -250,9 +250,9 @@ ${wt("success")}${wt("warning")}${wt("error")}${wt("info")}
 .oc-sdk-row-sub { color: ${V}; }
 .oc-sdk-row-meta { color: ${V}; }
 .oc-sdk-row[aria-selected="true"] .oc-sdk-row-lead, .oc-sdk-row[aria-selected="true"] .oc-sdk-row-sub, .oc-sdk-row[aria-selected="true"] .oc-sdk-row-meta { color: inherit; opacity: .75; }
-.oc-sdk-list-empty { color: ${V}; }
+.oc-sdk-list-empty { color: ${K}; }
 
-.oc-sdk-empty-body { color: ${V}; }
+.oc-sdk-empty-body { color: ${K}; }
 
 .oc-sdk-spinner { color: ${V}; }
 .oc-sdk-spinner-ring { border-color: ${Ne}; border-top-color: ${ve}; border-radius: 9999px; }
@@ -260,12 +260,12 @@ ${wt("success")}${wt("warning")}${wt("error")}${wt("info")}
 /* Set apart by its tint alone, like the app's banners. */
 .oc-sdk-banner { border-color: transparent; border-radius: 8px; background: ${W("var(--oc-sdk-tone)",10)}; }
 .oc-sdk-banner-title { color: var(--oc-sdk-tone-text, var(--oc-sdk-tone)); }
-.oc-sdk-banner-body { color: ${V}; }
+.oc-sdk-banner-body { color: ${K}; }
 
 .oc-sdk-separator { color: ${V}; }
 .oc-sdk-separator::before, .oc-sdk-separator::after { background: ${W(Ne,40)}; }
 
-.oc-sdk-progress-label { color: ${V}; }
+.oc-sdk-progress-label { color: ${K}; }
 /* The app's progress: a groove a step of the text colour, green once done. Older bundles mark done only through aria-valuenow. */
 .oc-sdk-progress-track { border-radius: 9999px; background: ${W(de,6)}; }
 .oc-sdk-progress-fill { border-radius: 9999px; background: var(--oc-sdk-tone, ${ve}); }

@@ -1,14 +1,3 @@
-/**
- * Turning what the picker chose into composer chips.
- *
- * The list shows enough to choose; what the agent receives is read fresh at
- * attach time, with the repository's account: an issue with all its
- * comments, a discussion with its comments, their replies and which one is
- * the answer, a PR with its comments, review comments, files, checks and
- * optionally its diff, a tracker item with its comments. Each choice resolves
- * on its own, so one that fails is reported by key while the others still
- * attach.
- */
 
 import type { ComposerReference, ComposerReferenceAuthor } from '@/components/chat/composer/composerReferences';
 import type {
@@ -23,16 +12,14 @@ import type {
     TrackerItem,
 } from '@/lib/api/types';
 import { buildTrackerItemContextText } from '@/lib/trackers/itemContext';
+import type { RepositoryUrlResolver } from '@/lib/source-control/repositoryUrlMatcher';
 
 import { referencePickerItemKey, type ReferencePickerSelection } from './referencePickerItems';
 
 export type ReferenceResolveDeps = {
     sourceControl: Pick<SourceControlAPI, 'issueGet' | 'issueComments' | 'changeRequestContext' | 'referenceDetail'>;
-    /** The read context of the project the items belong to. */
     context: SourceControlReadContext | null;
-    /** A tracker item with its comments, by tracker and the tracker's id; the preview's cache. */
     readTrackerDetail: (provider: string, itemId: string) => Promise<TrackerItem>;
-    /** The tracker's name for the agent's context header (`Linear`). */
     trackerName: (provider: string) => string;
 };
 
@@ -51,11 +38,6 @@ const commentForAgent = (comment: RepositoryReferenceComment) => ({
     body: comment.body,
 });
 
-/**
- * A discussion as the agent reads it: what the list carries about it (the
- * description cut where the preview cuts it, which `bodyTruncated` says), and
- * its newest comments, each with its replies and whether it is the answer.
- */
 const buildDiscussionContextText = (discussion: RepositoryDiscussionReference, detail: RepositoryReferenceDetail) => JSON.stringify({
     project: { owner: discussion.sourceRepo.owner, name: discussion.sourceRepo.repo },
     discussion: {
@@ -77,7 +59,6 @@ const buildDiscussionContextText = (discussion: RepositoryDiscussionReference, d
     commentTotal: detail.commentTotal,
     comments: detail.comments.map((comment) => ({
         ...commentForAgent(comment),
-        // Null outside a category that takes answers.
         isAnswer: comment.answer?.chosen ?? null,
         replies: (comment.thread?.replies ?? []).map(commentForAgent),
     })),
@@ -218,7 +199,6 @@ export async function resolveReferenceLink(target: ReferenceLinkTarget, deps: Re
     }
 }
 
-/** Resolve every choice; successes keep the picker's order. */
 export async function resolveComposerReferences(
     selections: readonly ReferencePickerSelection[],
     deps: ReferenceResolveDeps,

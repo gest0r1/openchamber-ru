@@ -1,4 +1,4 @@
-import { describe, expect, it, beforeEach } from 'vitest';
+import { describe, expect, it, beforeEach, afterEach, vi } from 'vitest';
 
 import { createMessageSearchIndexer } from './indexer.js';
 import { loadSqliteOpener } from './sqlite.js';
@@ -361,8 +361,9 @@ describe.skipIf(!open)('message search index', () => {
     await backfill();
     fake.user('a', 'u1', 'live message');
     fake.touch('a');
+    vi.useFakeTimers();
     indexer.processPayload({ type: 'session.idle', properties: { sessionID: 'a' } });
-    await new Promise((resolve) => setTimeout(resolve, 5));
+    await vi.advanceTimersByTimeAsync(0);
     await indexer.idle();
     expect(search('live')).toHaveLength(1);
   });

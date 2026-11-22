@@ -65,6 +65,11 @@ on disk. Once the entity exists, the page switches to the autosave rules above.
 `skills/` follows the same split for supporting files: editing an existing file
 writes when the dialog closes, while a new file is only created on confirm.
 
+The skill page fills its create form from the draft once per draft and editor
+(`skills/useDraftFill.ts`). Its details effect also runs on every skill list
+refresh, so filling on each run reset a typed name, location and pending files
+back to the draft's `new-skill` in User when a list read landed mid-form.
+
 ## Providers
 
 Source-control cards whose descriptor carries `auth.login` show its service-owned sign-in hint when that instance has no account. With no PAT method, the instance renders its signed-in user without token, add-account or CLI-switch controls. The service owns sign-in outside the app. Opening that card rechecks status; a failed read keeps the auth store's prior account metadata and reports an error, while only a successful empty result removes the displayed login. The same card is used by the web, desktop and mobile Integrations pages.
@@ -146,12 +151,53 @@ maintainer decision; never add a recurring refresh). Provider metadata wins
 field by field and models.dev fills the gaps. Discovery failure never removes
 rows or blocks saving.
 
+The custom-provider form recognizes the bundled OpenCode adapters for its three protocols, including `anthropic-compatible`. An edit keeps the stored bundled provider package while its protocol stays the same. Changing the protocol selects that protocol's default AI SDK package. The live catalog fills missing display fields but never supplies a package to persist; retained model packages belong to the server's merge.
+
+The custom-provider form has a "Client certificate" section (certificate,
+private key, passphrase) for gateways that require mutual TLS; "Find models"
+presents the same certificate. It is on the custom form only: public APIs
+never ask for a client certificate, so on built-in providers the fields would
+be noise. Paths are saved as `{file:path}` references and only full paths are
+accepted, because OpenCode resolves a relative path beside its config file
+while discovery runs elsewhere, so the same path would read two different
+files. The server keeps a certificate the form never read
+(`packages/web/server/lib/opencode/DOCUMENTATION.md`, `providers.js`).
+
+"Model defaults from" sets the provider's `canonical`: OpenCode then gives each
+model whose ID that catalog provider also lists its limits, capabilities, costs
+and reasoning levels, under whatever the model row sets itself. The choices are
+every provider in the running OpenCode's integration list, connected or not,
+without MCP sign-ins, web search and well-known logins, which are keyed by their
+origin URL rather than a provider ID (`listCanonicalProviders`), passed in by the
+Providers page, which has already read that list. OpenCode copies the source
+provider's settings, headers and body into this one, so the server refuses a
+source whose config entry sets any of them: a gateway's TLS certificate or
+headers would otherwise go to this provider's endpoint. OpenCode copies from its own
+provider registry, and the models.dev feed OpenChamber fetches is older and
+misses providers OpenCode has, so that feed is not the source. The list has
+a few hundred entries, so `CanonicalProviderPicker` is searchable and mounts rows
+in steps as its end scrolls into view, with a sheet on the phone; None leads the
+unfiltered list. A saved value the list lacks stays as an option, and a list that
+fails to load shows a note and keeps the saved value. None sends null to clear
+it; a stored entry the page could not read sends nothing, so the server keeps it.
+OpenCode cannot unset `canonical` from a higher config layer, so None only removes
+the edited layer's value: when a lower layer sets one (`inheritedCanonical` from
+the source route, carried on the edit form's initial state), the field says which
+provider still applies and in which file, ahead of the note about a list that failed.
+
 Model rows render collapsed (name, id, limits, non-text inputs) so a provider
 with dozens of models stays scannable; a row added by hand opens, and a row
 with a validation error opens on submit. Capabilities are written to the
-OpenCode config only when they are known (saved config, discovery, or the
-user's edit, `capabilitiesKnown`); otherwise the key is left out so a save
-never replaces what OpenCode knows about a model with a text-only default.
+OpenCode config field by field, only those that are known (saved config,
+discovery, or the user's edit, `capabilitiesKnown`); the rest are left out so a
+save never replaces what OpenCode knows or inherits from the canonical provider
+with a text-only default. Turning tools off writes `tools` alone. Discovery
+fills each field from the provider first, then the matched catalog model. A field
+neither reports stays unset. When editing a stored model, the form shows the
+editable categories OpenCode resolved for each missing list. Unchecking one
+inherited category keeps the other editable categories, and the list stays out
+of the config until changed. Unknown entries survive in lists the model already
+stores.
 
 Custom-provider icons are OpenChamber profile preferences, keyed by provider
 ID. They are not written into OpenCode config because OpenCode has no provider
@@ -211,6 +257,10 @@ it when Settings opens. The snapshot is only a starting point: the page reads
 the list again on every visit and after every credential write, a read
 started earlier never replaces a later one, and a snapshot from another
 runtime is ignored.
+
+### Why an edit keeps the stored provider adapter
+
+Two adapters can implement the same API protocol and still load through different OpenCode paths. Replacing a bundled adapter with the form's AI SDK default during an unrelated edit changes the provider the user configured.
 
 ### Why runtime-only MCP rows wait for the config read
 
@@ -571,8 +621,14 @@ The page is hidden in VS Code (`metadata.ts`).
 ## Plugin duplicate sources
 
 `plugins/PluginsGrid.tsx` keeps every configuration entry and its editing target.
-A discovered package card is hidden when its normalized target is already
-represented by a declaration or another discovery record. Distinct declarations
+A discovered package card is hidden when a declaration reaches the same
+normalized target through the same switch resource (`policyResource`). A link
+to that directory under another discovery path keeps its card even when the
+real directory is declared, because its status and switch are its own. Two
+discovery records that resolve to the same
+directory (a link in `plugin/` to a package in `plugins/`) keep separate cards,
+because OpenCode reports status and applies switches by discovery path, so one
+card could not show or switch the other. Distinct declarations
 and their options remain separate, including declarations of the same target.
 Editable local files always keep their own cards and file edit/delete actions,
 including files declared in config.
@@ -600,7 +656,7 @@ only ever sends v2.
 | Agent | `system` (the markdown body), `description`, `model` as `provider/model#variant`, `mode`, `steps`, `hidden`, `color`, `request.body.temperature` / `request.body.top_p`, and an ordered `permissions` rule list |
 | Command | `template` (the markdown body), `description`, `agent`, `model` with `#variant`, `subagent` |
 | MCP server | `type` (required), `command` / `url`, `environment`, `headers`, `disabled`, `codemode`, `timeout: { startup, catalog, execution }`, snake_case `oauth` |
-| Provider | `package` with the `aisdk:` prefix, `settings.baseURL`, `headers`, `body`, models keyed by id with `modelID`, `capabilities`, `variants`, `cost.cache.read/write`, `disabled` |
+| Provider | `package` with `aisdk:` for AI SDK adapters or a bare bundled OpenCode package, `settings.baseURL`, `headers`, `body`, models keyed by id with `modelID`, `capabilities`, `variants`, `cost.cache.read/write`, `disabled` |
 | Plugin | `{ package, options }`, serialized as a bare string when there are no options |
 
 Two consequences worth knowing:

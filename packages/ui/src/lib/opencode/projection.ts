@@ -1,11 +1,3 @@
-/**
- * Projection of OpenCode v2 wire shapes into the OpenChamber domain model.
- *
- * Two consumers share this module: the client wrapper (projected pages of
- * sessions and messages) and the event reducer (one event at a time). Both
- * must produce identical parts for the same message, which is why every part
- * id and every tool-state conversion lives here and nowhere else.
- */
 
 import type {
   ConfigEntry,
@@ -31,6 +23,7 @@ import {
   type ConfigDocument,
   type FilePart,
   type Message,
+  type Metadata,
   type Part,
   type Project,
   type Session,
@@ -41,19 +34,34 @@ import {
   type Vcs,
 } from "./model"
 import { formatModelSelection, parseModelSelection } from "../modelIdentifier"
+import { workflowAgentParentId } from "../sessionWorkflowMetadata"
+import { operatorChildParentId } from "../sessionOperatorChild"
 
-/** One item of an assistant message's ordered content. */
 export type AssistantContentItem = SessionMessageAssistant["content"][number]
 export type AssistantToolItem = Extract<AssistantContentItem, { type: "tool" }>
 
-// ---------------------------------------------------------------------------
-// Sessions
-// ---------------------------------------------------------------------------
+
+const linkedParentID = (metadata: Session["metadata"]): string | undefined => (
+  workflowAgentParentId(metadata) ?? operatorChildParentId(metadata)
+)
+
+export const sessionParentID = (record: { parentID?: string; metadata?: Session["metadata"] }): string | undefined => (
+  record.parentID ?? linkedParentID(record.metadata)
+)
+
+export function withSessionMetadata(session: Session, metadata: Metadata): Session {
+  const next: Session = { ...session, metadata }
+  if (session.parentID !== linkedParentID(session.metadata)) return next
+  const parentID = linkedParentID(metadata)
+  if (parentID) next.parentID = parentID
+  else delete next.parentID
+  return next
+}
 
 export function projectSession(info: SessionInfo): Session {
   return compact({
     id: info.id,
-    parentID: info.parentID,
+    parentID: sessionParentID(info),
     projectID: info.projectID,
     directory: info.location.directory,
     subpath: info.subpath,
@@ -88,9 +96,6 @@ export function projectVcs(info: VcsInfo): Vcs {
   return compact({ branch: info.branch.current, defaultBranch: info.branch.default })
 }
 
-// ---------------------------------------------------------------------------
-// Tool state
-// ---------------------------------------------------------------------------
 
 export function toolOutputText(content: readonly ToolContent[] | undefined): string {
   if (!content || content.length === 0) return ""
@@ -124,11 +129,6 @@ export function structuredErrorText(error: SessionStructuredError): string {
   return error.message || error.type
 }
 
-/**
- * Converts one wire tool item into a domain tool part. `time.ran` marks the
- * start of execution; before that the call is still being streamed by the
- * model and has no start time worth showing.
- */
 export function projectToolPart(
   tool: AssistantToolItem,
   owner: { sessionID: string; messageID: string },
@@ -184,16 +184,7 @@ export function projectToolPart(
   })
 }
 
-// ---------------------------------------------------------------------------
-// Assistant content
-// ---------------------------------------------------------------------------
 
-/**
- * Assistant content is an ordered list of text / reasoning / tool items. Text
- * and reasoning ordinals count per kind in content order, matching the
- * `ordinal` the live stream sends with `session.text.*` and
- * `session.reasoning.*`.
- */
 export function projectAssistantContent(
   content: readonly AssistantContentItem[],
   owner: { sessionID: string; messageID: string; created: number; completed?: number },
@@ -206,10 +197,6 @@ export function projectAssistantContent(
       case "text": {
         const ordinal = textOrdinal
         textOrdinal += 1
-        // A text item that something else follows is finished even while the
-        // message is still open (the model moved on to a tool such as a
-        // question). Sealing it keeps its last line visible after a reload,
-        // the same as the live text-ended event does.
         const followed = index < content.length - 1
         parts.push({
           id: partIds.text(owner.messageID, ordinal),
@@ -262,26 +249,17 @@ function projectAssistantMessage(info: SessionMessageAssistant, sessionID: strin
   })
 }
 
-// ---------------------------------------------------------------------------
-// User prompts
-// ---------------------------------------------------------------------------
 
 function fileAttachmentUrl(file: PromptFileAttachment): string {
   if (file.source.type === "uri") return file.source.uri
   return `data:${file.mime};base64,${file.data}`
 }
 
-/** The inbox items that stand for a message; control items carry no payload we read. */
 export type InboxMessageItem =
   | { type: "user"; payload: SessionInboxUserPayload }
   | { type: "synthetic"; payload: SessionInboxSyntheticPayload }
   | { type: "compaction" | "move" }
 
-/**
- * The message an inbox item stands for, as `session.inbox.enqueued` paints it
- * live and a cold load repaints it from the pending inbox. Null for control
- * items (compaction, move), which paint nothing.
- */
 export function projectInboxMessage(
   item: InboxMessageItem,
   owner: { sessionID: string; messageID: string; created: number },
@@ -293,6 +271,7 @@ export function projectInboxMessage(
         sessionID: owner.sessionID,
         role: "user",
         time: { created: owner.created },
+        skills: projectUserSkills(item.payload),
         metadata: item.payload.metadata,
       }),
       parts: projectUserParts(item.payload, owner),
@@ -316,11 +295,11 @@ export function projectInboxMessage(
   return null
 }
 
-/**
- * A user message on the wire is one text plus attachments. The timeline still
- * renders it as parts (text, files, agent mentions) so the chat components
- * treat both roles alike.
- */
+function projectUserSkills(payload: SessionInboxUserPayload): UserMessage["skills"] {
+  if (!payload.skills?.length) return undefined
+  return payload.skills.map((skill) => ({ id: skill.id, name: skill.name }))
+}
+
 export function projectUserParts(
   payload: SessionInboxUserPayload,
   owner: { sessionID: string; messageID: string; created: number },
@@ -361,9 +340,6 @@ export function projectUserParts(
   return parts
 }
 
-// ---------------------------------------------------------------------------
-// Messages
-// ---------------------------------------------------------------------------
 
 export type ProjectedMessage = {
   message: Message
@@ -374,7 +350,7 @@ export function projectMessage(info: SessionMessageInfo, sessionID: string): Pro
   const metadata = info.metadata
   switch (info.type) {
     case "user": {
-      const message: UserMessage = compact({ id: info.id, sessionID, role: "user", time: { ...info.time }, metadata })
+      const message: UserMessage = compact({ id: info.id, sessionID, role: "user", time: { ...info.time }, skills: projectUserSkills(info), metadata })
       return {
         message,
         parts: projectUserParts(info, { sessionID, messageID: info.id, created: info.time.created }),
@@ -519,7 +495,6 @@ export function projectMessage(info: SessionMessageInfo, sessionID: string): Pro
   }
 }
 
-/** Shell exit codes travel as JSON-safe numbers; the sentinel strings mean "no finite code". */
 function finiteExit(exit: number | "Infinity" | "-Infinity" | "NaN" | undefined): number | undefined {
   return exit === "Infinity" || exit === "-Infinity" || exit === "NaN" ? undefined : exit
 }
@@ -528,18 +503,9 @@ export function projectMessages(items: readonly SessionMessageInfo[], sessionID:
   return items.map((item) => projectMessage(item, sessionID))
 }
 
-// ---------------------------------------------------------------------------
-// Configuration
-// ---------------------------------------------------------------------------
 
 const isDocument = (entry: ConfigEntry): entry is ConfigDocument => entry.type === "document"
 
-/**
- * `/api/config` returns every discovered source from lowest to highest
- * priority. The UI wants one effective document: later entries win per key,
- * and record-valued keys (agents, commands, providers, mcp) merge by name so a
- * project file adding one agent does not hide the global ones.
- */
 export function mergeConfigDocuments(entries: readonly ConfigEntry[]): Config {
   const merged: Record<string, Config[keyof Config]> = {}
   for (const entry of entries) {
@@ -555,21 +521,10 @@ export function mergeConfigDocuments(entries: readonly ConfigEntry[]): Config {
   return merged as Config
 }
 
-/**
- * A document's policy statements. OpenCode 2.0.29 serves them as top-level
- * `policies`; older servers keep them under `experimental.policies`. Same
- * order as upstream's merge, the experimental ones first.
- */
 function documentPolicies(entry: ConfigDocument) {
   return [...(entry.info.experimental?.policies ?? []), ...(entry.info.policies ?? [])]
 }
 
-/**
- * Whether any config document denies a provider through a `provider.use`
- * policy. Read per document: the folded config keeps only the last
- * document's policies, and policies from every layer apply. Statements
- * from a connected OpenCode Console workspace are not part of `/api/config`.
- */
 export function deniesAnyProvider(entries: readonly ConfigEntry[]): boolean {
   return entries.some((entry) => isDocument(entry)
     && documentPolicies(entry).some((policy) => policy.action === "provider.use" && policy.effect === "deny"))
@@ -617,7 +572,6 @@ export function readIntegrationPolicies(entries: readonly ConfigEntry[]): Integr
     }))
 }
 
-/** OpenCode's `Wildcard.match`: `*` is any run, `?` one character, a trailing ` *` also matches nothing. */
 function matchesWildcard(input: string, pattern: string): boolean {
   let escaped = pattern
     .replaceAll("\\", "/")
@@ -645,15 +599,9 @@ function isPlainRecord(value: Config[keyof Config]): value is Record<string, Jso
   return Object.prototype.toString.call(value) === "[object Object]"
 }
 
-/** A JSON representation probe, mirroring `isPlainRecord`; `typeof` is banned by the anti-slop rule. */
 const isStringValue = (value: Config["model"]): value is string =>
   Object.prototype.toString.call(value) === "[object String]"
 
-/**
- * Config `model` arrives as `provider/model[#variant]` or the explicit
- * `{ providerID, model, variant }` form OpenCode 2 decodes it into. Fold both
- * to the identifier spelling the stores parse.
- */
 export function configModelIdentifier(value: Config["model"]): string | undefined {
   if (isStringValue(value)) {
     return formatModelSelection(parseModelSelection(value)) ?? undefined
@@ -668,5 +616,4 @@ export function configModelIdentifier(value: Config["model"]): string | undefine
   }) ?? undefined
 }
 
-/** See `Agent` in `./model`: the wire `name` is display-only; `id` is the key the server expects back. */
 export const projectAgent = (info: AgentInfo): Agent => ({ ...info, name: info.id, displayName: info.name })

@@ -12,12 +12,6 @@ import { Icon } from '@/components/icon/Icon';
 import type { IconName } from '@/components/icon/icons';
 import { cn } from '@/lib/utils';
 
-/**
- * Card grid for Settings pages that browse a set of things with a glanceable
- * state (providers, MCP servers, plugins): a grid of cards, each opening a
- * detail screen with a back arrow. Pages that edit long text keep the
- * list-plus-editor layout instead.
- */
 
 export const SETTINGS_CARD_GRID_CLASS = 'grid grid-cols-1 gap-3 @xl:grid-cols-2 @3xl:grid-cols-3';
 
@@ -42,7 +36,6 @@ export const SettingsCardPill: React.FC<{ tone: SettingsCardTone; children: Reac
   </span>
 );
 
-/** Small outlined chip for the card footer (scope, source). */
 export const SettingsCardChip: React.FC<{ children: React.ReactNode }> = ({ children }) => (
   <span className="oc-tile-inset shrink-0 rounded-full px-2 py-px text-[0.625rem] font-medium">
     {children}
@@ -59,21 +52,13 @@ export interface SettingsCardAction {
 interface SettingsCardProps {
   icon: React.ReactNode;
   title: string;
-  /** Monospace second line: an id, command or URL. */
   subtitle?: string;
-  /** Plain text under the title saying what the item is; up to two lines. */
   description?: string;
-  /** Top-right pills (status, update available). */
   badges?: React.ReactNode;
-  /** Bottom row content: counts and chips. */
   footer?: React.ReactNode;
-  /** Dims the card for things that are present but switched off. */
   muted?: boolean;
-  /** Omitted for display-only items, which render as a plain card. */
   onOpen?: () => void;
-  /** Row actions, offered from the card's ⋯ button and on right-click. */
   actions?: readonly SettingsCardAction[];
-  /** Accessible name for the ⋯ button. */
   actionsLabel?: string;
   /** A control that belongs to the item itself, such as an on/off switch. Rendered beside the card as a sibling so it is never nested in the card button. */
   control?: React.ReactNode;
@@ -191,7 +176,6 @@ export const SettingsCard: React.FC<SettingsCardProps> = ({ icon, title, subtitl
   );
 };
 
-/** Dashed leading card that starts adding a new item. */
 export const SettingsAddCard: React.FC<{
   label: string;
   hint?: string;
@@ -204,7 +188,6 @@ export const SettingsAddCard: React.FC<{
     data-settings-item={settingsItem}
     className={cn(
       CARD_CLASS,
-      // The one card drawn with a line: an empty slot reads as a dashed outline.
       'oc-tile-hover items-center justify-center gap-2 text-center border border-dashed border-[color-mix(in_srgb,var(--foreground)_14%,transparent)] text-muted-foreground hover:text-foreground',
     )}
   >
@@ -270,7 +253,6 @@ export const SettingsBackButton: React.FC<{ label: string; onClick: () => void }
   </Button>
 );
 
-/** Icon tile content for cards without a logo of their own. */
 export const SettingsCardIcon: React.FC<{ name: IconName }> = ({ name }) => (
   <Icon name={name} className="size-5 text-muted-foreground" />
 );

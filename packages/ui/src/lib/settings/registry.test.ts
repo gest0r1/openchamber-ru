@@ -19,6 +19,7 @@ import {
   parseSettingsDocument,
   readAutoSaveSnapshot,
 } from './registry';
+import { STT_PROMPT_MAX_LENGTH, readTranscriptionPrompt, setTranscriptionPrompt } from '@/stores/useTranscriptionPromptStore';
 import { renderSettingsRegistrySnapshot, SETTINGS_REGISTRY_SNAPSHOT_PATHS } from './registry-snapshot';
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..', '..');
@@ -83,7 +84,7 @@ describe('settings registry', () => {
     }
   });
 
-  test('round-trips all large text paste modes through settings and local persistence', async () => {
+  test('round-trips all large text paste and office document modes through settings and local persistence', async () => {
     const options = useUIStore.persist.getOptions();
     const original = useUIStore.getState();
     let saved: Parameters<NonNullable<typeof options.storage>['setItem']>[1] = { state: original, version: options.version };
@@ -104,6 +105,21 @@ describe('settings registry', () => {
         useUIStore.persist.setOptions({ storage: { getItem: () => saved, setItem: (_name, value) => { saved = value; }, removeItem: () => undefined } });
       }
       expect(parseSettingsDocument({ largeTextPasteBehavior: 'invalid' })).toEqual({});
+      for (const mode of ['ask', 'save', 'convert']) {
+        const parsed = parseSettingsDocument(JSON.parse(JSON.stringify({ documentAttachBehavior: mode })));
+        expect(parsed).toEqual({ documentAttachBehavior: mode });
+        if (!parsed) throw new Error('Expected valid mode');
+        applySettingsToStores(parsed);
+        expect(useUIStore.getState().documentAttachBehavior).toBe(mode);
+        expect(readAutoSaveSnapshot().documentAttachBehavior).toBe(mode);
+        const persisted = saved;
+        useUIStore.persist.setOptions({ storage: { getItem: () => persisted, setItem: () => undefined, removeItem: () => undefined } });
+        useUIStore.getState().setDocumentAttachBehavior('ask');
+        await useUIStore.persist.rehydrate();
+        expect(useUIStore.getState().documentAttachBehavior).toBe(mode);
+        useUIStore.persist.setOptions({ storage: { getItem: () => saved, setItem: (_name, value) => { saved = value; }, removeItem: () => undefined } });
+      }
+      expect(parseSettingsDocument({ documentAttachBehavior: 'attach' })).toEqual({});
     } finally {
       useUIStore.persist.setOptions(options);
       useUIStore.setState(original, true);
@@ -314,6 +330,16 @@ describe('settings registry', () => {
     expect(parseSettingsDocument({ chatRenderMode: 'live', activityRenderMode: 'summary' }))
       .toEqual({ chatRenderMode: 'live', activityRenderMode: 'summary' });
     expect(parseSettingsDocument({ activityRenderMode: 'summary' })).toEqual({ activityRenderMode: 'summary' });
+  });
+
+  test('reads the old Wide chat layout switch as the Full chat width until a width is picked', () => {
+    expect(parseSettingsDocument({ wideChatLayoutEnabled: true }))
+      .toEqual({ wideChatLayoutEnabled: true, chatWidth: 'full' });
+    expect(parseSettingsDocument({ wideChatLayoutEnabled: false }))
+      .toEqual({ wideChatLayoutEnabled: false, chatWidth: 'default' });
+    expect(parseSettingsDocument({ wideChatLayoutEnabled: true, chatWidth: 'wider' }))
+      .toEqual({ wideChatLayoutEnabled: true, chatWidth: 'wider' });
+    expect(parseSettingsDocument({ chatWidth: 'wide' })).toEqual({});
   });
 
   test('applies only the fields a snapshot carries and leaves the rest alone', () => {

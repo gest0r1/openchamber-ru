@@ -1,19 +1,16 @@
-import React, { useRef, memo } from 'react';
-import { useDraftAttachedFiles, useInputStore } from '@/sync/input-store';
-import type { ChatDraftIdentity } from '@/lib/chatDraftPersistence';
-import type { AttachedFile } from '@/sync/session-ui-store';
+import React, { memo } from 'react';
+import { useInputStore } from '@/sync/input-store';
 import { useUIStore } from '@/stores/useUIStore';
 import { useDirectoryStore } from '@/stores/useDirectoryStore';
 import { toast } from '@/components/ui';
 import { cn } from '@/lib/utils';
 import { formatFileSize } from '@/lib/fileSize';
-import { getLanguageFromExtension, isDrawioFile, isExcalidrawFile } from '@/lib/toolHelpers';
+import { isDrawioFile, isExcalidrawFile } from '@/lib/toolHelpers';
 import { trackerPresentation } from '@/lib/trackers/presentation';
-import { decodeDataUrlText, getIssueLinkKind, getRepositoryIssueLinkProvider, getTrackerItemLinkProvider, isTextLikeFile, resolveAttachmentOpenTarget, type IssueLinkKind } from '@/lib/messages/attachmentPreview';
+import { getIssueLinkKind, getRepositoryIssueLinkProvider, getTrackerItemLinkProvider, resolveAttachmentOpenTarget, type IssueLinkKind } from '@/lib/messages/attachmentPreview';
 import { ProviderIcon } from '@/components/sourceControl/ProviderIcon';
 import { useSourceControlProvider } from '@/lib/source-control/providers/registry';
 import { useOpenAttachment } from './message/useOpenAttachment';
-import { INLINE_SERVER_ATTACHMENT_ID_PREFIX } from './composer/attachments/inlineMentionAttachments';
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 import { StatusImage } from '@/components/ui/status-image';
 import { useRuntimeAPIs } from '@/hooks/useRuntimeAPIs';
@@ -477,12 +474,10 @@ export const ActiveEditorFileSuggestion = memo(() => {
 
   const { filePath, fileName, relativePath, selection, fileSize } = activeEditorFile;
 
-  // Normalize to forward slashes for comparison
   const isFileAttached = attachedFiles.some(
     (f) => f.source === 'vscode' && f.vscodeSource === 'file' && (f.vscodePath || '') === filePath
   )
 
-  // Compute selection label using a compact range (single line shown as "N" not "N-N")
   let selectionRange = ''
   if (selection) {
     selectionRange = selection.startLine === selection.endLine
@@ -494,18 +489,15 @@ export const ActiveEditorFileSuggestion = memo(() => {
     (f) => f.source === 'vscode' && f.vscodeSource === 'selection' && f.filename === selectionLabel && f.vscodePath === filePath
   )
 
-  // Nothing to show — file is already attached and there's no (or already-attached) selection
   if (isFileAttached && (!selection || isSelectionAttached)) return null;
 
   const ext = fileName.split('.').pop() || '';
-  // Always show only the filename in the suggestion UI
   const displayName = fileName;
 
   const handleAddFile = () => {
     try {
       addVSCodeFileAttachment(filePath, fileName, fileSize);
     } catch (error) {
-      // The store names the cause (a file too large to send).
       if (error instanceof Error) toast.error(error.message);
     }
   };
@@ -517,7 +509,6 @@ export const ActiveEditorFileSuggestion = memo(() => {
     await addVSCodeSelectionAttachment(filePath, file);
   };
 
-  // If there is a selection, prefer showing the pin-selection UI only.
   const showSelectionPin = !!selection && !isSelectionAttached;
   const showFileAdd = !showSelectionPin && !isFileAttached;
 
@@ -588,7 +579,6 @@ const issueLinkIcon = (kind: Exclude<IssueLinkKind, 'repository-issue' | 'tracke
   kind === 'guest-issue' ? 'attachment-2' : 'git-pull-request'
 );
 
-/** An issue or PR link chip's mark: a repository issue wears its provider's, a tracker item its tracker's. */
 const IssueLinkIcon: React.FC<{ file: { mime?: string }; kind: IssueLinkKind; className?: string }> = ({ file, kind, className }) => {
   const provider = useSourceControlProvider(getRepositoryIssueLinkProvider(file));
   if (kind === 'repository-issue') return <ProviderIcon descriptor={provider} className={className} />;
@@ -600,7 +590,6 @@ interface MessageFilesDisplayProps {
   files: FilePart[];
   onShowPopup?: (content: ToolPopupContent) => void;
   compact?: boolean;
-  /** Compact only: replaces the default top margin, for placement above content. */
   className?: string;
 }
 
@@ -628,10 +617,7 @@ export const MessageFilesDisplay = memo(({ files, onShowPopup, compact = false, 
     return extractFilename(file.filename || file.url);
   }, []);
 
-  const imageFiles = fileItems.filter(f => f.mime?.startsWith('image/') && f.url);
-  const otherFiles = fileItems.filter(f => !f.mime?.startsWith('image/'));
 
-  // What a compact chip or thumbnail opens; a preview needs the message's popup.
   const resolveOpenTarget = (file: FilePart) => {
     const target = resolveAttachmentOpenTarget(file, fileItems);
     return target?.kind === 'popup' && !onShowPopup ? null : target;
@@ -642,17 +628,10 @@ export const MessageFilesDisplay = memo(({ files, onShowPopup, compact = false, 
       return;
     }
 
-    if (isTextLikeFile(file)) {
-      const text = decodeDataUrlText(file.url);
-      if (text !== null) {
-        onShowPopup({
-          open: true,
-          title: fileName,
-          content: text,
-          language: getLanguageFromExtension(fileName) || undefined,
-        });
-        return;
-      }
+    const target = resolveAttachmentOpenTarget(file, [file]);
+    if (target?.kind === 'popup' && !target.popup.image) {
+      onShowPopup({ ...target.popup, title: fileName });
+      return;
     }
 
     onShowPopup({
@@ -670,6 +649,7 @@ export const MessageFilesDisplay = memo(({ files, onShowPopup, compact = false, 
   if (fileItems.length === 0) return null;
 
   if (compact) {
+    const tileClass = 'relative flex-none snap-start h-16 rounded-lg overflow-hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:ring-ring';
     return (
       <div className={cn('space-y-1.5', className ?? 'mt-1.5')}>
         {otherFiles.length > 0 && (
@@ -717,61 +697,16 @@ export const MessageFilesDisplay = memo(({ files, onShowPopup, compact = false, 
                         </div>
                       </div>
                     )}
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p>{fileName}{sizeText ? ` (${sizeText})` : ''}</p>
-                  </TooltipContent>
-                </Tooltip>
-              );
-            })}
-          </div>
-        )}
-
-        {imageFiles.length > 0 && (
-          <ScrollableOverlay outerClassName="overlay-scrollbar-wrapper--no-gutter -mx-1 w-auto" className="px-1 py-0.5" fillContainer={false}>
-            <div className="flex snap-x snap-mandatory gap-2">
-              {imageFiles.map((file, index) => {
-                const filename = resolveDisplayName(file) || 'Image';
-                const openTarget = resolveOpenTarget(file);
-
-                return (
-                  <Tooltip key={`img-${file.url || file.filename || index}`}>
-                    <TooltipTrigger asChild>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (openTarget) openAttachment(openTarget);
-                        }}
-                        className="relative flex-none border border-edge-muted bg-muted/10 overflow-hidden snap-start h-12 w-12 sm:h-14 sm:w-14 md:h-16 md:w-16 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:ring-ring"
-                        aria-label={filename}
-                      >
-                        {file.url ? (
-                          <StatusImage
-                            src={file.url}
-                            alt={filename}
-                            variant="thumbnail"
-                            className="h-full w-full"
-                            imgClassName="h-full w-full object-cover"
-                            lazy
-                          />
-                        ) : (
-                          <div className="h-full w-full flex items-center justify-center bg-muted/30 text-muted-foreground">
-                            <Icon name="file-image" className="h-6 w-6" />
-                          </div>
-                        )}
-                        <span className="sr-only">{filename}</span>
-                      </button>
-                    </TooltipTrigger>
-                    <TooltipContent side="top" sideOffset={6} className="typography-meta px-2 py-1">
-                      {filename}
-                    </TooltipContent>
-                  </Tooltip>
-                );
-              })}
-            </div>
-          </ScrollableOverlay>
-        )}
-      </div>
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="top" sideOffset={6} className="typography-meta px-2 py-1">
+                  {fileName}{sizeText ? ` (${sizeText})` : ''}
+                </TooltipContent>
+              </Tooltip>
+            );
+          })}
+        </div>
+      </ScrollableOverlay>
     );
   }
 

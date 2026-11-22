@@ -10,10 +10,6 @@ import { PlainDiffFallback } from './PlainDiffFallback';
 import { PIERRE_DIFF_TINT_CSS, PIERRE_SEPARATOR_CSS } from '@/lib/shiki/pierreDiffTint';
 import { useEditorCodeMetrics } from '@/lib/editorCodeMetrics';
 
-// Loaded lazily from ToolPart: this is the only part of the tool card that
-// needs @pierre/diffs' rendering stack (its highlighters), so the
-// eager chat graph stays free of it and the chunk downloads on the first
-// rendered tool diff.
 
 // In the chat a diff is one flat surface: a tile's tone step off the page
 // (`oc-tile`'s), in both themes, inside the block's radius.
@@ -69,9 +65,6 @@ const usePierreThemeConfig = () => {
         [availableThemes, darkThemeId, fallbackDarkTheme],
     );
 
-    // Registration is synchronous module state inside @pierre/diffs; rendering
-    // a PatchDiff with these theme ids requires it to have happened first, so
-    // register during render rather than in an effect.
     const lightThemeName = ensurePierreThemeRegistered(lightTheme);
     const darkThemeName = ensurePierreThemeRegistered(darkTheme);
 

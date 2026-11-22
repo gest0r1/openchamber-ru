@@ -19,6 +19,12 @@ Each release of this fork attaches the web runtime as `openchamber-web-<version>
 
 > **Prerequisites:** [OpenCode CLI](https://opencode.ai) installed, Node.js 24.14+.
 
+Published packages run emitted JavaScript from `build/server` and `build/bin`.
+To build from a checkout, run `bun install` and `bun run build:web` at the repo
+root. `bun run start:web` runs the source CLI with Bun; `bun run dev`,
+`dev:server`, `dev:server:watch` and tests use sources without a server build.
+`bun run build:server` builds only the backend and its runtime assets.
+
 ## Usage
 
 ```bash

@@ -14,10 +14,7 @@ export const normalizeFilePath = (value: string | null | undefined, options?: Fi
   }
 
   const withSlashes = trimmed.replace(/\\/g, '/');
-  // A markdown href can carry a bare Windows drive reference in RFC 8089
-  // E.2.1 form (`/C:/...`); Windows would read the leading slash as part of
-  // the path (`C:\C:\...`). Drop it the same way a `file:///C:/` URL is
-  // handled. UNC (`//server/share`) and `\\?\` device paths keep their prefix.
+  // external: https://www.rfc-editor.org/rfc/rfc8089#appendix-E.2.1 Bare Windows drive references in Markdown may use /C:/; UNC and device prefixes remain intact.
   const withoutDriveSlash = /^\/[A-Za-z]:\//.test(withSlashes) ? withSlashes.slice(1) : withSlashes;
   const hadUncPrefix = withoutDriveSlash.startsWith('//');
   let normalized = withoutDriveSlash.replace(/\/+/g, '/');
@@ -188,13 +185,6 @@ const sameParts = (a: readonly string[], b: readonly string[]): boolean => (
   a.length === b.length && a.every((part, index) => part === b[index])
 );
 
-/**
- * Folders that tell apart open files sharing a name, keyed by the given path.
- * Each path gets the shortest run of its closest folders no other same-named
- * path ends with ("docs", "ui/src"). Files with a unique name, and a file that
- * has no folders of its own (the project root), get no entry. Pass paths
- * relative to the project, or the whole absolute path becomes the folder.
- */
 export const getDisambiguatingFolders = (paths: readonly string[]): Map<string, string> => {
   const byName = new Map<string, { path: string; folders: string[] }[]>();
   for (const path of new Set(paths)) {

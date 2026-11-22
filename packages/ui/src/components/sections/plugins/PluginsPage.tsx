@@ -148,8 +148,6 @@ export const PluginsPage: React.FC = () => {
     return () => window.removeEventListener('openchamber:settings-open-plugin-add', handleOpenAdd);
   }, []);
 
-  // The page opens on the plugin grid; leaving it drops the selection so the
-  // next visit starts there again.
   React.useEffect(() => () => {
     usePluginsStore.getState().setSelected(null);
   }, []);
@@ -226,9 +224,6 @@ export const PluginsPage: React.FC = () => {
     };
   }, [selectedEntry, selectedFile, readFile, setDraft, catalogIsCurrent, configDirectory, fileKey]);
 
-  // One routine for both shapes the page edits: a registry entry (spec +
-  // options) and a plugin file (its contents). Text fields commit on blur, so
-  // this runs with whatever the draft holds at that moment.
   const save = React.useCallback(async (): Promise<AutosaveResult> => {
     if (!draft || !catalogIsCurrent || getPluginsConfigDirectory() !== configDirectory) return AUTOSAVE_UNCHANGED;
 
@@ -465,8 +460,6 @@ export const PluginsPage: React.FC = () => {
               setDraft({ ...draft, content: e.target.value })
             }
             onKeyDown={(event) => {
-              // The file editor is long enough that leaving the field to save
-              // is a chore; the usual shortcut writes it where you are.
               if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
                 event.preventDefault();
                 autosave.requestSave();

@@ -88,14 +88,10 @@ export function getDeviceInfo(): DeviceInfo {
   const prefersCoarsePointer = pointerQuery?.matches ?? false;
   const noHover = hoverQuery?.matches ?? false;
   const maxTouchPoints = typeof navigator !== 'undefined' ? navigator.maxTouchPoints ?? 0 : 0;
-  // Desktop panels are desktop surfaces even when their viewport is narrow.
   const isDesktopShellRuntime = isDesktopShell() || isVSCodeRuntime() || hasDesktopSurfaceOverride();
   const { isExplicitTablet } = getNavigatorDeviceHints(maxTouchPoints);
 
   const hasTouchOnlyPointer = prefersCoarsePointer || noHover;
-  // A desktop shell reports touch points for any touchscreen, pen tablet or
-  // virtual digitizer, even while a hovering mouse drives it; there only the
-  // primary pointer decides touch.
   const hasTouchInput = hasTouchOnlyPointer || (!isDesktopShellRuntime && maxTouchPoints > 0);
 
   const isTabletWidth = width > BREAKPOINTS.md && width <= BREAKPOINTS.lg;
@@ -112,11 +108,6 @@ export function getDeviceInfo(): DeviceInfo {
     isDesktop = true;
     deviceType = 'desktop';
   } else if (isMobileSurfaceRuntime()) {
-    // The mobile surface (Capacitor shell or hosted MobileApp) IS the phone
-    // UI: every component in that tree is built mobile-first, so wide devices
-    // (iPad, Android tablets, rotated phones) must not fall into
-    // tablet/desktop branches scattered across shared components.
-    // Tablet layout upgrades gate on useTabletLayout() (a size class) instead.
     isMobile = true;
     isTablet = false;
     isDesktop = false;
@@ -376,9 +367,7 @@ const WORKSPACE_PANEL_MIN_WIDTH_PX = 1000;
 const ONE_PANEL_MIN_WIDTH_PX = 900;
 
 export interface TabletLayout {
-  /** Sessions become a persistent sidebar, dropdowns become anchored popovers. */
   enabled: boolean;
-  /** There is room for the workspace beside the chat instead of over it. */
   roomyForPanels: boolean;
   /**
    * There is room for one side panel at a time: the sessions sidebar stays
@@ -388,21 +377,6 @@ export interface TabletLayout {
   roomyForOnePanel: boolean;
 }
 
-/**
- * The size class holds still while the soft keyboard is up.
- *
- * Android resizes the layout viewport while the soft keyboard is up. On an
- * unfolded book foldable that drop takes the short side under the tablet
- * threshold, so the size class would flip mid-typing and remount the surface
- * that holds the focused field, which closes the keyboard again. Rotating a
- * phone mid-typing does the same the other way (844 wide over a shrunk
- * viewport reads as a tablet). The keyboard is transient, so while it is up
- * the layout computed without it stays, and rotation applies once it closes.
- *
- * The class the native shell sets on `keyboardWillShow` is the signal, with a
- * fallback for the frame where that bridge event and the resize race: an
- * editable field holding focus whose viewport just shrank is the same keyboard.
- */
 let keyboardFreeHeight: number | null = null;
 let keyboardFreeLayout: TabletLayout | null = null;
 
@@ -433,9 +407,6 @@ export const readTabletLayout = (): TabletLayout => {
   const width = window.innerWidth;
   const height = window.innerHeight;
   keyboardFreeHeight = height;
-  // iPads answer this on identity too: iPadOS reports odd viewports in Slide
-  // Over / Split View, and a device we KNOW is a tablet should not flip to the
-  // phone layout because it was given a narrow slice.
   const enabled = isIPadApp() || Math.min(width, height) >= TABLET_LAYOUT_MIN_SHORT_SIDE_PX;
   const roomyForPanels = enabled && width > height && width >= WORKSPACE_PANEL_MIN_WIDTH_PX;
   keyboardFreeLayout = {
@@ -446,14 +417,6 @@ export const readTabletLayout = (): TabletLayout => {
   return keyboardFreeLayout;
 };
 
-/**
- * The tablet layout decision, live.
- *
- * Deliberately a hook over a one-shot check: foldables change size class while
- * the app runs, and the Android shell keeps the WebView alive across the fold
- * (`configChanges` covers screenSize), so every consumer has to re-decide
- * rather than remember what it saw at mount.
- */
 export function useTabletLayout(): TabletLayout {
   const [layout, setLayout] = React.useState<TabletLayout>(readTabletLayout);
 

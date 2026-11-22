@@ -29,9 +29,20 @@ export type GuestAttachItem = {
 const EMPTY_ACTIONS: GuestActionEntry[] = [];
 const EMPTY_COMMANDS: GuestCommandEntry[] = [];
 
-/** The catalog, loaded on mount and reloaded on a runtime switch. */
-const useGuestCatalog = () => {
+type GuestScope = ReadonlyArray<string | null | undefined>;
+
+const useScopedGuests = (scope?: GuestScope): InstalledGuest[] => {
   const guests = useGuestsStore((state) => state.guests);
+  const openScope = useGuestScopeStore((state) => state.paths);
+  const ownScope = scope ? toGuestScopePaths(scope).join('\n') : null;
+  return React.useMemo(() => (ownScope === null
+    ? guestsInScope(guests, openScope)
+    : guests.filter((guest) => isGuestInFolders(guest, ownScope ? ownScope.split('\n') : []))
+  ), [guests, openScope, ownScope]);
+};
+
+const useGuestCatalog = (scope?: GuestScope) => {
+  const guests = useScopedGuests(scope);
   const [runtimeKey, setRuntimeKey] = React.useState(getRuntimeKey);
 
   React.useEffect(() => {
@@ -50,14 +61,13 @@ export const useGuestSurfaces = (): ContextSurfaceDescriptor[] => {
 
   return React.useMemo(() => {
     return enabledGuestSurfaces(guests, getRuntimeUrlResolver().authenticatedAsset);
-    // runtimeKey: the asset resolver answers for the active runtime, so a switch recomputes the list.
     // oxlint-disable-next-line react-hooks/exhaustive-deps
   }, [guests, runtimeKey]);
 };
 
 /** Full-screen pages of active guests; on the phone only the ones that opted in. */
 export const useGuestPages = () => {
-  const guests = useGuestsStore((state) => state.guests);
+  const guests = useScopedGuests();
   return React.useMemo(() => {
     if (isVSCodeRuntime()) return [];
     const phone = isMobileSurfaceRuntime();
@@ -87,7 +97,7 @@ const EMPTY_STATUS_SECTIONS: InstalledGuest[] = [];
  * mobile shell, owns loading the catalog.
  */
 export const useGuestStatusSections = (): InstalledGuest[] => {
-  const guests = useGuestsStore((state) => state.guests);
+  const guests = useScopedGuests();
   return React.useMemo(() => {
     if (isVSCodeRuntime()) return EMPTY_STATUS_SECTIONS;
     const sections = guests.filter((guest) => (guest.statusEntry || guest.statusSource) && isGuestActive(guest));
@@ -123,7 +133,7 @@ export const useGuestActions = (): GuestActionEntry[] => {
  * panel. Store read only, like `useGuestActions`.
  */
 export const useGuestCommands = (reservedNames: ReadonlySet<string>): GuestCommandEntry[] => {
-  const guests = useGuestsStore((state) => state.guests);
+  const guests = useScopedGuests();
 
   return React.useMemo(() => {
     if (isVSCodeRuntime()) return EMPTY_COMMANDS;
@@ -132,8 +142,8 @@ export const useGuestCommands = (reservedNames: ReadonlySet<string>): GuestComma
   }, [guests, reservedNames]);
 };
 
-export const useGuestAttachItems = (): GuestAttachItem[] => {
-  const { guests, runtimeKey } = useGuestCatalog();
+export const useGuestAttachItems = (scope?: GuestScope): GuestAttachItem[] => {
+  const { guests, runtimeKey } = useGuestCatalog(scope);
 
   return React.useMemo(() => {
     if (isVSCodeRuntime()) return [];
@@ -152,7 +162,18 @@ export const useGuestAttachItems = (): GuestAttachItem[] => {
       });
     }
     return items;
-    // runtimeKey: the asset resolver answers for the active runtime, so a switch recomputes the list.
     // oxlint-disable-next-line react-hooks/exhaustive-deps
   }, [guests, runtimeKey]);
+};
+
+export const useGuestTabsInScope = (panel: ContextPanelDirectoryState | undefined): ContextPanelDirectoryState | undefined => {
+  const status = useGuestsStore((state) => state.status);
+  const guests = useGuestsStore((state) => state.guests);
+  const paths = useGuestScopeStore((state) => state.paths);
+  return React.useMemo(() => {
+    if (!panel) return panel;
+    const catalog = { loaded: status !== 'idle' && status !== 'loading', guests };
+    const tabs = panel.tabs.filter((tab) => !isPluginContextPanelMode(tab.mode) || !isGuestTabHidden(pluginIdFromMode(tab.mode), catalog, paths));
+    return tabs.length === panel.tabs.length ? panel : { ...panel, tabs };
+  }, [guests, panel, paths, status]);
 };

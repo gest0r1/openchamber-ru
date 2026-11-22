@@ -1,8 +1,3 @@
-// Pierre mixes the theme's add/remove color into changed rows at 20% (dark)
-// and 12% (light), with gutters and changed words on top. Vivid theme greens
-// and reds turned whole hunks into colored blocks whose code was hard to read,
-// so changed rows get half that tint. Injected into each diff's shadow root,
-// where Pierre's own color variables resolve.
 export const PIERRE_DIFF_TINT_CSS = `
   /* How much of the theme's added or removed colour a changed row mixes into
      the background (100% minus the value). Set per kind and theme so the two

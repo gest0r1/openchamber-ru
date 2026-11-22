@@ -17,7 +17,6 @@ import { useGuestsStore } from './store.ts';
 
 type ActionOutcome = ActionResultPayload | { ok: false; reason: 'timeout' | 'unavailable' };
 
-/** One click owns one temporary frame and one completion, independently of other clicks. */
 export type GuestBackgroundAction = {
   id: string;
   guestId: string;
@@ -51,7 +50,6 @@ const ACTION_FEEDBACK_DELAY_MS = 2_000;
 const runningActions = new Set<string>();
 
 const runBackgroundAction = (entry: GuestActionEntry, item: GuestActionItem, runtimeKey: string): Promise<ActionOutcome> => {
-  // Bound hidden documents even when repeated clicks arrive before a frame can answer.
   if (useGuestActionHostStore.getState().requests.length >= 8) return Promise.resolve({ ok: false, reason: 'unavailable' });
   return new Promise((resolve) => {
     const id = generateUuid();
@@ -87,7 +85,6 @@ const runBackgroundAction = (entry: GuestActionEntry, item: GuestActionItem, run
   });
 };
 
-/** Revalidate the menu's captured declaration before opening UI or starting guest code. */
 export const runGuestAction = async (
   entry: GuestActionEntry,
   item: GuestActionItem,

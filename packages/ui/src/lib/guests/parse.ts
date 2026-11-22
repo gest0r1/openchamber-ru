@@ -75,33 +75,23 @@ const publicServiceSchema = z.object({
     exec: z.array(z.string().trim().min(1)).optional(),
   }).optional(),
   socketBindings: z.array(publicSocketBindingSchema).optional(),
-  // A role this build does not know (a newer server) drops the field, not the
-  // catalog: every other extension must keep working.
   provides: z.array(z.enum(GUEST_SERVICE_PROVIDES)).optional().catch(undefined),
   surface: z.literal(true).optional().catch(undefined),
   keepRunning: z.literal(true).optional().catch(undefined),
   schedule: z.array(z.object({ id: z.string(), cron: z.string(), timezone: z.string().optional() })).optional().catch(undefined),
 });
 
-// The Git host a source-control provider extension adds, as the approval
-// dialog shows it. A malformed slice drops the field, never the row.
 const publicSourceControlSchema = z.object({
   label: z.string().trim().min(1).max(64),
   defaultInstances: z.array(z.string().trim().min(1)).max(4),
   custom: z.boolean(),
 });
 
-// The session events a service subscribed to, as the approval dialog lists
-// them. An event type this build does not know is a newer server: the field
-// drops, never the row.
 const publicSessionEventsSchema = z.object({
   events: z.array(z.enum(GUEST_SESSION_EVENT_TYPES)).min(1).max(GUEST_SESSION_EVENT_TYPES.length),
   content: z.boolean(),
 });
 
-// The notification channel a `notifications` service provides, as the
-// approval dialog and the Integrations card show it. A malformed slice drops
-// the field, never the row.
 export const publicNotificationsSchema = z.object({
   label: z.string().trim().min(1).max(64),
   instances: z.union([
@@ -116,8 +106,6 @@ export const publicNotificationsSchema = z.object({
   }),
 });
 
-// The tracker a `tracker` service provides, as the approval dialog and the
-// account card show it. A malformed slice drops the field, never the row.
 const publicTrackerInstancesSchema = z.union([
   z.object({ kind: z.literal('fixed'), origin: z.string().trim().min(1).max(2_048) }),
   z.object({ kind: z.literal('user'), label: z.string().trim().min(1).max(64), placeholder: z.string().trim().max(256).optional() }),
@@ -214,7 +202,6 @@ const installedGuestSchema = z.object({
   name: z.string().trim().min(1),
   icon: z.string().trim().min(1),
   entry: z.string().trim().min(1).optional(),
-  /** Edge and thickness beside a shared surface; see `PanelContribution.dock`. */
   entryDock: z.enum(GUEST_SURFACE_DOCKS).optional(),
   entrySize: z.number().int().positive().optional(),
   entryMobile: z.literal(true).optional().catch(undefined),
@@ -274,6 +261,7 @@ const installedGuestSchema = z.object({
   source: z.enum(['bundled', 'path', 'zip', 'git']).optional(),
   path: z.string().nullable().optional(),
   enabled: z.boolean().optional(),
+  folders: z.array(z.string().min(1)).optional(),
   origin: z.object({
     url: z.string().trim().min(1),
     ref: z.string().trim().min(1).optional(),
@@ -293,19 +281,12 @@ const catalogSchema = z.object({
   opencodePlugins: openCodePluginsSchema.optional().catch(undefined),
 });
 
-// What Settings can still show of a row it cannot read, so the user can
-// remove it. Each field falls back on its own.
 const unreadableGuestSchema = z.object({
   id: z.string().regex(PANEL_ID).nullable().catch(null),
   name: z.string().trim().min(1).nullable().catch(null),
   source: z.string().nullable().catch(null),
 }).catch({ id: null, name: null, source: null });
 
-/**
- * Rows are read one by one: a row this build cannot read (a newer server, a
- * broken package) is listed in `unreadable` and every other row still loads.
- * Only a response without a guest list is a failure.
- */
 export const parseGuestCatalogJson = (json: string): GuestCatalog | null => {
   try {
     const parsed = catalogSchema.safeParse(JSON.parse(json));
@@ -326,11 +307,6 @@ export const parseGuestCatalogJson = (json: string): GuestCatalog | null => {
   }
 };
 
-/**
- * The answer to an install: the row, `'unreadable'` when the server installed
- * a package and answered with a row this build cannot read, or null when the
- * answer is not an install row at all.
- */
 export const parseInstallAnswerJson = (json: string): InstalledGuest | 'unreadable' | null => {
   try {
     const raw: unknown = JSON.parse(json);

@@ -40,12 +40,6 @@ interface VisibleFilterOptions {
     includeReasoning?: boolean;
 }
 
-/**
- * The parts a message actually shows.
- *
- * OpenCode v2 no longer marks parts synthetic and no longer sends patch
- * parts, so the only choice left here is whether reasoning is on screen.
- */
 export const filterVisibleParts = (parts: Part[], options: VisibleFilterOptions = {}): Part[] => {
     const { includeReasoning = true } = options;
     const validParts = normalizeParts(parts);

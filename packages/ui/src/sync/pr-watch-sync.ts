@@ -5,7 +5,6 @@ import { getRuntimeKey } from '@/lib/runtime-switch';
 import { seedGlobalSessionStatusFromHost } from './host-session-status-seed';
 import { applyPrWatches, applyPrWatchSnapshot, prWatchSnapshotSchema, restorePrWatches, takePrWatches } from './pr-watch';
 
-/** VS Code has no OpenChamber server, so no agent there waits on a pull request. */
 const isPrWatchAvailable = (): boolean => !isVSCodeRuntime();
 
 const hydratePrWatches = async (): Promise<void> => {
@@ -17,14 +16,9 @@ const hydratePrWatches = async (): Promise<void> => {
   if (!parsed.success) throw new Error('Invalid pull request watch response');
   if (runtimeKey !== getRuntimeKey()) return;
   applyPrWatchSnapshot(parsed.data);
-  // A wait this device only learned of now keeps a turn it never counted: the host knows its start.
   if (parsed.data.watches.length > 0) void seedGlobalSessionStatusFromHost().catch(() => undefined);
 };
 
-/**
- * Pull request watches ride the control SSE stream: read once at mount, again
- * after every reconnect of that stream, and kept by its updates in between.
- */
 export const subscribePrWatchSync = (runtimeKey: string): (() => void) => {
   if (!isPrWatchAvailable()) return () => undefined;
   void hydratePrWatches().catch(() => undefined);

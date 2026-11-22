@@ -9,7 +9,6 @@ type GuestsState = {
   status: GuestsStatus;
   failure: GuestRequestFailure | null;
   guests: InstalledGuest[];
-  /** Installed rows this build could not read; Settings lists them so they can be removed. */
   unreadable: UnreadableGuest[];
   /** How extensions' OpenCode plugins reach OpenCode, from the same listing; null until a listing said. */
   opencodePlugins: OpenCodePlugins | null;

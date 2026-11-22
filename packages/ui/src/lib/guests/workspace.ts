@@ -15,6 +15,7 @@ import { normalizePath } from '@/lib/pathNormalization';
 import { checkoutHoldsDirectory, checkoutHoldsSubfolder } from '@/lib/worktrees/worktreePaths';
 import { getRuntimeKey, subscribeRuntimeEndpointChanged } from '@/lib/runtime-switch';
 import { useUIStore } from '@/stores/useUIStore';
+import { computeSessionTokenTotals } from '@/components/chat/work-status/contextUsage';
 import type { WorktreeMetadata } from '@/types/worktree';
 
 export const guestProject = (projectId: string) => {
@@ -98,8 +99,6 @@ const projectSession = (session: Session, projectId: string, guestId: string, wo
     else if (status?.type === 'retry') activity = 'retrying';
     else if (status?.type === 'idle' || (!statusInvalidated && (child?.sessionStatusReady || observed))) activity = 'idle';
     if (child?.permission[session.id]?.length) activity = 'waiting-permission';
-    // v2 replaced the v1 question tool with typed forms; both are "the agent
-    // is waiting for the user to answer", so the public activity value stays.
     else if (child?.form[session.id]?.length) activity = 'waiting-question';
   }
   return {
@@ -114,9 +113,6 @@ const projectSession = (session: Session, projectId: string, guestId: string, wo
       if (item.data !== undefined) reference.data = item.data;
       return [reference];
     }),
-    // Every extension with `sessions` sees every link, the agent's and the
-    // user's too: no more than the session titles it already reads. Another
-    // extension's opaque `data` stays out.
     links: linked.map((item) => ({ title: item.title, url: item.url, kind: isLinkedChange(item) ? 'change' : 'issue', linkedAt: item.linkedAt })),
     // The sidebar's In work rule (`orderInWorkWorks`): a top-level session that
     // is not archived, and nobody while In work is off.
@@ -129,7 +125,6 @@ const projectSession = (session: Session, projectId: string, guestId: string, wo
   };
 };
 
-/** Store projection only. Layout-owned sync and topology discovery supply hydration. */
 export const readGuestWorkspace = (query: GuestWorkspaceQuery, guestId: string): GuestWorkspaceSnapshot => {
   const projects = useProjectsStore.getState();
   if (query.kind === 'projects') return {
@@ -151,14 +146,11 @@ export const readGuestWorkspace = (query: GuestWorkspaceQuery, guestId: string):
     return { directory, state };
   });
   const worktreeRoots = worktrees.map((worktree) => normalizePath(worktree.directory) ?? worktree.directory);
-  // A session of a project opened on a folder of its repository runs in that
-  // folder of its worktree (`<worktree>/ai`), so a worktree holds its sub-folders.
   const belongsToProject = (directory: string): boolean => {
     const key = normalizePath(directory) ?? directory;
     return directories.has(key) || worktreeRoots.some((root) => checkoutHoldsSubfolder(root, key));
   };
   const records = new Map<string, Session>();
-  // Global records own complete membership, including archives. Child stores fill discovery gaps.
   for (const [directory, ids] of global.structure.activeIdsByDirectory) {
     if (!belongsToProject(directory)) continue;
     for (const id of ids) {
@@ -184,7 +176,6 @@ export const readGuestWorkspace = (query: GuestWorkspaceQuery, guestId: string):
 type Observer = { listeners: Set<(snapshot: GuestWorkspaceSnapshot) => void>; snapshot: GuestWorkspaceSnapshot; dispose: () => void };
 const observers = new Map<string, Observer>();
 
-/** One projection/subscription set per extension and query, shared by its frames. */
 export const observeGuestWorkspace = (query: GuestWorkspaceQuery, guestId: string, listener: (snapshot: GuestWorkspaceSnapshot) => void): (() => void) => {
   const key = JSON.stringify([getRuntimeKey(), guestId, query]);
   let observer = observers.get(key);

@@ -29,13 +29,9 @@ export interface MobileCommentScope {
 }
 
 export interface MobileCommentQuote {
-    /** Plain text, used only for the single-line preview row. */
     plainText: string;
-    /** Full markdown of the selection; attached verbatim as quote context. */
     markdownText: string;
-    /** `data-message-id` the selection came from, when known. */
     messageId: string | null;
-    /** Where the quote sits in that message, when it could be captured. */
     anchor?: ChatQuoteAnchor | null;
 }
 
@@ -51,7 +47,6 @@ export type MobileCommentDraft =
         draftId?: string;
     };
 
-/** What attach produced: everything needed to write one chat-quote draft. */
 export interface MobileCommentAttachPlan {
     scope: MobileCommentScope;
     target: InlineCommentDraftTarget;
@@ -71,7 +66,6 @@ export interface MobileCommentAttachPlan {
 
 export const CLOSED_MOBILE_COMMENT_DRAFT: MobileCommentDraft = { status: 'closed' };
 
-/** Keep the full quote text; the shell clips and fades it at the row's edge. */
 export const mobileCommentQuotePreview = (plainText: string): string =>
     plainText.trim();
 
@@ -81,11 +75,8 @@ export const isSameMobileCommentScope = (a: MobileCommentScope, b: MobileComment
 export interface MobileCommentDraftController {
     getState(): MobileCommentDraft;
     subscribe(listener: () => void): () => void;
-    /** The mounted composer publishes its target, including pending BTW drafts. */
     setScope(scope: MobileCommentScope | null): void;
-    /** That target as published: where a comment or quote taken here has to land. */
     getScope(): MobileCommentScope | null;
-    /** Capture the composer's target and open a comment for the selection. */
     open(quote: MobileCommentQuote): boolean;
     /**
      * Open the shell on an attached draft of the published scope, with its
@@ -98,20 +89,9 @@ export interface MobileCommentDraftController {
      * closed, so a stale caller can skip its follow-up (focus restore etc.).
      */
     cancel(generation?: number): boolean;
-    /** Comment text typed in the comment editor. */
     setText(text: string, generation: number): void;
-    /** Append a dictation transcript to the comment text. */
     insertText(text: string, generation: number): void;
-    /**
-     * Store the open comment exactly once and close only after acceptance.
-     * Rejection returns null and preserves the comment for editing or retry.
-     */
     attach(generation: number): MobileCommentAttachPlan | null;
-    /**
-     * Dictation's insert-and-attach, atomic under one generation check: a
-     * stale completion neither appends its text nor attaches the newer
-     * comment that replaced the caller's.
-     */
     insertAndAttach(text: string, generation: number): MobileCommentAttachPlan | null;
 }
 
@@ -138,7 +118,6 @@ export function createMobileCommentDraftController(): MobileCommentDraftControll
             endLine: 1,
             code: open.quote.markdownText,
             language: '',
-            // The comment itself is optional; whitespace-only means none.
             text: open.text.trim(),
             anchor: open.quote.anchor ?? undefined,
         },

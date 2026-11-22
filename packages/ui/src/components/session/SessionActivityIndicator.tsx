@@ -38,12 +38,7 @@ const PRESENTATION = {
 export const SessionActivityIndicator: React.FC<{
   state: SessionActivityIndicatorState;
   className?: string;
-  /** Extra classes for the running kinds only (e.g. the switcher's pulse). */
   runningClassName?: string;
-  /**
-   * Name the state in a tooltip above the mark instead of the native title,
-   * as the sidebar's row marks do.
-   */
   tooltip?: boolean;
 }> = ({ state, className, runningClassName, tooltip = false }) => {
   const { t } = useI18n();

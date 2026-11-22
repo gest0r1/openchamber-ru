@@ -36,11 +36,6 @@ const combineCounts = (base: number | null, incoming: number | null): number | n
     return base + incoming;
 };
 
-/**
- * One row chip per file the patch touched. v2 reports each file as
- * `{ file, patch, additions, deletions, status }`; the path reader also
- * accepts the older `filePath`/`relativePath` naming of MCP and plugin tools.
- */
 const getApplyPatchFileEntries = (metadata: Record<string, unknown> | undefined, currentDirectory: string): ApplyPatchFileEntry[] => {
     const files = Array.isArray(metadata?.files) ? metadata.files : [];
     const entriesByPath = new Map<string, ApplyPatchFileEntry>();
@@ -83,7 +78,6 @@ export const ApplyPatchFileButtons = ({
     textClassName,
 }: {
     animate?: boolean;
-    /** Paths in the chips are shown relative to this directory. */
     currentDirectory?: string;
     metadata: Record<string, unknown> | undefined;
     onFileClick?: (file: Record<string, unknown>, event: React.MouseEvent<HTMLButtonElement>) => void;

@@ -37,7 +37,9 @@ describe('standard mutations', () => {
       '/pr/create': { title: 'T' }, '/pr/update': { title: 'T' }, '/pr/merge': { method: 'merge' }, '/pr/ready': {}, '/pr/draft': {},
       '/pr/review': { verdict: 'approve' }, '/pr/review/comment': { path: 'a.ts', side: 'new', line: 1, body: 'hi' },
       '/pr/review/comment/update': { commentId: '1', body: 'hi' }, '/pr/review/comment/delete': { commentId: '1' }, '/pr/review/discard': {},
-      '/pr/comment': { body: 'hi' }, '/issues/comment': { body: 'hi' },
+      '/pr/comment': { body: 'hi' }, '/issues/comment': { body: 'hi' }, '/issues/update': { title: 'T', body: 'B' },
+      '/pr/comment/update': { commentId: '1', body: 'hi' }, '/issues/comment/update': { commentId: '1', body: 'hi' },
+      '/pr/comment/delete': { commentId: '1' }, '/issues/comment/delete': { commentId: '1' },
       '/pr/state': { state: 'closed' }, '/issues/state': { state: 'open' }, '/pr/labels': { labels: ['a'] },
       '/issues/labels': { labels: ['a'] }, '/pr/reviewers': { reviewers: ['1'] },
     };
@@ -45,7 +47,8 @@ describe('standard mutations', () => {
     expect(kinds).toEqual([
       'change-request-create', 'change-request-update', 'change-request-merge', 'change-request-ready', 'change-request-draft', 'change-request-review',
       'change-request-review-comment', 'change-request-review-comment-update', 'change-request-review-comment-delete', 'change-request-review-discard',
-      'change-request-comment', 'issue-comment', 'change-request-state', 'issue-state', 'change-request-labels', 'issue-labels',
+      'change-request-comment', 'issue-comment', 'issue-update', 'change-request-comment-update', 'issue-comment-update', 'change-request-comment-delete', 'issue-comment-delete',
+      'change-request-state', 'issue-state', 'change-request-labels', 'issue-labels',
       'change-request-reviewers',
     ]);
   });
@@ -112,6 +115,14 @@ describe('standard mutations', () => {
       ['/pr/review', { verdict: 'approve' }, numbered],
       ['/pr/comment', { body: 'x'.repeat(11) }, numbered],
       ['/issues/comment', { body: '   ' }, numbered],
+      ['/issues/update', { title: '   ' }, numbered],
+      ['/issues/update', { title: 'T', body: 5 }, numbered],
+      ['/pr/comment/update', { body: 'hi' }, numbered],
+      ['/pr/comment/update', { commentId: '', body: 'hi' }, numbered],
+      ['/pr/comment/update', { commentId: '1', body: '   ' }, numbered],
+      ['/issues/comment/update', { commentId: '1', body: 'x'.repeat(11) }, numbered],
+      ['/issues/comment/delete', { commentId: 4 }, numbered],
+      ['/issues/comment/delete', {}, numbered],
       ['/issues/state', { state: 'merged' }, numbered],
       ['/pr/labels', { labels: ['a', 'b', 'c', 'd'] }, numbered],
       ['/pr/reviewers', { reviewers: ['alice'] }, numbered],

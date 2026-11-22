@@ -19,7 +19,6 @@ import { PluginPane } from './PluginPane';
 
 type GuestAttachDialogProps = {
   guestId: string | null;
-  /** The chip, message, or session the dialog was opened for; `null` (default) when opened from the + menu. */
   item?: GuestItem | null;
   onOpenChange: (open: boolean) => void;
   onAttach?: (issue: AttachIssueRequest) => void;

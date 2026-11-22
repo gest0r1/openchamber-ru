@@ -1,4 +1,6 @@
 import React from 'react';
+import { ReceivedPagesList } from '@/components/chat/sharePages/received/ReceivedPagesList';
+import { hasReceivedPages, useReceivedPages } from '@/components/chat/sharePages/received/receivedPagesStore';
 import { createPortal } from 'react-dom';
 import { arrayMove } from '@dnd-kit/sortable';
 import { isIMECompositionEvent } from '@/lib/ime';
@@ -35,8 +37,6 @@ const GuestPanelContent = React.lazy(() => import('@/components/layout/GuestPane
 
 const DRAWER_ROOT_ID = 'mobile-surface-root';
 const ENTER_DELAY_MS = 16;
-// Slightly long, decelerating slide — matches the sessions drawer so both
-// sides feel like the same piece of chrome.
 const ENTER_DURATION_MS = 320;
 const DRAWER_EASING = 'cubic-bezier(0.22, 1, 0.36, 1)';
 
@@ -65,13 +65,13 @@ export const MobileWorkspaceDrawer: React.FC<{
   pendingChangesCommit: MobileChangesCommitRequest | null;
   /** Notes tab: opens a plan fullscreen (layered above the drawer). */
   onOpenPlan: (plan: { id: string; title: string; projectRef: ProjectRef }) => void;
+  onOpenReceivedPage: (page: { receivedId: string; title: string }) => void;
   variant?: 'drawer' | 'panel';
 }> = ({ open, onClose, tab, onTabChange, pendingChangesDiff, pendingChangesCommit, onOpenPlan, variant = 'drawer' }) => {
   const { t, direction } = useI18n();
   const rootRef = React.useRef<HTMLElement | null>(null);
   const drawerRef = React.useRef<HTMLElement>(null);
   const [entered, setEntered] = React.useState(false);
-  // Kept visible through the exit slide; flipped to hidden once it finishes.
   const [visible, setVisible] = React.useState(open);
   const onCloseRef = React.useRef(onClose);
   React.useEffect(() => {
@@ -90,10 +90,6 @@ export const MobileWorkspaceDrawer: React.FC<{
     tabRef.current = tab;
   }, [tab]);
 
-  // Swipe from the drawer's start edge back toward its end = close, the
-  // reverse of the end-edge swipe that opened it from the chat. Only the
-  // full-cover drawer has an edge to grab; the tablet panel is closed from the
-  // header instead.
   const closeFromEdge = () => onCloseRef.current();
   useEdgeSwipe(drawerRef, {
     enabled: variant === 'drawer' && open,
@@ -151,15 +147,9 @@ export const MobileWorkspaceDrawer: React.FC<{
 
   React.useEffect(() => {
     if (!open) return;
-    // Only the full-cover drawer owns the page scroll; the inline panel sits
-    // inside the shell and must leave the chat beside it scrollable.
     const previousOverflow = document.body.style.overflow;
     if (variant === 'drawer') document.body.style.overflow = 'hidden';
     const handleKeyDown = (event: KeyboardEvent) => {
-      // The terminal owns Escape (it goes to the PTY) — don't hijack it.
-      // The same goes for the file editor on the Vim keymap, where Escape
-      // leaves INSERT mode (hardware keyboards on tablets and phones), and
-      // for an IME composition, where it dismisses the candidate window.
       if (event.key !== 'Escape' || tabRef.current === 'terminal') return;
       if (isVimEditorEventTarget(event.target)) return;
       if (isIMECompositionEvent(event)) return;
@@ -179,6 +169,7 @@ export const MobileWorkspaceDrawer: React.FC<{
     changes: { id: 'changes', label: t('mobile.menu.git'), icon: <Icon name="git-branch" className="h-3.5 w-3.5" /> },
     files: { id: 'files', label: t('mobile.menu.files'), icon: <Icon name="file-text" className="h-3.5 w-3.5" /> },
     terminal: { id: 'terminal', label: t('mobile.menu.terminal'), icon: <Icon name="terminal" className="h-3.5 w-3.5" /> },
+    preview: { id: 'preview', label: t('contextPanel.mode.browser'), icon: <Icon name="global" className="h-3.5 w-3.5" /> },
     notes: { id: 'notes', label: t('contextRail.surface.notes'), icon: <Icon name="sticky-note" className="h-3.5 w-3.5" /> },
   } satisfies Record<Exclude<MobileWorkspaceTab, PluginContextPanelMode>, SortableTabsStripItem>;
   const extensionTabItem = (mode: PluginContextPanelMode): SortableTabsStripItem => {
@@ -217,7 +208,6 @@ export const MobileWorkspaceDrawer: React.FC<{
   const stripTabs = stripMobileWorkspaceTabs(tabOrder, hiddenTabs, tab, extensionTabs);
   const tabItems = stripTabs.map((id) => (isPluginContextPanelMode(id) ? extensionTabItem(id) : tabDefinitions[id]));
   const soleTab = tabItems.length === 1 ? tabItems[0] : null;
-  // A long press on a tab drags it; the new order covers hidden tabs too.
   const reorderTabs = (activeId: string, overId: string) => {
     const all = orderMobileWorkspaceTabs(tabOrder, extensionTabs);
     const from = all.findIndex((id) => id === activeId);
@@ -230,10 +220,6 @@ export const MobileWorkspaceDrawer: React.FC<{
     <>
       <div className={MOBILE_HEADER_CLASS}>
         <div className="flex h-9 min-w-0 flex-1 items-center">
-          {/* Mounted only while shown; nonCompositedIndicator keeps the active
-              pill off its own compositing layer — creating one inside the
-              drawer's slide flickers in WKWebView. */}
-          {/* One tab has nothing to switch to: it is named, not offered. */}
           {soleTab ? (
             <h2 className="flex min-w-0 items-center gap-2 px-1 typography-ui-label font-medium text-foreground">
               <span className="flex shrink-0 text-muted-foreground">{soleTab.icon}</span>
@@ -253,8 +239,6 @@ export const MobileWorkspaceDrawer: React.FC<{
               layoutMode={tabItems.length > 5 ? 'scrollable' : 'fit'}
               variant="active-pill"
               nonCompositedIndicator
-              // More than three tabs don't fit with labels: the active tab
-              // keeps icon + label, the rest collapse to icons.
               inactiveTabsIconOnly={tabItems.length > 3}
               className="h-full"
             />
@@ -282,9 +266,6 @@ export const MobileWorkspaceDrawer: React.FC<{
         </button>
       </div>
       <div className="min-h-0 flex-1 overflow-hidden">
-        {/* Panes stay MOUNTED once visited (hidden when inactive/closed), so
-            reopening the drawer lands exactly where the user left off — an
-            open diff, an edited file, an attached terminal. */}
         {visitedTabs.has('status') ? (
           <div className={cn('h-full', tab !== 'status' && 'hidden')}>
             <ErrorBoundary>
@@ -299,8 +280,6 @@ export const MobileWorkspaceDrawer: React.FC<{
         ) : null}
         {visitedTabs.has('changes') ? (
           <div
-            // A newly requested per-file diff remounts the pane so
-            // initialDiff applies; plain reopens keep the state.
             key={pendingChangesDiff ? `changes:${pendingChangesDiff.path}:${pendingChangesDiff.staged}` : 'changes'}
             className={cn('h-full', tab !== 'changes' && 'hidden')}
           >
@@ -325,6 +304,15 @@ export const MobileWorkspaceDrawer: React.FC<{
           <div className={cn('h-full', tab !== 'terminal' && 'hidden')}>
             <ErrorBoundary>
               <TerminalView visible={open && tab === 'terminal'} />
+            </ErrorBoundary>
+          </div>
+        ) : null}
+        {visitedTabs.has('preview') ? (
+          <div className={cn('relative h-full min-h-0 overflow-hidden', tab !== 'preview' && 'hidden')}>
+            <ErrorBoundary>
+              <React.Suspense fallback={null}>
+                <MobileBrowserSurface visible={open && tab === 'preview'} registerBackHandler={registerPreviewBackHandler} />
+              </React.Suspense>
             </ErrorBoundary>
           </div>
         ) : null}
@@ -359,10 +347,6 @@ export const MobileWorkspaceDrawer: React.FC<{
   );
 
   if (variant === 'panel') {
-    // The caller animates the width; the content itself is plain flow so it
-    // never gets its own compositing layer (iOS clips those to the safe-area
-    // viewport, which is exactly what the drawer's settled `transform: none`
-    // avoids on the other host).
     return <div className="flex h-full min-h-0 flex-col bg-background text-foreground">{body}</div>;
   }
 
@@ -376,8 +360,6 @@ export const MobileWorkspaceDrawer: React.FC<{
       className="oc-keyboard-inset-surface oc-bottom-safe-surface oc-side-safe-area fixed inset-0 z-50 flex flex-col bg-background text-foreground"
       style={{
         paddingTop: 'var(--oc-safe-area-top, 0px)',
-        // Settled state drops the transform entirely so the drawer isn't kept
-        // on a compositing layer (iOS clips those to the safe-area viewport).
         transform: entered ? 'none' : direction === 'rtl' ? 'translateX(-100%)' : 'translateX(100%)',
         transition: `transform ${ENTER_DURATION_MS}ms ${DRAWER_EASING}`,
         visibility: visible ? 'visible' : 'hidden',

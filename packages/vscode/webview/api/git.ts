@@ -65,10 +65,6 @@ const writeStoredProfiles = (profiles: GitIdentityProfile[]): void => {
   storedProfiles = gitIdentityProfilesSchema.parse(profiles);
 };
 
-// Network operations. Remote-branch deletion is the only one the VS Code
-// surfaces mount; the webview maps its plan onto the standard remote-branches
-// bridge message so system Git on the extension host performs it with the
-// user's own credentials. Push, pull, fetch and sync have no bridge message.
 const VSCODE_GIT_UNSUPPORTED_MESSAGE = 'Only remote branch deletion is supported as a Git network operation in the VS Code runtime';
 
 const unsupportedNetworkOperation = async (): Promise<never> => {
@@ -148,10 +144,6 @@ const snapshotBase = (snapshot: GitNetworkOperation) => ({
   target: snapshot.target,
 });
 
-// A transfer has no bridge timeout: once Git is running on the extension host,
-// giving up in the webview would report a failure Git may still turn into a
-// success, and would let another operation start beside it. The operation
-// stays `running` until the host answers.
 const runBridgeStep = async (type: string, payload: CompatibilityBridgePayload): Promise<StepOutcome> => {
   try {
     const result = await sendBridgeMessageWithOptions<{ success?: boolean } | undefined>(type, payload, { timeoutMs: 0 });
@@ -163,10 +155,6 @@ const runBridgeStep = async (type: string, payload: CompatibilityBridgePayload):
 
 const transportFailure = (message: string): GitNetworkOperationError<'TRANSPORT_FAILED'> => ({ code: 'TRANSPORT_FAILED', message });
 
-// The bridge messages address remotes by name, so Git uses whatever URL the
-// remote has at execution time. Before anything runs, the remotes are read
-// again and must still match the plan; a changed remote ends the operation as
-// conflicted instead of transferring against an endpoint nobody approved.
 const revalidatePlannedRemotes = async (request: CompatibilityNetworkRequest): Promise<GitNetworkOperationError<'STALE_REPOSITORY' | 'STALE_CONFIG' | 'REMOTE_CHANGED'> | null> => {
   const current = await readRepositoryContext(request.directory);
   if (current.repositoryId !== request.repositoryId) {

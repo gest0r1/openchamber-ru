@@ -25,6 +25,12 @@ import { isChatDirectoryPath } from '@/lib/chatDirectories';
 import { useI18n } from '@/lib/i18n';
 import { isSessionPinned } from '@/lib/sessionPins';
 import { isDoneSuggested } from '@/lib/sessionWorkMetadata';
+import { isOperatorChildSession } from '@/lib/sessionOperatorChild';
+import { isLeadSession } from '@/lib/sessionLead';
+import type { Session } from '@/lib/opencode/model';
+import { handSessionToLead, setSessionLead } from '@/sync/session-lead';
+import { useProjectLeads } from '@/components/session/sidebar/sessions/useProjectLeads';
+import { takeOverSession } from '@/sync/session-take-over';
 import { getSessionGoal } from '@/lib/sessionGoalMetadata';
 import { collectSessionWorkInWork } from '@/components/session/sidebar/works/sidebarWorks';
 import { cn } from '@/lib/utils';
@@ -52,13 +58,18 @@ type SessionRowModel = Extract<SessionSidebarRow, { kind: 'session' }>;
 
 const collectDescendantIds = (node: SessionNode): string[] => node.children.flatMap((child) => [child.session.id, ...collectDescendantIds(child)]);
 
-/**
- * A session in the phone's list: the desktop row's content for a thumb. One
- * line is a tree row, its subsession chevron in the slot left of the title
- * and its live state on the right before the time. Two lines put the
- * branch on the second, with the chevron as its first icon. Swiping reveals
- * archive, pin, Track or Done, delete, rename and Copy ID.
- */
+
+const HandToLeadItems: React.FC<{ session: Session; projectId: string | null }> = ({ session, projectId }) => {
+  const { t } = useI18n();
+  const leads = useProjectLeads(projectId, session.id);
+  return leads.map((lead) => (
+    <ContextMenuItem key={lead.id} onClick={() => { void handSessionToLead(session.id, lead.id).catch(() => toast.error(t('sessions.sidebar.session.handToLead.failed'))); }}>
+      <Icon name="lead" className="me-1 size-4" />
+      <span className="min-w-0 max-w-[15rem] truncate">{t('sessions.sidebar.session.menu.handToNamedLead', { title: lead.title || t('sessions.sidebar.session.untitled') })}</span>
+    </ContextMenuItem>
+  ));
+};
+
 export const MobileSessionRow: React.FC<{
   row: SessionRowModel;
   geometry: MobileTreeGeometry;
@@ -73,7 +84,6 @@ export const MobileSessionRow: React.FC<{
   const title = session.title?.trim() || t('mobile.sessions.untitled');
   const aiRename = useSessionAiRenameAction(session.id, session.directory, revealed || renaming);
   const isCurrent = useSessionUIStore((state) => state.currentSessionId === session.id);
-  // A run's overview covers the session, and then the run's row is the selected one.
   const runOverviewOpen = useUIStore((state) => state.runOverviewKey !== null);
   const active = isCurrent && !runOverviewOpen;
   const isUnread = useSessionUnread(session.id);
@@ -106,8 +116,6 @@ export const MobileSessionRow: React.FC<{
   // The Pinned section's header already says its rows are pinned.
   const inPinnedZone = isPinnedZoneRowKey(row.key);
   const showDoneHint = Boolean(work?.inWork) && !isStreaming && isDoneSuggested(session);
-  // Two lines in a zone with Detailed rows on ('timeline-mixed'), and under a
-  // project for the works there (`detailed`); what nests inside stays one line.
   const detailed = row.detailed === true || isMultiLineTimelineContext(row.renderContext);
   const project = useProjectsStore(React.useCallback(
     (state) => (detailed && row.renderContext === 'timeline-mixed' && row.projectId ? state.projects.find((entry) => entry.id === row.projectId) ?? null : null),
@@ -115,8 +123,6 @@ export const MobileSessionRow: React.FC<{
   ));
   const projectNamed = useZoneProjectNames();
   const branch = resolveTooltipBranchLabel(row.secondaryMeta, node.worktree?.branch ?? null);
-  // The PRs and issues linked to the session, as the desktop row shows them:
-  // the one that needs attention first, in its state's colour.
   const { refLines } = useSessionRefLines(session, node.worktree, false);
   const primaryRef = refLines[0] ?? null;
   const moreRefCount = Math.max(0, refLines.length - 1);
@@ -154,7 +160,6 @@ export const MobileSessionRow: React.FC<{
 
   const setRevealed = (next: boolean) => useMobileSidebarRowsStore.getState().setRevealed(row.key, next);
   const select = () => {
-    // A tap while the actions are out only puts them away.
     if (revealed) {
       setRevealed(false);
       return;
@@ -182,13 +187,15 @@ export const MobileSessionRow: React.FC<{
   const liveState = aiRename.pending
     ? <Icon name="loader-4" className="size-3 shrink-0 animate-spin text-status-info" aria-label={t('sessions.aiRename.generating')} />
     : (isStreaming || showUnread) && !waitingOnUser ? <SessionActivityIndicator state={turnActivity ?? 'unread'} /> : null;
-  // No date, as on the desktop: the list is ordered by recency. A turn's
-  // duration shows while it runs and until it is read.
   const timeSlot = showActivityDuration && !waitingOnUser
     ? <SessionActivityDuration sessionId={session.id} running={isStreaming} className="shrink-0 typography-micro" />
     : null;
   const pinMarker = pinned && !inPinnedZone
     ? <Icon name="pushpin" className="size-3 shrink-0 text-muted-foreground" aria-label={t('sessions.sidebar.session.status.pinned')} />
+    : null;
+  const isLead = isLeadSession(session);
+  const leadMarker = isLead
+    ? <Icon name="lead" className="size-3 shrink-0 text-muted-foreground" role="img" aria-hidden={false} aria-label={t('sessions.sidebar.session.leadMark')} />
     : null;
   const doneHint = showDoneHint
     ? <Icon name="check" className="size-3.5 shrink-0 text-muted-foreground" aria-label={t('sessions.sidebar.session.work.doneSuggested')} />
@@ -232,6 +239,9 @@ export const MobileSessionRow: React.FC<{
             {hasSecondLine ? null : marks}
             {pinMarker}
             {doneHint}
+            {hasSecondLine ? null : marks}
+            {leadMarker}
+            {pinMarker}
             {liveState}
             {timeSlot}
           </>}
@@ -253,8 +263,6 @@ export const MobileSessionRow: React.FC<{
       />
     );
   } else {
-    // The slot holds the subsession chevron only; the live state sits on the
-    // right before the time, as on every row.
     content = <>
       {toggle ? (
         <MobileSlotChevron slotLeft={geometry.slotLeft(depth)}>
@@ -272,12 +280,13 @@ export const MobileSessionRow: React.FC<{
               marks and the requests waiting on the user, then the pin, the
               done hint, the live state and its time. */}
           {titleText}
+          {doneHint}
           <MobileSessionGoalGlyph session={session} />
           {refMark(false)}
           {marks}
           <MobileSessionPendingBadges {...pendingRequests} />
+          {leadMarker}
           {pinMarker}
-          {doneHint}
           {liveState}
           {timeSlot}
         </button>

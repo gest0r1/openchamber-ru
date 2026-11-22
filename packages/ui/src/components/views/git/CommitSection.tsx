@@ -7,6 +7,7 @@ import { useDeviceInfo } from '@/lib/device';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { Icon } from "@/components/icon/Icon";
 import { useI18n } from '@/lib/i18n';
+import { useGitPanelInSpace } from '@/lib/spaces/useGitPanelInSpace';
 
 type CommitAction = 'commit' | 'commitAndPush' | null;
 
@@ -18,7 +19,6 @@ interface CommitSectionProps {
   onInsertHighlights: (highlights: string[]) => void;
   onGenerateMessage: () => void;
   isGeneratingMessage: boolean;
-  /** The button pressed, when there is one: the celebration starts from it. */
   onCommit: (origin?: HTMLElement) => void;
   onCommitAndPush: (origin?: HTMLElement) => void;
   commitAction: CommitAction;
@@ -169,7 +169,7 @@ export const CommitSection: React.FC<CommitSectionProps> = ({
             </Button>
           </ButtonTooltip>
 
-          {isMobile ? (
+          {inSpace ? null : isMobile ? (
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button

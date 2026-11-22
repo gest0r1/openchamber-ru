@@ -117,7 +117,6 @@ type CommandEntry = {
 type FileHit = { path: string; name: string; relativePath: string };
 const EMPTY_SESSIONS: Session[] = [];
 const NO_RANGES: MatchRange[] = [];
-// Message hits shown among everything else; "Show all" opens the full list.
 const MESSAGE_PREVIEW_LIMIT = 3;
 const MESSAGE_PAGE_SIZE = 30;
 // Archived sessions follow the active ones as a short group of their own.
@@ -135,16 +134,12 @@ const matchesWordStarts = (text: string, query: string): boolean => {
   return tokens.length > 0 && tokens.every((token) => words.some((word) => word.startsWith(token)));
 };
 
-// Left-to-right marks keep a path's leading "." or trailing "/" in place
-// inside the right-to-left box that moves the ellipsis to the start.
 const LRM = '\u200E';
 
-/** Text with the ranges the palette's matcher matched marked. */
 const Matched: React.FC<{ text: string; ranges: ReadonlyArray<MatchRange> }> = ({ text, ranges }) => (
   ranges.length > 0 ? <MatchHighlight segments={matchSegments(text, ranges)} /> : <>{text}</>
 );
 
-/** Secondary text that loses its start, not its end, when it does not fit. */
 const LeadingTruncated: React.FC<{ text: string; ranges: ReadonlyArray<MatchRange>; className?: string }> = ({ text, ranges, className }) => (
   <span
     className={cn('oc-ui-start-align min-w-0 truncate text-muted-foreground', className)}
@@ -209,7 +204,6 @@ export const CommandPalette: React.FC = () => {
   const ensureGitStatus = useGitStore((s) => s.ensureStatus);
   const { isMobile } = useDeviceInfo();
   const projectActions = useProjectActions();
-  // Run or Stop must match what the action is doing now.
   useObserveProjectActionRuns(isCommandPaletteOpen);
 
   const currentRoot = React.useMemo(
@@ -229,8 +223,6 @@ export const CommandPalette: React.FC = () => {
     inputRef.current?.focus();
   }, []);
 
-  // Clear query on open (not close) so content stays visible through the
-  // close animation instead of emptying mid-flight.
   React.useEffect(() => {
     if (isCommandPaletteOpen) {
       setQuery('');
@@ -238,10 +230,6 @@ export const CommandPalette: React.FC = () => {
     }
   }, [isCommandPaletteOpen]);
 
-  // Lazy-load git status for every session directory we plan to display so that
-  // branch labels become available across all projects, not only the active one.
-  // Deferred to idle to keep the first render (and the file-search effect) free
-  // from a flood of git store updates.
   React.useEffect(() => {
     if (!isCommandPaletteOpen || !gitApi) return;
     const handle = setTimeout(() => {
@@ -265,9 +253,6 @@ export const CommandPalette: React.FC = () => {
     [close],
   );
 
-  // ---------------------------------------------------------------------------
-  // Commands
-  // ---------------------------------------------------------------------------
   const overviewAvailable = useUIStore((state) => state.overviewFeatureAvailable);
   const commands = React.useMemo<CommandEntry[]>(() => {
     const list: CommandEntry[] = [
@@ -356,6 +341,7 @@ export const CommandPalette: React.FC = () => {
           shortcutRegistry.invoke('cycle_theme');
         }),
       },
+      ...appearanceCommands(t, run),
       {
         id: 'open-status',
         secondary: true,
@@ -395,8 +381,6 @@ export const CommandPalette: React.FC = () => {
         searchText: t('sourceBoard.title'),
         onSelect: run(() => useUIStore.getState().setSourceBoardOpen(true)),
       });
-      // Reloading the window restarts only the interface: sessions and the
-      // agents running in them live in the server and continue.
       list.push({
         id: 'reload-ui',
         secondary: true,
@@ -510,7 +494,6 @@ export const CommandPalette: React.FC = () => {
         window.dispatchEvent(new CustomEvent('openchamber:memory-debug-toggle'));
       }),
     });
-    // Search-only: typing "run", "stop" or an action's name finds them.
     if (projectActions?.available) {
       list.push({
         id: 'open-project-actions',
@@ -688,7 +671,6 @@ export const CommandPalette: React.FC = () => {
           icon: page.slug === 'mcp'
             ? <McpIcon className="me-2 h-4 w-4" />
             : <Icon name={iconName} className="me-2 h-4 w-4" />,
-          // The English title stays searchable next to the translated one.
           searchText: `${title} ${page.title} ${page.group} ${keywords}`,
           onSelect: run(() => {
             setSettingsPage(page.slug);
@@ -698,9 +680,6 @@ export const CommandPalette: React.FC = () => {
       });
   }, [settingsRuntimeCtx, run, setSettingsPage, setSettingsDialogOpen, t]);
 
-  // ---------------------------------------------------------------------------
-  // Sessions
-  // ---------------------------------------------------------------------------
   const worktreesByProject = useSessionUIStore((state) => state.availableWorktreesByProject);
   const archivedSessionIds = React.useMemo(() => new Set(archivedSessions.map((session) => session.id)), [archivedSessions]);
   const activeSessionIds = React.useMemo(() => new Set(activeSessions.map((session) => session.id)), [activeSessions]);
@@ -787,10 +766,6 @@ export const CommandPalette: React.FC = () => {
 
   const fileSearchKey = buildCommandPaletteFileSearchKey(currentRoot, trimmedQuery);
 
-  // Other worktrees of the repository that live inside the project folder
-  // (for example agent worktrees under .claude/worktrees) hold copies of the
-  // same files. Opening one of those copies from here is almost always a
-  // miss, so their files are left out.
   const availableWorktrees = useSessionUIStore((s) => s.availableWorktrees);
   const nestedWorktreePrefixes = React.useMemo(() => {
     if (!currentRoot) return [];
@@ -802,13 +777,8 @@ export const CommandPalette: React.FC = () => {
   const nestedWorktreePrefixesRef = React.useRef(nestedWorktreePrefixes);
   nestedWorktreePrefixesRef.current = nestedWorktreePrefixes;
 
-  // ---------------------------------------------------------------------------
-  // Message search (server index, opt-in; VS Code has no OpenChamber server)
-  // ---------------------------------------------------------------------------
   const messageSearchEnabled = useUIStore((state) => state.messageSearchEnabled);
   const messageSearchSupported = messageSearchEnabled && !isVSCodeRuntime();
-  // Reasoning hits only while it is indexed and shown in the chat: a hit in
-  // hidden reasoning would lead nowhere visible.
   const reasoningIndexed = useUIStore((state) => state.messageSearchReasoningEnabled);
   const showReasoningTraces = useUIStore((state) => state.showReasoningTraces);
   const reasoningSearchable = reasoningIndexed && showReasoningTraces;
@@ -895,8 +865,6 @@ export const CommandPalette: React.FC = () => {
     }
     let cancelled = false;
     const excludedPrefixes = nestedWorktreePrefixesRef.current;
-    // Worktree copies take result slots before they are dropped, so ask for
-    // more when there are any.
     const limit = excludedPrefixes.length > 0 ? 100 : 40;
     void searchFiles(currentRoot, trimmedQuery, limit, { type: 'file' })
       .then((results) => {
@@ -923,9 +891,6 @@ export const CommandPalette: React.FC = () => {
     };
   }, [isCommandPaletteOpen, currentRoot, trimmedQuery, fileSearchKey, searchFiles]);
 
-  // ---------------------------------------------------------------------------
-  // Filter visible items
-  // ---------------------------------------------------------------------------
   const hasQuery = liveTrimmed.length > 0;
 
   const scoredCommands = React.useMemo(() => {
@@ -979,9 +944,6 @@ export const CommandPalette: React.FC = () => {
 
   const isFileSearchStale = isCommandPaletteOpen && fileSearchKey.length > 0 && fileResultsKey !== fileSearchKey;
 
-  // ---------------------------------------------------------------------------
-  // Projects
-  // ---------------------------------------------------------------------------
   const scoredProjects = React.useMemo(() => {
     if (!hasQuery) return [];
     const projectEntries = projects.map((project) => ({
@@ -993,8 +955,6 @@ export const CommandPalette: React.FC = () => {
     return rankBySubsequence(candidates, liveTrimmed, (p) => p.searchText, { limit: 7 }).map(({ item, score, ranges }) => ({ item, score, ...projectRowMatchRanges(item, ranges) }));
   }, [projects, liveTrimmed, hasQuery]);
 
-  // With an empty query the files already open in the editor come first:
-  // switching between them is the most common reason to open the palette.
   const contextTabs = useUIStore((s) => (isCommandPaletteOpen && currentRoot ? s.contextPanelByDirectory[currentRoot]?.tabs : undefined));
   const openFiles = React.useMemo<FileHit[]>(() => {
     if (!currentRoot || !contextTabs) return [];
@@ -1028,8 +988,6 @@ export const CommandPalette: React.FC = () => {
       { key: 'projects', score: best(scoredProjects) },
     ];
     groups.sort((a, b) => b.score - a.score);
-    // Text inside conversations answers after names do: a session or file
-    // called what you typed is the likelier target.
     return [...groups.map((g) => g.key), 'messages'];
   }, [hasQuery, scoredCommands, scoredSettings, scoredSessions, scoredArchivedSessions, scoredFiles, scoredProjects]);
 
@@ -1087,7 +1045,6 @@ export const CommandPalette: React.FC = () => {
     [shortcutOverrides],
   );
 
-  // `ranges` are offsets in `relativePath || name`, the text the file matcher ran on.
   const renderFileItem = (file: FileHit, keyPrefix: string, ranges: ReadonlyArray<MatchRange>) => {
     const { name, directory, nameRanges, directoryRanges } = fileRowMatchRanges(file.relativePath || file.name, ranges);
     return (
@@ -1179,8 +1136,6 @@ export const CommandPalette: React.FC = () => {
         <DialogTitle>{t('commandPalette.title')}</DialogTitle>
         <DialogDescription>{t('commandPalette.description')}</DialogDescription>
       </DialogHeader>
-      {/* Anchored near the top with a fixed height, so typing never moves the
-          input: only the list below it changes. */}
       <DialogContent
         className="gap-0 overflow-hidden p-0 max-w-[min(720px,calc(100vw-2rem))]"
         layerClassName="items-start pt-[12vh]"
@@ -1300,8 +1255,6 @@ export const CommandPalette: React.FC = () => {
               if (groupKey === 'settings' && scoredSettings.length > 0) {
                 return (
                   <CommandGroup key="settings" heading={t('commandPalette.group.settings')}>
-                    {/* The matcher ran on "<title> <group> <keywords>"; a match
-                        only in the group or keywords leaves the title plain. */}
                     {scoredSettings.map(({ item: cmd, ranges }) => (
                       <CommandItem key={cmd.id} value={cmd.id} onSelect={cmd.onSelect}>
                         {cmd.icon}

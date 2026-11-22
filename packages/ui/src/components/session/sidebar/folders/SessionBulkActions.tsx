@@ -21,7 +21,6 @@ type Props = {
   folderOwnerKeyBySessionId: ReadonlyMap<string, string>;
 };
 
-/** Owns the sidebar selection projection and its destructive confirmation. */
 export function SessionBulkActions({ getFolderScopesForProject, isInlineEditing, startFolderRename, folderOwnerKeyBySessionId }: Props): React.ReactNode {
   const { t } = useI18n();
   const [bulkDeleteConfirm, setBulkDeleteConfirm] = React.useState<BulkDeleteSessionsConfirmState>(null);

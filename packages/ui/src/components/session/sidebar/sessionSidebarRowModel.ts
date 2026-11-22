@@ -27,15 +27,9 @@ export type SessionSidebarActivityItem = {
   getSecondaryMeta?: (sessionId: string) => SessionSidebarActivityItem['secondaryMeta'];
 };
 
-/**
- * One entry of the In work block or of the list by time: a session work's
- * row (the session with what grew out of it nested under it), or a worktree
- * work, drawn as its group row with its sessions under it.
- */
 export type SessionSidebarWorkEntry =
   | { kind: 'session'; item: SessionSidebarActivityItem }
   | { kind: 'group'; groupKey: string; projectId: string; group: SessionGroup }
-  // A project root's draft, in the list by time; a worktree's drafts sit in its group.
   | { kind: 'draft'; draft: SessionDraft; projectId: string };
 
 // 'timeline' is the one list of every project's works when the sidebar groups
@@ -45,12 +39,6 @@ export type SessionSidebarActivityKey = 'pages' | 'pinned' | 'work' | 'chats' | 
 
 export const sidebarSectionActivityKey = (id: string): `section:${string}` => `section:${id}`;
 
-/**
- * One section of the sidebar, in the order the user arranged them. A section
- * of their own lists its works by time (`custom`) or whole projects
- * (`project-group`); `projects` lists every project no group took, or the
- * list by time. `preview`: the section is being edited and drawn as it stands.
- */
 export type SessionSidebarBlock =
   // The app's pages available here, in their order; `open`: the page shows now.
   | { kind: 'pages'; pages: readonly { id: string; open: boolean }[] }
@@ -75,14 +63,8 @@ export const isPinnedZoneRowKey = (rowKey: string): boolean => rowKey.startsWith
 /** The `collapsedActivities` key of the Projects caption. */
 export const PROJECTS_CAPTION_COLLAPSE_KEY = 'projects';
 
-// 'project' is a one-line file tree row under a project. Rows of zones that
-// mix projects (Pinned, In work, the list by time) are 'mixed-compact', one
-// line, or with detailed rows 'timeline-mixed', two lines, the project's icon
-// opening the second. 'tree-chat' is a Chats row. Every one keeps the tree's
-// slot left of the title, which shows the live state or the chevron.
 export type SessionSidebarRenderContext = 'project' | 'timeline-mixed' | 'mixed-compact' | 'tree-chat';
 
-/** Rows that render through `SessionTimelineRowBody` with two lines. */
 export const isMultiLineTimelineContext = (context: SessionSidebarRenderContext): boolean => context === 'timeline-mixed';
 
 export type SessionSidebarGroupStatus = {
@@ -96,8 +78,6 @@ export type SessionSidebarOwnerAuthority = {
   complete: boolean;
 };
 
-// `treeGuides`: the guide lines a Tree row draws over itself, framing the
-// children of an open worktree, folder, session or run.
 type RowBase = { key: string; estimateSize: number; treeGuides?: readonly SessionTreeGuide[] };
 
 export type SessionSidebarRow =
@@ -189,16 +169,9 @@ export type SessionSidebarRowModelArgs = {
   pinnedItems?: readonly SessionSidebarActivityItem[];
   /** Pinned worktree works, listed after the pinned sessions, the latest pin first; `movedGroupKeys` says whether they leave their project. */
   pinnedWorktrees?: readonly SessionSidebarWorkEntry[];
-  /** The works in the In work block, in lifecycle order. */
   workEntries?: readonly SessionSidebarWorkEntry[];
-  /**
-   * Set when the sidebar groups by time: every other work of every project,
-   * in one list under one zone header, in place of the project headers.
-   */
   timeEntries?: readonly SessionSidebarWorkEntry[] | null;
-  /** Drafts of new sessions by the group their session would go to, newest first. */
   draftsByGroupKey?: ReadonlyMap<string, readonly SessionDraft[]>;
-  /** Root sessions and worktree groups of the works In work lists, left out of their project. */
   movedSessionIds?: ReadonlySet<string>;
   movedGroupKeys?: ReadonlySet<string>;
   /**
@@ -224,15 +197,7 @@ export type SessionSidebarRowModelArgs = {
   visibleCountByContainer: ReadonlyMap<string, number>;
   pinnedSessionIds: ReadonlySet<string>;
   sessionOrderIndex: ReadonlyMap<string, number>;
-  /**
-   * The place in `sessionOrderIndex` a worktree work's archived sessions hold
-   * it at, by group key (`buildWorktreeArchiveAnchors`).
-   */
   worktreeArchiveAnchors?: ReadonlyMap<string, number>;
-  /**
-   * The spaces being made or running, by id: one of them that nobody has
-   * chatted in yet leads its project's list (`mergeWorktreeEntries`).
-   */
   liveSpaceIds?: ReadonlySet<string>;
   groupStatusByKey: ReadonlyMap<string, SessionSidebarGroupStatus>;
   folderAuthorityByOwner: ReadonlyMap<string, SessionSidebarOwnerAuthority>;
@@ -245,18 +210,10 @@ export type SessionSidebarRowModelArgs = {
   singleProjectId: string | null;
   showOnlyMainWorkspace: boolean;
   hideDirectoryControls: boolean;
-  /** A "Projects" caption over the project headers when something lists above them (the desktop's zones). */
   projectsCaption?: boolean;
-  /**
-   * The caption even with nothing above, while sections are dragged: the
-   * Projects section is one of them, and a section dropped above it needs a
-   * caption to land on.
-   */
   projectsCaptionAtTop?: boolean;
   sessionBatchSize?: number;
-  /** Active multi-runs; their member sessions collapse into one run row per container. */
   runIndex?: MultiRunIndex;
-  /** The sections in order; Chats, Pinned, In work and Projects when not given. */
   blocks?: readonly SessionSidebarBlock[];
 };
 
@@ -265,10 +222,6 @@ type SidebarEntry = SessionNode | RunEntry;
 
 const isRunEntry = (entry: SidebarEntry): entry is RunEntry => 'run' in entry;
 
-/**
- * The `expandedParents` key of a session row: per render context, so the same
- * session listed in a project and in In work opens in one place only.
- */
 export const sessionExpansionKey = (renderContext: SessionSidebarRenderContext, archived: boolean, sessionId: string): string => (
   `${renderContext}:${archived ? 'archived' : 'active'}:${sessionId}`
 );
@@ -277,11 +230,6 @@ export const runExpansionKey = (renderContext: SessionSidebarRenderContext, runK
   `${renderContext}:active:run:${runKey}`
 );
 
-/**
- * Replaces the member sessions of each run with one entry at the position of
- * its first member (entries arrive in display order). Archived lists never
- * collapse: archived sessions are not run members.
- */
 const collapseRunEntries = (nodes: readonly SessionNode[], runIndex: MultiRunIndex, archived: boolean): SidebarEntry[] => {
   if (archived || runIndex.runKeyBySessionId.size === 0) return [...nodes];
   const entries: SidebarEntry[] = [];
@@ -314,19 +262,22 @@ const EMPTY_ZONE_SESSION_IDS: ReadonlySet<string> = new Set();
 const EMPTY_DRAFTS: readonly SessionDraft[] = [];
 const EMPTY_ARCHIVE_ANCHORS: ReadonlyMap<string, number> = new Map();
 const EMPTY_SPACE_IDS: ReadonlySet<string> = new Set();
-// One line: the 20px line, 6px above and below, and the 1px margin each side
-// the row renderer gives session rows (`my-px`).
 const SESSION_ESTIMATE = 32;
 const TIMELINE_SESSION_ESTIMATE = 52;
 const estimateSessionRow = (context: SessionSidebarRenderContext): number => (
   isMultiLineTimelineContext(context) ? TIMELINE_SESSION_ESTIMATE : SESSION_ESTIMATE
 );
-// Chats open on a short page, with pinned chats on top of it.
 const CHATS_INITIAL_LIMIT = 3;
 const CHATS_INCREMENT = 7;
-// Project and worktree lists reveal 7 sessions per page.
-const SESSIONS_INITIAL_LIMIT = 7;
-const SESSIONS_INCREMENT = 7;
+const EMPTY_WORK_ENTRIES: readonly SessionSidebarWorkEntry[] = Object.freeze([]);
+const SESSIONS_INITIAL_LIMIT = SIDEBAR_SESSION_BATCH_DEFAULT;
+const SESSIONS_INCREMENT = SIDEBAR_SESSION_BATCH_DEFAULT;
+
+const SEARCH_ROW_ESTIMATE = 32;
+const SEARCH_EXCERPT_ESTIMATE = 20;
+const searchRowEstimate = (hasExcerpt: boolean): number => SEARCH_ROW_ESTIMATE + (hasExcerpt ? SEARCH_EXCERPT_ESTIMATE : 0);
+export const ACTIVE_SEARCH_INITIAL = 50;
+export type SearchResultSection = 'active' | 'archived';
 
 // A search row: its title line, and the excerpt line when it has one.
 const SEARCH_ROW_ESTIMATE = 32;
@@ -340,15 +291,9 @@ export const ACTIVE_SEARCH_INITIAL = 50;
 export type SearchResultSection = 'active' | 'archived';
 
 const HEADER_ESTIMATE = 32;
-// Zone and project headers and the Projects caption, with the room around their labels.
 const SECTION_HEADER_ESTIMATE = 34;
 const STATUS_ESTIMATE = 28;
 
-/**
- * A row's level in the drawn tree, or null for a row outside it: headers of
- * projects and zones, Show more and status lines.
- * Worktree, space and archive headers open the tree at level 0.
- */
 const treeLevelOf = (row: SessionSidebarRow): number | null => {
   switch (row.kind) {
     case 'group-header': return row.depth;
@@ -376,13 +321,6 @@ const compareNodes = (
   return compareSessionsByLifecycleOrder(left.session, right.session, pinnedSessionIds, EMPTY_SESSION_ORDER_RANKS);
 };
 
-/**
- * The project root's entries with its worktree and space works merged in,
- * each work at the place of its most recent session, archived ones included,
- * so a worktree someone just worked in leads the list as a session there
- * would and archiving a session does not move it. A worktree that never had a
- * session closes it; a space that never had one leads it.
- */
 const mergeWorktreeEntries = (
   entries: readonly SidebarEntry[],
   worktrees: readonly WorktreeInFolder[],
@@ -397,9 +335,6 @@ const mergeWorktreeEntries = (
     // A pinned worktree still listed here (Pinned is hidden or leaves it in place)
     // leads the list, as pinned sessions do.
     if (group.worktree?.pinnedAt !== undefined) return Number.NEGATIVE_INFINITY;
-    // A space nobody has chatted in yet, being made or running, was made to be used now: it leads
-    // the list, where a worktree without sessions closes it, so it is never hidden under Show
-    // more. One whose making failed or whose container is gone closes the list like that worktree.
     if (group.space && liveSpaceIds.has(group.space.id) && group.sessions.length === 0 && !archiveAnchors.has(groupKey)) return Number.NEGATIVE_INFINITY;
     let best = archiveAnchors.get(groupKey) ?? Number.POSITIVE_INFINITY;
     const stack = [...group.sessions];
@@ -463,8 +398,6 @@ const indexNodes = (roots: readonly SessionNode[]): IndexedSessionNodes => {
       preorderIds.push(entry.node.session.id);
       subtreeRangeByNode.set(entry.node, [start, start + 1]);
       stack.push({ node: entry.node, visited: true });
-      // The whole tree, rows or not (collapsed children, workflow agents):
-      // selecting a session selects what it started, for bulk archive.
       for (let index = entry.node.children.length - 1; index >= 0; index -= 1) {
         const child = entry.node.children[index];
         if (child) stack.push({ node: child, visited: false });
@@ -493,9 +426,7 @@ export const resolveSessionSidebarStickyHeader = (
   return result;
 };
 
-/** A worktree work the user filed into one of its project's folders. */
 type WorktreeInFolder = { group: SessionGroup; groupKey: string };
-// A worktree work listed among the project root's works, as one entry of its list.
 type WorktreeEntry = { listedWorktree: WorktreeInFolder };
 type ListedEntry = SidebarEntry | WorktreeEntry;
 const isWorktreeEntry = (entry: ListedEntry): entry is WorktreeEntry => 'listedWorktree' in entry;
@@ -620,20 +551,11 @@ export const buildSessionSidebarRowModel = (args: SessionSidebarRowModelArgs): S
     renderContext: SessionSidebarRenderContext;
     secondaryMeta?: SessionSidebarActivityItem['secondaryMeta'];
     getSecondaryMeta?: SessionSidebarActivityItem['getSecondaryMeta'];
-    // Per-row badge scopes for containers whose top rows come from different
-    // activity items, such as the lanes of a multi-run.
     getBlockingBadgeSessionScopes?: (sessionId: string) => readonly BlockingBadgeSessionScope[] | undefined;
     indexedNodes?: IndexedSessionNodes;
     selectionPoolOffset?: number;
-    // Two lines for the container's top rows, which are works of their own
-    // (the project root's sessions with Detailed rows on); what nests under
-    // them stays one line.
     detailedRoots?: boolean;
-    // Nesting level of the container's top rows: 1 inside a folder, so its
-    // sessions indent under the folder header like subagent children do.
     baseDepth?: number;
-    // The container's top rows belong to a work above them (a worktree work,
-    // a run), so none of the rows is a work of its own.
     insideWork?: boolean;
   };
   const appendRun = (entry: RunEntry, options: AppendOptions): void => {
@@ -644,9 +566,6 @@ export const buildSessionSidebarRowModel = (args: SessionSidebarRowModelArgs): S
     const detailed = options.renderContext === 'timeline-mixed' || options.detailedRoots === true;
     const firstLaneId = entry.lanes[0]?.session.id;
     const meta = firstLaneId && options.getSecondaryMeta ? options.getSecondaryMeta(firstLaneId) : options.secondaryMeta;
-    // Activity lanes come without their subagent rows, so the sessions whose
-    // requests block a lane (the lane and its hidden subagents) ride along for
-    // the run row's badge.
     const blockingSessionIds = Object.freeze([...new Set(entry.lanes.flatMap((lane) => (
       options.getBlockingBadgeSessionScopes?.(lane.session.id) ?? []
     ).flatMap((scope) => scope.sessionIDs)))]);
@@ -694,8 +613,6 @@ export const buildSessionSidebarRowModel = (args: SessionSidebarRowModelArgs): S
       const directory = current.node.session.directory ?? current.directory;
       sessionById.set(current.node.session.id, current.node.session);
       const detailed = options.detailedRoots === true && current.depth === baseDepth;
-      // Only a zone's works take its two lines; what nests under one stays a
-      // one-line row of the zone, as it does under a project.
       const rowContext: SessionSidebarRenderContext = current.depth > baseDepth && options.renderContext === 'timeline-mixed'
         ? 'mixed-compact'
         : options.renderContext;
@@ -763,16 +680,9 @@ export const buildSessionSidebarRowModel = (args: SessionSidebarRowModelArgs): S
     hideHeader: boolean,
     limits?: { initial?: number; increment?: number; pinnedAlwaysVisible?: boolean; renderContext: SessionSidebarRenderContext; loadingInHeader?: boolean },
     placement: GroupPlacement = PROJECT_PLACEMENT,
-    // The project's worktree groups by folder member id, for the root group,
-    // whose folders may hold whole worktrees.
     worktreesByMemberId?: ReadonlyMap<string, WorktreeInFolder>,
-    // For the root group: the project's other worktree works, listed among
-    // its own works by their latest activity.
     listedWorktrees: readonly WorktreeInFolder[] = [],
   ): void => {
-    // Row keys carry the placement, so a worktree listed in In work and kept
-    // under its project too does not collide; collapse and Show more state
-    // stay keyed by the group alone and are shared.
     const rowKeyBase = `${placement.keyPrefix}${groupKey}`;
     const sourceNodes = group.sessions
       .filter((node) => !isMovedToZone(node.session.id))
@@ -798,8 +708,6 @@ export const buildSessionSidebarRowModel = (args: SessionSidebarRowModelArgs): S
     // sessions and drafts are part of its work and stay one line, and so do
     // Chats, which are one-line rows whatever the setting.
     const detailedWorks = args.detailedZoneRows === true && group.isMain === true && limits?.renderContext !== 'tree-chat';
-    // Their second line names the branch as a zone row's does: the project
-    // root's, which every session there shares.
     const detailedMeta = detailedWorks && group.branch ? { branchLabel: group.branch } : undefined;
     const insideWork = isGroupWork(group);
     const empty = sourceNodes.length === 0
@@ -885,8 +793,6 @@ export const buildSessionSidebarRowModel = (args: SessionSidebarRowModelArgs): S
       renderedFolders.add(identity);
       const displayName = parentPath ? `${parentPath} / ${entry.folder.name}` : entry.folder.name;
       const folderKey = `${rowKeyBase}:folder:${identity}`;
-      // An empty folder is always open, so the first session moved in shows.
-      // Until the group's sessions have loaded, a folder only looks empty.
       const folderWorktrees = worktreesByMemberId
         ? entry.folder.sessionIds.flatMap((memberId) => worktreesByMemberId.get(memberId) ?? [])
         : [];
@@ -938,12 +844,8 @@ export const buildSessionSidebarRowModel = (args: SessionSidebarRowModelArgs): S
     const initialLimit = limits?.initial ?? sessionBatchSize ?? (args.hideDirectoryControls ? 10 : SESSIONS_INITIAL_LIMIT);
     const increment = limits?.increment ?? sessionBatchSize ?? SESSIONS_INCREMENT;
     const requested = Math.max(initialLimit, args.visibleCountByContainer.get(groupKey) ?? initialLimit);
-    // Pinned sessions are the user's own always-on shortlist: they stay
-    // visible whatever the reveal limit is, and they do not spend it.
     const isPinnedNode = (entry: ListedEntry): boolean => !isWorktreeEntry(entry) && !isRunEntry(entry) && limits?.pinnedAlwaysVisible === true
       && isSessionPinned(pinned, entry.session.directory ?? group.directory, entry.session.id);
-    // A run spends one slot of the reveal limit, whatever its lane count, and
-    // so does a worktree work.
     const ungroupedEntries = mergeWorktreeEntries(collapseRunEntries(ungrouped, runIndex, group.isArchivedBucket === true), listedWorktrees, args.sessionOrderIndex, args.worktreeArchiveAnchors ?? EMPTY_ARCHIVE_ANCHORS, args.liveSpaceIds ?? EMPTY_SPACE_IDS);
     const limitedNodes = ungroupedEntries.filter((entry) => !isPinnedNode(entry));
     let budget = requested;
@@ -955,8 +857,6 @@ export const buildSessionSidebarRowModel = (args: SessionSidebarRowModelArgs): S
         budget -= 1;
         return true;
       });
-    // A new work in the project root opens its list, newest first; a draft in
-    // a worktree closes the worktree's list, after what was already sent there.
     if (group.isMain) appendDrafts();
     let pendingNodes: SessionNode[] = [];
     const flushSessions = (): void => {
@@ -998,9 +898,6 @@ export const buildSessionSidebarRowModel = (args: SessionSidebarRowModelArgs): S
       push({ kind: 'show-control', key: `${rowKeyBase}:show`, estimateSize: STATUS_ESTIMATE, more, fewer, hiddenNodes, containerKey: groupKey, currentCount: limitedVisibleCount, requestedCount: requested, increment, depth: contentDepth, flat: false, detailed: detailedWorks });
     }
 
-    // An empty group lists nothing: its header has no chevron, and new
-    // sessions start from the header's own button. Only the archive bucket
-    // says it is empty.
     if (sourceNodes.length === 0 && visibleFolders.length === 0) {
       // A zone header that shows the load itself takes no row for it.
       if (status && status.state !== 'ready' && !(limits?.loadingInHeader && status.state === 'loading')) push({ kind: 'status', key: `${rowKeyBase}:status`, estimateSize: STATUS_ESTIMATE, status, group, groupKey, depth: contentDepth, detailed: detailedWorks });
@@ -1104,8 +1001,6 @@ export const buildSessionSidebarRowModel = (args: SessionSidebarRowModelArgs): S
     // may be an empty folder (a drop target) or a failed load with Retry, and
     // the caption is the only way to open it again.
     if (collapsed) return;
-    // Chats are one-line rows with the tree's state slot, on a short page
-    // that pinned chats do not spend.
     appendGroup(args.chatGroup, 'activity:chats', null, true, {
       initial: CHATS_INITIAL_LIMIT, increment: CHATS_INCREMENT, pinnedAlwaysVisible: true,
       renderContext: 'tree-chat', loadingInHeader: true,
@@ -1116,16 +1011,8 @@ export const buildSessionSidebarRowModel = (args: SessionSidebarRowModelArgs): S
     dropEmptyHeader();
   };
 
-  // Pinned, In work and the list by time mix every project's works: one-line
-  // rows with the project's icon, two lines when the user asked for detailed rows.
   const zoneRenderContext: SessionSidebarRenderContext = args.detailedZoneRows ? 'timeline-mixed' : 'mixed-compact';
 
-  /**
-   * The members of one run listed together at the place of the first: a run
-   * collapses into one row only within a batch of consecutive session works,
-   * and a worktree work between two members (a fusion that just moved up)
-   * split it into two rows of the same run.
-   */
   const gatherRunMembers = (entries: readonly SessionSidebarWorkEntry[]): readonly SessionSidebarWorkEntry[] => {
     if (runIndex.runKeyBySessionId.size === 0) return entries;
     const runKeyOf = (entry: SessionSidebarWorkEntry): string | undefined => (
@@ -1177,6 +1064,35 @@ export const buildSessionSidebarRowModel = (args: SessionSidebarRowModelArgs): S
       });
     }
     flush();
+    if (!limited || search) return;
+    const more = hidden.length > 0;
+    const fewer = requested > zoneBatchSize && shownCount > zoneBatchSize;
+    if (!more && !fewer) return;
+    const hiddenNodes = hidden.flatMap((entry) => (
+      entry.kind === 'session' ? [entry.item.node]
+        : entry.kind === 'group' ? entry.group.sessions.filter((node) => !isMovedToZone(node.session.id))
+          : []
+    ));
+    if (zoneScopeKey && hiddenNodes.length > 0) {
+      const indexed = indexNodes(hiddenNodes);
+      const selectionPoolOffset = selectionDescendantIds.length;
+      selectionDescendantIds.push(...indexed.preorderIds);
+      appendFoldedSelection(hiddenNodes, indexed, selectionPoolOffset, zoneScopeKey, false);
+    }
+    push({ kind: 'show-control', key: `${containerKey}:show`, estimateSize: STATUS_ESTIMATE, more, fewer, hiddenNodes, containerKey, currentCount: shownCount, requestedCount: requested, increment: zoneBatchSize, depth: 0, flat: false, detailed: args.detailedZoneRows === true });
+  };
+
+  let pageRowCount = 0;
+  const appendPages = (block: Extract<SessionSidebarBlock, { kind: 'pages' }>): void => {
+    if (block.pages.length === 0) return;
+    const start = rows.length;
+    const collapsed = appendActivityHeader('pages');
+    if (!collapsed) {
+      for (const page of block.pages) {
+        push({ kind: 'page', key: `page:${page.id}`, estimateSize: SESSION_ESTIMATE, pageId: page.id, open: page.open });
+      }
+    }
+    pageRowCount += rows.length - start;
   };
 
   // The app's pages, which are not works: they take no part in selection,
@@ -1281,9 +1197,6 @@ export const buildSessionSidebarRowModel = (args: SessionSidebarRowModelArgs): S
       if (projectCollapsed) continue;
       const worktreesByMemberId = collectFiledWorktrees(descriptors);
       const filedGroupKeys = new Set([...worktreesByMemberId.values()].map((entry) => entry.groupKey));
-      // A worktree is a work like any other of the project: it is listed among
-      // the root's works rather than in a block after them. Only a project with
-      // no root group (a single worktree shown alone) lists them on their own.
       const hasRootGroup = descriptors.some((descriptor) => descriptor.group.isMain);
       const listedWorktrees = hasRootGroup ? descriptors
         .filter((descriptor) => isGroupWork(descriptor.group)
@@ -1291,7 +1204,6 @@ export const buildSessionSidebarRowModel = (args: SessionSidebarRowModelArgs): S
         .map((descriptor): WorktreeInFolder => ({ group: descriptor.group, groupKey: descriptor.groupKey })) : [];
       const listedGroupKeys = new Set(listedWorktrees.map((entry) => entry.groupKey));
       for (const descriptor of descriptors) {
-        // A worktree work a section lists has left its project.
         if (movedGroupKeys.has(descriptor.groupKey) || filedGroupKeys.has(descriptor.groupKey) || listedGroupKeys.has(descriptor.groupKey)) continue;
         appendGroup(descriptor.group, descriptor.groupKey, descriptor.projectId, descriptor.hideGroupLabel, undefined, PROJECT_PLACEMENT,
           descriptor.group.isMain ? worktreesByMemberId : undefined, descriptor.group.isMain ? listedWorktrees : undefined);
@@ -1299,8 +1211,6 @@ export const buildSessionSidebarRowModel = (args: SessionSidebarRowModelArgs): S
     }
   };
 
-  // A group of projects the user made: those projects, whole, under its own
-  // caption. Single-project mode shows the one project it picked instead.
   const appendProjectGroup = (block: Extract<SessionSidebarBlock, { kind: 'project-group' }>): void => {
     if (args.singleProjectMode || args.showOnlyMainWorkspace) return;
     const byId = new Map(args.sections.map((section) => [section.project.id, section]));

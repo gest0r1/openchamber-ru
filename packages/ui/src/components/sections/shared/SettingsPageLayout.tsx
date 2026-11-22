@@ -12,19 +12,12 @@ import {
 } from '@/components/sections/shared/SettingsSection';
 
 interface SettingsPageLayoutProps {
-  /** Page content */
   children: React.ReactNode;
-  /** Optional page title shown above settings content. */
   title?: React.ReactNode;
-  /** Optional content rendered before a string/number page title. */
   titleLeading?: React.ReactNode;
-  /** Optional content rendered after a string/number page title. */
   titleAccessory?: React.ReactNode;
-  /** Optional supporting description under the page title. */
   description?: React.ReactNode;
-  /** Optional content rendered at the end of the header row (before save status). */
   headerEnd?: React.ReactNode;
-  /** Show persistence feedback for instant-save settings. */
   showSaveStatus?: boolean;
   /**
    * A page opened from the settings sidebar, which already names it: the title
@@ -37,21 +30,11 @@ interface SettingsPageLayoutProps {
    * page content, so a text field does not need its own handler.
    */
   onBlurCapture?: React.FocusEventHandler;
-  /** Additional className for the content container */
   className?: string;
-  /** Additional className for the outer ScrollableOverlay */
   outerClassName?: string;
-  /**
-   * The content is at least as tall as the pane, so a `flex-1` child (an
-   * editor) takes the height left under the fields; taller content scrolls.
-   */
   fillHeight?: boolean;
 }
 
-/**
- * Standard layout wrapper for settings page content.
- * UI Kit: max-width 840px, padding 32px vertical / 48px horizontal.
- */
 export const SettingsPageLayout: React.FC<SettingsPageLayoutProps> = ({
   children,
   className,
@@ -127,8 +110,6 @@ export const SettingsPageLayout: React.FC<SettingsPageLayoutProps> = ({
                     <div className="flex min-w-0 items-center gap-2">
                       {titleLeading}
                       <h1 data-settings-page-heading tabIndex={-1} className={cn(SETTINGS_PAGE_TITLE_CLASS, 'min-w-0 truncate')}>{title}</h1>
-                      {/* A status badge carries a fixed word; compressing it
-                          wraps the text inside its own pill. */}
                       <span className="shrink-0">{titleAccessory}</span>
                     </div>
                   ) : (
@@ -158,8 +139,6 @@ export const SettingsPageLayout: React.FC<SettingsPageLayoutProps> = ({
   );
 };
 
-// Only saves slower than this surface a "Saving…" spinner — local writes
-// finish instantly and stay silent; remote/mobile connections get feedback.
 const SAVE_SPINNER_DELAY_MS = 500;
 
 const SettingsSaveStatus: React.FC = () => {

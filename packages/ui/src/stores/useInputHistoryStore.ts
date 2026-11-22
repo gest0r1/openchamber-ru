@@ -211,8 +211,6 @@ const readDurableSnapshot = (): InputHistorySnapshot => {
   }
 };
 
-// Failed writes remain local authority, but unrelated writes from another tab
-// still participate in the next mutation. Keep bounded snapshots, not a retry log.
 let pendingWrite: { base: InputHistorySnapshot; value: InputHistorySnapshot } | null = null;
 let lastDurableSnapshot = createEmptySnapshot();
 
@@ -360,7 +358,6 @@ const writeSnapshot = (snapshot: InputHistorySnapshot): InputHistorySnapshot => 
     pendingWrite = null;
   } catch {
     pendingWrite = { base: lastDurableSnapshot, value: emptySnapshot };
-    // The in-memory copy remains the only fallback.
   }
   inMemoryStorageValue = emptySerialized;
   return emptySnapshot;

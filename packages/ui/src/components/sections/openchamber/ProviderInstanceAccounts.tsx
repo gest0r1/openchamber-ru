@@ -26,7 +26,6 @@ import { DeviceFlowCode } from './DeviceFlowCode';
 import { useConfirmDialog } from '@/components/ui/confirm-dialog';
 import { asksForUsername, providerSettingsCopy, tokenCreationUrl } from './sourceControlProviderSettings';
 
-/** The ways to add an account in the form; the CLI login has its own row. */
 type ConnectMethod = 'device' | 'pat';
 
 /** Aliases as the field shows them: hosts, the way the instance heading reads. */
@@ -43,21 +42,6 @@ interface ProviderInstanceAccountsProps {
   onSaved?: () => void;
 }
 
-/**
- * One instance of a source-control provider in its Settings card: the address,
- * its accounts, and the ways to add one. The sign-in methods are the ones the
- * descriptor names and the instance reports available
- * (`capabilities.authenticationMethods`), so a provider offers only what both
- * the server's provider module and this instance support.
- *
- * When the instance offers more than one way to add an account, a chip switch
- * picks one and only its form shows, so the card opens on a single Connect
- * choice. It starts on the method an existing account came from, else the
- * first one offered.
- *
- * A personal access token is typed into a password field that starts empty,
- * is cleared once the server accepts it, and is never logged or shown again.
- */
 export const ProviderInstanceAccounts: React.FC<ProviderInstanceAccountsProps> = ({ descriptor, identity, sourceControl, onSaved }) => {
   const { t } = useI18n();
   const sshUrlConfirm = useConfirmDialog();
@@ -99,7 +83,6 @@ export const ProviderInstanceAccounts: React.FC<ProviderInstanceAccountsProps> =
   const [busy, setBusy] = React.useState(false);
   const [operationFailed, setOperationFailed] = React.useState(false);
   const [tokenRejected, setTokenRejected] = React.useState(false);
-  // The provider whose card the server said this instance belongs on.
   const [ownerProviderId, setOwnerProviderId] = React.useState<string | null>(null);
   const ownerProvider = useSourceControlProvider(ownerProviderId);
   const flowRuntimeKeyRef = React.useRef('');
@@ -242,8 +225,6 @@ export const ProviderInstanceAccounts: React.FC<ProviderInstanceAccountsProps> =
       onSaved?.();
     } catch (error) {
       if (!isCurrentRuntime()) return;
-      // The server says whether the token itself was refused; anything else is
-      // a failure the person cannot fix by editing what they pasted.
       if (error instanceof Error && 'code' in error && error.code === 'INVALID_TOKEN') setTokenRejected(true);
       else if (error instanceof SourceControlInstanceOtherProviderError) setOwnerProviderId(error.provider);
       else setOperationFailed(true);
@@ -385,7 +366,6 @@ export const ProviderInstanceAccounts: React.FC<ProviderInstanceAccountsProps> =
     setOwnerProviderId(null);
   };
 
-  // Offered where the descriptor names the method and this instance reports it available.
   const methods = new Set(descriptor.auth.methods.filter((method) => capabilities?.authenticationMethods[method].available));
   const connectMethods = descriptor.auth.methods.filter((method): method is ConnectMethod => (
     (method === 'device' || method === 'pat') && methods.has(method)
@@ -399,8 +379,6 @@ export const ProviderInstanceAccounts: React.FC<ProviderInstanceAccountsProps> =
   const createTokenUrl = tokenCreationUrl(descriptor, identity.instance);
   const connected = accounts.length > 0;
   const showConnectionMethods = !connected || isAddingAccount;
-  // The accounts listed below say the instance is connected; the line under
-  // the address only speaks when something is in progress or wrong.
   let statusMessage: string | null;
   if (authEntry?.isLoading) {
     statusMessage = t('settings.sourceControl.status.checking');
@@ -417,12 +395,9 @@ export const ProviderInstanceAccounts: React.FC<ProviderInstanceAccountsProps> =
   }
 
   return (
-    // One group per instance: the address heads it, its accounts and actions
-    // follow. Groups part with a line, never a filled box inside the card.
     <div className="space-y-3 py-4 first:pt-0 last:pb-0">
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
-          {/* The address reads as a host; the full URL stays in the tooltip. */}
           <div className="typography-ui-label truncate font-medium text-foreground" title={identity.instance}>
             {identity.instance.replace(/^https?:\/\//, '')}
           </div>
@@ -524,7 +499,6 @@ export const ProviderInstanceAccounts: React.FC<ProviderInstanceAccountsProps> =
                     {t('settings.sourceControl.actions.reauthenticate')}
                   </Button>
                 ) : null}
-                {/* The CLI login is used only after a switch to it; the header switcher is not there while nothing is connected. */}
                 {account.source === 'cli' && !account.current ? (
                   <Button size="sm" variant="outline" onClick={() => void switchToAccount(account.id)} disabled={busy}>
                     {t(copy.useCli, { cli: cliName })}
@@ -589,8 +563,6 @@ export const ProviderInstanceAccounts: React.FC<ProviderInstanceAccountsProps> =
                   value={username}
                   onChange={(event) => setUsername(event.target.value)}
                   aria-label={t('settings.sourceControl.field.username.label')}
-                  // Not the sign-in login: a password manager would fill it,
-                  // and its sign-in password into the secret field below.
                   autoComplete="off"
                   autoCapitalize="off"
                   spellCheck={false}
@@ -620,8 +592,7 @@ export const ProviderInstanceAccounts: React.FC<ProviderInstanceAccountsProps> =
                   value={token}
                   onChange={(event) => setToken(event.target.value)}
                   aria-label={t(copy.tokenLabel)}
-                  // Browsers ignore "off" on a password field; "new-password"
-                  // keeps a saved sign-in password out of it.
+                  // external: https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Attributes/autocomplete#new-password Browsers can ignore off; new-password prevents filling a saved sign-in password.
                   autoComplete="new-password"
                 />
                 <Button className="w-full @xl:w-auto" size="sm" onClick={saveToken} disabled={busy || !token.trim() || (needsUsername && !username.trim())}>{t('settings.common.actions.saveChanges')}</Button>

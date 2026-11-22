@@ -1,10 +1,3 @@
-/**
- * Slash commands contributed by installed extensions. They never reach the
- * model: the composer asks the extension to resolve `/name args` into a chip
- * and attaches that instead. Planned before local commands so an extension
- * name the composer already uses can never take over (`guestCommandEntries`
- * already dropped those).
- */
 
 import type { GuestCommandEntry, GuestCommandRoute } from '@/lib/guests/commands';
 

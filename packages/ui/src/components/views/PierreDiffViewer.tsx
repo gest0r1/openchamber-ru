@@ -1,14 +1,8 @@
-import React, { useMemo, useRef, useCallback, useEffect } from 'react';
+import React, { useCallback, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import {
-  areFilesEqual,
-  areOptionsEqual,
-  FileDiff as PierreFileDiff,
   parseDiffFromFile,
-  VirtualizedFileDiff,
-  Virtualizer,
-  type FileContents,
-  type FileDiffMetadata,
+  type FileDiff as PierreFileDiff,
   type FileDiffOptions,
   type DiffLineAnnotation,
   type SelectedLineRange,
@@ -18,18 +12,7 @@ import {
   type OnDiffLineEnterLeaveProps,
   type VirtualFileMetrics,
 } from '@pierre/diffs';
-import type { WorkerPoolManager } from '@pierre/diffs/worker';
-import {
-  buildPierreLineAnnotations,
-  buildPierreSelectionAnnotation,
-  type PierreAnnotationData,
-  PierreDiffCommentOverlays,
-  type ReviewLineItem,
-  isWholeFileComment,
-  toPierreAnnotationId,
-  useInlineCommentController,
-} from '@/components/comments';
-import { useChangeRequestReviewContext } from '@/components/review/useChangeRequestReview';
+import { PierreDiffCommentOverlays } from '@/components/comments';
 
 import { useOptionalThemeSystem } from '@/contexts/useThemeSystem';
 import { ScrollableOverlay } from '@/components/ui/ScrollableOverlay';
@@ -40,7 +23,7 @@ import { getDefaultTheme } from '@/lib/theme/themes';
 
 import { useDeviceInfo } from '@/lib/device';
 import { useI18n } from '@/lib/i18n';
-import { cn, isMacOS } from '@/lib/utils';
+import { cn } from '@/lib/utils';
 import { hideWhitespaceChanges } from '@/lib/diff/hideWhitespaceChanges';
 import type { PatchHunkAnchor } from '@/lib/diff/patchFileDiff';
 import { getDiffLinesText } from '@/lib/diff/selectedDiffLines';
@@ -87,7 +70,6 @@ const HIDE_COLUMN_SCROLLBAR_CSS = `
 `;
 
 
-// Threshold (bytes) above which syntax highlighting is degraded for performance
 const LARGE_CONTENT_BYTES = 500_000;
 
 interface PierreDiffViewerProps {
@@ -950,91 +932,52 @@ const PierreDiffViewerBody: React.FC<
     targets: ReadonlyMap<number, HTMLElement>;
   }>(() => ({ fileDiff: undefined, anchors: EMPTY_HUNK_ANCHORS, targets: new Map() }));
 
-  const diffCommentController = useInlineCommentController<SelectedLineRange>({
-    source: 'diff',
-    fileLabel: fileName || 'unknown',
-    origin: commentOrigin,
-    language,
-    getCodeForRange: (range) => extractSelectedCode(original, modified, incomingFileDiff, range),
-    toStoreRange: (range) => ({
-      startLine: range.start,
-      endLine: range.end,
-      side: range.side === 'deletions' ? 'original' : 'modified',
-    }),
-    fromDraftRange: (draft) => ({
-      start: draft.startLine,
-      end: draft.endLine,
-      side: draft.side === 'original' ? 'deletions' : 'additions',
-    }),
-  });
+  const diffRootRef = useRef<HTMLDivElement | null>(null);
+  const diffContainerRef = useRef<HTMLDivElement | null>(null);
+  const diffInstanceRef = useRef<PierreFileDiff<DiffAnnotation> | null>(null);
+  const sharedVirtualizerRef = useRef<SharedVirtualizer | null>(null);
+  const instanceVirtualizerRef = useRef<Virtualizer | null>(null);
 
   const {
-    drafts: diffDrafts,
     selection,
     setSelection,
     commentText,
     setCommentText,
     editingDraftId,
-    saveComment,
-    cancel,
     startEdit,
     deleteDraft,
-  } = diffCommentController;
-  // Whole-file comments have no lines to sit under; the file header shows them.
-  const fileDrafts = useMemo(() => diffDrafts.filter((draft) => !isWholeFileComment(draft)), [diffDrafts]);
+    fileDrafts,
+    review,
+    reviewItems,
+    reviewField,
+    excerptOf,
+    selectionRef,
+    editingDraftIdRef,
+    commentTextRef,
+    isApplyingSelectionRef,
+    lastAppliedSelectionRef,
+    handleSelectionChange,
+    handleCancelComment,
+    handleSaveComment,
+    paintSelection,
+    applySelection,
+  } = useDiffComments({
+    original,
+    modified,
+    incomingFileDiff,
+    fileName,
+    language,
+    commentOrigin,
+    enableComments,
+    isMobile,
+    diffInstanceRef,
+  });
 
-  // A change request's review: its cards on this file's lines, and the field's way into it.
-  const review = useChangeRequestReviewContext();
-  const reviewItems = useMemo<ReviewLineItem[]>(() => {
-    if (!review?.state || !fileName) return [];
-    const onLine = <T extends { path: string; line: number | null }>(entry: T): entry is T & { line: number } => (
-      entry.path === fileName && entry.line !== null
-    );
-    return [
-      ...review.state.threads.filter(onLine).map((thread): ReviewLineItem => ({
-        id: `thread-${thread.id}`, kind: 'thread', thread, lineNumber: thread.line, side: thread.side === 'old' ? 'deletions' : 'additions',
-      })),
-      ...(review.state.draft?.comments ?? []).filter(onLine).map((comment): ReviewLineItem => ({
-        id: `draft-${comment.id}`, kind: 'draft', comment, lineNumber: comment.line, side: comment.side === 'old' ? 'deletions' : 'additions',
-      })),
-    ];
-  }, [fileName, review?.state]);
-  const excerptOf = useCallback((item: ReviewLineItem) => {
-    if (item.side === 'deletions') return null;
-    const entry = item.kind === 'draft' ? item.comment : item.thread;
-    const start = entry.startLine ?? item.lineNumber;
-    return {
-      startLine: start,
-      lines: extractSelectedCode(original, modified, incomingFileDiff, { start, end: item.lineNumber, side: 'additions' }).split('\n'),
-    };
-  }, [incomingFileDiff, modified, original]);
-  const selectionSide = selection?.side;
-  // A selection across both sides has two sets of line numbers; a review comment takes one.
-  const selectionCrossesSides = Boolean(selection?.endSide && selection.endSide !== selection.side);
-  const reviewField = useMemo(() => {
-    if (!review || !fileName || selectionCrossesSides) return undefined;
-    return {
-      add: async (text: string, range?: SelectedLineRange) => {
-        const target = range ?? selectionRef.current;
-        if (!target) return false;
-        const start = Math.min(target.start, target.end);
-        const end = Math.max(target.start, target.end);
-        const added = await review.addComment({
-          path: fileName,
-          side: target.side === 'deletions' ? 'old' : 'new',
-          line: end,
-          startLine: start < end ? start : undefined,
-        }, text);
-        if (added) cancel();
-        return added;
-      },
-      // A suggestion replaces lines of the new side.
-      suggestionCode: selectionSide === 'deletions' ? undefined : () => {
-        const target = selectionRef.current;
-        return target ? extractSelectedCode(original, modified, incomingFileDiff, target) : '';
-      },
-    };
-  }, [cancel, fileName, incomingFileDiff, modified, original, review, selectionCrossesSides, selectionSide]);
+  const { commentHostsRef, typingFieldRef, holdTypingField, renderAnnotation } = useAnnotationRenderer({
+    diffContainerRef,
+    requestTrailingExpansionRef,
+    showLinesBelowLabel,
+  });
 
   const selectionRef = useRef<SelectedLineRange | null>(null);
   const editingDraftIdRef = useRef<string | null>(null);
@@ -1468,157 +1411,32 @@ const PierreDiffViewerBody: React.FC<
   const workerPool = useWorkerPool(isLargeContent ? 'unified' : (renderSideBySide ? 'split' : 'unified'));
   const fileDiff = useDiffSwapAfterHighlight(incomingFileDiff, workerPool);
 
-  const scrollToLine = useCallback((target: { lineNumber: number; side: DiffFindSide; align?: 'start' | 'center' }): boolean => {
-    const instance = diffInstanceRef.current;
-    const { lineNumber, side, align = 'start' } = target;
-    if (!instance || lineNumber < 1) return false;
-
-    // `isLineRenderable` wraps the library's additions-only oracle, so a
-    // deletions gap line is translated to its additions counterpart first.
-    const oracleLine = side === 'additions'
-      ? lineNumber
-      : deletionGapToAdditionLine(fileDiff?.hunks ?? [], lineNumber);
-
-    const isRenderable = (): boolean => {
-      if (isWithinHunk(fileDiff, lineNumber, side)) return true;
-      // A partial diff has no file contents, so collapsed gaps never hydrate.
-      if (fileDiff?.isPartial) return false;
-      return oracleLine !== undefined && instance.isLineRenderable(oracleLine);
-    };
-
-    // The rendered row is the authority on where the line is: it is centered
-    // directly. A virtualized diff may not have rendered it yet, so the
-    // virtualizer is first moved to the line's estimated position (its cached
-    // geometry can be stale right after the file expanded), and the next
-    // attempt centers the row it renders there.
-    const scrollNow = (): boolean => {
-      const root = getDiffShadowRoot(diffContainerRef.current);
-      for (const row of root?.querySelectorAll(`[data-line="${lineNumber}"]`) ?? []) {
-        if (!(row instanceof HTMLElement) || !rowMatchesSide(row, side)) continue;
-        // The active mark when it is painted: aligning the whole row would
-        // also scroll a wide line sideways, under the line numbers.
-        const target = row.querySelector(`mark[${FIND_CURRENT_ATTR}]`) ?? row;
-        target.scrollIntoView({ block: align === 'center' ? 'center' : 'start', inline: 'nearest' });
-        return true;
-      }
-      if (!(instance instanceof VirtualizedFileDiff)) return false;
-      const position = instance.getLinePosition(lineNumber, side);
-      const virtualizer = instanceVirtualizerRef.current ?? sharedVirtualizerRef.current?.virtualizer ?? null;
-      if (!position || !virtualizer) return false;
-      const scrollRoot = virtualizer.getRoot();
-      const viewportHeight = scrollRoot instanceof Document ? globalThis.innerHeight : (scrollRoot?.getBoundingClientRect().height ?? 0);
-      const base = (instance.top ?? 0) + position.top;
-      // Re-read the scroll height the virtualizer clamps against: it predates
-      // a file that just expanded.
-      virtualizer.markDOMDirty();
-      virtualizer.scrollTo({ top: base - Math.max(0, (viewportHeight - position.height) / 2), behavior: 'auto' });
-      return false;
-    };
-
-    if (isRenderable()) return scrollNow();
-    // A collapsed gap is not rendered until expanded; revealLine is
-    // additions-indexed and only works for a full diff. Either way the line is
-    // not on screen yet, so the caller tries again on a later frame.
-    if (!fileDiff?.isPartial && oracleLine !== undefined) instance.revealLine(oracleLine);
-    return false;
-  }, [fileDiff]);
+  const scrollToLine = useDiffScrollToLine({
+    fileDiff,
+    diffInstanceRef,
+    diffContainerRef,
+    instanceVirtualizerRef,
+    sharedVirtualizerRef,
+  });
 
   React.useImperativeHandle(handleRef, () => ({ scrollToLine, setFindHighlights }), [scrollToLine, setFindHighlights]);
-  // Partial diff + an owner that can load the file: the separators become
-  // expand buttons (see the on-demand CSS) and report the gap on click.
   const expandOnDemand = Boolean(onExpandContextRequest) && fileDiff?.isPartial === true;
-  // Loading covers the owner's fetch and the highlight-first swap above.
   const expandLoading = expandOnDemand && (contextLoading || incomingFileDiff !== fileDiff);
 
   const lightResolvedTheme = useMemo(() => getResolvedShikiTheme(lightTheme), [lightTheme]);
   const darkResolvedTheme = useMemo(() => getResolvedShikiTheme(darkTheme), [darkTheme]);
 
-  // Fast-path: update base diff theme vars immediately.
-  // Without this, already-mounted diffs can keep old bg/bars until async highlight completes.
-  React.useLayoutEffect(() => {
-    const root = diffRootRef.current;
-    if (!root) return;
+  useDiffThemeVars(diffRootRef, isDark, lightResolvedTheme, darkResolvedTheme, diffThemeKey);
 
-    const container = root.querySelector('diffs-container') as HTMLElement | null;
-    if (!container) return;
-
-    const currentResolved = isDark ? darkResolvedTheme : lightResolvedTheme;
-
-    const getColor = (
-      resolved: typeof currentResolved,
-      key: string,
-    ): string | undefined => {
-      const colors = resolved.colors as Record<string, string> | undefined;
-      return colors?.[key];
-    };
-
-    const lightAdd = getColor(lightResolvedTheme, 'terminal.ansiGreen');
-    const lightDel = getColor(lightResolvedTheme, 'terminal.ansiRed');
-    const lightMod = getColor(lightResolvedTheme, 'terminal.ansiBlue');
-
-    const darkAdd = getColor(darkResolvedTheme, 'terminal.ansiGreen');
-    const darkDel = getColor(darkResolvedTheme, 'terminal.ansiRed');
-    const darkMod = getColor(darkResolvedTheme, 'terminal.ansiBlue');
-
-    // Apply on host; vars inherit into shadow root.
-    container.style.setProperty('--shiki-light', lightResolvedTheme.fg);
-    container.style.setProperty('--shiki-light-bg', lightResolvedTheme.bg);
-    if (lightAdd) container.style.setProperty('--shiki-light-addition-color', lightAdd);
-    if (lightDel) container.style.setProperty('--shiki-light-deletion-color', lightDel);
-    if (lightMod) container.style.setProperty('--shiki-light-modified-color', lightMod);
-
-    container.style.setProperty('--shiki-dark', darkResolvedTheme.fg);
-    container.style.setProperty('--shiki-dark-bg', darkResolvedTheme.bg);
-    if (darkAdd) container.style.setProperty('--shiki-dark-addition-color', darkAdd);
-    if (darkDel) container.style.setProperty('--shiki-dark-deletion-color', darkDel);
-    if (darkMod) container.style.setProperty('--shiki-dark-modified-color', darkMod);
-
-    container.style.setProperty('--diffs-bg', currentResolved.bg);
-    container.style.setProperty('--diffs-fg', currentResolved.fg);
-
-    const currentAdd = isDark ? darkAdd : lightAdd;
-    const currentDel = isDark ? darkDel : lightDel;
-    const currentMod = isDark ? darkMod : lightMod;
-    if (currentAdd) container.style.setProperty('--diffs-addition-color-override', currentAdd);
-    if (currentDel) container.style.setProperty('--diffs-deletion-color-override', currentDel);
-    if (currentMod) container.style.setProperty('--diffs-modified-color-override', currentMod);
-
-    // Pierre also inlines theme styles on <pre> inside shadow root.
-    // Patch it too so already-expanded diffs switch instantly.
-    const pre = container.shadowRoot?.querySelector('pre') as HTMLPreElement | null;
-    if (pre) {
-      pre.style.setProperty('--shiki-light', lightResolvedTheme.fg);
-      pre.style.setProperty('--shiki-light-bg', lightResolvedTheme.bg);
-      if (lightAdd) pre.style.setProperty('--shiki-light-addition-color', lightAdd);
-      if (lightDel) pre.style.setProperty('--shiki-light-deletion-color', lightDel);
-      if (lightMod) pre.style.setProperty('--shiki-light-modified-color', lightMod);
-
-      pre.style.setProperty('--shiki-dark', darkResolvedTheme.fg);
-      pre.style.setProperty('--shiki-dark-bg', darkResolvedTheme.bg);
-      if (darkAdd) pre.style.setProperty('--shiki-dark-addition-color', darkAdd);
-      if (darkDel) pre.style.setProperty('--shiki-dark-deletion-color', darkDel);
-      if (darkMod) pre.style.setProperty('--shiki-dark-modified-color', darkMod);
-
-      pre.style.setProperty('--diffs-bg', currentResolved.bg);
-      pre.style.setProperty('--diffs-fg', currentResolved.fg);
-      if (currentAdd) pre.style.setProperty('--diffs-addition-color-override', currentAdd);
-      if (currentDel) pre.style.setProperty('--diffs-deletion-color-override', currentDel);
-      if (currentMod) pre.style.setProperty('--diffs-modified-color-override', currentMod);
-    }
-  }, [darkResolvedTheme, diffThemeKey, isDark, lightResolvedTheme]);
-
-
-  // Rows exist only once the library has rendered them, so find marks set
-  // before that (a viewer registered while its diff was still loading) are
-  // painted here, and again after every re-render that replaced the rows.
   const hasHunkAnchors = hunkAnchors.length > 0;
   const handlePostRender = useCallback<NonNullable<FileDiffOptions<DiffAnnotation, undefined>['onPostRender']>>((node, instance, phase) => {
     if (hasHunkAnchors) captureHunkTargets(node, instance, phase);
     if (phase !== 'unmount' && findMatchesRef.current.length > 0) applyFindHighlights();
+    if (phase === 'unmount') return;
     const typing = typingFieldRef.current;
     typingFieldRef.current = null;
-    if (typing?.isConnected && document.activeElement !== typing) typing.focus({ preventScroll: true });
-  }, [applyFindHighlights, captureHunkTargets, hasHunkAnchors]);
+    if (typing?.isConnected && document.activeElement === document.body) typing.focus({ preventScroll: true });
+  }, [applyFindHighlights, captureHunkTargets, findMatchesRef, hasHunkAnchors, typingFieldRef]);
 
   const options = useMemo<FileDiffOptions<DiffAnnotation, undefined>>(() => ({
     theme: {
@@ -1630,9 +1448,7 @@ const PierreDiffViewerBody: React.FC<
     diffStyle: renderSideBySide ? 'split' : 'unified',
     diffIndicators: 'none',
     hunkSeparators: 'line-info-basic',
-    // Perf: disable intra-line diff (word-level) globally.
     lineDiffType: 'none',
-    // Perf: degrade tokenization/highlighting for large files (>500KB)
     maxLineDiffLength: isLargeContent ? 0 : 1000,
     maxLineLengthForHighlighting: isLargeContent ? 1 : 1000,
     tokenizeMaxLineLength: isLargeContent ? 1 : 1000,
@@ -1656,24 +1472,54 @@ const PierreDiffViewerBody: React.FC<
     onPostRender: handlePostRender,
   }), [handlePostRender, hunkAnchors.length, darkThemeName, enableComments, expandOnDemand, isDark, isLargeContent, layout, lightThemeName, renderSideBySide, wrapLines, handleSelectionChange, handleGutterUtilityClick, handleLineClick, handleHunkLineEnter, handleHunkLineLeave, onFindWordRequest, renderAnnotation]);
 
+  const { lineAnnotations, lineAnnotationsRef } = useLineAnnotations({
+    enableComments,
+    fileDrafts,
+    editingDraftId,
+    reviewItems,
+    hunkAnchors,
+    expandOnDemand,
+    fileDiff,
+    selection,
+    commentHostsRef,
+  });
 
-  const lineAnnotations = useMemo<DiffLineAnnotation<DiffAnnotation>[]>(() => {
-    const annotations: DiffLineAnnotation<DiffAnnotation>[] = enableComments ? buildPierreLineAnnotations({
-      drafts: fileDrafts,
-      editingDraftId,
-      reviewItems,
-    }) : [];
-    for (const anchor of hunkAnchors) {
-      annotations.push({ side: anchor.side, lineNumber: anchor.lineNumber, metadata: { type: 'hunk-action', index: anchor.index } });
-    }
-    const trailingExpand = expandOnDemand && fileDiff ? getTrailingExpandAnnotation(fileDiff) : null;
-    if (trailingExpand) annotations.push(trailingExpand);
-    const selectionAnnotation = enableComments ? buildPierreSelectionAnnotation(selection, editingDraftId) : null;
-    if (selectionAnnotation) annotations.push(selectionAnnotation);
-    return annotations;
-  }, [editingDraftId, enableComments, expandOnDemand, fileDiff, fileDrafts, hunkAnchors, reviewItems, selection]);
+  useDiffInstance({
+    diffRootRef,
+    diffContainerRef,
+    diffInstanceRef,
+    sharedVirtualizerRef,
+    instanceVirtualizerRef,
+    workerPool,
+    fileDiff,
+    fileName,
+    language,
+    original,
+    modified,
+    options,
+    diffThemeKey,
+    diffLineHeight,
+    holdTypingField,
+    lineAnnotations,
+    lineAnnotationsRef,
+    selection,
+    selectionRef,
+    isApplyingSelectionRef,
+    lastAppliedSelectionRef,
+    paintSelection,
+    forceUpdate,
+  });
 
-  const lineAnnotationsRef = useRef(lineAnnotations);
+  useShadowRootPass({
+    diffContainerRef,
+    forceUpdate,
+    applyFindHighlights,
+    findMatchesRef,
+    shadowObserverRef,
+    scheduleShadowPassRef,
+    diffThemeKey,
+    fileName,
+  });
 
   useEffect(() => {
     lineAnnotationsRef.current = lineAnnotations;
@@ -2064,8 +1910,6 @@ const PierreDiffViewerBody: React.FC<
     />
   ) : null;
 
-  // A new action snapshot must never land in annotation nodes belonging to
-  // the previously rendered diff, even for one frame before Pierre updates.
   const hunkActionPortals = hunkActions && fileDiff && hunkTargets.fileDiff === fileDiff && hunkTargets.anchors === hunkAnchors
     ? [...hunkTargets.targets].map(([index, target]) => createPortal(hunkActions.render(index, hoveredHunk === index), target, `hunk-${index}`))
     : null;
@@ -2091,7 +1935,6 @@ const PierreDiffViewerBody: React.FC<
     );
   }
 
-  // Fallback for 'inline' layout
   return (
     <div className={cn("relative", "w-full")}>
       <div ref={diffRootRef} className="pierre-diff-wrapper w-full overflow-x-auto overflow-y-visible relative" style={editorCode?.style}>

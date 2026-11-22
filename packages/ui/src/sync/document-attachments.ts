@@ -776,8 +776,6 @@ const unzipBytes = async (
 ): Promise<Unzipped> => {
   await validateArchiveMetadata(data, limits)
 
-  // Bun's browser-style Blob workers do not reliably execute fflate's async decoder.
-  // Production browser runtimes use the worker-backed path below.
   const archive = "Bun" in globalThis
     ? unzipSync(data, { filter })
     : await new Promise<Unzipped>((resolve, reject) => {

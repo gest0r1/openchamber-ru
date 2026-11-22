@@ -90,10 +90,8 @@ const hasUnreadSession = (state: { entityById: ReadonlyMap<string, Session> }): 
   return false
 }
 
-/** Whether any session is unread; for a control that only matters while it is shown. */
 export const useHasUnreadSession = (): boolean => useGlobalSessionsStore(hasUnreadSession)
 
-/** Idle stamps being recorded right now, so repeated calls send one request. */
 const pendingViews = new Map<string, number>()
 
 /**
@@ -245,7 +243,6 @@ export const markSessionUnreadSeen = (sessionId: string, options?: MarkSeenOptio
   markSessionsUnreadSeen([sessionId], options)
 }
 
-/** Every unread session the client knows of. */
 export const getUnreadSessionIds = (): string[] => {
   const ids: string[] = []
   for (const session of useGlobalSessionsStore.getState().entityById.values()) {

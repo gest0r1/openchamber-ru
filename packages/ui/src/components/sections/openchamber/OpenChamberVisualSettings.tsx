@@ -149,7 +149,6 @@ const WINDOW_CONTROLS_STYLE_OPTIONS: Array<{ id: DesktopWindowControlsStyle; lab
 ];
 
 interface OpenChamberVisualSettingsProps {
-    /** Which settings to show. If undefined, shows all. */
     visibleSettings?: VisibleSetting[];
 }
 
@@ -169,8 +168,6 @@ export const OpenChamberVisualSettings: React.FC<OpenChamberVisualSettingsProps>
     const setTerminalFontSize = useUIStore(state => state.setTerminalFontSize);
     const editorFontSize = useUIStore(state => state.editorFontSize);
     const setEditorFontSize = useUIStore(state => state.setEditorFontSize);
-    // The fonts in effect: enterprise mode shows the system font where the
-    // stored choice would load from a CDN (useFontPreferences).
     const { uiFont, monoFont } = useFontPreferences();
     const setUiFont = useUIStore(state => state.setUiFont);
     const setMonoFont = useUIStore(state => state.setMonoFont);
@@ -199,8 +196,6 @@ export const OpenChamberVisualSettings: React.FC<OpenChamberVisualSettingsProps>
     const desktopWindowControlsStyle = useUIStore((state) => state.desktopWindowControlsStyle);
     const setDesktopWindowControlsStyle = useUIStore((state) => state.setDesktopWindowControlsStyle);
 
-    // The server copy lets the language survive lost browser storage and reach
-    // the other clients of this instance.
     const handleLocaleChange = React.useCallback((value: string) => {
         const next = locales.find((candidate) => candidate === value);
         if (!next) return;
@@ -379,7 +374,6 @@ export const OpenChamberVisualSettings: React.FC<OpenChamberVisualSettingsProps>
                     <ThemeAppearancePicker />
                 )}
 
-                {/* --- Density & type --- */}
                 {hasLayoutSettings && (
                     <SettingsSection title={t('settings.openchamber.visual.section.densityAndType')} contentClassName={SETTINGS_FIELDS_STACK_CLASS}>
                         {(shouldShow('fontSize') && !isMobile) || shouldShow('terminalFontSize') ? (

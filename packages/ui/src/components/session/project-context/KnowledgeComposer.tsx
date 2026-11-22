@@ -10,7 +10,6 @@ import { useUIStore } from '@/stores/useUIStore';
 import { KNOWLEDGE_ICON_BUTTON_CLASS } from './knowledgeRowStyle';
 import { useI18n } from '@/lib/i18n';
 
-/** The counter appears only once the text gets close to the limit. */
 const COUNTER_THRESHOLD = 0.8;
 
 /** The chat composer's debounce, for the same store. */
@@ -126,7 +125,6 @@ export const KnowledgeComposer: React.FC<{
   multiline?: boolean;
   dictation?: boolean;
   disabled?: boolean;
-  /** Resolves false when the entry was not added; the text then stays. */
   onSubmit: (text: string) => Promise<boolean> | boolean;
   /** Extra controls before the Add button, such as an import action. */
   extraActions?: React.ReactNode;
@@ -157,8 +155,6 @@ export const KnowledgeComposer: React.FC<{
   }, [onSubmit, submitting, takeForAdd, text]);
 
   const showCounter = text.length >= maxLength * COUNTER_THRESHOLD;
-  // The field itself stays enabled while an entry saves: disabling it would
-  // drop the focus, and the next entry typed right away would go nowhere.
   const blocked = disabled || submitting;
   const canSend = !blocked && text.trim().length > 0;
 
@@ -204,8 +200,6 @@ export const KnowledgeComposer: React.FC<{
         </span>
       ) : null}
       {dictation ? (
-        // Dictation continues the draft instead of adding it, so a misheard
-        // word can be fixed before it lands.
         <InlineDictationButton
           onTranscript={(spoken) => {
             const current = currentText();

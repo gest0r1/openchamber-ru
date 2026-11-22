@@ -47,11 +47,6 @@ const COMMENT_TOP_INSET = 48;
 /** Half the comment field, so it stays on screen beside a window edge. */
 const COMMENT_EDGE_INSET = 220;
 
-/**
- * Column widths from the longest value in each column, in `ch` of the
- * monospace cell font. Only the visible rows are in the DOM, so an automatic
- * table layout would resize the columns on every scroll step.
- */
 const measureColumnChars = (header: string[], rows: string[][], columnCount: number): number[] => {
   const widths = Array.from({ length: columnCount }, (_, column) => (header[column] ?? '').length);
   for (const row of rows) {

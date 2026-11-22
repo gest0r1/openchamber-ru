@@ -27,7 +27,7 @@ const OPENCODE_TRUST_ROUTE = '/api/opencode/trust';
 const OPENCODE_TRUST_REQUIRED = 'opencode_trust_required';
 
 const itemSchema = z.object({
-  kind: z.enum(['plugin', 'package', 'mcp', 'lsp', 'formatter', 'shell', 'config']),
+  kind: z.enum(['plugin', 'package', 'mcp', 'lsp', 'formatter', 'shell', 'config', 'env', 'file', 'permission']),
   source: z.string(),
   name: z.string(),
   detail: z.string(),
@@ -46,10 +46,6 @@ export type OpenCodeTrustItem = z.infer<typeof itemSchema>;
 type OpenCodeTrustAssessment = z.infer<typeof assessmentSchema>;
 
 export type OpenCodeTrustChoice = 'trust' | 'skip';
-/**
- * What an answer came to. `failed` keeps the prompt on screen; `changed`
- * shows the configuration again because it changed while on screen.
- */
 type OpenCodeTrustOutcome = 'saved' | 'failed' | 'changed' | 'skipped';
 
 type PendingOpenCodeTrustRequest = {
@@ -84,7 +80,6 @@ export const subscribeOpenCodeTrust = (listener: () => void): (() => void) => {
   };
 };
 
-/** Answer the prompt on screen. A "trust" that fails to save keeps it on screen. */
 export const settleOpenCodeTrust = (choice: OpenCodeTrustChoice): Promise<OpenCodeTrustOutcome> => (
   pendingRequest ? pendingRequest.settle(choice) : Promise.resolve('skipped')
 );
@@ -128,7 +123,6 @@ export const forgetOpenCodeTrustDeclines = (): void => {
   declined.clear();
 };
 
-/** The folder a refused OpenCode response names, or null for any other response. */
 export const openCodeTrustRefusalDirectory = async (response: Response): Promise<string | null> => {
   if (response.status !== 403) return null;
   try {
@@ -281,7 +275,6 @@ export const isOpenCodeTrustPending = async (directory: string): Promise<boolean
 // Matched at the end: a runtime may serve the API under a base path.
 const DELIBERATE_ACTION = /\/api\/(?:session|(?:experimental\/)?session\/[^/]+\/(?:prompt|command|shell|skill|move))$/;
 
-/** Whether a refused request is one the user just made rather than a background read. */
 export const isDeliberateOpenCodeRequest = (method: string, pathname: string): boolean => (
   method === 'POST' && DELIBERATE_ACTION.test(pathname.replace(/\/+$/, ''))
 );
