@@ -457,9 +457,10 @@ export function NewWorktreeDialog({
       })();
 
       const metadata = await createWorktreeWithDefaults(projectRef, args);
+      // Background Git attach may still be running. A directory alone is not ready.
+      await waitForWorktreeBootstrap(metadata.path);
 
       if (metadata.provenance?.kind === 'contributor-fork') {
-        await waitForWorktreeBootstrap(metadata.path);
         const trust = await git.inspectCheckoutTrust(metadata.path);
         if (trust.actions.length > 0) {
           const run = await trustConfirmation.confirm({
