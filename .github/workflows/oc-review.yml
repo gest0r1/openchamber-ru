@@ -54,7 +54,7 @@ jobs:
       - name: Telegram SDK notifier Node service contracts
         run: node --test extensions/telegram-notifier/service/reconcile.test.js extensions/telegram-notifier/service/http.test.js
       - name: P1 root PTY privilege boundary contracts
-        run: node --test packages/web/server/lib/root-execution-boundary.test.mjs packages/web/server/lib/owner-checkpoint-routes.test.mjs
+        run: node --test packages/web/server/lib/root-execution-boundary.contract.mjs packages/web/server/lib/owner-checkpoint-routes.contract.mjs
       - name: Tests
         run: bun run test
       - name: Fork release and agent entrypoint contracts
