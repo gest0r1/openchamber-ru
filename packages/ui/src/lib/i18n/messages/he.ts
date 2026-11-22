@@ -1,3 +1,4 @@
+import { androidWidgetsI18n } from './android-widgets.i18n';
 import { settingsDict } from './he.settings';
 import { linearIssuePickerI18n } from './linear-issue-picker.i18n';
 import { referencePickerI18n } from './reference-picker.i18n';
