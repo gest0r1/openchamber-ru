@@ -4080,4 +4080,5 @@ export const dict = {
   'chat.promptHistorySearch.hint': "↑ ↓ לעיון · Enter לטעינה · Esc לסגירה",
   'helpDialog.item.searchPromptHistory': "חיפוש בהיסטוריית ההנחיות (קלט צ׳אט)",
 
+  "settings.openchamber.keyboardShortcuts.action.new_lead.label": "מוביל חדש",
 } as const;

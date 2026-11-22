@@ -4081,4 +4081,5 @@ export const dict: Record<I18nKey, string> = {
   'chat.promptHistorySearch.hint': "↑ ↓ للتصفح · Enter للتحميل · Esc للإغلاق",
   'helpDialog.item.searchPromptHistory': "البحث في سجل المطالبات (إدخال الدردشة)",
 
+  "settings.openchamber.keyboardShortcuts.action.new_lead.label": "قائد جديد",
 } as const;

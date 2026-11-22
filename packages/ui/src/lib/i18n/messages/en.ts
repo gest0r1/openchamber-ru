@@ -4054,6 +4054,8 @@ export const dict = {
   'chat.promptHistorySearch.hint': "↑ ↓ to browse · Enter to load · Esc to close",
   'helpDialog.item.searchPromptHistory': "Search prompt history (chat input)",
 
+  "settings.openchamber.keyboardShortcuts.action.new_lead.label": "New lead",
+  "chat.workStatus.replyCacheHit": "Cache hit (reply)",
 } as const;
 
 export type I18nKey = keyof typeof dict;

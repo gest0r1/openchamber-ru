@@ -4055,4 +4055,5 @@ export const dict: Record<I18nKey, string> = {
   'chat.promptHistorySearch.hint': "↑ ↓ で閲覧 · Enter で読み込み · Esc で閉じる",
   'helpDialog.item.searchPromptHistory': "プロンプト履歴を検索（チャット入力）",
 
+  "settings.openchamber.keyboardShortcuts.action.new_lead.label": "新しいリード",
 };

@@ -2,7 +2,7 @@
 export const ruUpstream280Translations: Record<string, string> = {
   "quota.value.unknown": "Неизвестно",
   "quota.window.monthlyTotal": "Всего за месяц",
-  "quota.window.monthlyByok": "За месяц с собственным ключом",
+  "quota.window.monthlyByok": "За месяц (BYOK)",
   "settings.remoteInstances.clientAuth.addDevice.noNotificationsHint": "На этом устройстве уведомлений не будет: на телефон они доставляются через интернет.",
   "settings.projects.notesTodos.title": "Заметки и задачи",
   "settings.projects.notesTodos.inRepository": "Хранить заметки и задачи в репозитории",
@@ -219,4 +219,6 @@ export const ruUpstream280Translations: Record<string, string> = {
   "chat.workStatus.telemetry.firstOutput": "Среднее время до первого ответа",
   "chat.workStatus.telemetry.firstOutputDescription": "Среднее ожидание от начала каждого шага модели до первого вывода: текста, рассуждений или вызова инструмента. В отличие от TTFT учитываются и шаги, начинающиеся с инструмента. Не показывается для OpenCode старше версии 2.3.0.",
   "chat.formCard.deferredNotice": "Вы отправили сообщение до ответа на вопрос. Нажатие «Отправить» отправит ваш ответ отдельным сообщением.",
+  "settings.openchamber.keyboardShortcuts.action.new_lead.label": "Новая ведущая сессия",
+  "chat.workStatus.replyCacheHit": "Ответ из кеша",
 };

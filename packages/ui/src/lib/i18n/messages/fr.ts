@@ -4054,4 +4054,5 @@ export const dict = {
   'chat.promptHistorySearch.hint': "↑ ↓ pour parcourir · Enter pour charger · Esc pour fermer",
    'helpDialog.item.searchPromptHistory': "Rechercher dans l'historique des prompts (saisie du chat)",
 
+  "settings.openchamber.keyboardShortcuts.action.new_lead.label": "Nouveau lead",
 } as const;
