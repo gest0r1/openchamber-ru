@@ -9,8 +9,7 @@
 import fs from 'node:fs/promises';
 import fssync from 'node:fs';
 import path from 'node:path';
-import { createHash, randomBytes } from 'node:crypto';
-import { execFileSync } from 'node:child_process';
+import { randomBytes } from 'node:crypto';
 
 const ROOT = '/var/lib/my-opencode-guest-runtime';
 const GUEST = /^[a-z][a-z0-9-]*$/;
