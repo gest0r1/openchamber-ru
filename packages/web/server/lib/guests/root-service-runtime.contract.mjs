@@ -15,6 +15,8 @@ test('root UI mirrors code and preserves mutable guest data under a genuinely un
   const uid = Number(pw.stdout.trim());
   const gid = Number(spawnSync('id', ['-g', 'nobody'], {encoding:'utf8'}).stdout.trim());
   assert.ok(uid > 0 && gid > 0);
+  process.env.OPENCHAMBER_EXECUTION_UID=String(uid);
+  process.env.OPENCHAMBER_EXECUTION_GID=String(gid);
   const home = await fs.mkdtemp(path.join(os.tmpdir(), 'root-guest-boundary-'));
   await fs.chmod(home, 0o755);
   try {
