@@ -65,14 +65,6 @@ export const START_SESSION_SENT = ['sent', 'no-model', 'skipped', 'failed'] as c
 
 export type StartSessionSent = (typeof START_SESSION_SENT)[number];
 
-export type GuestHostSurface = 'panel' | 'dialog' | 'page' | 'background' | 'status' | 'file' | 'popover' | 'block';
-
-export type GuestBlockCall = {
-  name: string;
-  args: Record<string, string>;
-  answered: string | null;
-};
-
 /**
  * Which host chrome mounted this iframe. Not `openSurface`. `status` is the
  * extension's section in the chat's Work Status panel.
