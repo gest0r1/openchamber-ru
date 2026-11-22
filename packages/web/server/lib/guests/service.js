@@ -25,6 +25,7 @@ import {
 } from './service-registry.js';
 import { resolveServiceSocketEnv } from './sockets.js';
 import { guestDataDir } from './storage.js';
+import { prepareRootGuestService } from './root-service-runtime.js';
 
 const METHODS = new Set(['GET', 'POST', 'PUT', 'PATCH', 'DELETE']);
 const SERVICE_READY_TIMEOUT_MS = 15_000;
@@ -538,9 +539,28 @@ const startGuestService = async ({
   const socketEnv = socketBindings.length > 0
     ? await resolveServiceSocketEnv(socketBindings, socketOverrides)
     : {};
-  await fs.mkdir(dataDir, { recursive: true, mode: 0o700 }).catch(() => {
-    throw new GuestServiceError('The service\'s data folder could not be created.', 'SERVICE_FAILED');
-  });
+  // Root UI holds owner login secrets in /root. The guest cannot traverse
+  // that tree after child_process drops to opencode, so mirror code into a
+  // root-owned readable snapshot and data into a separate opencode-owned leaf.
+  // Never let a missing guard silently run third-party code under root.
+  const rootUI = typeof process.getuid === 'function' && process.getuid() === 0;
+  let servicePackageRoot = packageRoot;
+  let serviceEntry = absoluteEntry;
+  let serviceDataDir = dataDir;
+  if (rootUI) {
+    if (process.env.OPENCHAMBER_ROOT_MODE !== 'separated' ||
+        process.env.OPENCHAMBER_CHILD_BOUNDARY_ACTIVE !== '1') {
+      throw new GuestServiceError('Root extension execution boundary is unavailable.', 'SERVICE_FAILED');
+    }
+    const isolated = await prepareRootGuestService({ guestId, packageRoot, entry, dataDir });
+    servicePackageRoot = isolated.packageRoot;
+    serviceEntry = isolated.entry;
+    serviceDataDir = isolated.dataDir;
+  } else {
+    await fs.mkdir(dataDir, { recursive: true, mode: 0o700 }).catch(() => {
+      throw new GuestServiceError('The service\'s data folder could not be created.', 'SERVICE_FAILED');
+    });
+  }
   if (cancelled()) {
     throw stoppedError();
   }
@@ -548,7 +568,7 @@ const startGuestService = async ({
     ...inheritedServiceEnv(process.env),
     OPENCHAMBER_SERVICE_PORT: String(port),
     [SERVICE_TOKEN_ENV]: token,
-    [OPENCHAMBER_SERVICE_DATA_DIR]: dataDir,
+    [OPENCHAMBER_SERVICE_DATA_DIR]: serviceDataDir,
     ELECTRON_RUN_AS_NODE: '1',
   };
   if (Object.keys(socketEnv).length > 0) {
@@ -565,14 +585,14 @@ const startGuestService = async ({
     openCodeProvider?.revokeGuest(guestId);
     throw stoppedError();
   }
-  const child = spawn(process.execPath, [absoluteEntry], {
-    cwd: packageRoot,
+  const child = spawn(process.execPath, [serviceEntry], {
+    cwd: servicePackageRoot,
     env,
     stdio: ['ignore', 'pipe', 'pipe'],
     windowsHide: true,
   });
   // Ownership starts at spawn, including a child that never becomes ready.
-  const released = recordServiceProcess(lifecycle.registryDir, child, { guestId, token, entry: absoluteEntry });
+  const released = recordServiceProcess(lifecycle.registryDir, child, { guestId, token, entry: serviceEntry });
   const output = collectProcessOutput(child);
 
   /** @type {ServiceRuntime} */
