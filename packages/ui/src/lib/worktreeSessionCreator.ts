@@ -87,7 +87,7 @@ export const createQuickWorktree = async (
   if (setupCommands === null) {
     return null;
   }
-  return createWorktreeWithDefaults(project, {
+  const metadata = await createWorktreeWithDefaults(project, {
     preferredName,
     mode: 'new',
     branchName: preferredName,
@@ -96,6 +96,9 @@ export const createQuickWorktree = async (
     setupCommands,
     returnAfterDirectoryCreated: true,
   });
+  // Do not expose a draft to the composer until the Git checkout has completed.
+  await waitForWorktreeBootstrap(metadata.path);
+  return metadata;
 };
 
 let isCreatingWorktreeSession = false;
