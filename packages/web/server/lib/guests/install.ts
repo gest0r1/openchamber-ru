@@ -30,6 +30,7 @@ import type { PublicGuest } from './catalog.js';
 import type { AddressLookup, PublicAddress } from './clone.js';
 import type { TcpNetConnectOpts } from 'node:net';
 import { isString } from './input-guards.js';
+import { prepareGuestGitCheckout } from './root-guest-checkout.js';
 
 type InstallOptions = { openchamberVersion?: string | undefined; replace?: boolean; folders?: readonly string[] | undefined };
 type GitInstallOptions = InstallOptions & {
@@ -128,7 +129,9 @@ const installCopiedGuest = async ({ source, prepare, persistPath, openchamberVer
   await fs.mkdir(copies, { recursive: true });
   const staging = path.join(copies, `.tmp-${process.pid}-${Date.now()}`);
   try {
-    const prepared = await prepare(staging);
+    const prepared = source === 'git'
+      ? await prepareGuestGitCheckout(staging, prepare)
+      : await prepare(staging);
     if (!prepared.ok) {
       await removeDir(staging);
       return prepared;
