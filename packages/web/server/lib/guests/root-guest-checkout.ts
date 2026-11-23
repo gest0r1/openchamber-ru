@@ -12,7 +12,7 @@ const CHECKOUTS = path.join(BASE, 'git-checkouts');
 const MAX_ENTRIES = 6000;
 const MAX_BYTES = 128 * 1024 * 1024;
 
-const safeDir = async (dir, mode) => {
+const safeDir = async (dir: string, mode: number) => {
   await fs.mkdir(dir, { recursive: true, mode });
   const st = await fs.lstat(dir);
   if (!st.isDirectory() || st.isSymbolicLink() || st.uid !== 0 || (st.mode & 0o022)) {
@@ -21,10 +21,10 @@ const safeDir = async (dir, mode) => {
   await fs.chmod(dir, mode);
 };
 
-const scan = async (root, requireRoot = false) => {
+const scan = async (root: string, requireRoot = false) => {
   let count = 0;
   let bytes = 0;
-  const visit = async (name) => {
+  const visit = async (name: string): Promise<void> => {
     const stat = await fs.lstat(name);
     if (stat.isSymbolicLink() || !(stat.isFile() || stat.isDirectory()) ||
         (stat.isFile() && stat.nlink !== 1) || (requireRoot && stat.uid !== 0)) {
@@ -42,13 +42,13 @@ const scan = async (root, requireRoot = false) => {
   await visit(root);
 };
 
-const secureSnapshot = async (source, target) => {
+const secureSnapshot = async (source: string, target: string) => {
   await scan(source);
   // Do not dereference links in the source. A second scan of the copied tree
   // is authoritative; only that tree is inspected or executed thereafter.
   await fs.cp(source, target, { recursive: true, force: false, errorOnExist: true, dereference: false });
   await scan(target, true);
-  const sanitize = async (name) => {
+  const sanitize = async (name: string): Promise<void> => {
     const st = await fs.lstat(name);
     if (st.isDirectory()) {
       for (const entry of await fs.readdir(name)) await sanitize(path.join(name, entry));
@@ -80,7 +80,12 @@ const checkedUid = () => {
  * prepare(destination) calls the existing Git network/authentication logic;
  * child_process is already forced to opencode by the trusted root boundary.
  */
-export async function prepareGuestGitCheckout(destination, prepare) {
+type PrepareResult = { ok: true; root?: string } | { ok: false; code: string };
+
+export async function prepareGuestGitCheckout(
+  destination: string,
+  prepare: (checkout: string) => Promise<PrepareResult>,
+): Promise<PrepareResult> {
   if (typeof process.getuid !== 'function' || process.getuid() !== 0) {
     return prepare(destination);
   }
