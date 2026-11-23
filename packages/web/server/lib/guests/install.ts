@@ -155,29 +155,58 @@ const installCopiedGuest = async ({ source, prepare, persistPath, openchamberVer
     const store = await readExtensionStore(persistPath);
     const destReal = await fs.realpath(dest).catch(() => dest);
     const registered = store.paths.some((entry) => path.resolve(entry) === dest || path.resolve(entry) === destReal);
-    if (registered) {
-      if (!replace) {
-        await removeDir(staging);
-        return { ok: false, code: 'already-installed', id: inspected.guest.id };
-      }
-      const removed = await uninstallGuest(inspected.guest.id, persistPath, { preserveStorageId: true });
-      if (!removed.ok) {
-        await removeDir(staging);
-        return removed;
-      }
-    }
-    await removeDir(dest);
-    await fs.rename(packageRoot, dest);
-    if (packageRoot !== staging) {
+    if (registered && !replace) {
       await removeDir(staging);
+      return { ok: false, code: 'already-installed', id: inspected.guest.id };
     }
-    const root = await fs.realpath(dest);
-    const persisted = await persistGuest(inspected.guest, root, source, persistPath, { replace, origin, folders });
-    if (!persisted.ok) {
-      await removeDir(dest);
-      return persisted;
+    // Do not delete the currently installed package before the replacement has
+    // passed inspection. A failed rename or store write must keep it available.
+    const occupied = await fs.lstat(dest).then(() => true, (error: NodeJS.ErrnoException) => {
+      if (error.code === 'ENOENT') return false;
+      throw error;
+    });
+    if (occupied && !registered) {
+      await removeDir(staging);
+      return { ok: false, code: 'destination-occupied' };
     }
-    return registered ? { ...persisted, replaced: true } : persisted;
+    const backup = path.join(copies, `.rollback-${inspected.guest.id}-${randomUUID()}`);
+    let backedUp = false;
+    let promoted = false;
+    let failure: InstallFailure | null = null;
+    try {
+      if (registered) {
+        await stopGuestService(inspected.guest.id);
+        await fs.rename(dest, backup);
+        backedUp = true;
+      }
+      await fs.rename(packageRoot, dest);
+      promoted = true;
+      const root = await fs.realpath(dest);
+      const persisted = await persistGuest(inspected.guest, root, source, persistPath, { replace, origin, folders });
+      if (!persisted.ok) {
+        failure = persisted;
+        throw new Error('Extension metadata persistence failed');
+      }
+      if (registered) {
+        // Retain previous storage IDs, grants and disabled state while advancing
+        // source/ref metadata for this exact installation.
+        await updateExtensionStore(persistPath, (current) => ({
+          ...current,
+          sources: { ...current.sources, [root]: source },
+          gitOrigins: origin
+            ? { ...current.gitOrigins, [root]: origin }
+            : Object.fromEntries(Object.entries(current.gitOrigins).filter(([key]) => key !== root)),
+        }));
+      }
+      if (backedUp) await removeDir(backup);
+      return registered ? { ...persisted, replaced: true } : persisted;
+    } catch {
+      if (promoted) await removeDir(dest);
+      if (backedUp) await fs.rename(backup, dest);
+      return failure ?? { ok: false, code: 'swap-failed' };
+    } finally {
+      if (packageRoot !== staging) await removeDir(staging);
+    }
   } catch {
     await removeDir(staging);
     return { ok: false, code: source === 'git' ? 'clone-failed' : 'extract-failed' };
