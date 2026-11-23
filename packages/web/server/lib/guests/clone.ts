@@ -272,7 +272,7 @@ const AUTH_FAILURE_PATTERN = /Authentication failed|could not read (?:Username|P
 
 export const isGitAuthFailure = (stderr: string | undefined) => AUTH_FAILURE_PATTERN.test(stderr ?? '');
 
-export const cloneGitRepository = async (source: string, dest: string, { gitBinary = 'git', timeoutMs = CLONE_TIMEOUT_MS, ref, lookup, gitIdentityId }: CloneOptions = {}): Promise<CloneResult> => {
+export const cloneGitRepository = async (source: string, dest: string, { gitBinary = 'git', timeoutMs = CLONE_TIMEOUT_MS, ref, lookup, gitIdentityId, cwd }: CloneOptions = {}): Promise<CloneResult> => {
   if (ref !== undefined && !isGitRef(ref)) {
     return { ok: false, code: 'clone-failed' };
   }
@@ -285,7 +285,7 @@ export const cloneGitRepository = async (source: string, dest: string, { gitBina
     args.push('--branch', ref);
   }
   args.push('--', source, dest);
-  const result = await runGitNetwork(args, { gitBinary, timeoutMs, env: network.env });
+  const result = await runGitNetwork(args, { gitBinary, cwd, timeoutMs, env: network.env });
   if (result.ok) {
     return { ok: true };
   }
