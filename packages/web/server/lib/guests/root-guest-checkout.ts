@@ -42,6 +42,8 @@ const scan = async (root: string, requireRoot = false) => {
   await visit(root);
 };
 
+export const validateGuestGitTree = scan;
+
 const secureSnapshot = async (source: string, target: string) => {
   await scan(source);
   // Do not dereference links in the source. A second scan of the copied tree
