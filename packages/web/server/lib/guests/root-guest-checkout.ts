@@ -4,6 +4,7 @@
  * validated, read-only snapshot into its extension store.
  */
 import fs from 'node:fs/promises';
+import { constants } from 'node:fs';
 import path from 'node:path';
 import { randomBytes } from 'node:crypto';
 
@@ -44,25 +45,79 @@ const scan = async (root: string, requireRoot = false) => {
 
 export const validateGuestGitTree = scan;
 
+/**
+ * Root import anchored to directory file descriptors. Every source component
+ * is opened with O_NOFOLLOW and verified by fstat. We never call fs.cp on an
+ * opencode-writable path: that would leave a symlink-swap race when root reads.
+ * The /proc/self/fd path intentionally makes this Linux-only and fail-closed.
+ */
 const secureSnapshot = async (source: string, target: string) => {
-  await scan(source);
-  // Do not dereference links in the source. A second scan of the copied tree
-  // is authoritative; only that tree is inspected or executed thereafter.
-  await fs.cp(source, target, { recursive: true, force: false, errorOnExist: true, dereference: false });
-  await scan(target, true);
-  const sanitize = async (name: string): Promise<void> => {
-    const st = await fs.lstat(name);
-    if (st.isDirectory()) {
-      for (const entry of await fs.readdir(name)) await sanitize(path.join(name, entry));
-      await fs.chmod(name, 0o755);
-    } else if (st.isFile()) {
-      await fs.chmod(name, 0o644 | (st.mode & 0o111));
-    } else {
-      throw new Error('ROOT_GIT_CHECKOUT_UNSAFE_ENTRY');
+  const flags = constants.O_RDONLY | constants.O_NOFOLLOW;
+  const dirFlags = flags | constants.O_DIRECTORY;
+  let entries = 0;
+  let bytes = 0;
+  const copyDir = async (srcDir: import('node:fs/promises').FileHandle, targetDir: string): Promise<void> => {
+    entries += 1;
+    if (entries > MAX_ENTRIES) throw new Error('ROOT_GIT_CHECKOUT_ENTRY_LIMIT');
+    await fs.mkdir(targetDir, { mode: 0o700 });
+    const srcFdRoot = `/proc/self/fd/${srcDir.fd}`;
+    for (const child of await fs.readdir(srcFdRoot)) {
+      if (child === '.' || child === '..' || child.includes('/')) throw new Error('ROOT_GIT_CHECKOUT_UNSAFE_ENTRY');
+      const sourceFile = `${srcFdRoot}/${child}`;
+      const destinationFile = path.join(targetDir, child);
+      const entryFd = await fs.open(sourceFile, flags);
+      try {
+        const stat = await entryFd.stat();
+        if (stat.isSymbolicLink() || !(stat.isDirectory() || stat.isFile()) ||
+            (stat.isFile() && stat.nlink !== 1)) {
+          throw new Error('ROOT_GIT_CHECKOUT_UNSAFE_ENTRY');
+        }
+        if (stat.isDirectory()) {
+          // Re-open with O_DIRECTORY to reject a file substituted during the
+          // walk. entryFd already anchors the inode; use that for recursion.
+          await copyDir(entryFd, destinationFile);
+        } else {
+          entries += 1;
+          if (entries > MAX_ENTRIES) throw new Error('ROOT_GIT_CHECKOUT_ENTRY_LIMIT');
+          bytes += stat.size;
+          if (bytes > MAX_BYTES) throw new Error('ROOT_GIT_CHECKOUT_SIZE_LIMIT');
+          const writer = await fs.open(destinationFile,
+            constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW, 0o600);
+          try {
+            const buffer = Buffer.allocUnsafe(64 * 1024);
+            let offset = 0;
+            while (true) {
+              const { bytesRead } = await entryFd.read(buffer, 0, buffer.length, offset);
+              if (!bytesRead) break;
+              offset += bytesRead;
+              if (offset > stat.size || bytes - stat.size + offset > MAX_BYTES) {
+                throw new Error('ROOT_GIT_CHECKOUT_SIZE_LIMIT');
+              }
+              let written = 0;
+              while (written < bytesRead) {
+                const out = await writer.write(buffer, written, bytesRead - written);
+                if (!out.bytesWritten) throw new Error('ROOT_GIT_CHECKOUT_WRITE_FAILED');
+                written += out.bytesWritten;
+              }
+            }
+            await writer.sync();
+          } finally { await writer.close(); }
+          await fs.chmod(destinationFile, 0o644 | (stat.mode & 0o111));
+        }
+      } finally { await entryFd.close(); }
     }
+    await fs.chmod(targetDir, 0o755);
   };
-  await sanitize(target);
-  await scan(target, true);
+  const sourceFd = await fs.open(source, dirFlags);
+  try {
+    const stat = await sourceFd.stat();
+    if (!stat.isDirectory()) throw new Error('ROOT_GIT_CHECKOUT_UNSAFE_ENTRY');
+    await copyDir(sourceFd, target);
+    await scan(target, true);
+  } catch (error) {
+    await fs.rm(target, { recursive: true, force: true }).catch(() => {});
+    throw error;
+  } finally { await sourceFd.close(); }
 };
 
 const checkedUid = () => {
