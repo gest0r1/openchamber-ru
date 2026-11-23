@@ -11,6 +11,7 @@ import { cloneGitRepository, prepareGuestGitNetwork, runGit, runGitNetwork } fro
 import { unwrapGuestRoot } from './extract-zip.js';
 import { guestCopiesDir, isCopiedGuestRoot } from './persist.js';
 import { stopGuestService } from './service.js';
+import { prepareGuestGitCheckout } from './root-guest-checkout.js';
 import type { AddressLookup } from './clone.js';
 import type { GitOrigin } from './persist.js';
 import type { GuestRecord } from './contracts.js';
@@ -224,7 +225,8 @@ export const updateGuest = async ({ guest, origin, persistPath, openchamberVersi
   const staging = path.join(copies, `.tmp-${guest.id}-${crypto.randomBytes(6).toString('hex')}`);
   let packageRoot;
   try {
-    const cloned = await cloneGitRepository(origin.url, staging, { gitBinary, ref: origin.ref, gitIdentityId: origin.gitIdentityId, lookup });
+    const cloned = await prepareGuestGitCheckout(staging, (checkout) =>
+      cloneGitRepository(origin.url, checkout, { gitBinary, ref: origin.ref, gitIdentityId: origin.gitIdentityId, lookup }));
     if (!cloned.ok) {
       await removeDir(staging);
       return cloned;
