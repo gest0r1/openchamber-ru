@@ -4,6 +4,7 @@ import { dict as enDict, type I18nKey } from './messages/en';
 import { DEFAULT_LOCALE, detectInitialLocale, type Locale, writeStoredLocale } from './runtime';
 import { hasRightToLeftText, isolateInsertedText } from './textDirection';
 
+export type I18nParams = Record<string, string | number | boolean | null | undefined>;
 export type I18nDictionary = Record<I18nKey, string>;
 
 type I18nState = {
@@ -119,4 +120,4 @@ export function formatMessage(dictionary: I18nDictionary, key: I18nKey, params?:
   });
 }
 
-export type { I18nKey, I18nParams, Locale };
+export type { I18nKey, Locale };
