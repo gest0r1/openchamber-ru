@@ -52,7 +52,7 @@ export const validateGuestGitTree = scan;
  * The /proc/self/fd path intentionally makes this Linux-only and fail-closed.
  */
 const secureSnapshot = async (source: string, target: string) => {
-  const flags = constants.O_RDONLY | constants.O_NOFOLLOW;
+  const flags = constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK;
   const dirFlags = flags | constants.O_DIRECTORY;
   let entries = 0;
   let bytes = 0;
