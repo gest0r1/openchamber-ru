@@ -387,7 +387,7 @@ export const installGuestFromGitSource = async (source: string, persistPath: str
     origin,
     folders,
     prepare: async (staging) => {
-      const cloned = await cloneGitRepository(source, staging, { gitBinary, ref, gitIdentityId, lookup });
+      const cloned = await cloneGitRepository(source, staging, { gitBinary, ref, gitIdentityId, lookup, cwd: path.dirname(staging) });
       return cloned.ok ? { ok: true, root: staging } : cloned;
     },
   });
