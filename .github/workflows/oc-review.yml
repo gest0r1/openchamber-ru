@@ -57,6 +57,8 @@ jobs:
         run: node --test packages/web/server/lib/root-execution-boundary.contract.mjs packages/web/server/lib/owner-checkpoint-routes.contract.mjs
       - name: P1 extension service real UID boundary
         run: sudo -n env PATH="$PATH" node --test packages/web/server/lib/guests/root-service-runtime.contract.mjs
+      - name: P1 root worktree and Git real UID boundary
+        run: bash scripts/tests/p1-root-worktree-uid-smoke.sh
       - name: Tests
         run: bun run test
       - name: Fork release and agent entrypoint contracts

@@ -12,8 +12,8 @@
  *
  * Reference: https://opencode.ai/v2/docs/config#worktrees
  */
-import os from 'node:os';
 import path from 'node:path';
+import { worktreeExecutionHome } from '../git/worktree-execution-boundary.js';
 
 /**
  * Resolve `worktree.directory` into an absolute parent directory.
@@ -26,7 +26,7 @@ import path from 'node:path';
  * @param {string} [homeDirectory] overrides the home used for `~` (tests)
  * @returns {string | null}
  */
-export function resolveWorktreeDirectory(config, primaryWorktree, homeDirectory = os.homedir()) {
+export function resolveWorktreeDirectory(config, primaryWorktree, homeDirectory = worktreeExecutionHome()) {
   const worktree = config && typeof config === 'object' ? config.worktree : null;
   const directory = worktree && typeof worktree === 'object' ? worktree.directory : null;
   if (typeof directory !== 'string') {

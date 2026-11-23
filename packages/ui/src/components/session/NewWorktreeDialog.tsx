@@ -509,11 +509,13 @@ export function NewWorktreeDialog({
       })();
 
       const metadata = await createWorktreeWithDefaults(projectRef, args);
+      // The server returns after creating a directory, before Git checkout.
+      // Do not open a session or report success for a failed bootstrap.
+      await waitForWorktreeBootstrap(metadata.path);
 
       // A contributor's fork may carry hooks or setup commands; they run only
       // when the user says so, after the checkout is ready.
       if (metadata.provenance?.kind === 'contributor-fork') {
-        await waitForWorktreeBootstrap(metadata.path);
         const trust = await git.inspectCheckoutTrust(metadata.path);
         if (trust.actions.length > 0) {
           const run = await trustConfirmation.confirm({
