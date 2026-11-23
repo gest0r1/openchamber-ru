@@ -226,7 +226,7 @@ export const updateGuest = async ({ guest, origin, persistPath, openchamberVersi
   let packageRoot;
   try {
     const cloned = await prepareGuestGitCheckout(staging, (checkout) =>
-      cloneGitRepository(origin.url, checkout, { gitBinary, ref: origin.ref, gitIdentityId: origin.gitIdentityId, lookup }));
+      cloneGitRepository(origin.url, checkout, { gitBinary, ref: origin.ref, gitIdentityId: origin.gitIdentityId, lookup, cwd: path.dirname(checkout) }));
     if (!cloned.ok) {
       await removeDir(staging);
       return cloned;
