@@ -4,6 +4,9 @@ import { dict as enDict } from './messages/en';
 import { dict as ruDict } from './messages/ru';
 
 const technicalTermAllowlist = new Set([
+  'settings.providers.page.custom.tls.cert.placeholder', 'settings.providers.page.custom.tls.key.placeholder',
+  'settings.providers.page.custom.tls.passphrase.placeholder', 'settings.classification.source.gemini.name',
+  'chat.messageSelection.copyMarkdownShort',
   // The update channel name, version/date templates and example SSH URL are locale-neutral.
   'settings.openchamber.about.option.updateChannel.canary', 'settings.openchamber.about.canaryVersion',
   'settings.sourceControl.field.sshUrl.placeholder', 'updateDialog.canary.version',

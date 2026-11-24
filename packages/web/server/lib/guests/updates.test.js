@@ -307,6 +307,38 @@ describe('checkAllGuestUpdates', () => {
 });
 
 describe('updateGuest', () => {
+  test('keeps Server Browser config through update and reinstall', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'oc-browser-update-'));
+    try {
+      const persistPath = path.join(dir, 'data', 'extensions.json');
+      const id = 'server-browser';
+      const { work, bare } = await setupRemote(dir, id);
+      await installFrom(bare, persistPath);
+      const guest = await loadGuest(id, persistPath);
+      const operatorConfig = JSON.stringify({ profileRoot: '/home/opencode/browser-projects', allowedOrigins: ['http://localhost:3000'] });
+      await fs.writeFile(path.join(guest.packageRoot, 'config.json'), operatorConfig);
+      await fs.writeFile(path.join(work, 'config.json'), '{}');
+      await pushVersion(work, id, '1.1.0');
+
+      expect(await updateGuest({ guest, origin: guest.gitOrigin, persistPath, openchamberVersion: '1.30.0' })).toEqual({ ok: true, id });
+      expect(await fs.readFile(path.join(guest.packageRoot, 'config.json'), 'utf8')).toBe(operatorConfig);
+      expect(await installGuestFromGitSource(bare, persistPath, { openchamberVersion: '1.30.0', replace: true }))
+        .toMatchObject({ ok: true, replaced: true });
+      expect(await fs.readFile(path.join(guest.packageRoot, 'config.json'), 'utf8')).toBe(operatorConfig);
+
+      await fs.rm(path.join(guest.packageRoot, 'config.json'));
+      await fs.symlink(path.join(dir, 'outside'), path.join(guest.packageRoot, 'config.json'));
+      await pushVersion(work, id, '1.2.0');
+      const current = await loadGuest(id, persistPath);
+      expect(await updateGuest({ guest: current, origin: current.gitOrigin, persistPath, openchamberVersion: '1.30.0' }))
+        .toEqual({ ok: false, code: 'swap-failed' });
+      expect((await loadGuest(id, persistPath)).version).toBe('1.1.0');
+      expect((await fs.lstat(path.join(guest.packageRoot, 'config.json'))).isSymbolicLink()).toBe(true);
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
+  });
+
   test('swaps in the new clone and keeps grants, then reports a new version', async () => {
     const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'oc-upd-'));
     const persistPath = path.join(dir, 'data', 'extensions.json');

@@ -44,6 +44,7 @@ test('JSON tree stays bounded and its tail remains reachable', { skip: !chrome &
   const server = await createServer({
     configFile: false,
     root: fixture,
+    cacheDir: path.join(fixture, 'vite-cache'),
     logLevel: 'error',
     css: { postcss: repo },
     resolve: { alias: { '@': path.join(repo, 'packages/ui/src'), '@openchamber/sdk': path.join(repo, 'packages/sdk/src/index.ts') } },
@@ -72,25 +73,17 @@ test('JSON tree stays bounded and its tail remains reachable', { skip: !chrome &
       assert.equal(result.exceptionDetails, undefined, result.exceptionDetails?.exception?.description);
       return result.result.value;
     };
-    const fixtureReady = () => evaluate(`new Promise((resolve, reject) => {
-      const deadline = performance.now() + 15_000;
-      const check = () => {
-        if (window.renderFixture) resolve();
-        else if (performance.now() > deadline) reject(new Error('Fixture did not load'));
-        else requestAnimationFrame(check);
-      };
-      check();
-    })`);
-    // A reload can land while the page is being waited on; wait again then.
     const waitForFixture = async () => {
-      for (let attempt = 0; ; attempt += 1) {
+      const deadline = Date.now() + 40_000;
+      while (Date.now() < deadline) {
         try {
-          return await fixtureReady();
+          if (await evaluate('typeof window.renderFixture === "function"')) return;
         } catch (error) {
-          if (attempt >= 5 || !/navigated|destroyed/i.test(String(error?.message))) throw error;
-          await wait(500);
+          if (!/navigated|destroyed/i.test(String(error?.message))) throw error;
         }
+        await wait(200);
       }
+      assert.fail('Fixture did not load');
     };
     await waitForFixture();
     // The first render pulls in modules the dev server had not seen yet, and

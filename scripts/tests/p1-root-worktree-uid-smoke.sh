@@ -33,7 +33,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { makeWorktreeDirectory, worktreeDataPath } from './packages/web/server/lib/git/worktree-execution-boundary.js';
+import { makeWorktreeDirectory, worktreeDataPath } from './packages/web/server/lib/git/worktree-execution-boundary.ts';
 
 assert.equal(process.getuid(), 0);
 assert.equal(process.env.OPENCHAMBER_CHILD_BOUNDARY_ACTIVE, '1');

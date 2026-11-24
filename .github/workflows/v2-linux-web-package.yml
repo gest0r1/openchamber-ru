@@ -201,7 +201,7 @@ jobs:
           BUN_OPTIONS: --timeout=20000
         run: |
           bun run opencode:pins
-          bun run --sequential --filter '*' type-check
+          bun run type-check
           bun run lint
           bun run test
 
@@ -239,12 +239,14 @@ jobs:
           tar -tzf "artifacts/$ASSET" > "$package_list"
           grep -Fxq 'package/bin/cli.js' "$package_list"
           grep -q '^package/dist/' "$package_list"
-          grep -q '^package/server/' "$package_list"
+          grep -Fxq 'package/build/server/index.js' "$package_list"
+          grep -Fxq 'package/build/bin/cli.js' "$package_list"
           test_root="$RUNNER_TEMP/openchamber-global"
           mkdir -p "$test_root"
           BUN_INSTALL="$test_root" bun add -g "$GITHUB_WORKSPACE/artifacts/$ASSET"
           actual="$("$test_root/bin/openchamber" --version | sed -E 's/^OpenChamber[[:space:]]+v?//; s/^v//')"
           test "$actual" = "$OPENCHAMBER_VERSION"
+          "$test_root/bin/openchamber" serve --help >/dev/null
 
       - name: Write package manifest
         if: steps.resolve.outputs.current_release != 'true' && steps.resolve.outputs.reuse != 'true'

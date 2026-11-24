@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { separatePtyLaunch, assertRootExecutionDisabled } from './root-execution-boundary.js';
+import { separatePtyLaunch, assertRootExecutionDisabled } from './root-execution-boundary.ts';
 const env={OPENCHAMBER_UI_PASSWORD:'sensitive',OPENCODE_PASSWORD:'sensitive',GH_TOKEN:'sensitive',PATH:'/root/.local/bin',LANG:'C',TERM:'xterm-256color'};
 test('nonroot PTY preserved',()=>assert.equal(separatePtyLaunch({executable:'/bin/bash',args:['-l'],env},{uid:1001}).executable,'/bin/bash'));
 test('root PTY must use unprivileged opencode',()=>{
