@@ -121,7 +121,6 @@ const checkedUid = () => {
 
 type PrepareResult = { ok: true; root?: string } | { ok: false; code: string };
 
-// Reuse the same isolated execution-owned scratch for clone and update checks.
 export async function withRootGuestGitScratch<T>(work: (scratch: string) => Promise<T>): Promise<T> {
   const { uid, gid } = checkedUid();
   await safeDir(BASE, 0o755);

@@ -1,3 +1,4 @@
+import { z } from 'zod';
 import { spawn } from 'node:child_process';
 import dns from 'node:dns/promises';
 import net from 'node:net';
@@ -150,14 +151,13 @@ export const parseGitInstallUrl = (value: string) => {
   return ref ? { url, ref } : { url };
 };
 
-// Log actionable failure categories without dumping credentials or arbitrary
-// exception text from remote packages.
-export const logGuestGitFailure = (operation: 'install' | 'update' | 'check', error: unknown) => {
-  const value = error as NodeJS.ErrnoException | undefined;
-  const code = typeof value?.code === 'string' && /^[A-Z0-9_]+$/.test(value.code) ? value.code : 'UNKNOWN';
-  const syscall = typeof value?.syscall === 'string' && /^[a-zA-Z0-9_]+$/.test(value.syscall) ? value.syscall : '';
-  const reason = typeof value?.message === 'string' && /^ROOT_GIT_CHECKOUT_[A-Z_]+$/.test(value.message) ? value.message : '';
-  console.warn('[guests] git ' + operation + ' preparation failed:', code, syscall, reason);
+export const guestGitFailureSchema = z.object({
+  code: z.string().regex(/^[A-Z0-9_]+$/).optional().catch(undefined),
+  syscall: z.string().regex(/^[a-zA-Z0-9_]+$/).optional().catch(undefined),
+  message: z.string().regex(/^ROOT_GIT_CHECKOUT_[A-Z_]+$/).optional().catch(undefined),
+}).catch({});
+export const logGuestGitFailure = (operation: 'install' | 'update' | 'check', value: z.infer<typeof guestGitFailureSchema>) => {
+  console.warn('[guests] git ' + operation + ' preparation failed:', value.code ?? 'UNKNOWN', value.syscall ?? '', value.message ?? '');
 };
 
 const STDERR_TAIL_BYTES = 4096;

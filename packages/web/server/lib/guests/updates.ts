@@ -7,7 +7,7 @@ import { requestedGuestCapabilities } from '@openchamber/sdk';
 
 import { inspectGuestPackage, invalidateGuestCatalog, listInstalledGuests } from './catalog.js';
 import { enterpriseBlockedCapabilities } from './enterprise.js';
-import { cloneGitRepository, logGuestGitFailure, prepareGuestGitNetwork, runGit, runGitNetwork } from './clone.js';
+import { cloneGitRepository, guestGitFailureSchema, logGuestGitFailure, prepareGuestGitNetwork, runGit, runGitNetwork } from './clone.js';
 import { unwrapGuestRoot } from './extract-zip.js';
 import { guestCopiesDir, isCopiedGuestRoot } from './persist.js';
 import { stopGuestService } from './service.js';
@@ -127,11 +127,9 @@ const runGuestUpdateCheck = async ({ guest, origin, gitBinary, timeoutMs = CHECK
     if (!fetched.ok) return null;
     return runGit(['show', 'FETCH_HEAD:package.json'], { gitBinary, cwd, timeoutMs, capture: true });
   };
-  // Root packages are deliberately inaccessible to the Git executor.
-  // Fetch into a fresh bare scratch repository; never mutate installed code.
   const shown = process.getuid?.() === 0
-    ? await withRootGuestGitScratch((scratch) => readRemoteManifest(scratch, origin.url, true)).catch((error: unknown) => {
-        logGuestGitFailure('check', error);
+    ? await withRootGuestGitScratch((scratch) => readRemoteManifest(scratch, origin.url, true)).catch((error) => {
+        logGuestGitFailure('check', guestGitFailureSchema.parse(error));
         return null;
       })
     : await readRemoteManifest(guest.packageRoot, 'origin', false);
@@ -260,7 +258,7 @@ export const updateGuest = async ({ guest, origin, persistPath, openchamberVersi
       return { ok: false, code: 'enterprise-mode' };
     }
   } catch (error) {
-    logGuestGitFailure('update', error);
+    logGuestGitFailure('update', guestGitFailureSchema.parse(error));
     await removeDir(staging);
     return { ok: false, code: 'clone-failed' };
   }
