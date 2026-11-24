@@ -12,8 +12,6 @@ export const linearIssuePickerI18n = {
   },
   ru: {
     'chat.chatInput.actions.linkTrackerItem': 'Привязать задачу {provider}',
-    'chat.chatInput.linked.trackerItem.openInBrowserAria': 'Открыть задачу в {provider}',
-    'chat.chatInput.linked.trackerItem.removeAria': 'Удалить привязанную задачу {provider}',
     'chat.workStatus.linkedIssues.openTrackerItem': 'Открыть {identifier} в {provider}',
     'session.newWorktree.actions.startFromTrackerItem': 'Задача {provider}',
   },

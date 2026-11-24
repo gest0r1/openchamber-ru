@@ -354,8 +354,6 @@ export const routingI18n = {
     'settings.classification.card.notSetUp': 'Не настроено',
     'settings.classification.card.off': 'Выкл.',
     'settings.classification.card.usedFor': 'Используется в разных процессах',
-    'settings.classification.jev.title': 'Jev от TypeSafe',
-    'settings.classification.jev.info': 'Модель принятия решений TypeSafe. OpenChamber задаёт ей короткие вопросы о ваших запросах и действиях агента.',
     'settings.classification.status.none': 'Сейчас нельзя использовать ни одного провайдера классификации, поэтому защитный режим и «Авто» скрыты.',
     'settings.classification.status.enterprise': 'Этот сервер работает в корпоративном режиме: Jev отключён, чтобы беседы передавались только провайдерам из конфигурации OpenCode. Возможности, которым нужен Jev, скрыты.',
     'settings.classification.status.enterprisePinned': 'Этот сервер работает в корпоративном режиме: Jev может использовать endpoint вашей организации ниже или оставаться выключенным.',

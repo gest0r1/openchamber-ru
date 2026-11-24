@@ -573,8 +573,8 @@ export const SHARE_DOCUMENT_MESSAGES = {
     "sessions.scheduledTasks.editor.date.today": "Сегодня",
     "sessions.scheduledTasks.editor.time.hourAria": "Часы",
     "sessions.scheduledTasks.editor.time.minuteAria": "Минуты",
-    "sessions.scheduledTasks.editor.time.period.am": "AM",
-    "sessions.scheduledTasks.editor.time.period.pm": "PM",
+    "sessions.scheduledTasks.editor.time.period.am": "ДП",
+    "sessions.scheduledTasks.editor.time.period.pm": "ПП",
     "sessions.scheduledTasks.editor.time.periodAria": "Период",
     "sortableTabsStrip.aria.tabs": "Вкладки",
     "textarea.resizeHandleAria": "Изменить размер текстового поля"
