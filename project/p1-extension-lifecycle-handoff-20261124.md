@@ -8,3 +8,6 @@ Code checkpoint a8ea579: isolated update check, clone diagnostics, no hardlinks,
 PRs: openchamber-ru #33, my-opencode #84. Local Git reproduction showed a root-owned local fixture remote triggers dubious ownership when cloned by nobody; corrected fixture to create its Git history under the real unprivileged UID instead of weakening safe.directory. Await exact head CI.
 
 CI cycle 1 (11aedce): restricted-capability guest-git-boundary PASS including lifecycle regression (45438356252 / 138602452403). Lint FAIL on new comments and unknown/type assertions (job 138602452341); moved design notes to DOCUMENTATION, schema-parse sanitized diagnostic errors at catch boundaries. Recheck all exact-head CI. No merge/VPS changes.
+
+
+2026-11-24 checkpoint: exact PR heads/base verified. OpenChamber 4020ee5370a37f7f69785c276246e174e808a4ff run 45438681996 all five jobs PASS; merged #33 with expected head, merge SHA 546c8ad1a061fe2d08dda62f4fedd24a5a35d6b1. Companion #84 head 289246a3d2630ad5db6286f951f7cc5c891923b2 base 16f0ffb0e886af82e80459dfc75fce677ba9aa8f runs 45438265824 and 45438265840 all jobs PASS; remains open until app package verified. Next: verify push-main Linux web package and immutable release v2-web-package-546c8ad1a061fe2d08dda62f4fedd24a5a35d6b1, then merge companion and verify exact main CI. No VPS deployment.
