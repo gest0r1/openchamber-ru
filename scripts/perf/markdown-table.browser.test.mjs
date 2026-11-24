@@ -32,8 +32,8 @@ test('chat Markdown tables expand into spare transcript width and show hidden-ed
     import { dict } from '@/lib/i18n/messages/en';
     import '@/index.css';
 
-    const headings = Array.from({ length: 12 }, (_, i) => 'Descriptive column ' + (i + 1));
-    const values = Array.from({ length: 12 }, (_, i) => 'Entry ' + (i + 1) + ' in the table');
+    const headings = Array.from({ length: 20 }, (_, i) => 'Descriptive column ' + (i + 1));
+    const values = Array.from({ length: 20 }, (_, i) => 'Entry ' + (i + 1) + ' in the table');
     const makeNode = () => ({ type: 'element', tagName: 'table', properties: {}, children: [] });
     const nodes = [makeNode(), makeNode(), makeNode(), makeNode(), makeNode()];
     const i18n = { locale: 'en', direction: 'ltr', locales: ['en'], setLocale() {}, label: x => x, t: key => dict[key] ?? key };
@@ -47,7 +47,7 @@ test('chat Markdown tables expand into spare transcript width and show hidden-ed
       </MarkdownTable>;
     }
 
-    function renderFixture(dir = 'ltr', width = 1150, tableDir = undefined) {
+    function renderFixture(dir = 'ltr', width = 1700, tableDir = undefined) {
       root.render(
         <I18nContext.Provider value={i18n}>
           <MarkdownPresentationContext.Provider value={presentation}>
@@ -95,7 +95,7 @@ test('chat Markdown tables expand into spare transcript width and show hidden-ed
     await client.connect();
     await client.send('Page.enable');
     await client.send('Page.bringToFront');
-    await client.send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false });
+    await client.send('Emulation.setDeviceMetricsOverride', { width: 1920, height: 900, deviceScaleFactor: 1, mobile: false });
     await client.send('Page.navigate', { url: server.resolvedUrls.local[0] });
 
     const evaluate = async (expression) => {
@@ -138,7 +138,7 @@ test('chat Markdown tables expand into spare transcript width and show hidden-ed
         listTable: bounds(document.querySelector('#list-item [data-streamdown="table-wrapper"]')),
         disclosure: bounds(document.querySelector('#disclosure')),
         disclosureTable: bounds(document.querySelector('#disclosure [data-streamdown="table-wrapper"]')),
-        fadeEnd: getComputedStyle(overlay, '::after').content,
+        fadeEnd: overlay ? getComputedStyle(overlay, '::after').content : null,
       };
     })()`);
 
@@ -156,7 +156,7 @@ test('chat Markdown tables expand into spare transcript width and show hidden-ed
       }
       if (!mounted) await wait(200);
     }
-    assert.ok(mounted, 'wide table never mounted with its expansion control');
+    assert.ok(mounted, 'wide table never mounted with its expansion control: ' + JSON.stringify(await metrics()));
     await settle();
 
     const collapsed = await metrics();
@@ -219,7 +219,7 @@ test('chat Markdown tables expand into spare transcript width and show hidden-ed
       scroller.scrollLeft = ${to === 'end' ? '-scroller.scrollWidth' : '0'};
     })()`);
     for (const chatDir of ['ltr', 'rtl']) {
-      await evaluate(`window.renderFixture(${JSON.stringify(chatDir)}, 1150, 'rtl')`);
+      await evaluate(`window.renderFixture(${JSON.stringify(chatDir)}, 1700, 'rtl')`);
       await settle();
       const rtlTable = await metrics();
       assert.equal(rtlTable.toggle, true, JSON.stringify(rtlTable));
