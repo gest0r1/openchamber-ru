@@ -37,7 +37,9 @@ function runtimeInput(path) {
   return false;
 }
 
-const raw = execFileSync('git', ['ls-tree', '-r', '-z', ref], { encoding: 'utf8' });
+// Large upstream trees exceed child_process's default 1 MiB stdout buffer.
+// Raise only the read ceiling; git output and the fingerprint algorithm remain unchanged.
+const raw = execFileSync('git', ['ls-tree', '-r', '-z', ref], { encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 });
 const entries = raw
   .split('\0')
   .filter(Boolean)
