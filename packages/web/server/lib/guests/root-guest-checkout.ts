@@ -121,13 +121,8 @@ const checkedUid = () => {
 
 type PrepareResult = { ok: true; root?: string } | { ok: false; code: string };
 
-export async function prepareGuestGitCheckout(
-  destination: string,
-  prepare: (checkout: string) => Promise<PrepareResult>,
-): Promise<PrepareResult> {
-  if (process.getuid?.() !== 0) {
-    return prepare(destination);
-  }
+// Reuse the same isolated execution-owned scratch for clone and update checks.
+export async function withRootGuestGitScratch<T>(work: (scratch: string) => Promise<T>): Promise<T> {
   const { uid, gid } = checkedUid();
   await safeDir(BASE, 0o755);
   await safeDir(CHECKOUTS, 0o711);
@@ -135,6 +130,18 @@ export async function prepareGuestGitCheckout(
   await fs.mkdir(scratch, { mode: 0o700 });
   try {
     await fs.chown(scratch, uid, gid);
+    return await work(scratch);
+  } finally {
+    await fs.rm(scratch, { recursive: true, force: true }).catch(() => {});
+  }
+}
+
+export async function prepareGuestGitCheckout(
+  destination: string,
+  prepare: (checkout: string) => Promise<PrepareResult>,
+): Promise<PrepareResult> {
+  if (process.getuid?.() !== 0) return prepare(destination);
+  return withRootGuestGitScratch(async (scratch) => {
     const checkout = path.join(scratch, 'source');
     const result = await prepare(checkout);
     if (!result.ok) return result;
@@ -144,7 +151,5 @@ export async function prepareGuestGitCheckout(
     }
     await secureSnapshot(root, destination);
     return { ok: true, root: destination };
-  } finally {
-    await fs.rm(scratch, { recursive: true, force: true }).catch(() => {});
-  }
+  });
 }

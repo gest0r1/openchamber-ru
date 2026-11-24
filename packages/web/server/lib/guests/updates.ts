@@ -7,12 +7,12 @@ import { requestedGuestCapabilities } from '@openchamber/sdk';
 
 import { inspectGuestPackage, invalidateGuestCatalog, listInstalledGuests } from './catalog.js';
 import { enterpriseBlockedCapabilities } from './enterprise.js';
-import { cloneGitRepository, prepareGuestGitNetwork, runGit, runGitNetwork } from './clone.js';
+import { cloneGitRepository, logGuestGitFailure, prepareGuestGitNetwork, runGit, runGitNetwork } from './clone.js';
 import { unwrapGuestRoot } from './extract-zip.js';
 import { guestCopiesDir, isCopiedGuestRoot } from './persist.js';
 import { stopGuestService } from './service.js';
 import { preserveServerBrowserConfig } from './server-browser-config.js';
-import { prepareGuestGitCheckout } from './root-guest-checkout.js';
+import { prepareGuestGitCheckout, withRootGuestGitScratch } from './root-guest-checkout.js';
 import type { AddressLookup } from './clone.js';
 import type { GitOrigin } from './persist.js';
 import type { GuestRecord } from './contracts.js';
@@ -109,20 +109,33 @@ const runGuestUpdateCheck = async ({ guest, origin, gitBinary, timeoutMs = CHECK
   if (!guest.version) {
     return { available: false, error: 'invalid-manifest' };
   }
-  const cwd = guest.packageRoot;
   const network = await prepareGuestGitNetwork(origin.url, { gitIdentityId: origin.gitIdentityId, lookup }).catch(() => null);
   if (!network) {
     return { available: false, error: 'fetch-failed' };
   }
-  await removeStaleShallowLock(cwd);
-  const fetched = await runGitNetwork(
-    [...network.args, 'fetch', '--depth', '1', '--', 'origin', origin.ref ?? 'HEAD'],
-    { gitBinary, cwd, timeoutMs, env: network.env },
-  );
-  if (!fetched.ok) {
-    return { available: false, error: 'fetch-failed' };
-  }
-  const shown = await runGit(['show', 'FETCH_HEAD:package.json'], { gitBinary, cwd, timeoutMs, capture: true });
+  const readRemoteManifest = async (cwd: string, remote: string, initialize: boolean) => {
+    if (initialize) {
+      const init = await runGit(['init', '--bare', '--template='], { gitBinary, cwd, timeoutMs });
+      if (!init.ok) return null;
+    } else {
+      await removeStaleShallowLock(cwd);
+    }
+    const fetched = await runGitNetwork(
+      [...network.args, 'fetch', '--depth', '1', '--', remote, origin.ref ?? 'HEAD'],
+      { gitBinary, cwd, timeoutMs, env: network.env },
+    );
+    if (!fetched.ok) return null;
+    return runGit(['show', 'FETCH_HEAD:package.json'], { gitBinary, cwd, timeoutMs, capture: true });
+  };
+  // Root packages are deliberately inaccessible to the Git executor.
+  // Fetch into a fresh bare scratch repository; never mutate installed code.
+  const shown = process.getuid?.() === 0
+    ? await withRootGuestGitScratch((scratch) => readRemoteManifest(scratch, origin.url, true)).catch((error: unknown) => {
+        logGuestGitFailure('check', error);
+        return null;
+      })
+    : await readRemoteManifest(guest.packageRoot, 'origin', false);
+  if (!shown) return { available: false, error: 'fetch-failed' };
   if (!shown.ok) {
     return { available: false, error: 'invalid-manifest' };
   }
@@ -246,7 +259,8 @@ export const updateGuest = async ({ guest, origin, persistPath, openchamberVersi
       await removeDir(staging);
       return { ok: false, code: 'enterprise-mode' };
     }
-  } catch {
+  } catch (error) {
+    logGuestGitFailure('update', error);
     await removeDir(staging);
     return { ok: false, code: 'clone-failed' };
   }

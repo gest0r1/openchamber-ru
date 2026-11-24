@@ -102,10 +102,10 @@ const copyGuestData = async (source: string, destination: string, uid: number, g
       if (st.isSymbolicLink()) throw new Error('ROOT_GUEST_DATA_SYMLINK');
       if (st.isDirectory()) {
         for (const child of await fs.readdir(name)) await changeOwner(path.join(name, child));
-        await fs.chown(name, uid, gid); await fs.chmod(name, 0o700);
+        await fs.chmod(name, 0o700); await fs.chown(name, uid, gid);
       } else {
         if (!st.isFile()) throw new Error('ROOT_GUEST_DATA_SPECIAL_FILE');
-        await fs.chown(name, uid, gid); await fs.chmod(name, 0o600);
+        await fs.chmod(name, 0o600); await fs.chown(name, uid, gid);
       }
     };
     await changeOwner(stage);

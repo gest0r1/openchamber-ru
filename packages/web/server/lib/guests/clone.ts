@@ -150,6 +150,16 @@ export const parseGitInstallUrl = (value: string) => {
   return ref ? { url, ref } : { url };
 };
 
+// Log actionable failure categories without dumping credentials or arbitrary
+// exception text from remote packages.
+export const logGuestGitFailure = (operation: 'install' | 'update' | 'check', error: unknown) => {
+  const value = error as NodeJS.ErrnoException | undefined;
+  const code = typeof value?.code === 'string' && /^[A-Z0-9_]+$/.test(value.code) ? value.code : 'UNKNOWN';
+  const syscall = typeof value?.syscall === 'string' && /^[a-zA-Z0-9_]+$/.test(value.syscall) ? value.syscall : '';
+  const reason = typeof value?.message === 'string' && /^ROOT_GIT_CHECKOUT_[A-Z_]+$/.test(value.message) ? value.message : '';
+  console.warn('[guests] git ' + operation + ' preparation failed:', code, syscall, reason);
+};
+
 const STDERR_TAIL_BYTES = 4096;
 const KILL_GRACE_MS = 3_000;
 
@@ -280,7 +290,7 @@ export const cloneGitRepository = async (source: string, dest: string, { gitBina
   if (!network) {
     return { ok: false, code: 'clone-failed' };
   }
-  const args = [...network.args, 'clone', '--depth', '1'];
+  const args = [...network.args, 'clone', '--depth', '1', '--no-hardlinks'];
   if (ref) {
     args.push('--branch', ref);
   }
