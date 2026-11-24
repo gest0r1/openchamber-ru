@@ -9,24 +9,27 @@ import { checkGuestUpdate, updateGuest } from './updates.js';
 import { prepareRootGuestService, removeRootGuestServiceData } from './root-service-runtime.js';
 
 const required = process.env.P1_ROOT_EXTENSION_ACCEPTANCE === '1';
-const git = (cwd, args) => {
-  const r = spawnSync('git', args, { cwd, encoding: 'utf8' });
+const git = (cwd, args, uid, gid) => {
+  const r = spawnSync('git', args, { cwd, uid, gid, encoding: 'utf8', env: { PATH: process.env.PATH || '/usr/bin:/bin', HOME: '/tmp', GIT_TERMINAL_PROMPT: '0' } });
   if (r.status !== 0) throw Error(r.stderr || 'git failed');
 };
-const makeRemote = async (dir, id) => {
+const makeRemote = async (dir, id, uid, gid) => {
   const repo = path.join(dir, id);
   await fs.mkdir(repo, { mode: 0o755 });
+  await fs.chown(repo, uid, gid);
   await fs.writeFile(path.join(repo, 'index.html'), '<html></html>');
+  await fs.chown(path.join(repo, 'index.html'), uid, gid);
   const writeVersion = async (version) => {
     await fs.writeFile(path.join(repo, 'package.json'), JSON.stringify({
       name: '@openchamber/' + id, version, openchamber: {
         apiVersion: 1, contributes: { panel: { id, name: id, icon: 'window', entry: 'index.html' } },
       },
     }));
-    git(repo, ['add', '.']);
-    git(repo, ['-c', 'user.name=fixture', '-c', 'user.email=fixture@example.invalid', 'commit', '-qm', version]);
+    await fs.chown(path.join(repo, 'package.json'), uid, gid);
+    git(repo, ['add', '.'], uid, gid);
+    git(repo, ['-c', 'user.name=fixture', '-c', 'user.email=fixture@example.invalid', 'commit', '-qm', version], uid, gid);
   };
-  git(repo, ['init', '-q', '--template=', '-b', 'main']);
+  git(repo, ['init', '-q', '--template=', '-b', 'main'], uid, gid);
   await writeVersion('1.0.0');
   return { repo, writeVersion };
 };
@@ -59,8 +62,8 @@ describe.skipIf(!required)('P1 extension lifecycle under real service capabiliti
     await fs.writeFile(gitBinary, '#!/bin/sh\nexec /usr/bin/setpriv --reuid=' + uid + ' --regid=' + gid +
       ' --clear-groups --inh-caps=-all --ambient-caps=-all --no-new-privs /usr/bin/git "$@"\n', { mode: 0o755 });
     try {
-      const first = await makeRemote(dir, 'p1-first');
-      const second = await makeRemote(dir, 'server-browser');
+      const first = await makeRemote(dir, 'p1-first', uid, gid);
+      const second = await makeRemote(dir, 'server-browser', uid, gid);
       const opts = { gitBinary, openchamberVersion: '2.8.0' };
       expect(await installGuestFromGitSource(first.repo, persistPath, opts)).toMatchObject({ ok: true });
       const firstGuest = await findInstalledGuest('p1-first', persistPath);
