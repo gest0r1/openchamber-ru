@@ -108,15 +108,6 @@ test('chat Markdown tables expand into spare transcript width and show hidden-ed
       const tick = () => ++frames >= 5 ? resolve(true) : requestAnimationFrame(tick);
       requestAnimationFrame(tick);
     })`);
-    const waitReady = () => evaluate(`new Promise((resolve, reject) => {
-      const deadline = performance.now() + 20000;
-      const poll = () => {
-        if (window.renderFixture) resolve(true);
-        else if (performance.now() > deadline) reject(new Error('Fixture not ready'));
-        else requestAnimationFrame(poll);
-      };
-      poll();
-    })`);
     const metrics = () => evaluate(`(() => {
       const table = document.querySelector('#main [data-streamdown="table-wrapper"]');
       const other = document.querySelector('#sibling [data-streamdown="table-wrapper"]');
@@ -151,14 +142,21 @@ test('chat Markdown tables expand into spare transcript width and show hidden-ed
       };
     })()`);
 
-    // A first Vite dependency scan can reload the page. Retry the fixture after it settles.
-    for (let attempt = 0; attempt < 4; attempt += 1) {
-      await waitReady();
-      await evaluate('window.renderFixture()');
-      await wait(1200);
-      if (await evaluate('Boolean(document.querySelector("#main [data-table-width-toggle]"))')) break;
-      assert.notEqual(attempt, 3, 'wide table never mounted with its expansion control');
+    const deadline = Date.now() + 45_000;
+    let mounted = false;
+    while (Date.now() < deadline && !mounted) {
+      try {
+        if (await evaluate('typeof window.renderFixture === "function"')) {
+          await evaluate('window.renderFixture()');
+          await settle();
+          mounted = await evaluate('Boolean(document.querySelector("#main [data-table-width-toggle]"))');
+        }
+      } catch (error) {
+        if (!/navigated|destroyed/i.test(String(error?.message))) throw error;
+      }
+      if (!mounted) await wait(200);
     }
+    assert.ok(mounted, 'wide table never mounted with its expansion control');
     await settle();
 
     const collapsed = await metrics();

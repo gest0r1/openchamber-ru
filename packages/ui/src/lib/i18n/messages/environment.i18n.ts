@@ -605,5 +605,7 @@ export const environmentI18n = {
     'settings.projects.environment.status.spawn': 'Команду не удалось запустить.',
     'settings.projects.environment.status.outputTooLarge': 'Последний запуск вывел слишком много и был остановлен. Ничего из него не применено.',
     'settings.projects.environment.status.failed': 'Последний запуск не удался. Ничего из него не применено.',
+    'settings.environment.secrets.label': 'Сохранённые секреты',
+    'settings.environment.secrets.info': 'Сохранены из карточки секрета агента. Их получат только команды, которые вы подтвердите в этой карточке.',
   },
 } as const;

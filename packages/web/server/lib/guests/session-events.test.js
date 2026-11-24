@@ -214,8 +214,10 @@ describe('turn-finished', () => {
 
   test('unavailable child activity cannot claim a successful terminal turn', async () => {
     // An OpenCode read error is unknown, not evidence that every child has stopped.
-    for (const failedPath of ['/api/session/active', '/api/session']) {
+    for (const failedPath of ['/api/session/active', '/api/session/ses_child']) {
       const h = harness({
+        active: { ses_child: { type: 'busy' } },
+        sessions: { ses_child: { id: 'ses_child', parentID: 'ses_1' } },
         beforeFetch: async (url) => {
           if (new URL(url).pathname === failedPath) throw new Error('OpenCode read failed');
         },
