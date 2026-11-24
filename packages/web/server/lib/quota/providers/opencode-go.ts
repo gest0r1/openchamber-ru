@@ -232,11 +232,10 @@ export const fetchConsoleGoUsage = async ({ access, orgID, expires }: ConsoleGoC
     throw new Error('OpenCode Console sign-in expired. Sign in again in Providers.');
   }
   if (!response.ok) throw new Error(`OpenCode Console Go status API returned HTTP ${response.status}`);
-  const payload = await response.json().catch(() => null);
-  if (!asObject(payload)) throw new Error('OpenCode Console Go status returned an unreadable response');
-  // A subscription that ended (refunded, cancelled) keeps the Go product in the
-  // status and drops `access`; that is an absent subscription, not a bad body.
-  if (!CONSOLE_PRODUCTS.has(payload.product) || !asObject(payload.access)) {
+  const payload = asPayload(await response.json().catch(() => null));
+  if (!payload) throw new Error('OpenCode Console Go status returned an unreadable response');
+  const product = payload.product;
+  if (!isString(product) || !CONSOLE_PRODUCTS.has(product) || !asObject(payload.access)) {
     throw new Error(NO_CONSOLE_SUBSCRIPTION);
   }
   const windows = parseConsoleGoUsage(payload);

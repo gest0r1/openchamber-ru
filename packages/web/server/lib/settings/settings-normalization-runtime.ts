@@ -105,12 +105,8 @@ export const createSettingsNormalizationRuntime = (dependencies: SettingsNormali
     return value.startsWith('/') ? 1 : 0;
   };
 
-  // `listings` (directory -> entries, or null when unreadable) lets one pass over
-  // many paths read each shared ancestor once: projects mostly sit under the
-  // same few folders, and reading each of them again per project was 71 × 6
-  // synchronous readdirs per settings read on a 71-project workspace (#6084).
-  const canonicalizePathCase = (value, listings) => {
-    if (!readdirSync || typeof value !== 'string' || !value) return value;
+  const canonicalizePathCase = (value: string, listings?: DirectoryListings) => {
+    if (!readdirSync || !value) return value;
     if (!CASE_INSENSITIVE_PLATFORMS.has(processLike?.platform)) return value;
 
     let result = value;
@@ -131,8 +127,8 @@ export const createSettingsNormalizationRuntime = (dependencies: SettingsNormali
           }
           listings?.set(current, entries);
         }
-        if (!entries) return value; // cannot read this level (missing/permission) — keep original
-        let next = segment;
+        if (!entries) return value;
+        let next: string | undefined = segment;
         if (!entries.includes(segment)) {
           next = entries.find((entry) => entry.toLowerCase() === segment.toLowerCase());
           if (!next) return value;
@@ -146,12 +142,8 @@ export const createSettingsNormalizationRuntime = (dependencies: SettingsNormali
     return result;
   };
 
-  // Resolve symlinks and canonical case. A path realpath cannot resolve
-  // (missing, no permission) is kept exactly as stored: recovering its case
-  // could land on a different, existing sibling such as /volume/Foo for a
-  // missing /volume/foo.
-  const safeRealpathSync = (value, listings) => {
-    if (typeof value !== 'string' || !value) {
+  const safeRealpathSync = (value: string, listings?: DirectoryListings) => {
+    if (!value) {
       return value;
     }
     if (!realpathSync) {
@@ -242,14 +234,14 @@ export const createSettingsNormalizationRuntime = (dependencies: SettingsNormali
     const result: SettingsProject[] = [];
     const seenIds = new Set();
     const seenPaths = new Set();
-    const listings = new Map();
+    const listings: DirectoryListings = new Map();
 
     for (const entry of input) {
       if (!hasFields(entry)) continue;
 
       const candidate = entry;
-      const id = typeof candidate.id === 'string' ? candidate.id.trim() : '';
-      const rawPath = typeof candidate.path === 'string' ? candidate.path.trim() : '';
+      const id = isString(candidate.id) ? candidate.id.trim() : '';
+      const rawPath = isString(candidate.path) ? candidate.path.trim() : '';
       const resolvedPath = rawPath ? safeRealpathSync(path.resolve(normalizeDirectoryPath(rawPath)), listings) : '';
       const normalizedPath = resolvedPath ? normalizePathForPersistence(resolvedPath, { resolveRealpath: false }) : '';
       const label = isString(candidate.label) ? candidate.label.trim() : '';

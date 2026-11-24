@@ -59,6 +59,7 @@ import {
 import { ascendingId } from "./ids"
 import { runningShellFromWire, shellCancellationNote, type RunningShell, type ShellToStop } from "./background-shell"
 import { runningImageJobFromWire, type RunningImageJob } from "./background-image"
+import { writeTempFiles, type TempFileResult, type TempFileSource } from "./temp-files"
 import { subagentCancellationNote } from "./subagent-run"
 import { toJsonRecord } from "./json"
 import { withZenName } from "./providerDisplayName"
@@ -83,7 +84,6 @@ const CONFIG_CACHE_TTL_MS = 10_000
 const OPENCODE_HEALTH_TIMEOUT_MS = 4_000
 const DEFAULT_SESSION_PAGE_LIMIT = 100
 const SHELL_OUTPUT_TAIL_BYTES = 64 * 1024
-/** Reads that open their folder in OpenCode; matched at the end for a base path. */
 const OPENS_LOCATION = /\/api\/(?:agent|provider|config)$/
 
 
@@ -271,11 +271,7 @@ const createTimeoutSignal = (timeoutMs: number): { signal: AbortSignal; cleanup:
 // external: #2470 Half-open reads can hold bootstrap slots indefinitely; non-streaming reads have a deadline.
 const OPENCODE_REQUEST_TIMEOUT_MS = 30_000
 
-/**
- * Usage stats aggregate every step in the range on the server, and on a large
- * history a 30-day range takes minutes (#6366). They get the server proxy's
- * default deadline instead, so the slow answer still arrives.
- */
+// external: #6366 Usage aggregation can take minutes on large histories and uses the proxy deadline.
 const OPENCODE_STATS_REQUEST_TIMEOUT_MS = 4 * 60_000
 
 const isEventStreamUrl = (url: URL): boolean => url.pathname.endsWith("/event") || url.pathname.endsWith("/log")
@@ -290,14 +286,12 @@ const toOpenCodeDirectory = (directory: string): string =>
 type RuntimeOpencodeClientConfig = {
   baseUrl: string
   directory?: string
-  /** Read-request timeout in ms, except usage stats, which keep their own deadline. Overridable so tests can use short value. */
   requestTimeoutMs?: number
 }
 
 // external: https://github.com/anomalyco/opencode/tree/v2.3.0/packages/client The generated client appends /api routes to the base path, so it receives the mount parent.
 const PART_SHELLS_CAPABILITY = "api.message-part-shells.v1"
 const serverCapabilitiesSchema = z.object({ compatibility: z.object({ capabilities: z.array(z.string()) }) })
-/** How long after a capability check starts message pages wait for its answer. */
 const PART_SHELLS_CHECK_WAIT_MS = 5_000
 
 const toOpencodeClientRoot = (baseUrl: string): string => baseUrl.replace(/\/api\/*$/, "") || "/"
@@ -376,9 +370,6 @@ export const createRuntimeOpencodeClient = (config: RuntimeOpencodeClientConfig)
     fetch: async (input: string | URL | Request, init?: RequestInit) => {
       const retryInput = input instanceof Request ? input.clone() : input
       const response = await send(input, init)
-      // These reads open the folder in OpenCode, which the server allows only
-      // once it is trusted, so an answer lifts a pause, also one ended by trust
-      // saved in another window. Session lists pass for a paused folder too.
       if (response.ok && config.directory && OPENS_LOCATION.test(requestUrlOf(input).pathname)) {
         clearOpenCodeTrustPause(config.directory)
       }
@@ -888,11 +879,6 @@ class OpencodeService {
     return readDirectoryAvailability(normalized)
   }
 
-  /**
-   * Where each directory really is once links are followed, from the same
-   * `/api/fs/directory-stats` probe. A path the server could not resolve, and
-   * every path on a runtime without the route (VS Code), is left out of the map.
-   */
   async getDirectoryRealPaths(paths: string[]): Promise<Map<string, string>> {
     const realPaths = new Map<string, string>()
     const chunks: string[][] = []
@@ -917,13 +903,6 @@ class OpencodeService {
     return realPaths
   }
 
-  /**
-   * Whether OpenCode itself can no longer work in a folder. The stat above runs
-   * on OpenChamber's machine, which is not OpenCode's when `OPENCODE_HOST` names
-   * another one, so only OpenCode's refusal makes a folder missing. The stat
-   * comes first: a folder that is there never takes this read, and the refused
-   * read starts nothing.
-   */
   async getLocationAvailability(directory: string): Promise<DirectoryAvailability> {
     const stat = await this.getDirectoryAvailability(directory)
     if (stat !== "missing") return stat
@@ -985,12 +964,7 @@ class OpencodeService {
     return projectSession(info)
   }
 
-  /**
-   * Reads the session from OpenCode's unscoped client. A moved session can
-   * still have a stale copy in the directory the app currently has selected;
-   * the scoped read would return that copy. Use this when the session's real
-   * directory is what is being resolved.
-   */
+  // external: https://github.com/anomalyco/opencode/tree/v2.3.0/packages/core/src/session A moved session can retain a stale directory-scoped copy; resolving its directory needs an unscoped read.
   async getSessionUnscoped(id: string): Promise<Session> {
     const info = await call("session.get", () => this.client.session.get({ sessionID: id }))
     return projectSession(info)
@@ -1049,8 +1023,6 @@ class OpencodeService {
     if (options?.partShells) {
       const isCurrent = captureRuntimeInstance()
       shelled = await this.serverShellsMessagePages()
-      // The page belongs to the runtime it was asked on; another runtime
-      // would get this runtime's session and its capability answer.
       if (!isCurrent()) throw new Error("Runtime instance changed")
     }
     let response: Awaited<ReturnType<typeof list>>
@@ -1086,18 +1058,6 @@ class OpencodeService {
     })
   }
 
-  /**
-   * Whether the connected server honours `PART_SHELLS_HEADER`. An older server
-   * on another origin would refuse the unknown header at CORS preflight and
-   * fail the whole page, so the header is sent only to a server that lists the
-   * capability. The answer is learned once per runtime. A page asked before it
-   * arrives waits for it: a restored session's first page is asked during the
-   * first render, before any answer, and a whole page carries every finished
-   * result in full. The wait ends at most `PART_SHELLS_CHECK_WAIT_MS` after
-   * the check started, once for all pages, so a hung check costs one delay and
-   * later pages go out whole until it answers.
-   */
-  /** Starts learning whether this runtime's server shells message pages, so the first session opened can use it. */
   learnMessagePageShellsSupport(): void {
     const runtimeKey = getRuntimeKey()
     if (!this.partShellsSupport.has(runtimeKey)) void this.checkPartShellsSupport(runtimeKey)
@@ -1111,7 +1071,6 @@ class OpencodeService {
     return this.partShellsSupport.get(runtimeKey) ?? false
   }
 
-  /** Settles when the runtime's check answers, fails, or has run for `PART_SHELLS_CHECK_WAIT_MS`. */
   private checkPartShellsSupport(runtimeKey: string): Promise<void> {
     const pending = this.partShellsChecks.get(runtimeKey)
     if (pending) return pending
@@ -1121,7 +1080,6 @@ class OpencodeService {
         const parsed = serverCapabilitiesSchema.safeParse(response.ok ? await response.json().catch(() => null) : null)
         this.partShellsSupport.set(runtimeKey, parsed.success && parsed.data.compatibility.capabilities.includes(PART_SHELLS_CAPABILITY))
       })
-      // Unreachable is not an answer; the next page asks again.
       .catch(() => undefined)
       .finally(() => {
         clearTimeout(timer)
@@ -1260,17 +1218,6 @@ class OpencodeService {
     return { uri: normalized.url, name: normalized.filename }
   }
 
-  /**
-   * Puts a session on the requested model/agent before a prompt. v2 selects
-   * both per session, not per prompt; the choice persists until switched.
-   *
-   * OpenCode records an agent the session's folder does not have and fails
-   * only the next turn, so the agent is checked first: a missing one stops the
-   * send before anything, the model included, is switched. A form reply goes
-   * through here too, because its continuation is a turn. The runtime is checked
-   * once more after the last switch, so a caller never acts on a server it did
-   * not start with.
-   */
   async applySendSelection(
     sessionID: string,
     selection: { model?: ModelSelection; agent?: string },
@@ -1320,11 +1267,6 @@ class OpencodeService {
     directory?: string | null
     skills?: SkillMentions
     beforeSend?: () => void
-    /**
-     * Commits the session's staged revert. Runs once, before the first
-     * synthetic message: one admitted while the revert is staged lies past its
-     * boundary, and the commit the prompt makes deletes it.
-     */
     commitRevert?: () => Promise<void>
   }): Promise<string> {
     this.assertRuntimeUnchanged(params.runtimeKey)
@@ -1423,7 +1365,6 @@ class OpencodeService {
     delivery?: SessionInboxDelivery
     directory?: string | null
     beforeSend?: () => void
-    /** As `sendMessage`'s: commits the staged revert before the context is admitted. */
     commitRevert?: () => Promise<void>
   }): Promise<void> {
     this.assertRuntimeUnchanged(params.runtimeKey)
@@ -1490,7 +1431,6 @@ class OpencodeService {
     )
   }
 
-  /** Adds a note to the agent's context that does not wake it. */
   async addSessionNote(params: {
     runtimeKey: string
     sessionId: string
@@ -1509,7 +1449,6 @@ class OpencodeService {
     )
   }
 
-  /** Runs a shell command inside the session transcript. Returns the shell message id. */
   async shellSession(params: {
     runtimeKey?: string
     sessionId: string
@@ -1539,12 +1478,10 @@ class OpencodeService {
     await call("session.revert.clear", () => this.clientFor(directory).session.revert.clear({ sessionID: sessionId }))
   }
 
-  /** Commits a staged revert: OpenCode deletes the boundary message and everything after it. */
   async commitRevert(sessionId: string, directory?: string | null): Promise<void> {
     await call("session.revert.commit", () => this.clientFor(directory).session.revert.commit({ sessionID: sessionId }))
   }
 
-  /** Compacts the transcript; the result arrives as a compaction message through events. */
   async compactSession(sessionId: string, directory?: string | null): Promise<void> {
     await call("session.compact", () => this.clientFor(directory).session.compact({ sessionID: sessionId }))
   }
@@ -1696,16 +1633,6 @@ class OpencodeService {
   }
 
 
-  /**
-   * Commands still running in the directory on behalf of a session, keyed by
-   * the directory OpenCode resolved it to (symlinks resolved), which is the
-   * directory its shell events carry. Throws on fetch failure.
-   */
-  /**
-   * Images OpenCode is generating in the background, for every session. The
-   * job list (OpenCode 2.2.6+) is global, so it names no directory. Null when
-   * this OpenCode has no job list. Throws on fetch failure.
-   */
   async listRunningImageJobs(): Promise<RunningImageJob[] | null> {
     try {
       const jobs = await call("job.list", () => this.client.experimental.job.list({ kind: "image", status: "running" }))
@@ -1740,18 +1667,6 @@ class OpencodeService {
     return { output: page.output, cursor: page.cursor, skipped: cursor === undefined && start > 0 }
   }
 
-  /**
-   * Stops background commands one session started. The agent is told first,
-   * in one note that does not wake it, that the errors OpenCode is about to
-   * report are the user's stop (see `shellCancellationNote`); the commands
-   * are killed together only once the note is in, so their completions reach
-   * the agent at about the same time. Throws when the note or any kill
-   * fails; nothing is killed when the note could not be delivered, and a
-   * failed kill leaves the other commands stopped. A runtime switch while
-   * the note is on its way also throws before any kill, since the kills
-   * would reach the other server: the note then stays posted on the old
-   * runtime and its commands keep running there.
-   */
   async stopBackgroundShells(params: {
     sessionID: string
     sessionDirectory?: string | null
@@ -1816,7 +1731,6 @@ class OpencodeService {
     return deniesAnyProvider(entries)
   }
 
-  /** The `mcp.use` and `skill.use` statements OpenCode's config applies to MCP servers and skills in a directory. */
   async getIntegrationPolicies(directory?: string | null): Promise<IntegrationPolicy[]> {
     const entries = await call("config.get", () => this.clientFor(this.resolveDirectory(directory)).config.get())
     return readIntegrationPolicies(entries)

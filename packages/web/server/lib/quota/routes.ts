@@ -7,6 +7,9 @@ import { asNonEmptyString } from '../shared/guards.js';
 import { fetchQuota as fetchZenmuxQuota } from './providers/zenmux.js';
 import { listExtensionQuotaProviders } from './extension-registry.js';
 import { QuotaRouteError } from './route-error.js';
+import type { Application, Request, Response } from '../shared/http-contracts.js';
+import type { CredentialJson, CursorCredential, ExeDevCredential, ManagedCredentialProvider, ZenmuxCredential } from './credentials/contracts.js';
+import type { listConfiguredQuotaProviders, fetchQuotaForProvider } from './index.js';
 
 interface Credentials {
   'exe-dev': ExeDevCredential;
@@ -77,10 +80,7 @@ const credentialError = (res: Response, cause: unknown) => res.status(400).json(
   error: cause instanceof Error ? cause.message : 'Credential validation failed',
 });
 
-export function registerQuotaRoutes(app, { getQuotaProviders }) {
-  // The usage providers installed extensions serve right now (id, name, icon,
-  // extension), which the UI draws beside its built-in list. Every client reads
-  // this on each stream connect, so it answers from memory and asks OpenCode nothing.
+export function registerQuotaRoutes(app: Application, { getQuotaProviders }: QuotaRoutesDependencies) {
   app.get('/api/quota/extensions', (_req, res) => {
     res.json({ extensions: listExtensionQuotaProviders() });
   });
@@ -151,7 +151,6 @@ export function registerQuotaRoutes(app, { getQuotaProviders }) {
       const { fetchQuotaForProvider } = await getQuotaProviders();
       res.json(await fetchQuotaForProvider(providerId));
     } catch (error) {
-      // An extension's answer OpenChamber cannot use (`extension-quota.js`): the UI shows the message as the refresh failure, never an empty result.
       if (error instanceof QuotaRouteError) return res.status(error.status).json({ code: error.code, error: error.message });
       console.error('Failed to fetch quota:', error);
       res.status(500).json({ error: errorMessage(error) || 'Failed to fetch quota' });
@@ -164,9 +163,9 @@ export function registerQuotaRoutes(app, { getQuotaProviders }) {
       if (!providerId || !zaiAliases.includes(providerId)) {
         return res.status(404).json({ code: 'UNSUPPORTED_PROVIDER', error: 'Unsupported quota provider' });
       }
-      const { recordId, resetType, grantType } = req.body ?? {};
+      const { recordId, resetType, grantType } = hasGiftResetFields(req.body) ? req.body : {};
       if (!Number.isFinite(recordId)
-        || !zaiGiftResetTypes.includes(resetType)
+        || !isGiftResetType(resetType)
         || (grantType !== undefined && asNonEmptyString(grantType) === null)) {
         return res.status(400).json({ code: 'INVALID_REQUEST', error: 'Invalid gift reset request' });
       }

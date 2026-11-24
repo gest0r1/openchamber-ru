@@ -340,9 +340,6 @@ export function ElectronMiniChatApp({ apis }: ElectronMiniChatAppProps) {
   );
 }
 
-// Under SyncProvider: the shortcuts read the session's activity (double Escape
-// stops a running turn), which needs the sync runtime. Called in the app root
-// above the provider, opening Mini Chat threw.
 const MiniChatKeyboardShortcuts: React.FC = () => {
   useMiniChatKeyboardShortcuts();
   return null;

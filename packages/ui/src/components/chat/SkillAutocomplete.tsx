@@ -32,7 +32,6 @@ interface SkillAutocompleteProps {
   style?: React.CSSProperties;
 }
 
-/** Our authoring skill is delivered as a skill on disk, but it comes with the app. */
 const skillRowScope = (skill: SkillInfo): AutocompleteScope => {
   if (skill.name === 'openchamber-extensions') return 'openchamber';
   return skill.scope === 'project' ? 'project' : 'user';

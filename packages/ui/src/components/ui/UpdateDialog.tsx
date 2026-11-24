@@ -57,8 +57,6 @@ type ParsedChangelog =
   | {
       kind: 'sections';
       title: string;
-      // A Canary night comes as groups, each folded to CANARY_GROUP_LIMIT lines.
-      // A stable release comes as data, drawn the way Settings > About draws it.
       sections: Array<{ version: string; dateLabel: string; content: string; canaryGroups: NotesGroup[] | null; notes: ReleaseNotesContent | null }>;
     };
 

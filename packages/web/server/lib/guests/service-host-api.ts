@@ -1,11 +1,13 @@
 import { OpenChamberControlError } from '../openchamber-control/error.js';
 import { SERVICE_EVENT_DATA_MAX, SERVICE_EVENT_RATE_MAX, SERVICE_HOST_PATH, SERVICE_MARKS_MAX, SERVICE_MARK_RATE_MAX, isGuestApproved, requestedGuestCapabilities } from '@openchamber/sdk';
-import { serviceHostCallSchema } from '@openchamber/sdk/schemas';
+import { serviceHostCallSchema as sdkServiceHostCallSchema } from '@openchamber/sdk/schemas';
 
 import { setHostCallbackRoute } from './host-callback.js';
 import { guestIdOfServiceToken } from './service.js';
+import type { createSessionCompletionProof } from './session-completion-proof.js';
+import type { createTelegramNotifierBridge } from '../notifications/telegram-notifier-bridge.js';
 import type { GuestCapability } from '@openchamber/sdk';
-import type { z } from 'zod';
+import { z } from 'zod';
 import type { GuestRecord } from './contracts.js';
 import type { HostCallbackRoute } from './host-callback.js';
 import type { createOpenChamberControlService } from '../openchamber-control/service.js';
@@ -25,9 +27,31 @@ export interface ServiceHostApiOptions {
   emitToFrames: (guestId: string, topic: string, data: Extract<ServiceHostCall, { method: 'panels.emit' }>['input']['data']) => void;
   setConfigurationNote: (guestId: string, message: string | null) => void;
   marks: Pick<ReturnType<typeof createGuestMarks>, 'set'>;
+  completionProof?: ReturnType<typeof createSessionCompletionProof>;
+  telegramNotifier?: ReturnType<typeof createTelegramNotifierBridge>;
   guestIdOfToken?: (token: string) => string | null;
   now?: () => number;
 }
+
+const sessionId = z.string().trim().min(1).max(256);
+const directory = z.string().trim().min(1).max(4096);
+const shortText = z.string().trim().min(1).max(256);
+const forkServiceHostCallSchema = z.discriminatedUnion('method', [
+  z.object({ method: z.literal('sessions.completion'), input: z.object({ sessionId, directory, spaceId: sessionId.optional() }).strict() }).strict(),
+  z.object({ method: z.literal('telegram.subscriptions'), input: z.object({}).strict() }).strict(),
+  z.object({ method: z.literal('telegram.deliver'), input: z.object({
+    sessionId, directory, spaceId: sessionId.optional(),
+    idleId: shortText, outcome: z.enum(['succeeded', 'failed']),
+  }).strict() }).strict(),
+  z.object({ method: z.literal('telegram.attention'), input: z.object({
+    sessionId, directory, spaceId: sessionId.optional(),
+  }).strict() }).strict(),
+  z.object({ method: z.literal('telegram.deliverAttention'), input: z.object({
+    sessionId, directory, spaceId: sessionId.optional(),
+    id: shortText, kind: z.enum(['form', 'permission', 'page']),
+  }).strict() }).strict(),
+]);
+const serviceHostCallSchema = z.union([sdkServiceHostCallSchema, forkServiceHostCallSchema]);
 
 type ServiceHostCall = z.infer<typeof serviceHostCallSchema>;
 type SessionQuery = { sessionId: string; role?: 'user' | 'assistant'; limit?: number };
@@ -64,7 +88,7 @@ const SERVICE_EVENT_CHARS_PER_SECOND = 256_000;
 const SERVICE_PROMPTS_PER_HOUR = 60;
 const SERVICE_STATUS_CHANGES_PER_MINUTE = 30;
 
-export const createServiceHostApi = ({ listGuests, control, instructions, readSettings, emitToFrames, setConfigurationNote, marks, guestIdOfToken = guestIdOfServiceToken, now = Date.now }: ServiceHostApiOptions) => {
+export const createServiceHostApi = ({ listGuests, control, instructions, readSettings, emitToFrames, setConfigurationNote, marks, completionProof, telegramNotifier, guestIdOfToken = guestIdOfServiceToken, now = Date.now }: ServiceHostApiOptions) => {
   const emitWindows = new Map<string, { startedAt: number; count: number; chars: number }>();
 
   const underRateLimit = (guestId: string, chars: number) => {
@@ -138,6 +162,32 @@ export const createServiceHostApi = ({ listGuests, control, instructions, readSe
         if (refused) return refused;
         const { sessionStatus } = await readSession(control, 'session.status', input);
         return ok({ status: sessionStatus?.type ?? 'idle' });
+      }
+      case 'sessions.completion': {
+        const refused = needs(guest, 'opencode');
+        if (refused) return refused;
+        if (!guest.service?.provides?.includes('opencode') || !Array.isArray(guest.sessionEvents?.events)) {
+          return fail(403, 'NOT_GRANTED', 'Completion proof needs a declared OpenCode service and session events.');
+        }
+        if (!completionProof) return fail(503, 'UNAVAILABLE', 'Completion proof unavailable.');
+        return ok(await completionProof(input));
+      }
+      case 'telegram.subscriptions':
+      case 'telegram.attention':
+      case 'telegram.deliverAttention':
+      case 'telegram.deliver': {
+        if (guest.id !== 'telegram-notifier' || !guest.service?.provides?.includes('opencode') ||
+            !Array.isArray(guest.sessionEvents?.events)) {
+          return fail(403, 'NOT_GRANTED', 'Only the installed Telegram notification extension can use this call.');
+        }
+        const refused = needs(guest, 'opencode');
+        if (refused) return refused;
+        if (!telegramNotifier) return fail(503, 'UNAVAILABLE', 'Telegram notifier unavailable.');
+        if (method === 'telegram.subscriptions') return ok(await telegramNotifier.subscriptions());
+        if (method === 'telegram.attention') return ok(await telegramNotifier.attention(input));
+        if (method === 'telegram.deliverAttention') return ok(await telegramNotifier.deliverAttention(input));
+        if (!completionProof) return fail(503, 'UNAVAILABLE', 'Telegram completion verification unavailable.');
+        return ok(await telegramNotifier.deliver(input, completionProof));
       }
       case 'sessions.lastReply': {
         const refused = needs(guest, 'sessionControl') ?? needs(guest, 'transcript');

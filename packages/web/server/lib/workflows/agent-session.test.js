@@ -48,6 +48,7 @@ describe('workflow agent sessions', () => {
       globalEventHub: { subscribeEvent: () => () => {} },
       createClient: () => ({
         session: {
+          get: async () => ({ id: 'ses_parent' }),
           create: async () => ({ id: 'ses_empty_child' }),
           prompt: async ({ text }) => { prompts.push(text); throw new Error('prompt reached'); },
         },
@@ -70,9 +71,70 @@ describe('workflow agent sessions', () => {
     sessions.stop();
   });
 
-  it('marks the session as a workflow agent, so the sidebar leaves it out', async () => {
-    const request = await createSessionRequest({ parent: null, allowTools: [], model: 'openai/gpt-6-luna' });
-    expect(request).toMatchObject({ parentID: 'ses_parent', metadata: { openchamber: { kind: 'workflow-agent' } } });
+  it('links the agent to its parent by metadata, without an OpenCode parentID that would wake the parent', async () => {
+    const request = await createSessionRequest({
+      parent: { id: 'ses_parent', location: { directory: '/repo/worktree' } },
+      allowTools: [],
+      model: 'openai/gpt-6-luna',
+    });
+    expect(request).not.toHaveProperty('parentID');
+    expect(request).toMatchObject({
+      metadata: { openchamber: { kind: 'workflow-agent', parentID: 'ses_parent' } },
+      location: { directory: '/repo/worktree' },
+    });
+  });
+
+  it("runs on the parent's model when the call names none", async () => {
+    const model = { providerID: 'openai', id: 'gpt-6-luna', variant: 'high' };
+    const request = await createSessionRequest({ parent: { id: 'ses_parent', model }, allowTools: [] });
+    expect(request.model).toEqual(model);
+  });
+
+  it('passes an explicitly undefined parent variant through to the client', async () => {
+    const model = { providerID: 'openai', id: 'test-model', variant: undefined };
+    const request = await createSessionRequest({ parent: { id: 'ses_parent', model }, allowTools: [] });
+    expect(request.model).toEqual(model);
+    expect(Object.hasOwn(request.model, 'variant')).toBe(true);
+  });
+
+  it('uses the real client for a parent model without a variant', async () => {
+    const requests = [];
+    const controller = new AbortController();
+    const sessions = createWorkflowAgentSessions({
+      buildOpenCodeUrl: (route) => `http://localhost:4096${route}`,
+      getOpenCodeAuthHeaders: () => ({}),
+      globalEventHub: { subscribeEvent: () => () => {} },
+      fetchImpl: async (url, init) => {
+        requests.push({ url: String(url), init });
+        const data = init.method === 'GET'
+          ? { id: 'ses_parent', model: { providerID: 'test', id: 'model' } }
+          : { id: 'ses_agent' };
+        return Response.json({ data });
+      },
+    });
+    await expect(sessions.start({
+      directory: '/repo', parentSessionId: 'ses_parent', title: 'agent',
+      text: 'work', signal: controller.signal, onSession: () => controller.abort(),
+    })).rejects.toBeInstanceOf(WorkflowAgentStopped);
+    expect(requests.map(({ url }) => url)).toEqual([
+      'http://localhost:4096/api/session/ses_parent',
+      'http://localhost:4096/api/session',
+    ]);
+    expect(JSON.parse(requests[1].init.body).model).toEqual({ providerID: 'test', id: 'model' });
+    sessions.stop();
+  });
+
+  it('accepts an explicitly undefined variant at the real SDK serialization boundary', async () => {
+    const bodies = [];
+    const client = OpenCode.make({
+      baseUrl: 'http://localhost:4096',
+      fetch: async (_url, init) => {
+        bodies.push(JSON.parse(init.body));
+        return Response.json({ data: { id: 'ses_agent' } });
+      },
+    });
+    await client.session.create({ model: { providerID: 'test', id: 'model', variant: undefined } });
+    expect(bodies).toEqual([{ model: { providerID: 'test', id: 'model' } }]);
   });
 
   it("allows the asked tools after the parent's own rules", async () => {

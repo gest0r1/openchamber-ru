@@ -178,12 +178,10 @@ function newCredentialId(provider: string) {
   return `occred:v1:${provider}:${randomUUID()}:r1`;
 }
 
-function parseUser(value, provider) {
-  const id = value?.id;
-  const validId = isExtensionProviderId(provider)
-    ? Number.isSafeInteger(id) && id > 0 || isString(id) && id.length > 0 && id.length <= 256
-    : Number.isInteger(id);
-  if (!isPlainObject(value) || !validId || !validText(value.login)
+function parseUser(value: AuthJson | AuthUserInput | undefined, provider?: string) {
+  const id = jsonObject(value) ? value.id : undefined;
+  const validId = userId(id, provider);
+  if (!jsonObject(value) || !validId || !validText(value.login)
     || !exactKeys(value, ['id', 'login'], ['avatarUrl', 'name', 'email'])) throw invalidState();
   const user: AuthUser = { id, login: value.login };
   for (const key of ['avatarUrl', 'name', 'email'] as const) {
@@ -201,15 +199,8 @@ function runtimeGitHubCredential(value: GitHubCredential) {
   return { ...value, id: value.credentialId, accountId: value.credentialId, credentialRevision: value.revision };
 }
 
-function parseCredential(value, origin, provider) {
-  if (!isPlainObject(value)
-    || !exactKeys(value, [
-      'credentialId', 'revision', 'providerUserId', 'token', 'user', 'source', 'scope', 'status',
-    ], ['invalidReason', 'refreshToken', 'expiresAt'])
-    || !validText(value.credentialId) || !Number.isSafeInteger(value.revision) || value.revision < 1
-    || (!isExtensionProviderId(provider) && !validText(value.providerUserId)) || !validText(value.token)
-    || !['oauth', 'pat'].includes(value.source) || !isString(value.scope)
-    || !['valid', 'invalid'].includes(value.status)) throw invalidState();
+function parseCredential(value: AuthJson, origin: string, provider: string) {
+  if (!credentialInput(value, provider)) throw invalidState();
   const user = parseUser(value.user, provider);
   if (providerUserId(origin, user.id) !== value.providerUserId) throw invalidState();
   if (!credentialOptions(value)) throw invalidState();
@@ -259,7 +250,7 @@ const originInstanceParser = (provider: string) => ({
     catch (error) { throw invalidState(error); }
     return origin;
   },
-  parseCredentialFor: (credential, origin) => parseCredential(credential, origin, provider),
+  parseCredentialFor: (credential: AuthJson, origin: string) => parseCredential(credential, origin, provider),
 });
 const gitlabInstanceParser = originInstanceParser('gitlab');
 const githubInstanceParser = {

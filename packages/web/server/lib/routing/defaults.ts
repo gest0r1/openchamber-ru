@@ -33,44 +33,10 @@ export const GEMINI_DECISIONS_MODEL = 'gemini-decision-1';
 
 export const JEV_TIMEOUT_MS = 4000;
 
-/**
- * The timeout for the checks that run after a turn (session work, goals),
- * where nobody waits for the answer. Their request is larger than a routing
- * one: the reporter of #6743 measured 5.7 to 6.6 s on a loaded local model,
- * so 4 s failed the check on almost every turn.
- */
 export const JEV_BACKGROUND_TIMEOUT_MS = 15_000;
 
-/**
- * How long one timed-out request per endpoint keeps running before it is
- * aborted. A local model loads on its first request and Ollama cancels the
- * load when the client disconnects, so a 4 s abort kept a 5-7 s cold load
- * from ever finishing (#6743).
- */
 export const JEV_LINGER_MS = 5 * 60_000;
 
-/**
- * The third line keeps a hard turn from dragging its follow-ups up. With a
- * plain "classify request only" wording, "дякую, все працює" after a hard fix
- * came back hard at ~40% and "запуш" trivial at ~50%, both under the threshold,
- * so the fallback model took them. Saying that history only resolves what the
- * request refers to, and that finished work carries no weight, put them at
- * 97% and ~75% trivial while "ok, do it" after a plan stayed implement and a
- * regression report stayed hard (a private routing lab outside this repository).
- *
- * The fourth line covers a bare approval, which the third would otherwise
- * read as trivial: "go" after a plan carries no work of its own, so it takes
- * the category of the work it approves (the #4374 author measured this on
- * their own prompts; not yet replayed in the routing lab).
- * It does not let finished work raise a follow-up; a follow-up that only
- * looks cheap because it reuses a warm context is the router's concern, not
- * the classifier's.
- *
- * Sent as one string, a line per item. TypeSafe also accepts a list, but a
- * self-hosted System One server may take only a string (Kev answers 400 to a
- * list), and Auto then fell back on every send while Settings' Test passed
- * (#4175).
- */
 export const ROUTING_INSTRUCTIONS = [
   'Pick the task category that best describes this coding request, judging the reasoning it demands rather than the length of the reply it asks for.',
   'A request that wants a one-line answer to a hard debugging or design question is still hard; a long but mechanical edit is still trivial.',

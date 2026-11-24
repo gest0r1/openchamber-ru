@@ -20,20 +20,16 @@ export const subscribeRequestReveal = (listener: () => void) => {
   }
 }
 
-/**
- * A page or secret card that waits for an answer sits in the transcript, so
- * "Open session" on its toast has to move the reader to it: reopened at a
- * remembered position, they would land screens above it. The session's
- * timeline serves this on entry, or right away when the session is open. The
- * call's id on the wire does not name the block in the chat, so the request
- * names the session.
- */
 let pendingPageSessionID: string | null = null
+let pendingPageID: string | null = null
 
-export const revealWaitingPage = (sessionID: string): void => {
+export const revealWaitingPage = (sessionID: string, pageID?: string): void => {
   pendingPageSessionID = sessionID
+  pendingPageID = pageID ?? null
   notify()
 }
+
+export const pendingWaitingPageID = (): string | null => pendingPageID
 
 export const isWaitingPageRevealPending = (sessionID: string | null): boolean => (
   sessionID !== null && pendingPageSessionID === sessionID
@@ -45,7 +41,6 @@ export const takeWaitingPageReveal = (sessionID: string | null): boolean => {
   return true
 }
 
-/** Entering a session drops a request that names another one. */
 export const releaseWaitingPageRevealOutside = (sessionID: string | null): void => {
   if (pendingPageSessionID !== sessionID) pendingPageSessionID = null
 }

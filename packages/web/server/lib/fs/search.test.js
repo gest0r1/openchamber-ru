@@ -160,7 +160,8 @@ describe('filesystem search', () => {
       const stoppable = createFsSearchRuntime({ fsPromises: fs, path, spawn: neverCloses, resolveGitBinaryForSpawn: () => 'git', workspaceSearch });
       const abort = new AbortController();
       const stopped = stoppable.searchFilesystemFiles(root, { query: '', limit: 10, respectGitignore: true, signal: abort.signal });
-      setTimeout(() => abort.abort(), 20);
+      await started.promise;
+      abort.abort();
       await expect(stopped).rejects.toMatchObject({ name: 'AbortError' });
       expect(kills).toEqual(['SIGKILL']);
       kills.length = 0;

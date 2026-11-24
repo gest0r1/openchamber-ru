@@ -25,9 +25,6 @@ export const MobileModelButton: React.FC<MobileModelButtonProps> = ({ onOpenMode
     const modelLabel = isAuto
         ? t('chat.modelControls.autoModel')
         : getModelDisplayName(currentProvider, currentModelId, t('chat.modelControls.selectModel'));
-    // The send would stop with an error, so the button says so beforehand.
-    // A controlled button (`model` given) belongs to its column's folder; the
-    // main chat's reads the active selection, so it checks the active catalog.
     const columnDirectory = useChatSessionSelection().directory ?? undefined;
     const modelUnavailable = useModelMissingFromCatalog(model === undefined ? undefined : columnDirectory, currentProviderId, currentModelId);
     const unavailableText = modelUnavailable

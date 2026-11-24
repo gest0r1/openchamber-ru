@@ -247,8 +247,6 @@ export function useDictation(options: UseDictationOptions = {}, client: Dictatio
         clearStreamingState();
 
         try {
-            // Cancel, Finish or unmount while the microphone prompt was open
-            // already ended this recording: nothing is left to time or stream.
             if (!(await audio.start())) {
                 return;
             }

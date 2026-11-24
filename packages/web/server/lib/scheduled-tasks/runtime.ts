@@ -11,6 +11,99 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { stat } from 'node:fs/promises';
 import { readProcessInstance as readProcessInstanceDefault } from './process-instance.js';
 import { AUTO_MODEL_REF, isAutoModel } from '../routing/defaults.js';
+import { controlErrorFields } from '../openchamber-control/error.js';
+import type { ExistingSessionDependencies, ExistingSessionTaskRunEvent } from './existing-session.js';
+import type { ScheduledTask, ScheduledTaskInput, ScheduledTaskStore, ScheduledWorktreeCleanup, ScheduledTaskStateResult } from '../projects/contracts.js';
+import type { ScheduledWorktree, ScheduledWorktreeBridge, RemoveScheduledWorktreeInput } from './worktree-bridge.js';
+import { readModelCatalog, type resolveSessionDefaults } from './session-defaults.js';
+import type { createRoutingRuntime } from '../routing/runtime.js';
+import type { SessionMetadata } from '../openchamber-sessions/session-metadata-store.js';
+import { isString } from '../shared/object-guards.js';
+import type { createOpenCodeLifecycleRuntime } from '../opencode/lifecycle.js';
+import type { createPermissionAutoAcceptRuntime } from '../permission-auto-accept/runtime.js';
+
+export interface ScheduledTasksDependencies extends Omit<ExistingSessionDependencies, 'createClient' | 'messageQueueRuntime' | 'projectConfigRuntime'> {
+  projectConfigRuntime: ScheduledTaskStore;
+  messageQueueRuntime?: ExistingSessionDependencies['messageQueueRuntime'];
+  buildOpenCodeUrl: (route: string, query: string) => string | URL;
+  getOpenCodeAuthHeaders: () => Record<string, string>;
+  waitForOpenCodeReady?: ReturnType<typeof createOpenCodeLifecycleRuntime>['waitForOpenCodeReady'] | null;
+  emitTaskRunEvent?: (event: ScheduledTaskRunEvent) => void;
+  setSessionAutoAccept?: ReturnType<typeof createPermissionAutoAcceptRuntime>['setSessionPolicy'] | null;
+  sessionKnowledgeRuntime?: { sync: (sessionID: string, directory: string, prompt: string) => Promise<boolean> } | null;
+  persistSessionGoal?: Parameters<typeof createSessionGoal>[0]['persistSessionGoal'];
+  readSessionDefaults?: ((projectID: string, catalog: Awaited<ReturnType<typeof readModelCatalog>>) => Promise<ReturnType<typeof resolveSessionDefaults> | null>) | null;
+  resolveAutoSelection?: ReturnType<typeof createRoutingRuntime>['resolveAutoSelection'] | null;
+  readSessionMetadata: (sessionID: string, options: { signal: AbortSignal }) => Promise<SessionMetadata | null | undefined>;
+  readProcessInstance?: typeof readProcessInstanceDefault;
+  readWorktreeIdentity?: (directory: string) => Promise<string | null>;
+  cleanupPause?: (signal: AbortSignal) => Promise<void>;
+  createTaskWorktree?: ScheduledWorktreeBridge['create'];
+  removeTaskWorktree?: ScheduledWorktreeBridge['remove'] | null;
+  isGitRepository?: ScheduledWorktreeBridge['isGitRepository'] | null;
+  logger?: Pick<Console, 'warn' | 'info'>;
+  maxGlobalConcurrency?: number;
+  maxProjectConcurrency?: number;
+  maxRunDurationMs?: number;
+}
+
+export interface ScheduledTaskRunEvent extends ExistingSessionTaskRunEvent {
+  isolated?: boolean;
+  branch?: string | null;
+}
+
+interface RunContext {
+  client: ReturnType<typeof OpenCode.make>;
+  projectPath: string;
+  task: ScheduledTask;
+}
+
+interface RunIsolation {
+  directory: string;
+  branch: string | null;
+}
+
+interface DispatchResult {
+  sessionID: string;
+  directory: string;
+  durationMs: number;
+  reason: RunReason;
+  startedAt: number;
+  finishedAt: number;
+  isolation?: RunIsolation;
+}
+
+export interface ScheduledTaskRunResult {
+  ok: boolean;
+  skipped?: boolean;
+  running?: boolean;
+  queued?: boolean;
+  error?: unknown;
+  statusCode?: unknown;
+  status?: 'sent' | 'error';
+  task?: ScheduledTask | null;
+  sessionID?: string | undefined;
+  directory?: string | undefined;
+  persistError?: string;
+  reason?: string;
+  isolation?: RunIsolation;
+}
+
+type RunReason = 'manual' | 'scheduled';
+type Mutable<Value> = { -readonly [Key in keyof Value]: Value[Key] };
+type ScheduledSessionInput = Mutable<NonNullable<Parameters<ReturnType<typeof OpenCode.make>['session']['create']>[0]>>;
+type ScheduledSessionModel = Mutable<NonNullable<ScheduledSessionInput['model']>>;
+const isFiniteNumber = (value: unknown): value is number => Number.isFinite(value);
+const hasGoal = (value: unknown): value is { goal?: unknown } => value !== null && value !== undefined;
+const hasStatus = (value: unknown): value is { status?: unknown } => value !== null && value !== undefined;
+const isScheduleObject = (value: unknown): value is object => value !== null && typeof value === 'object';
+
+export type ScheduleInput = { timezone?: string } & (
+  | { kind: 'daily'; times?: string[]; time?: string }
+  | { kind: 'weekly'; times?: string[]; time?: string; weekdays?: number[] }
+  | { kind: 'once'; date: string; time: string }
+  | { kind: 'cron'; cron: string }
+);
 
 const DEFAULT_GLOBAL_CONCURRENCY = 4;
 const DEFAULT_PROJECT_CONCURRENCY = 2;
@@ -273,8 +366,6 @@ export const createScheduledTasksRuntime = (deps: ScheduledTasksDependencies) =>
     persistSessionGoal = null,
     chatsScope = null,
     readSessionDefaults = null,
-    // Jev routing for a run whose model is the Auto sentinel (see
-    // ../routing/DOCUMENTATION.md); unset, such a run fails before it starts.
     resolveAutoSelection = null,
     readSessionMetadata,
     readProcessInstance = readProcessInstanceDefault,
@@ -756,9 +847,7 @@ export const createScheduledTasksRuntime = (deps: ScheduledTasksDependencies) =>
     const baseUrl = openCodeOrigin();
     const authHeaders = getOpenCodeAuthHeaders();
     const client = createScopedClient(runDirectory);
-    let selection = await resolveRunSelection(projectID, task);
-    // The Auto sentinel never reaches OpenCode: the session starts on its
-    // default and is switched to the model Jev picks for the prompt.
+    let selection = await resolveRunSelection(projectID, task, client);
     const autoRun = isAutoModel(selection);
 
     let sessionID;
@@ -767,20 +856,21 @@ export const createScheduledTasksRuntime = (deps: ScheduledTasksDependencies) =>
       if (autoRun && !resolveAutoSelection) {
         throw new Error('Auto routing is not available on this server. Choose a model.');
       }
-      const session = await client.session.create({
+      const sessionInput: ScheduledSessionInput = {
         title,
         location: { directory: runDirectory },
         metadata: { openchamber: { kind: 'scheduled' } },
-        // No model or agent at all: OpenCode picks its own default.
-        ...(selection.providerID && selection.modelID && !autoRun ? {
-          model: {
-            providerID: selection.providerID,
-            id: selection.modelID,
-            ...(selection.variant ? { variant: selection.variant } : {}),
-          },
-        } : {}),
-        ...(selection.agent ? { agent: selection.agent } : {}),
-      });
+      };
+      if (selection.providerID && selection.modelID && !autoRun) {
+        const model: ScheduledSessionModel = {
+          providerID: selection.providerID,
+          id: selection.modelID,
+        };
+        if (selection.variant) model.variant = selection.variant;
+        sessionInput.model = model;
+      }
+      if (selection.agent) sessionInput.agent = selection.agent;
+      const session = await client.session.create(sessionInput);
       sessionID = session?.id;
       if (!sessionID) {
         throw new Error('failed to create session');
@@ -837,8 +927,7 @@ export const createScheduledTasksRuntime = (deps: ScheduledTasksDependencies) =>
         }
       }
 
-      if (autoRun) {
-        // Routed with the session id, so the decision shows on this session.
+      if (autoRun && resolveAutoSelection) {
         const routed = await resolveAutoSelection({
           sessionId: sessionID,
           directory: runDirectory,
@@ -846,11 +935,11 @@ export const createScheduledTasksRuntime = (deps: ScheduledTasksDependencies) =>
           agent: selection.agent,
           requestText: expandSnippets(task.execution.prompt, runDirectory),
         });
+        if (!routed) throw new TypeError("Cannot read properties of null (reading 'model')");
         await client.session.switchModel({ sessionID, model: routed.model });
         if (routed.agent && routed.agent !== selection.agent) {
           await client.session.switchAgent({ sessionID, agent: routed.agent });
         }
-        // The goal record names the model the run actually uses.
         selection = { ...selection, providerID: routed.model.providerID, modelID: routed.model.id };
       }
 

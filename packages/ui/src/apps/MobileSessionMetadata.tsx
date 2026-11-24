@@ -342,7 +342,6 @@ export const MobileSessionMetadataButton = React.memo(function MobileSessionMeta
 
 
   React.useEffect(() => {
-    // An extension's icon comes from its package, not the logo set.
     preloadProviderLogos(dropdownProviderIds.filter((id) => !isExtensionQuotaProviderId(id)));
   }, [dropdownProviderIds]);
 

@@ -19,7 +19,6 @@ export const SpaceApplyButton: React.FC<{ directory: string | null | undefined }
   const busy = useSpacesStore((state) => (spaceId ? state.actions.get(spaceId)?.kind === 'running' : false));
   if (!enabled || !spaceId || !applicable || isVSCodeRuntime()) return null;
   const label = t('spaces.gitPanel.apply');
-  // A narrow panel hides the word (`.space-apply__label` in index.css); the tooltip says what it does.
   return (
     <ButtonTooltip label={t('contextTooltips.git.spaceApply')} side="bottom" className="shrink-0">
       <Button variant="outline" size="sm" className="shrink-0 gap-1.5" aria-label={label} disabled={busy} onClick={() => useSpacesStore.getState().openApplyDialog(spaceId)}>

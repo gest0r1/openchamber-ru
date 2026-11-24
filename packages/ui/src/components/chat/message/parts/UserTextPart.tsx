@@ -49,14 +49,11 @@ type UserTextPartProps = {
     onExpandMessage: () => void;
     partIndex: number;
     onTruncationChange: (partIndex: number, truncated: boolean) => void;
-    /** How many lines the collapsed text takes, 0 for a context card; context rows get what is left. */
     onCollapsedLinesChange: (partIndex: number, lines: number) => void;
-    /** Names of the files attached to this message; `[name]` in the text renders as a file chip. */
     attachmentFilenames: readonly string[];
     attachmentFiles?: readonly FilePart[];
     onShowPopup?: (content: ToolPopupContent) => void;
     sessionMentionChips?: SessionMentionChips;
-    /** Issues, change requests and tracker items the message links; their links in the text draw as chips. */
     referenceLinkChips?: ReferenceLinkChips;
 };
 
@@ -145,7 +142,6 @@ const UserTextPart: React.FC<UserTextPartProps> = ({
 
         const checkTruncation = () => {
             setIsTruncated(el.scrollHeight > el.clientHeight);
-            // The clamp leaves one or two lines, so half a line tells them apart.
             setCollapsedLines(el.clientHeight > Number.parseFloat(getComputedStyle(el).lineHeight) * 1.5 ? 2 : 1);
         };
 
@@ -318,7 +314,6 @@ const UserTextPart: React.FC<UserTextPartProps> = ({
         });
     }, [agentMention, openSkill, skillByName, textContent]);
 
-    // Attachment citations, mentioned sessions and linked items become chips in the plain-text path too.
     const plainTextContent = React.useMemo(() => withLineDirectionMarks(glueChipPunctuation(
         attachmentFilenames.length === 0 && sessionMentionChips.size === 0 && referenceLinkChips.size === 0 ? plainTextNodes : plainTextNodes.flatMap((node, nodeIndex) => (
             React.isValidElement<unknown>(node)
@@ -371,7 +366,6 @@ const UserTextPart: React.FC<UserTextPartProps> = ({
                             <SimpleMarkdownRenderer
                                 singleTilde={false}
                                 content={processedMarkdownContent}
-                                // The collapsed look lives in index.css under data-user-message-collapsed.
                                 className="[&_.markdown-content>*:first-child]:mt-0 [&_.markdown-content>*:last-child]:mb-0"
                                 disableLinkSafety
                                 enableFileReferences={false}

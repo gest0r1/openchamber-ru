@@ -37,6 +37,9 @@ interface ShutdownDependencies {
   workflowRuntime?: { shutdown: Cleanup } | null;
   messageSearchRuntime?: OptionalStop;
   scheduledTasksRuntime?: OptionalStop;
+  telegramWatch?: OptionalStop;
+  telegramApproval?: OptionalStop;
+  unsubscribeTelegramReconnect?: Cleanup | null;
   getHealthCheckInterval: () => Timer | null;
   clearHealthCheckInterval: (value: Timer) => void;
   getTerminalRuntime: () => { shutdown: Cleanup } | null;
@@ -152,7 +155,6 @@ export const createGracefulShutdownRuntime = (dependencies: ShutdownDependencies
     beginGuestServiceShutdown();
     extensionSessionEvents?.stop?.();
     extensionServiceLifetime?.stop?.();
-    // The same for wait checks: a refused check would back off a healthy type.
     extensionWaitsRuntime?.stop?.();
     syncToHmrState();
     console.log('Starting graceful shutdown...');

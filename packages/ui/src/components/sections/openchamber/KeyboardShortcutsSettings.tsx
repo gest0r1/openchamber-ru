@@ -33,17 +33,11 @@ const persistShortcutOverrides = (nextOverrides: Record<string, ShortcutCombo>) 
   void updateDesktopSettings({ shortcutOverrides: nextOverrides });
 };
 
-/**
- * Shows only while some shortcut differs from its default, since there is
- * nothing to reset otherwise.
- */
 const ResetAllShortcutsButton: React.FC = () => {
   const { t } = useI18n();
   const hasOverrides = useUIStore((state) => Object.keys(state.shortcutOverrides).length > 0);
   const resetAllShortcutOverrides = useUIStore((state) => state.resetAllShortcutOverrides);
   const { confirm, dialog } = useConfirmDialog();
-  // The dialog keeps its place in the tree, so the button vanishing after a
-  // confirmed reset does not remount it mid-close.
   return (
     <>
       {hasOverrides ? <Button
@@ -79,19 +73,13 @@ export const KeyboardShortcutsSettings: React.FC = () => {
   const [editingAction, setEditingAction] = React.useState<CustomizableShortcutAction | null>(null);
   const [query, setQuery] = React.useState('');
   const [assignmentFilter, setAssignmentFilter] = React.useState<'all' | 'assigned' | 'unassigned'>('all');
-  // The key filter is the chords typed so far. It applies on every key press.
   const [keyFilterChords, setKeyFilterChords] = React.useState<ShortcutCombo[]>([]);
   const keyFilter = keyFilterChords.length > 0 ? normalizeCombo(keyFilterChords.join(' ')) : null;
   const [recordingKey, setRecordingKey] = React.useState(false);
   const [searchFocused, setSearchFocused] = React.useState(false);
   const capturingKeys = recordingKey && searchFocused;
-  // The second key of a sequence armed before recording dispatches in window
-  // capture, ahead of this field's handlers. Suspending the registry cancels
-  // that pending sequence and keeps recorded keys from running commands.
   React.useEffect(() => (capturingKeys ? shortcutRegistry.suspend() : undefined), [capturingKeys]);
   const searchInputRef = React.useRef<HTMLInputElement>(null);
-  // The OS-level Mini Chat combo lives in the desktop setting, not in
-  // shortcutOverrides; feed it to the recorder as a conflict source.
   const [globalMiniChatCombo, setGlobalMiniChatCombo] = React.useState<ShortcutCombo | null>(null);
   const refreshGlobalMiniChatCombo = React.useCallback(() => {
     void getDesktopMiniChatGlobalShortcut()
@@ -189,9 +177,7 @@ export const KeyboardShortcutsSettings: React.FC = () => {
 
   return (
     <>
-      {/* Capped where a row's Clear button ends (label column, gap, key tile,
-          Edit, Clear), so the search lines up with the list under it. */}
-      <div className="mb-6 flex flex-col items-start gap-3 @xl:max-w-[30.25rem]">
+      <div className={cn('mb-6 flex flex-col items-start gap-3 @xl:max-w-[30.25rem]', hasVisibleActions && 'mb-10')}>
         <div className="relative w-full">
           <Icon
             name="search"
@@ -212,8 +198,6 @@ export const KeyboardShortcutsSettings: React.FC = () => {
             onBlur={() => setSearchFocused(false)}
             onKeyDown={(event) => {
               if (recordingKey) {
-                // While recording, keys build the chord filter. Stopping the
-                // event also keeps Escape from closing the Settings dialog.
                 event.stopPropagation();
                 if (event.nativeEvent.isComposing || event.repeat) return;
                 event.preventDefault();
@@ -284,8 +268,6 @@ export const KeyboardShortcutsSettings: React.FC = () => {
               aria-label={t('settings.openchamber.keyboardShortcuts.findByKey.button')}
               title={t('settings.openchamber.keyboardShortcuts.findByKey.button')}
               onClick={() => {
-                // Toggling either way clears the search, so a chord or text
-                // search never carries over into the other mode.
                 setQuery('');
                 setKeyFilterChords([]);
                 setRecordingKey((current) => !current);
@@ -345,8 +327,6 @@ export const KeyboardShortcutsSettings: React.FC = () => {
                   >
                     {t('settings.openchamber.keyboardShortcuts.actions.edit')}
                   </Button>
-                  {/* A changed shortcut offers Reset in Clear's place, so the
-                      row keeps one trailing action and its width. */}
                   {action.id in shortcutOverrides ? (
                     <Button
                       type="button"

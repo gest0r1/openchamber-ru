@@ -63,13 +63,7 @@ interface ProjectContextActions {
   savePlan: (project: ProjectRef, planId: string, raw: string) => Promise<boolean>;
   setPlanPinned: (project: ProjectRef, planId: string, pinned: boolean) => Promise<boolean>;
   deletePlan: (project: ProjectRef, planId: string) => Promise<boolean>;
-  /**
-   * Move a plan into the team's shared folder, or back. Resolves to the plan's
-   * id after the move, null on failure: a plan that only lived in the team's
-   * folder (`shared:<file>`) gets a new id when it is made personal.
-   */
   movePlan: (project: ProjectRef, planId: string, direction: 'share' | 'unshare') => Promise<string | null>;
-  /** Remember the session a plan was just sent to; its card then leads there. */
   linkPlanSession: (project: ProjectRef, planId: string, sessionId: string) => Promise<boolean>;
   reset: () => void;
 }

@@ -24,8 +24,6 @@ export const WorkStatusSectionList: React.FC<{
 }> = ({ sessionId, directory, repositoryEnabled, layout, visible = true }) => {
   const { extensionSections, sectionOrder, hiddenSections } = layout;
   const sectionVisible = (id: Parameters<typeof isWorkStatusSectionVisible>[1]) => isWorkStatusSectionVisible(hiddenSections, id);
-  // Read here, not in the section: the section is listed only once the server
-  // says the tool is on in this directory.
   useLoadSessionTodos(sessionId, directory);
 
   const secondarySections = {

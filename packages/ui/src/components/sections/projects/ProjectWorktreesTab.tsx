@@ -178,10 +178,6 @@ const SetupCommands: React.FC<{ projectRef: ProjectRef; setup: ProjectSetup; set
   );
 };
 
-/**
- * The user's own command that creates this project's worktrees in place of
- * `git worktree add`. Personal only: it names a tool on this machine.
- */
 const CreateCommand: React.FC<{ projectRef: ProjectRef; setup: ProjectSetup; setupState: ProjectSetupState }> = ({ projectRef, setup, setupState }) => {
   const { t } = useI18n();
   const value = setup.personal.createWorktreeCommand;

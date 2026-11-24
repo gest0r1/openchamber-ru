@@ -125,24 +125,9 @@ export type HostClient = {
   onConnection: (listener: (connection: GuestConnection) => void) => () => void;
   onSettings: (listener: (settings: GuestSettings) => void) => () => void;
   onItem: (listener: (item: GuestItem | null) => void) => () => void;
-  /**
-   * The call this `block` frame draws, once and at once when already known.
-   * The arguments are written by a model: treat them as untrusted.
-   */
   onBlock: (listener: (block: GuestBlockCall) => void) => () => void;
-  /**
-   * From a `block` frame, in a click handler: hands the agent `text`, as a
-   * button of a block does, and starts its next turn. One answer per block.
-   * Refused without a click, or when the block cannot take an answer.
-   */
   answerBlock: (text: string) => Promise<void>;
-  /**
-   * What the extension's service sends with `createServiceHost(...).emit`.
-   * Nothing replays: a frame that opens later hears only what comes after,
-   * so read the current state from the service first.
-   */
   onServiceEvent: (listener: (event: { topic: string; data: JsonValue }) => void) => () => void;
-  /** Receive activation of a host-rendered Work Status control. */
   onStatusControl: (listener: (event: GuestStatusControlEvent) => void) => () => void;
   onPopoverClosed: (listener: (event: GuestPopoverClosedEvent) => void) => () => void;
   setStatusControls: (controls: GuestStatusControl[]) => Promise<void>;

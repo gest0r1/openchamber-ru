@@ -1,7 +1,9 @@
 import React from 'react';
 import { getLastConversationMessage, isIncompleteAssistantTurn, type Message } from '@/lib/opencode/model';
 import { useSessionUIStore } from '@/sync/session-ui-store';
-import { useSessionStatus, useSessionStatusSnapshotReady, useSessionMessagesSelector, useSessionPermissions, useSessionForms } from '@/sync/sync-context';
+import { formTurnHold, useRecoverableQuestionsStore } from '@/sync/recoverable-questions';
+import { readUnloadedFormToolLinks } from '@/sync/session-actions';
+import { useDirectorySync, useSessionStatus, useSessionStatusSnapshotReady, useSessionMessagesSelector, useSessionPermissions } from '@/sync/sync-context';
 
 type SessionActivityPhase = 'idle' | 'busy' | 'retry';
 
@@ -50,11 +52,6 @@ export function useSessionActivity(sessionId: string | null | undefined, directo
 
     const phase: SessionActivityPhase = (status?.type ?? 'idle') as SessionActivityPhase;
 
-    // Only trust the trailing assistant message as a transient fallback while
-    // waiting for session.status/message.updated to settle. OpenCode lists
-    // only running sessions, so once the directory's status snapshot has landed
-    // an omitted status is idle: a turn OpenCode was stopped under (the app
-    // restarted) keeps its assistant message incomplete for good.
     const hasAuthoritativeStatus = status !== undefined || statusSnapshotReady;
     const statusWorking = hasAuthoritativeStatus && phase !== 'idle';
     const isWorking = statusWorking || hasPendingAssistant;
@@ -69,7 +66,7 @@ export function useSessionActivity(sessionId: string | null | undefined, directo
       isBusy: phase === 'busy' || (!statusWorking && hasPendingAssistant),
       isCooldown: false,
     };
-  }, [sessionId, status, statusSnapshotReady, hasPendingAssistant, permissions, forms]);
+  }, [sessionId, status, statusSnapshotReady, hasPendingAssistant, permissions, formHoldsTurn]);
 }
 
 export function useCurrentSessionActivity(): SessionActivityResult {

@@ -128,7 +128,9 @@ the user can want independently:
   Mode, like render: the chat draws the images in place of the call's row from
   its stored result, which an `execute` script would hide.
 - `openchamber_secret` — `secret.run`, `secret.request` and `secret.forget`.
-  `secret.run` asks OpenCode's shell permission for its command line in the
+  Its description and parameters live in `secret-tool.ts`, under names of
+  their own, since `label` means something else in the web tool. `secret.run`
+  asks OpenCode's shell permission for its command line in the
   plugin, before the call reaches the server: `ctx.permission.assert` with
   action `shell`, the line `secretRunCommandLine` draws as the resource and
   `<program> *` as the pattern to save, so the session's shell rules apply as
@@ -141,7 +143,8 @@ the user can want independently:
   reported, so no payload field can reach another session's remembered values.
   `secret.request` is a
   card where the user types one secret the agent asked for (`label`, `reason`,
-  optional `placeholder`). Both wait, with the same plugin machinery as a page
+  optional `placeholder`). Both wait, and so does a `secret.forget` with
+  `saved: true`, which the user confirms on a card, with the same plugin machinery as a page
   with `awaitAnswer` (call id, `timeout: false`, the `session.prompt` hook
   that ends the wait when the user writes in the chat and leaves it running
   for an agent's or a queued prompt, the inbox events for the user's prompt
@@ -164,6 +167,19 @@ the user can want independently:
   sits behind Code Mode like notify, since the chat draws nothing from its
   call, and its catalog line says to read it when the user asks about limits
   or a model choice depends on them, never before every task.
+- `openchamber_terminal` — `terminal.list` and `terminal.read`, the terminal
+  panel read-only (`../openchamber-control/terminal-read.js`): the terminals
+  open in the session's folder and one's retained output as plain text. Off by
+  default: enabled only while `agentTerminalToolEnabled` is `true`, and the
+  action reads the setting on every call and refuses while it is not. A read
+  copies the replay the panel's `attach` snapshot sends
+  (`../terminal/runtime.js`), never raw PTY bytes, converted to plain text
+  without colour or other control sequences, and the runtime caps it
+  (512 KiB retained, at most 256 KiB of text per read); nothing is typed,
+  started or stopped. Only this callback reaches the actions: the ordinary
+  control route refuses `terminal.*`. VS Code has no such tool, since the
+  plugin is not injected there. It sits behind Code Mode like usage, and its catalog line says to
+  read it when the answer is in a terminal the user is looking at.
 - `openchamber_workflow` — `workflow.*`, scripts that fan a large task out to
   many agents, run by OpenChamber (`../workflows/DOCUMENTATION.md`). Off by
   default: enabled only while `agentWorkflowToolEnabled` is `true`, and the
@@ -209,10 +225,12 @@ both settings are `false`.
   budget, and with large MCP servers connected ours showed as bare rows such
   as `openchamber_web (1 tool, none shown)`; agents asked to open a page in the
   browser panel fetched it instead and said they had no browser
-  (`scripts/tool-use-bench`). Names and paths stay as they are: agents call
-  `tools.openchamber(...)` straight from the session guidance, and both a
-  control tool renamed into a shared namespace and one with the other tools
-  nested under it made them stop calling it.
+  (`scripts/tool-use-bench`). The line also carries a use the session guidance
+  does not state, where it is always seen, rather than only in the tool
+  description the agent reads after choosing the tool. Names and paths stay as
+  they are: agents call `tools.openchamber(...)` straight from the session
+  guidance, and both a control tool renamed into a shared namespace and one
+  with the other tools nested under it made them stop calling it.
 - The plugin accepts the action's inputs either inside `parameters` or beside
   `action`, because models produce both shapes; an explicit `parameters` object
   wins on a conflict. Rejecting the flattened shape turned a call that plainly

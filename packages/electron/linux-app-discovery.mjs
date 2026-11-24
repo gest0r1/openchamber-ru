@@ -7,8 +7,6 @@ import path from 'node:path';
 const DEFAULT_XDG_DATA_DIRS = ['/usr/local/share', '/usr/share'];
 const TARGET_FIELD_CODES = new Set(['f', 'F', 'u', 'U']);
 const TERMINAL_APP_IDS = new Set(['terminal', 'iterm2', 'ghostty']);
-// Terminals with a documented working-directory option, for desktop entries
-// whose Exec has no field code to put the directory in.
 const TERMINAL_DIRECTORY_FLAGS = new Map([
   ['alacritty', '--working-directory='],
   ['foot', '--working-directory='],
@@ -19,8 +17,6 @@ const TERMINAL_DIRECTORY_FLAGS = new Map([
 ]);
 const DEFAULT_TERMINAL_PROBE_TIMEOUT_MS = 2000;
 const DEFAULT_TERMINAL_MAX_INSPECTED_BYTES = 1024 * 1024;
-// A candidate that exits non-zero within this window failed to open, so the
-// chain moves on. A terminal that is still running after it counts as opened.
 const LINUX_LAUNCH_SETTLE_MS = 1000;
 
 const LINUX_CLI_BY_APP_ID = {
@@ -66,8 +62,6 @@ const stripDesktopExecFieldCodes = (execValue) => String(execValue || '')
   .replace(/\s+/g, ' ')
   .trim();
 
-// %u/%U carry a URI, and buildCommandFromDesktopExec substitutes a plain path
-// there, so only a path field code puts the directory where a terminal takes it.
 const hasPathFieldCode = (execValue) => {
   const value = String(execValue || '').replace(/%%/g, '');
   return /%[fF]/.test(value);
@@ -274,9 +268,6 @@ const terminalDirectoryFlag = (entry) => {
   return TERMINAL_DIRECTORY_FLAGS.get(path.basename(parseExecCommand(exec)[0] || '')) || null;
 };
 
-// A terminal emulator runs a positional argument as the command to execute, so
-// a terminal entry only receives the directory through a path field code or an
-// option known to take it.
 const isLaunchableTerminalEmulatorEntry = (entry) => (
   isTerminalEmulatorEntry(entry)
   && (hasPathFieldCode(entry.rawExec || entry.exec) || terminalDirectoryFlag(entry) !== null)
@@ -318,9 +309,6 @@ const queryDefaultTerminalSelection = (env) => new Promise((resolve) => {
   child.once('exit', (code) => finish(code === 0));
 });
 
-// A packaged launcher can forward to the implementation: Nix installs a compiled
-// wrapper that holds the implementation's absolute path as a string. Those paths
-// are only read here, so the launcher still runs nothing it would not run itself.
 const readDefaultTerminalImplementation = async (env) => {
   const launcher = await readExecutableContents(resolveCommandPath('xdg-terminal-exec', env));
   if (!launcher || launcher.includes('--dir=')) return launcher;
@@ -333,11 +321,7 @@ const readDefaultTerminalImplementation = async (env) => {
   return null;
 };
 
-// Reference versions up to 0.12 have neither --print-id nor --help: they drop
-// unknown options and open the terminal, so asking a binary what it supports can
-// itself open a window. Its own file answers that without running it. A version
-// with --dir= but no --print-id stays a candidate, because it exits at once when
-// it finds no terminal and the chain then moves on.
+// external: https://github.com/Vladimir-csp/xdg-terminal-exec Older implementations ignore --help and --print-id and open a terminal; inspect launcher support before execution.
 const canUseDefaultTerminal = async (env) => {
   const contents = await readDefaultTerminalImplementation(env);
   if (!contents?.includes('--dir=')) return false;
@@ -352,16 +336,10 @@ export const buildLinuxOpenSpecs = ({ targetPath, appId, appName, targetKind = '
   const specs = [];
   if (TERMINAL_APP_IDS.has(appId)) {
     const directory = targetKind === 'file' ? path.dirname(targetPath) : targetPath;
-    // Its reference implementation parses only --dir=<path>; the spaced form and
-    // unknown options are ignored, and the path then falls through as the
-    // positional command to execute. `ready` runs when the chain reaches this
-    // spec, so an explicit app that opens never touches the binary.
+    // external: https://github.com/Vladimir-csp/xdg-terminal-exec Only --dir=<path> is parsed; a spaced directory argument becomes the command to execute.
     const defaultTerminalSpec = commandExists('xdg-terminal-exec', env)
       ? { program: 'xdg-terminal-exec', args: [`--dir=${directory}`], ready: () => canUseDefaultTerminal(env) }
       : null;
-    // It launches the terminal the user configured as their default, so it is
-    // the first choice for the generic "terminal" id; an explicit id keeps its
-    // own entry first.
     if (appId === 'terminal' && defaultTerminalSpec) specs.push(defaultTerminalSpec);
     const terminalEntry = appId === 'terminal'
       ? entries.find(isLaunchableTerminalEmulatorEntry) || null
@@ -384,16 +362,12 @@ export const buildLinuxOpenSpecs = ({ targetPath, appId, appName, targetKind = '
       specs.push({ program: 'x-terminal-emulator', args: [] });
     }
     if (appId === 'terminal' && !terminalEntry) {
-      // Nothing above took the directory, so this entry gets it only through the
-      // working directory it inherits.
       const anyTerminalEntry = entries.find(isTerminalEmulatorEntry);
       const spec = anyTerminalEntry
         ? buildCommandFromDesktopExec(anyTerminalEntry, directory, { appendTarget: false })
         : null;
       if (spec) specs.push(spec);
     }
-    // The inherited working directory reaches every terminal that starts its own
-    // process, which covers candidates with no option for it.
     return specs.map((spec) => ({ ...spec, cwd: directory }));
   }
   const cli = LINUX_CLI_BY_APP_ID[appId];

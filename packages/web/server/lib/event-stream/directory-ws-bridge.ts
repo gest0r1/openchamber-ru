@@ -36,7 +36,7 @@ export function acceptDirectoryMessageStreamWsConnection({
   upstreamReconnectDelayMs,
   fetchImpl,
   isHiddenPayload = () => false,
-}) {
+}: DirectoryBridgeOptions) {
   const controller = new AbortController();
   let upstreamConnected = false;
   let streamReady = false;
@@ -82,7 +82,7 @@ export function acceptDirectoryMessageStreamWsConnection({
   });
 
   const run = async () => {
-    const forwardEvent = ({ envelope, payload }) => {
+    const forwardEvent = ({ envelope, payload }: UpstreamEvent) => {
       if (isHiddenPayload(payload)) return;
       const directory = requestedDirectory || envelope?.directory || 'global';
 

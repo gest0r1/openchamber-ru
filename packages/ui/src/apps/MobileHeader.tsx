@@ -105,8 +105,6 @@ export const MobileHeader: React.FC<{
           >
             <span className="flex min-w-0 items-center gap-1">
               <span dir="auto" className="block min-w-0 truncate oc-ui-start-align typography-ui-label font-medium text-foreground">{primaryLabel}</span>
-              {/* Discoverability: the chevron marks the title as a disclosure
-                  trigger and flips while the switcher is open. */}
               <Icon
                 name="arrow-down-s"
                 className={cn(

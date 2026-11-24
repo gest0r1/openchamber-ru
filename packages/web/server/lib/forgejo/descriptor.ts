@@ -11,7 +11,6 @@ export const forgejoDescriptor = Object.freeze({
   id: 'forgejo',
   label: 'Forgejo',
   iconId: 'forgejo',
-  // gt needs Gitea 28 or newer, which no Forgejo answers as.
   authMethods: Object.freeze({ device: false, pat: true, cli: false }),
   instance: Object.freeze({
     ...giteaDescriptor.instance,

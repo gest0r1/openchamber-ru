@@ -55,7 +55,6 @@ export function usePullAttachments(reference: RepositoryReference | null) {
 
     const pin = React.useCallback((into: InlineCommentDraftTarget, draft: Omit<InlineCommentDraft, 'id' | 'createdAt' | 'sessionKey'>) => {
         if (provider) draft.provider = provider;
-        // One toast for a whole batch of refused comments.
         if (!useInlineCommentDraftStore.getState().addDraft(into, draft)) {
             toast.error(t('inlineComment.toast.noRoom'), { id: 'inline-comment-no-room' });
         }

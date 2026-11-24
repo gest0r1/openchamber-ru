@@ -29,6 +29,7 @@ import { MobileSessionRenameForm } from '../MobileSessionRenameForm';
 import { MobileSwipeActionsRow, ROW_ACTION_SLOT_WIDTH } from '../MobileSessionSwipe';
 import type { MobileTreeGeometry } from './mobileSidebarGeometry';
 import { MobileRowMenu } from './MobileRowMenu';
+import { TakeOverWorktreeItem } from '@/components/session/sidebar/works/TakeOverWorktreeItem';
 import { useMobileRowSwipe, useMobileSidebarActions, useMobileSidebarRowsStore } from './mobileSidebarState';
 import { MOBILE_ACTIVE_ROW_CLASS, MOBILE_ACTIVE_TITLE_CLASS, MobileRowChevron, MobileSlotChevron, MobileSwipeAction, MobileTwoLineLayout } from './mobileRowParts';
 
@@ -55,7 +56,7 @@ export const MobileWorktreeRow: React.FC<{
   const { revealed, renaming } = useMobileRowSwipe(row.key);
   const work = useWorktreeWork({ group: row.group, projectId: row.projectId, collapsed: row.collapsed, onNavigate: actions.close });
   const { worktree, space, spaceName, project, refs, label, secondName, branch, title, inWork, selected, finishing, worktreeRemoving, activityState } = work;
-  const guestMarks = useWorkRowGuestMarks({ space: Boolean(space), projectId: project?.id ?? row.projectId ?? null, directory: work.directory, branch });
+  const guestMarks = useWorkRowGuestMarks({ space: Boolean(space), projectId: project?.id ?? row.projectId ?? null, projectPath: project?.path ?? null, directory: work.directory, branch });
   const marks = <MobileGuestMarks marks={guestMarks} onOpenRow={() => work.open()} />;
   const projectNamed = useZoneProjectNames();
   const mixedProject = useMixedRowProject(row.projectId, row.mixed && row.detailed);
@@ -138,8 +139,6 @@ export const MobileWorktreeRow: React.FC<{
     </span>
   ) : space ? <SpaceStatusMark spaceId={space.id} /> : null;
   const directoryIndicator = row.group.directory ? <DirectoryActionIndicator directory={row.group.directory} /> : null;
-  // The Pinned section's header already says its works are pinned; anywhere
-  // else the row carries the mark, as a session's does.
   const pinMark = work.pinned && !isPinnedZoneRowKey(row.key)
     ? <Icon name="pushpin" className="size-3 shrink-0 text-muted-foreground" aria-label={t('sessions.sidebar.session.status.pinned')} />
     : null;
@@ -159,7 +158,6 @@ export const MobileWorktreeRow: React.FC<{
           {mixedProject ? <MobileProjectIcon project={mixedProject} size="xs" /> : null}
           {mixedProject && projectNamed ? <TimelineProjectName project={mixedProject} separated={false} /> : null}
           {branchMark}
-          {/* Beside the project's name the task's name is left out, as on the desktop. */}
           {secondName && !(mixedProject && projectNamed && secondName === title) ? <span dir="auto" className="block min-w-0 truncate typography-micro">{secondName}</span> : null}
           <span className="ms-auto flex shrink-0 items-center gap-1.5">{ref}{marks}</span>
         </>}
@@ -192,7 +190,6 @@ export const MobileWorktreeRow: React.FC<{
   }
 
   const slots = (work.workAction ? 1 : 0) + (work.canRename ? 1 : 0) + (space ? 1 : 0) + (work.canPin ? 1 : 0) + (work.canArchive ? 1 : 0) + (worktree && !worktreeRemoving ? 1 : 0);
-  // The long press menu: what the swipe has no room for, then its own actions.
   const pinWork = () => requestPinTo({ current: work.pinList, pin: (list) => { void work.setPin(true, list); }, unpin: () => { void work.setPin(false); } });
   const menu = (
     <>
@@ -208,6 +205,7 @@ export const MobileWorktreeRow: React.FC<{
           {inWork ? t('sessions.sidebar.session.work.markDone') : t('sessions.sidebar.session.work.track')}
         </ContextMenuItem>
       ) : null}
+      {worktree ? <TakeOverWorktreeItem path={work.directory} Item={ContextMenuItem} iconClassName="me-1 size-4" /> : null}
       {work.canRename ? (
         <ContextMenuItem onClick={() => useMobileSidebarRowsStore.getState().startRename(row.key)}>
           <Icon name="edit" className="me-1 size-4" />
@@ -366,7 +364,6 @@ export const MobileRunRow: React.FC<{
           {mixedProject ? <MobileProjectIcon project={mixedProject} size="xs" /> : null}
           {mixedProject && projectNamed ? <TimelineProjectName project={mixedProject} separated={false} /> : null}
           {runMark}
-          {/* Its own width as the basis, so the project's name gives way first. */}
           <span className="block min-w-0 flex-auto truncate typography-micro">
             {laneCount === 1
               ? t('sessions.sidebar.run.laneCountSingle', { count: laneCount })

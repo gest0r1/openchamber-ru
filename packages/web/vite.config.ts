@@ -19,6 +19,8 @@ const enableReactScan = reactScanToggle === '1' || reactScanToggle === 'true' ||
 const themeDirectory = path.resolve(__dirname, '../ui/src/lib/theme/themes');
 
 const reactBabel = { plugins: ['babel-plugin-react-compiler'] };
+// Locale slices export string dictionaries and contain no React code.
+const reactExclude = [/node_modules/, /\.i18n\.ts$/];
 
 const aliases = [
   { find: '@openchamber/sdk/schemas', replacement: path.resolve(__dirname, '../sdk/src/schemas.ts') },
@@ -50,11 +52,9 @@ const themeJsonHmrPlugin = () => ({
 
 export default defineConfig({
   root: path.resolve(__dirname, '.'),
-  // Each dev server started by scripts/dev-web-hmr.mjs gets its own
-  // dependency cache; see the note there.
   cacheDir: process.env.OPENCHAMBER_VITE_CACHE_DIR || undefined,
   plugins: [
-    ...cacheReactBabel(react({ babel: reactBabel }), {
+    ...cacheReactBabel(react({ babel: reactBabel, exclude: reactExclude }), {
       directory: path.join(os.homedir(), '.cache', 'openchamber', 'react-babel'),
       root: realpathSync(path.resolve(__dirname, '../..')),
       setup: reactBabel,
@@ -88,7 +88,7 @@ export default defineConfig({
     shareDocumentPlugin({
       uiSource: path.resolve(__dirname, '../ui/src'),
       aliases,
-      react: () => react({ babel: reactBabel }),
+      react: () => react({ babel: reactBabel, exclude: reactExclude }),
     }),
     VitePWA({
       strategies: 'injectManifest',

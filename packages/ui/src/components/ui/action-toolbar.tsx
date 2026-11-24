@@ -30,10 +30,8 @@ export interface ToolbarAction {
   iconClassName?: string;
   menu?: React.ReactNode;
   pinned?: boolean;
-  /** Attributes on the button and on its "More actions" menu item, for code that recognises either (outside-click checks). */
   buttonAttributes?: Record<`data-${string}`, string>;
   shortcut?: string;
-  /** Deletes or discards: drawn as a destructive item in "More actions". */
   destructive?: boolean;
 }
 
@@ -79,12 +77,6 @@ export function TooltipLabelWithShortcut({ label, shortcut }: { label: React.Rea
   return <span className="inline-flex items-center gap-2">{label}<span className="text-muted-foreground">{shortcut}</span></span>;
 }
 
-/**
- * A tooltip over one button. The span takes the hover a disabled button refuses,
- * so it also fits a button that can be disabled, and a menu, popover or select
- * trigger goes inside it. `className` is what the span needs from its row, such
- * as `shrink-0`. A button repeated on every row of a list uses `row-tooltip.tsx`.
- */
 export function ButtonTooltip({ label, side, sideOffset = 6, className, children }: {
   label: React.ReactNode;
   side?: 'top' | 'bottom';
@@ -102,7 +94,6 @@ export function ButtonTooltip({ label, side, sideOffset = 6, className, children
   );
 }
 
-/** A `ToolbarButton` with its tooltip, which opens below so it never covers the row. */
 export function ToolbarTooltipButton({ label, shortcut, ...props }: React.ComponentProps<typeof ToolbarButton> & { shortcut?: string }) {
   return (
     <ButtonTooltip label={<TooltipLabelWithShortcut label={label} shortcut={shortcut} />} side="bottom">

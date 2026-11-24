@@ -198,7 +198,6 @@ const evaluationLibrary = createLibrary({ components: [] });
 
 const parser = createParser(uiBlockLibrary.toJSONSchema(), 'Stack');
 
-/** A component an active extension adds; its own page draws it (`ExtensionBlockFrame`). */
 export type ExtensionBlock = {
   guestId: string;
   name: string;
@@ -212,7 +211,6 @@ export type ExtensionBlock = {
 export type ExtensionBlocks = ReadonlyMap<string, ExtensionBlock>;
 export const NO_EXTENSION_BLOCKS: ExtensionBlocks = new Map();
 
-/** The active extensions' components by name. The catalog's own names stay the catalog's, and the first extension keeps a shared name. */
 export const collectExtensionBlocks = (blocks: readonly ExtensionBlock[]): ExtensionBlocks => {
   const collected = new Map<string, ExtensionBlock>();
   for (const block of blocks) {
@@ -227,11 +225,6 @@ export const collectExtensionBlocks = (blocks: readonly ExtensionBlock[]): Exten
 
 const extensionBlockProps = (block: ExtensionBlock) => z.object(Object.fromEntries(block.args.map((arg) => [arg, z.string().optional()])));
 
-/**
- * The parser for the current set, built once per set. Extensions change
- * rarely and only on a catalog change, while every keystroke of a streaming
- * block parses again.
- */
 let extendedParser: { blocks: ExtensionBlocks; parser: typeof parser } | null = null;
 
 const parserFor = (blocks: ExtensionBlocks): typeof parser => {
@@ -250,38 +243,21 @@ const parserFor = (blocks: ExtensionBlocks): typeof parser => {
 
 export type UiBlockParse =
   | { kind: 'empty' }
-  /** `dropped` says what a salvaged block lost; it is empty for a whole block. */
   | { kind: 'ready'; root: BlockValue; dropped: string[] }
   | { kind: 'invalid'; errors: string[] };
 
-// Read off the source: the parser's tree has already lost whatever sat under a
-// broken parent. The word in a string only costs that block its salvage.
+// external: https://github.com/thesysdev/openui/tree/main/packages/lang-core Broken parents lose their children in the parsed tree, so salvage checks the source for fields.
 const asksSomething = /\b(?:Choice|Input|DateInput|Slider|Button)\s*\(/;
 
-/**
- * Whether a block may draw without its broken parts: it shows something and
- * asks nothing. A form that lost an option or a button would take an answer
- * to a different question.
- */
 const canDropParts = (source: string, kept: BlockValue): boolean => (
   !asksSomething.test(source) && (childSlots.safeParse(blockNode.safeParse(kept).data?.props).data?.children?.length ?? 0) > 0
 );
 
-/**
- * Parses one block. While it streams, a partial tree renders as far as it has
- * arrived. Once complete, any error makes the block invalid; with `salvage`, a
- * block that only shows things draws the parts that are sound and names the
- * rest in `dropped`. A block cut short or written in a shape the chat does not
- * support stays invalid either way.
- */
 export function parseUiBlock(source: string, complete: boolean, salvage = false, extensions: ExtensionBlocks = NO_EXTENSION_BLOCKS): UiBlockParse {
   const result = parserFor(extensions).parse(source);
-  // A fold with nothing inside loses nothing by not drawing, and the parser
-  // has already left it out of the tree.
   const errors = result.meta.errors
     .filter((error) => !(error.component === 'Details' && error.path === '/children' && error.code === 'missing-required'))
     .map((error) => [error.component, error.path].filter(Boolean).join(' ') + `: ${error.message}`);
-  // A key shifts every argument after it, so the other errors of such a block mislead.
   const namedError = complete ? namedArgumentError(source, result.meta) : null;
   if (complete) {
     if (result.meta.unresolved.length) errors.push(`Undefined names: ${result.meta.unresolved.join(', ')}`);
@@ -297,8 +273,6 @@ export function parseUiBlock(source: string, complete: boolean, salvage = false,
   }
   if (!result.root || result.root.typeName !== 'Stack') return { kind: 'empty' };
   if (!complete) {
-    // Expressions such as "a" + "b" are evaluated by the language's own
-    // built-ins once the block is complete; until then the block waits.
     return result.root.hasDynamicProps ? { kind: 'empty' } : { kind: 'ready', root: toBlockValue(result.root), dropped: [] };
   }
   let root = result.root;
@@ -318,13 +292,12 @@ export function parseUiBlock(source: string, complete: boolean, salvage = false,
   const kept = soundNode(tree, treeErrors, extensions);
   const problems = namedError ? errors : [...errors, ...treeErrors];
   if (!problems.length) return { kind: 'ready', root: tree, dropped: [] };
-  // An expression over a broken name evaluates to a made-up value, so a block
-  // with expressions is not salvaged.
+  // external: https://github.com/thesysdev/openui/tree/main/packages/lang-core Expressions over broken names can evaluate to invented values, so expression blocks cannot be salvaged.
   if (!salvage || !kept || result.root.hasDynamicProps || !canDropParts(source, kept)) return { kind: 'invalid', errors: problems };
   return { kind: 'ready', root: kept, dropped: problems };
 }
 
-// The library does not export its token kinds, so they are read from its own tokenizer.
+// external: https://github.com/thesysdev/openui/tree/main/packages/lang-core Token kinds are not exported; derive them with the tokenizer.
 const tokenKind = (text: string) => tokenize(text)[0].t;
 const NEWLINE = tokenKind('\n');
 const CALL_OPEN = tokenKind('(');
@@ -336,11 +309,6 @@ const OBJECT_OPEN = tokenKind('{');
 const OPENERS = new Set([CALL_OPEN, ARRAY_OPEN, OBJECT_OPEN]);
 const OPENER_OF = new Map([[tokenKind(')'), CALL_OPEN], [tokenKind(']'), ARRAY_OPEN], [tokenKind('}'), OBJECT_OPEN]]);
 
-/**
- * The keys written as `key: value` where a call takes an argument. A key of an
- * object literal sits inside braces, and a ternary's `:` follows an expression
- * that starts after its `?`, so neither counts.
- */
 function namedArguments(source: string): string[] {
   const tokens = tokenize(source).filter((token) => token.t !== NEWLINE);
   const open: (typeof CALL_OPEN)[] = [];
@@ -357,11 +325,6 @@ function namedArguments(source: string): string[] {
   return [...names];
 }
 
-/**
- * The error for a block that writes named arguments. The scan reads text the
- * parser skips, such as comments, so the parser has to show the shift too: an
- * excess argument, or a key it took for an undefined name.
- */
 function namedArgumentError(source: string, meta: ParseResult['meta']): string | null {
   const excess = meta.errors.some((error) => error.code === 'excess-args');
   if (!excess && !meta.unresolved.length) return null;
@@ -377,13 +340,6 @@ function toBlockValue(root: ElementNode): BlockValue {
 const childSlots = z.object({ children: nodes.optional(), tabs: nodes.optional(), series: nodes.optional() });
 const chart = z.object({ labels: z.array(z.string()), series: nodes });
 
-/**
- * What the parser lets through but a finished block must not show: a node it
- * kept as partial, a node whose props do not match its component (an element
- * written as an object literal), and a chart whose series do not have one
- * value per label. Returns the node without such parts, null when the node
- * itself is one, and lists every one found in `errors`.
- */
 function soundNode(value: BlockValue, errors: string[], extensions: ExtensionBlocks): BlockValue | null {
   const node = blockNode.safeParse(value);
   const extension = node.data ? extensions.get(node.data.typeName) : undefined;
@@ -475,7 +431,18 @@ export function blockFields(root: BlockValue): BlockField[] {
   return fields;
 }
 
-/** The first extension component in the block whose frame takes the answer itself. */
+export function blockQuestions(root: BlockValue): string[] {
+  const questions: string[] = [];
+  const seen = new Set<string>();
+  eachNode(root, (node, cardTitle) => {
+    const field = fieldOf(node);
+    if (!field || seen.has(field.name)) return;
+    seen.add(field.name);
+    questions.push(field.label !== field.name ? field.label : cardTitle.trim() || field.name);
+  });
+  return questions;
+}
+
 export function answeringFrame(root: BlockValue, extensions: ExtensionBlocks): string | null {
   let found: string | null = null;
   eachNode(root, (node) => {
@@ -484,7 +451,6 @@ export function answeringFrame(root: BlockValue, extensions: ExtensionBlocks): s
   return found;
 }
 
-/** Where a node's children sit: the child indexes that lead to it from the root. */
 export type BlockPath = string;
 export const blockPath = (parent: BlockPath, index: number): BlockPath => (parent ? `${parent}/${index}` : String(index));
 

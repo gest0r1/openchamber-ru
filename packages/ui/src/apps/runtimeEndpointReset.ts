@@ -14,6 +14,7 @@ import { useGlobalSessionsStore } from '@/stores/useGlobalSessionsStore';
 import { useAutoReviewStore } from '@/stores/useAutoReviewStore';
 import { resetPrWatchesForRuntimeSwitch } from '@/sync/pr-watch';
 import { resetExtensionWaitsForRuntimeSwitch } from '@/sync/extension-waits';
+import { resetLaterPagesForRuntimeSwitch } from '@/sync/later-pages';
 import { usePermissionStore } from '@/stores/permissionStore';
 import { useMessageQueueStore } from '@/stores/messageQueueStore';
 import { useFileSearchStore } from '@/stores/useFileSearchStore';
@@ -65,6 +66,7 @@ export const resetAppForRuntimeEndpointChange = (detail: RuntimeEndpointChangedD
   useAutoReviewStore.getState().resetForRuntimeSwitch();
   resetPrWatchesForRuntimeSwitch();
   resetExtensionWaitsForRuntimeSwitch();
+  resetLaterPagesForRuntimeSwitch();
   disposeTerminalInputTransport();
   useTerminalStore.getState().clearAll();
   opencodeClient.reconnectToRuntimeBaseUrl();
@@ -123,8 +125,6 @@ export const resetAppForRuntimeEndpointChange = (detail: RuntimeEndpointChangedD
   useSessionUIStore.getState().restoreForRuntimeSwitch(detail.runtimeKey, detail.previousRuntimeKey);
   useSessionUIStore.setState({ worktreeDiscoveryByProject: new Map() });
   useUIStore.getState().setOpenGuestPage(null);
-  // Uploaded provider logos live on the instance; a server that never stored any
-  // omits the key, and the sync below keeps an omitted key as it was.
   useUIStore.setState({ customProviderLogos: {} });
   resetStreamingState();
   queueMicrotask(() => void syncDesktopSettings());

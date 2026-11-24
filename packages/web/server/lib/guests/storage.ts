@@ -14,21 +14,20 @@ const storagePath = (persistPath: string, id: string) => {
   return path.join(path.dirname(persistPath), 'guest-storage', `${id}.json`);
 };
 
-/** The folder a guest's service keeps its own files in (`OPENCHAMBER_SERVICE_DATA_DIR`). */
-export const guestDataDir = (persistPath, id) => {
+export const guestDataDir = (persistPath: string, id: string) => {
   if (!/^[a-z][a-z0-9-]*$/.test(id)) throw new Error('Invalid extension identity');
   return path.join(path.dirname(persistPath), 'guest-data', id);
 };
 
-export const removeGuestData = async (persistPath, id) => {
-  if (typeof process.getuid === 'function' && process.getuid() === 0) {
+export const removeGuestData = async (persistPath: string, id: string) => {
+  if (process.getuid?.() === 0) {
     if (process.env.OPENCHAMBER_ROOT_MODE !== 'separated') throw new Error('ROOT_GUEST_DATA_REMOVAL_FORBIDDEN');
     await removeRootGuestServiceData(id);
   }
   await fs.rm(guestDataDir(persistPath, id), { recursive: true, force: true });
 };
 
-const withStorageLock = async (file, operation) => {
+const withStorageLock = async <T>(file: string, operation: () => Promise<T>) => {
   const previous = stores.get(file) ?? Promise.resolve();
   const pending = previous.catch(() => {}).then(operation);
   stores.set(file, pending);

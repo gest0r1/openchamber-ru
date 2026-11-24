@@ -27,6 +27,7 @@ import { getRuntimeKey, subscribeRuntimeEndpointChanged } from '@/lib/runtime-sw
 import { FadeInOnReveal } from './message/FadeInOnReveal';
 import type { ToolPopupContent } from './message/types';
 import { getMarkdownCjk, getMarkdownProcessingOptions, markdownMath, remarkLiteralText } from './markdown/streamdownPlugins';
+import { parseMarkdownBlocksWithMath } from './markdown/mathBlocks';
 import { remarkEmojiShortcodes } from './markdown/remarkEmojiShortcodes';
 import { remarkRepositoryReferences } from './markdown/remarkRepositoryReferences';
 import { fenceUiBlocks } from './uiBlocks/taggedBlocks';
@@ -78,7 +79,6 @@ export interface MarkdownRendererProps {
   variant?: MarkdownVariant;
   onShowPopup?: (content: ToolPopupContent) => void;
   enableFileReferences?: boolean;
-  /** What active extensions claim in this message (`useGuestLinkRules`). Keep the array stable. */
   guestLinks?: readonly GuestLinkRule[] | null;
 }
 
@@ -168,7 +168,6 @@ const components: Components = {
 const renderers = [
   { language: 'mermaid', component: MarkdownMermaid },
   { language: 'openui-lang', component: MarkdownUiBlock },
-  // Reached only where `svgFences` is on (MarkdownCode); elsewhere the fence stays code.
   { language: 'svg', component: MarkdownSvg },
 ];
 const linkSafety = { enabled: false };
@@ -282,13 +281,9 @@ export interface MarkdownContentProps {
   repositoryLinks?: RepositoryLinkContext | null;
   emojiShortcodes?: EmojiShortcodes | null;
   windowed?: boolean;
-  /** `openui-lang` fences draw as UI blocks; only assistant and subagent replies set it. */
   uiBlocks?: boolean;
-  /** `svg` fences draw as images; only the Files preview sets it. */
   svgFences?: boolean;
-  /** Text a person typed: no HTML and no character references, so `<b>` and `&amp;` read as typed (`remarkLiteralText`). */
   literalText?: boolean;
-  /** What active extensions claim in chat messages (`useGuestLinkRules`); only chat messages pass it. Keep the array stable. */
   guestLinks?: readonly GuestLinkRule[] | null;
 }
 
@@ -427,7 +422,6 @@ export function MarkdownContent({
     if (emojiShortcodes) extra.push([remarkEmojiShortcodes, emojiShortcodes]);
     if (repositoryLinks) extra.push([remarkRepositoryReferences, repositoryLinks]);
     if (literalText) extra.push(remarkLiteralText);
-    // A copy or an image keeps the text as written.
     if (activeGuestLinks) extra.push([remarkGuestLinks, activeGuestLinks]);
     if (extra.length === 0) return base;
     return { ...base, remarkPlugins: [...(base.remarkPlugins ?? []), ...extra] };
@@ -439,14 +433,13 @@ export function MarkdownContent({
     loopbackPreview,
     settled,
     purpose,
-    // Only an assistant or subagent reply on screen draws UI blocks; copies
-    // and image exports keep the block's source.
-    uiBlocks: uiBlocks && !purpose,
+    uiBlocks: uiBlocks && purpose !== 'copy',
     svgFences: svgFences && !purpose,
     settledReply: uiBlocks && !purpose && settled && sessionId && messageId ? { sessionId, messageId } : null,
     disableLinkSafety,
     guestLinks: activeGuestLinks,
     tableWidthScope,
+    chatTableExpansion: chatTableExpansion && variant === 'assistant' && !purpose,
     theme,
     mermaidControls,
     onShowPopup,
@@ -455,8 +448,8 @@ export function MarkdownContent({
     confirmFile,
     code,
   }), [
-    directory, fileReferences, fileNavigation, loopbackPreview, settled, purpose, uiBlocks, svgFences, sessionId, messageId, disableLinkSafety, activeGuestLinks, tableWidthScope, theme,
-    mermaidControls, onShowPopup, onExportCode, confirmFile, code,
+    directory, fileReferences, fileNavigation, loopbackPreview, settled, purpose, uiBlocks, svgFences, sessionId, messageId, disableLinkSafety, activeGuestLinks, tableWidthScope, chatTableExpansion, variant, theme,
+    mermaidControls, onShowPopup, onExportCode, preparedHighlights, confirmFile, code,
   ]);
 
   let body = (

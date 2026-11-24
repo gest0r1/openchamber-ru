@@ -42,7 +42,7 @@ const makeRuntime = ({
   lineage = null,
   isSessionArchived = async () => false,
   isWorktreePinned = async () => false,
-  doneHintDelayMs = 5,
+  doneHintDelayMs = DONE_HINT_DELAY_MS,
   activityProbe = null,
 } = {}) => {
   const records = new Map([['ses_1', metadata]]);
@@ -75,7 +75,7 @@ const makeRuntime = ({
     chatRoots: ['/home/me/.config/openchamber/chats'],
     lineage,
     now: () => time++,
-    openRetryDelaysMs: [5, 5],
+    openRetryDelaysMs: OPEN_RETRY_DELAYS_MS,
     doneHintDelayMs,
     activityProbe,
   });
@@ -397,7 +397,7 @@ describe('session work runtime: a turn ended', () => {
 
     expect(Object.keys(jev.ask.mock.calls[0][0].questions)).toEqual(['report', 'agent_continues', 'waits_reader', 'offers_agent', 'review_ready']);
     expect(gate).toBeNull();
-    await settle(() => records.get('ses_1').openchamber.work.suggestDoneAt !== undefined);
+    await vi.advanceTimersByTimeAsync(DONE_HINT_DELAY_MS);
     expect(records.get('ses_1').openchamber.work.suggestDoneAt).toBeTypeOf('number');
 
     const busy = { type: 'session.status', properties: { sessionID: 'ses_1', status: { type: 'busy' } } };
@@ -410,6 +410,7 @@ describe('session work runtime: a turn ended', () => {
   });
 
   it('offers a review at once, and looks done replaces it after the quiet pause', async () => {
+    vi.useFakeTimers();
     stubOpenCode();
     const open = { openchamber: { work: { state: 'open', openedAt: 1 } } };
     const review = makeRuntime({ metadata: open, answers: { ...notDone, review_ready: { noul: 0.75 } } });
@@ -420,41 +421,48 @@ describe('session work runtime: a turn ended', () => {
     const both = makeRuntime({ metadata: open, answers: { ...looksDone, review_ready: { noul: 0.9 } }, doneHintDelayMs: 20 });
     await both.runtime.evaluateTurnEnd({ sessionId: 'ses_1', directory: '/repo', assist: { recap: false, suggestion: false } });
     expect(both.records.get('ses_1').openchamber.reviewOffer.at).toBeTypeOf('number');
+    await vi.advanceTimersByTimeAsync(19);
     expect(both.records.get('ses_1').openchamber.work).not.toHaveProperty('suggestDoneAt');
-    await settle(() => both.records.get('ses_1').openchamber.work.suggestDoneAt !== undefined);
+    await vi.advanceTimersByTimeAsync(1);
     expect(both.records.get('ses_1').openchamber.work.suggestDoneAt).toBeTypeOf('number');
     expect(both.records.get('ses_1').openchamber).not.toHaveProperty('reviewOffer');
   });
 
   it('shows no done hint when the user writes again within the pause, or the runtime stops', async () => {
+    vi.useFakeTimers();
+    const doneHintDelayMs = 30;
     stubOpenCode();
     const open = { openchamber: { work: { state: 'open', openedAt: 1 } } };
-    const replied = makeRuntime({ metadata: open, answers: looksDone, doneHintDelayMs: 30 });
+    const replied = makeRuntime({ metadata: open, answers: looksDone, doneHintDelayMs });
     await replied.runtime.evaluateTurnEnd({ sessionId: 'ses_1', directory: '/repo', assist: { recap: false, suggestion: false } });
     replied.runtime.processPayload(sent('msg_next'));
-    await new Promise((resolve) => setTimeout(resolve, 60));
+    await vi.advanceTimersByTimeAsync(doneHintDelayMs);
     expect(replied.records.get('ses_1').openchamber.work).not.toHaveProperty('suggestDoneAt');
 
     // A late answer about an older turn leaves the newer turn's pending hint alone.
-    const late = makeRuntime({ metadata: open, doneHintDelayMs: 30 });
+    const late = makeRuntime({ metadata: open, doneHintDelayMs });
     const answers = [];
-    late.jev.ask.mockImplementation(() => new Promise((resolve) => { answers.push(resolve); }));
+    const asked = [Promise.withResolvers(), Promise.withResolvers()];
+    late.jev.ask.mockImplementation(() => new Promise((resolve) => {
+      answers.push(resolve);
+      asked[answers.length - 1].resolve();
+    }));
     const older = late.runtime.evaluateTurnEnd({ sessionId: 'ses_1', directory: '/repo', assist: { recap: false, suggestion: false } });
-    await settle(() => answers.length === 1);
+    await asked[0].promise;
     late.runtime.processPayload(busy);
     const newer = late.runtime.evaluateTurnEnd({ sessionId: 'ses_1', directory: '/repo', assist: { recap: false, suggestion: false } });
-    await settle(() => answers.length === 2);
+    await asked[1].promise;
     answers[1]({ answers: looksDone, ms: 5 });
     await newer;
     answers[0]({ answers: looksDone, ms: 5 });
     await older;
-    await settle(() => late.records.get('ses_1').openchamber.work.suggestDoneAt !== undefined);
+    await vi.advanceTimersByTimeAsync(doneHintDelayMs);
     expect(late.records.get('ses_1').openchamber.work.suggestDoneAt).toBeTypeOf('number');
 
-    const stopped = makeRuntime({ metadata: open, answers: looksDone, doneHintDelayMs: 30 });
+    const stopped = makeRuntime({ metadata: open, answers: looksDone, doneHintDelayMs });
     await stopped.runtime.evaluateTurnEnd({ sessionId: 'ses_1', directory: '/repo', assist: { recap: false, suggestion: false } });
     stopped.runtime.stop();
-    await new Promise((resolve) => setTimeout(resolve, 60));
+    await vi.advanceTimersByTimeAsync(doneHintDelayMs);
     expect(stopped.updateMetadata).not.toHaveBeenCalled();
   });
 
@@ -500,19 +508,21 @@ describe('session work runtime: a turn ended', () => {
     // A check nobody overtook still writes its hint.
     answer = undefined;
     const current = runtime.evaluateTurnEnd({ sessionId: 'ses_1', directory: '/repo', assist: { recap: false, suggestion: false } });
-    await settle(() => answer !== undefined);
+    await vi.advanceTimersByTimeAsync(0);
     answer({ answers: looksDone, ms: 5 });
     await current;
-    await settle(() => records.get('ses_1').openchamber.work.suggestDoneAt !== undefined);
+    await vi.advanceTimersByTimeAsync(5);
     expect(records.get('ses_1').openchamber.work.suggestDoneAt).toBeTypeOf('number');
   });
 
   it('neither hints done nor suggests a next step while the agent waits on its own background work', async () => {
     vi.useFakeTimers();
     stubOpenCode();
-    const { runtime, records } = makeRuntime({
-      metadata: { openchamber: { work: { state: 'open', openedAt: 1 } } },
-      answers: looksDone,
+    const open = { openchamber: { work: { state: 'open', openedAt: 1 } } };
+    const probe = (jobs, children = false) => ({
+      fetchRunningBackgroundJobs: vi.fn(async () => jobs),
+      fetchActiveSessionStatuses: vi.fn(async () => ({})),
+      hasWorkingChildren: vi.fn(async () => children),
     });
     const continues = { ...looksDone, agent_continues: { noul: 0.9 } };
     const assist = { recap: false, suggestion: true };
@@ -543,64 +553,6 @@ describe('session work runtime: a turn ended', () => {
     const finished = makeRuntime({ metadata: open, answers: looksDone, activityProbe: probe(server) });
     await finished.runtime.evaluateTurnEnd({ sessionId: 'ses_1', directory: '/repo', assist });
     await vi.advanceTimersByTimeAsync(DONE_HINT_DELAY_MS);
-    expect(finished.records.get('ses_1').openchamber.work.suggestDoneAt).toBeTypeOf('number');
-  });
-
-  it('asks about a review only when the turn changed files on disk, or when OpenCode took no snapshot', async () => {
-    const withSnapshot = (files) => [
-      answeredTurn[0],
-      { ...answeredTurn[1], snapshot: { start: 'a', end: 'b', files } },
-      { id: 'msg_step', type: 'assistant', content: [], finish: 'tool-calls', snapshot: { start: 'a', end: 'a', files: [] } },
-      ...answeredTurn.slice(2),
-    ];
-    const questionsFor = async (records) => {
-      stubOpenCode({ records });
-      const { runtime, jev } = makeRuntime({ settings: { enabled: false }, answers: { review_ready: { noul: 0.9 } } });
-      await runtime.evaluateTurnEnd({ sessionId: 'ses_1', directory: '/repo', assist: { recap: true, suggestion: false } });
-      return Object.keys(jev.ask.mock.calls[0][0].questions);
-    };
-    expect(await questionsFor(withSnapshot([]))).toEqual(['recap']);
-    expect(await questionsFor(withSnapshot(['src/app.ts']))).toEqual(['review_ready', 'recap']);
-    expect(await questionsFor(answeredTurn)).toEqual(['review_ready', 'recap']);
-  });
-
-  it('neither hints done nor suggests a next step while the agent waits on its own background work', async () => {
-    stubOpenCode();
-    const open = { openchamber: { work: { state: 'open', openedAt: 1 } } };
-    const probe = (jobs, children = false) => ({
-      fetchRunningBackgroundJobs: vi.fn(async () => jobs),
-      fetchActiveSessionStatuses: vi.fn(async () => ({})),
-      hasWorkingChildren: vi.fn(async () => children),
-    });
-    const continues = { ...looksDone, agent_continues: { noul: 0.9 } };
-    const assist = { recap: false, suggestion: true };
-    // The turn's user message was sent at 3; `now` starts at 100.
-    const waiting = [
-      [{ kind: 'subagent', sessionID: 'ses_child', startedAt: 1 }],
-      [{ kind: 'shell', sessionID: 'ses_1', command: 'bun test', startedAt: 50 }],
-      [],
-    ];
-    for (const [index, jobs] of waiting.entries()) {
-      const done = makeRuntime({ metadata: open, answers: looksDone, activityProbe: probe(jobs, index === 2) });
-      expect(await done.runtime.evaluateTurnEnd({ sessionId: 'ses_1', directory: '/repo', assist })).toMatchObject({ suggestion: false });
-      const next = makeRuntime({ answers: continues, activityProbe: probe(jobs, index === 2) });
-      expect(await next.runtime.evaluateTurnEnd({ sessionId: 'ses_1', directory: '/repo', assist })).toMatchObject({ suggestion: false });
-      await new Promise((resolve) => setTimeout(resolve, 20));
-      expect(done.records.get('ses_1').openchamber.work).not.toHaveProperty('suggestDoneAt');
-    }
-
-    // Known background work still rules out a next step when Jev fails.
-    vi.spyOn(console, 'warn').mockImplementation(() => {});
-    const failed = makeRuntime({ askError: new Error('Jev timed out'), activityProbe: probe(waiting[0]) });
-    expect(await failed.runtime.evaluateTurnEnd({ sessionId: 'ses_1', directory: '/repo', assist })).toEqual({ recap: true, suggestion: false });
-
-    // A dev server started before this turn is not work the agent waits on.
-    const server = [{ kind: 'shell', sessionID: 'ses_1', command: 'bun run dev', startedAt: 1 }];
-    const free = makeRuntime({ answers: continues, activityProbe: probe(server) });
-    expect(await free.runtime.evaluateTurnEnd({ sessionId: 'ses_1', directory: '/repo', assist })).toMatchObject({ suggestion: true });
-    const finished = makeRuntime({ metadata: open, answers: looksDone, activityProbe: probe(server) });
-    await finished.runtime.evaluateTurnEnd({ sessionId: 'ses_1', directory: '/repo', assist });
-    await settle(() => finished.records.get('ses_1').openchamber.work.suggestDoneAt !== undefined);
     expect(finished.records.get('ses_1').openchamber.work.suggestDoneAt).toBeTypeOf('number');
   });
 

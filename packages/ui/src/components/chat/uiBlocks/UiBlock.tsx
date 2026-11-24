@@ -477,15 +477,6 @@ function Progress({ props }: NodeProps) {
 
 type StepStatus = z.infer<typeof blockProps.Steps>['items'][number]['status'];
 
-/**
- * A step's mark on the line. The current step holds still: an accent disc
- * with a halo, no pulse. A block can stay on screen for a whole session, and a
- * loop that never ends keeps the compositor busy all that time.
- *
- * No status is a static step, not a pending one: a flow the reply explains is
- * not running, so its marks and titles read at normal contrast. Only an
- * explicit `todo` says "not started yet".
- */
 function StepMark({ status, index }: { status: StepStatus; index: number }) {
   const base = 'flex size-[1.125rem] shrink-0 items-center justify-center rounded-full';
   if (status === 'done') {
@@ -508,7 +499,6 @@ function StepMark({ status, index }: { status: StepStatus; index: number }) {
   );
 }
 
-/** A title's tone: no status is a static step and keeps the normal title colour. */
 const stepTitleTone = {
   done: '',
   current: 'text-[var(--primary-text)]',
@@ -1008,13 +998,6 @@ function LineChart({ props }: NodeProps) {
   );
 }
 
-/**
- * The form an agent waits on, for the nodes drawn in it; null in a reply and on
- * a page that only shows data. Its Tabs step through their tabs with Next, as
- * the question tool does, and the form's own Send, with the note before it,
- * sits on the last tab of the Tabs at `endPath`: the Tabs the form ends with,
- * when it has no buttons of its own.
- */
 const WaitingFormContext = React.createContext<{ endPath: BlockPath | null; end: React.ReactNode } | null>(null);
 
 function Tabs({ props }: NodeProps) {
@@ -1026,9 +1009,6 @@ function Tabs({ props }: NodeProps) {
   const [active, setActive] = React.useState('0');
   const panel = React.useRef<HTMLDivElement>(null);
   const block = React.useRef<HTMLDivElement>(null);
-  // Next takes focus to the tab it opens: on Next, the next Tab key would
-  // leave the box, and the last tab replaces Next with the form's Send. The
-  // timeline owns the scroll, so it brings the new tab's start into view.
   const stepped = React.useRef(false);
   React.useEffect(() => {
     if (!stepped.current) return;
@@ -1056,8 +1036,6 @@ function Tabs({ props }: NodeProps) {
       {t('chat.questionCard.next')}
     </UiButton>
   );
-  // A tab that ends with buttons of its own takes Next on their line (`noteSlot`
-  // finds them); otherwise, buttons in a card or a closed Details included, under its content.
   const run = next && current ? noteSlot(current.node) : null;
   const tabSlot = run?.parent === '' ? { parent: path, index: run.index, element: null, trailing: next } : null;
   const footer = tabSlot ? null : next ?? (waiting?.endPath === path ? waiting.end : null);
@@ -1073,9 +1051,6 @@ function Tabs({ props }: NodeProps) {
         pillSize="toolbar"
         className="h-7 max-w-full flex-none self-start"
       />
-      {/* In a tile, so the tab's content does not run into the reply's text after the block. */}
-      {/* It frames what it holds as a card does: a chart or table inside takes no frame of its own. */}
-      {/* Drawn with no tab too, so a form's Send placed here is never lost. */}
       {(current || footer) && (
         <div ref={panel} tabIndex={-1} className="oc-box flex flex-col gap-3 outline-none">
           {current && (
@@ -1286,7 +1261,6 @@ const drawn = blockName.extract([
   'LineChart', 'Choice', 'Input', 'DateInput', 'Slider', 'Button',
 ]);
 
-/** The active extensions' components, and whether the block is finished: only a finished one mounts their pages. */
 const ExtensionBlocksContext = React.createContext<{
   blocks: ExtensionBlocks;
   complete: boolean;
@@ -1311,16 +1285,11 @@ function Node({ value }: { value: BlockValue }) {
   return <Renderer props={node.data.props} />;
 }
 
-/**
- * A block that could not be drawn: why, and its source folded away. Unfolded,
- * a long program filled the reply, and the reasons were nowhere.
- */
 function NotDrawn({ source, errors, partial = false }: { source: string; errors: string[]; partial?: boolean }) {
   const { t } = useI18n();
   const image = React.useContext(MarkdownPresentationContext)?.purpose === 'image';
   const [open, setOpen] = React.useState(image);
   const panelId = React.useId();
-  // An agent's block outlives the extension that drew it; the parser's wording is for the agent.
   const shown = errors.map((error) => (/Unknown component "[A-Z]/.test(error) ? t('chat.uiBlocks.extensionBlock.unavailable') : error));
   return (
     <div className="flex flex-col gap-1 typography-meta">
@@ -1373,23 +1342,23 @@ function addKitStyles() {
   document.head.append(style);
 }
 
-export function UiBlock({ source, complete, host = noHost, onNotDrawn, actions }: {
+export function UiBlock({ source, complete, host = noHost, onNotDrawn, actions, draft }: {
   source: string;
   complete: boolean;
   host?: UiBlockHost;
-  /** The host's own controls, under the block on every tab: after the form's Send in the same row, or alone when Send sits on the last tab. */
+  draft?: ReplyDraftStorage;
   actions?: React.ReactNode;
-  /** Hears why a finished block could not be drawn: the parser's errors, or a drawing failure. */
   onNotDrawn?: (errors: string[]) => void;
 }) {
   const { t } = useI18n();
-  const { currentTheme } = useThemeSystem();
-  // A broken page goes back to the agent, which draws it again, so only a
-  // reply, which has no such second try, draws what it can.
+  const themeSystem = useOptionalThemeSystem();
+  const presentation = React.useContext(MarkdownPresentationContext);
+  const currentTheme = themeSystem?.currentTheme ?? presentation?.theme;
+  if (!currentTheme) throw new Error('useThemeSystem must be used within a ThemeSystemProvider');
   const salvage = host.kind === 'reply';
-  const extensionBlocks = useExtensionBlocks();
+  const availableExtensions = useExtensionBlocks();
+  const extensionBlocks = presentation?.purpose === 'image' ? NO_EXTENSION_BLOCKS : availableExtensions;
   const parsed = React.useMemo(() => parseUiBlock(source, complete, salvage, extensionBlocks), [source, complete, salvage, extensionBlocks]);
-  // The kit's variables (series colours, tones) land on the block's root before paint, and follow a theme switch.
   const blockRef = React.useRef<HTMLDivElement>(null);
   React.useInsertionEffect(addKitStyles, []);
   React.useLayoutEffect(() => {
@@ -1435,23 +1404,6 @@ export function UiBlock({ source, complete, host = noHost, onNotDrawn, actions }
   }), [fields, values]);
   const disabled = !host.submit || !complete || sending || sent;
 
-  // State arrives a render late, and a frame can answer twice within one.
-  // Taken until a send fails: an answered block stays answered.
-  const delivering = React.useRef(false);
-  const deliver = React.useCallback((send: () => Promise<void>) => {
-    if (delivering.current) return Promise.resolve(false);
-    delivering.current = true;
-    setSending(true);
-    setFailed(false);
-    return send().then(() => {
-      setSent(true);
-      return true;
-    }, () => {
-      delivering.current = false;
-      setFailed(true);
-      return false;
-    }).finally(() => setSending(false));
-  }, []);
   const replyAnswer = React.useCallback((choices: Chosen) => {
     const answer: UiBlockReplyAnswerData = {
       picks: [],
@@ -1468,7 +1420,6 @@ export function UiBlock({ source, complete, host = noHost, onNotDrawn, actions }
       if (pick.button || pick.note) answer.picks.push(pick);
       else answer.skipped.push(decision);
     }
-    // The note under a frame goes with whatever sends the block.
     if (frameName && trimmedNote) answer.picks.unshift({ value: frameName, note: trimmedNote });
     return answer;
   }, [decisions, answerValues, notes, frameName, trimmedNote]);
@@ -1479,8 +1430,6 @@ export function UiBlock({ source, complete, host = noHost, onNotDrawn, actions }
     void deliver(() => submit(answer, describeUiBlockReplyAnswer(fields, answer)));
   }, [host, replyAnswer, fields, deliver]);
 
-  // An extension's frame answers for the whole block, along with what the
-  // user already chose or wrote in it, as a button of the block does.
   const answerFromFrame = React.useCallback(async (name: string, text: string) => {
     if (disabled || delivering.current || !host.submit) throw new Error('This block cannot take an answer now.');
     const send = async () => {
@@ -1497,7 +1446,7 @@ export function UiBlock({ source, complete, host = noHost, onNotDrawn, actions }
       setChosen((current) => new Map(current).set(name, text));
     };
     if (!await deliver(send)) throw new Error('The answer did not reach the agent.');
-  }, [answerValues, chosen, deliver, disabled, fields, host, replyAnswer, t, trimmedNote]);
+  }, [answerValues, chosen, deliver, delivering, disabled, fields, host, replyAnswer, t, trimmedNote]);
   const extensionContext = React.useMemo(() => ({
     blocks: extensionBlocks,
     complete,
@@ -1537,7 +1486,7 @@ export function UiBlock({ source, complete, host = noHost, onNotDrawn, actions }
         if (value) data.value = value;
         if (trimmedNote) data.note = trimmedNote;
         setChosen(new Map([[decision, button]]));
-        void deliver(() => submit({ summary: describeUiBlockAnswer(fields, data, t('chat.uiBlock.note.label')), data }));
+        void deliver(() => submit({ summary: describeUiBlockAnswer(fields, data, t('chat.uiBlock.note.label'), pageAnswerNamesButton(decisions.length, fields.length)), data }));
         return;
       }
       const next = new Map(chosen);
@@ -1547,15 +1496,10 @@ export function UiBlock({ source, complete, host = noHost, onNotDrawn, actions }
       if (decisions.every((item) => next.has(item))) sendReply(next);
     },
   }), [answerValues, disabled, chosen, titles, notes, host, fields, decisions, deliver, sendReply, note, t]);
-  // Sending what is chosen so far, or again after a failed send.
-  // Every waiting form lets the user qualify their answer, whether or not the
-  // agent thought to ask: "this option, and also ...". It sits before the
-  // form's last buttons, so it is written before one of them is pressed.
   const savedFrameNote = frameName ? notes.get(frameName) ?? '' : '';
   const shownNote = note || savedFrameNote;
   const showNote = (host.kind === 'page' || frameName !== null) && Boolean(host.submit || shownNote);
   const slotPlace = React.useMemo(() => (root && showNote ? noteSlot(root) : null), [root, showNote]);
-  // The form's own fields are compact, so its note is too.
   const noteElement = !showNote ? null : noteOpen || savedFrameNote ? (
     <ShortTextarea
       value={shownNote}
@@ -1572,27 +1516,17 @@ export function UiBlock({ source, complete, host = noHost, onNotDrawn, actions }
     setNoteOpened(true);
   }} /> : null;
   const slot = slotPlace && noteElement ? { ...slotPlace, element: noteElement } : null;
-  const canSendChosen = host.kind === 'reply' && !sent && chosen.size > 0 && (chosen.size < decisions.length || failed);
-  // Only a press answers a page, so a waiting form the agent gave no button
-  // gets one; without it the user could not answer at all. A frame that
-  // answers is that press already, unless the user wrote a note and no press.
+  const canSendChosen = host.kind === 'reply' && !sent && chosen.size > 0;
   const sendButton = host.kind === 'page' && complete && decisions.length === 0 && (!frameName || (trimmedNote !== '' && !chosen.has(frameName))) && Boolean(host.submit || sent)
     ? { label: host.answered?.button ?? t('chat.uiBlock.send'), variant: 'primary' }
     : null;
-  // Fields in a reply answer through a press too, and a block without a Button
-  // has no decision that would ever send them.
   const replyForm = host.kind === 'reply' && complete && decisions.length === 0 && fields.length > 0 && Boolean(host.submit || sent);
   const hasValue = Object.values(answerValues).some((value) => (Array.isArray(value) ? value.length > 0 : value.trim() !== ''));
   const fallback = <NotDrawn source={source} errors={notDrawnErrors ?? []} />;
-  // A form that ends with Tabs sends from their last tab, where Next stood on the
-  // others. A frame's Send comes with the first letter of its note, and moving
-  // the note there would take the field away mid-word, so a frame's form stays
-  // under the block.
   const rootChildren = blockProps.Stack.safeParse(blockNode.safeParse(root).data?.props).data?.children ?? [];
   const endsWithTabs = blockNode.safeParse(rootChildren.at(-1)).data?.typeName === 'Tabs';
   const sendInTabs = sendButton !== null && !frameName && endsWithTabs;
   const sendBelow = sendInTabs ? null : sendButton;
-  // A page that only shows data keeps its Tabs as they are.
   const waitingForm = host.kind === 'page' && Boolean(host.submit || sent)
     ? {
         endPath: sendInTabs ? blockPath('', rootChildren.length - 1) : null,
@@ -1622,12 +1556,9 @@ export function UiBlock({ source, complete, host = noHost, onNotDrawn, actions }
               <Button props={sendBelow} />
             </FormContext.Provider>
           ) : null}
-          {/* Nothing else is sent while the form's answer is on its way. */}
           {actions ? <fieldset disabled={disabled} className="contents">{actions}</fieldset> : null}
         </div>
       ) : null}
-      {/* The button is the reply's whole answer, so once sent it goes away
-          and the Sent line stays alone. */}
       {replyForm && !sent ? (
         <div className="mt-2">
           <UiButton type="button" className="w-fit" disabled={disabled || (!hasValue && !(frameName && trimmedNote))} onClick={() => sendReply(chosen)}>
@@ -1635,16 +1566,13 @@ export function UiBlock({ source, complete, host = noHost, onNotDrawn, actions }
           </UiButton>
         </div>
       ) : null}
-      {/* A reply's frame takes a note too, and the note alone is an answer. */}
       {host.kind === 'reply' && frameName && trimmedNote && !sent && !replyForm ? (
         <div className="mt-2">
           <UiButton type="button" className="w-fit" disabled={disabled} onClick={() => sendReply(chosen)}>{t('chat.uiBlock.send')}</UiButton>
         </div>
       ) : null}
-      {/* A block that sends keeps one line for what happened, so the reply does not jump. */}
       {replyForm || ((decisions.length > 0 || frameName) && host.kind === 'reply' && (host.submit || sent)) ? (
         <div className="mt-1 flex min-h-6 items-center gap-2 typography-meta text-muted-foreground" aria-live="polite" data-export-ignore>
-          {/* Cleared fields leave a form nothing to retry; a press or a frame can always try again. */}
           {failed && (!replyForm || hasValue || frameName) ? <span className="text-[var(--status-error)]">{t('chat.uiBlock.sendFailed')}</span>
             : sent ? <span>{t('chat.uiBlock.sent')}</span>
               : chosen.size > 0 && decisions.length > 1

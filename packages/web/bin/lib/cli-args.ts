@@ -5,6 +5,7 @@ const DEFAULT_PORT = 3000;
 const DEFAULT_TAIL_LINES = 200;
 
 export interface CliOptions {
+  startService?: boolean;
   port: number;
   host: string | undefined;
   uiPassword: string | undefined;

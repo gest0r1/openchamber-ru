@@ -21,8 +21,6 @@ const CONFLICT_DESCRIPTOR: ChangeDescriptor = {
   descriptionKey: 'diffView.change.conflicted',
 };
 
-// Blue means work in progress across the app, so the marks that carry no
-// state of their own (untracked, renamed, copied) stay neutral.
 const CHANGE_DESCRIPTORS = new Map<string, ChangeDescriptor>([
   ['?', { code: '?', color: 'var(--muted-foreground)', descriptionKey: 'diffView.change.untracked' }],
   ['A', { code: 'A', color: 'var(--status-success)', descriptionKey: 'diffView.change.new' }],

@@ -61,7 +61,6 @@ type FactsContext = {
   runKeyBySessionId: ReadonlyMap<string, string>;
   live: SidebarLiveFacts;
   planSessionIds: SidebarPlanFacts;
-  /** The root folder holding each session and worktree, by folder member id. */
   folderByMember: ReadonlyMap<string, SidebarFolderMembership>;
 };
 

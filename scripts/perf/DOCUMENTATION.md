@@ -119,6 +119,24 @@ maintainer's own app and dev shell, on the same machine.
   heavy run, check for orphaned headless Chromes and `opencode serve`
   processes from earlier probes and report them.
 
+## The User's Session List In The Stand
+
+What the sidebar and the global session list cost scales with how many
+sessions, projects and worktrees there are, and a stand with a handful of
+sessions hides it: one 21-step turn allocated 0.1 GB there and 2.5 GB with a
+real list of 3,700 sessions. `node scripts/perf/seed-session-list.mjs --root
+tmp/scale` copies the user's session records (no messages) and projects into a
+stand of its own, every path rewritten under the root, so the stand's server
+never touches the user's repositories; OpenCode's worktree folders become real
+worktrees. It reads the user's database read-only. Then `bun run profile:serve
+-- --root tmp/scale` and the profile commands with `--dir tmp/scale/project`.
+Seed again before each run of a comparison, since a run adds a session.
+
+`profile:session --heap-sampling` reports the megabytes allocated during the
+turn (`heapSampling.sampledMb`), the figure that moved with churn fixes while
+heap max stayed flat; `syncCounters.sidebarStructureBuilds` counts the sidebar
+rebuilds behind it.
+
 ## A Real Session In The Stand
 
 The stand's synthetic sessions miss bugs that depend on the shape of a real
@@ -158,11 +176,12 @@ To run the same probe against OpenCode's app on the stand's data, with
 ```bash
 HOME=$PWD/../state/home \
 OPENCODE_CONFIG_CONTENT="$(node ../../../scripts/perf/fixture-provider.mjs 4798 --print-config)" \
-/Applications/OpenChamber.app/Contents/Resources/opencode-cli/opencode serve --hostname 127.0.0.1 --port 4870
+~/.opencode/bin/opencode serve --hostname 127.0.0.1 --port 4870
 ```
 
-It serves its web app at `/` and prints a throwaway `server password` in its
-log. In the page choose "Use password", enter `http://127.0.0.1:4870` and that
+This needs the OpenCode CLI: the server the desktop bundles has no web app.
+The CLI serves its web app at `/` and prints a throwaway `server password` in
+its log. In the page choose "Use password", enter `http://127.0.0.1:4870` and that
 password, and connect; it lists the same sessions as `profile:serve`. Its
 controls carry `data-slot` and `data-component` attributes
 (`[data-slot=session-review-toggle] button`, `[data-component=resize-handle]`),
@@ -788,6 +807,17 @@ OPENCHAMBER_TEST_CHROME=/path/to/chrome node --test scripts/perf/chat-quote-popo
 ```
 
 It skips without Chrome and fails on an explicit invalid Chrome path, the same as the JSON tree test.
+
+## Paused goal row regression
+
+`session-goal-row.browser.test.mjs` renders the real `SessionGoalRow` with the UI stylesheet in the phone layout (`mobile-pointer`, touch, 360, 375 and 390 px, plus a 768 px row) in an isolated Vite fixture with its own optimizer cache. Only the row's goal hooks and its action are stubbed: a paused goal with a long objective and a token budget. In every locale it checks that the localized paused hint shows whole beside Resume, Resume's localized label shows whole beside its icon, Resume stays inside the row and the row does not overflow; on the narrow widths the token count must be gone (the goal dialog keeps it), on the wide row it must show whole. A longer translation or a layout change that gives the count priority fails it. Like the tests around it, it stays on loopback and stops what it started.
+
+The app draws in the system font, so the fixture pins `--font-sans` to fonts `pdfjs-dist` ships and fails when they do not load or Chrome paints Latin and Cyrillic hints in another face. Each case runs twice: in Liberation Sans Regular (Arial widths) and in Liberation Sans Bold drawn at normal weight, a wide face standing in for DejaVu Sans, which CI's Ubuntu falls back to and which cut the Polish hint at 390 px when the count stayed in the row. Arabic, Hebrew and CJK text still comes from the host's fonts.
+
+```bash
+node --test scripts/perf/session-goal-row.browser.test.mjs
+OPENCHAMBER_TEST_CHROME=/path/to/chrome node --test scripts/perf/session-goal-row.browser.test.mjs
+```
 
 ## Rendered page layout regression
 

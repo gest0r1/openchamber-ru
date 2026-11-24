@@ -15,7 +15,6 @@ export const getToolIcon = (toolName: string, presentation?: GuestToolRule | nul
         return <GuestIcon icon={guestIcon.icon} iconSrc={guestIcon.iconSrc} className={iconClass} />;
     }
     const tool = toolName.toLowerCase();
-    // OpenCode managing itself: sessions, worktrees, models, schedules, artifacts.
     if (tool === 'opencode' || opencodeNamespaceTool(tool)) {
         return <Icon name="opencode" className={iconClass} />;
     }

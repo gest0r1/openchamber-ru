@@ -41,7 +41,6 @@ import {
 import { pluginDisplayName } from './pluginDisplayName';
 import { usePluginPackageUpdate, usePluginRuntimeStatus } from './usePluginRuntimeStatus';
 
-/** How a plugin spec is loaded, as the card shows it. */
 const PARSED_KIND_ICON: Record<PluginParsedKind, IconName> = {
   control: 'equalizer-2',
   npm: 'code-box',
@@ -130,9 +129,6 @@ export const PluginsGrid: React.FC<{
   const [query, setQuery] = React.useState('');
   const policyRevision = usePluginsStore((state) => state.policyRevision);
   const bumpPolicyRevision = usePluginsStore((state) => state.bumpPolicyRevision);
-  // More than one switch can be in flight, so pending state is kept per row.
-  // A single slot let the first reply clear a second row's disabled state while
-  // its request was still running.
   const [pendingSwitchIds, setPendingSwitchIds] = React.useState<ReadonlySet<string>>(() => new Set());
   const setSwitchPending = (id: string, pending: boolean) => {
     setPendingSwitchIds((previous) => {
@@ -161,12 +157,6 @@ export const PluginsGrid: React.FC<{
     });
   };
 
-  // The server names the plugin resource the policy matches; without one the
-  // row still shows a switch, so every card keeps the same shape, and the hint
-  // says why nothing can be flipped. A failed policy read leaves the switch
-  // disabled: a denied plugin and an enabled one look the same from here. The
-  // hint is a tap target of its own, because a disabled switch takes no tap and
-  // a native title never shows on touch.
   const pluginSwitch = (
     item: Pick<PluginEntry, 'id' | 'policyResource' | 'switchState'>,
     name: string,
@@ -174,21 +164,11 @@ export const PluginsGrid: React.FC<{
   ) => {
     const resource = item.policyResource;
     const switchOff = item.switchState === 'off';
-    // Until a policy read lands, the row shows what the server already knows
-    // about OpenChamber's own switch. After that the policy decides, including
-    // through a failed re-read, which keeps the last answer. A row switched on
-    // here ignores OpenChamber's own denial, which stays in OpenCode's view
-    // until it reads the new layer and is no rule the user could remove.
     const blocked = resource
       ? policy.hasRead
-        // An unreadable store leaves OpenChamber's last denials in place, and
-        // only OpenCode's view tells whether this plugin is among them.
         ? switchOff || item.switchState === 'unreadable' ? policy.isBlocked(resource) : policy.isBlockedByRule(resource)
         : switchOff
       : false;
-    // The server sees the config files; what OpenCode reports also covers system
-    // and Console rules. Either way the denial does nothing, so the row must not
-    // read as off.
     const overridden = item.switchState === 'overridden'
       || (switchOff && resource !== undefined && policy.status === 'ready' && policy.isAllowedByRule(resource));
     const hint = (() => {
@@ -222,8 +202,6 @@ export const PluginsGrid: React.FC<{
 
   const handleRefresh = async () => {
     toast.info(t('settings.plugins.toast.refreshing'));
-    // A failed policy read leaves every switch disabled, so the one control
-    // that can retry it re-reads here too.
     bumpPolicyRevision();
     const [registryOk, checkOk] = await Promise.all([
       loadRegistryInfo({ force: true }),
@@ -342,7 +320,6 @@ export const PluginsGrid: React.FC<{
           </>
         )}
       />
-      {/* What a card's switch changes and what it leaves alone: a consequence, so it stays on screen. */}
       <p className={cn(SETTINGS_DESCRIPTION_CLASS, 'mb-4')}>{t('settings.plugins.grid.description')}</p>
 
       {items.length === 0 ? (

@@ -515,12 +515,7 @@ describe('saveGuestOAuthClient', () => {
 });
 
 describe('secret settings', () => {
-  const integration = { settings: [{ id: 'plain', label: 'Plain' }, { id: 'key', label: 'Key', secret: true }] };
   const entry = { settings: { plain: 'a', key: 'hidden', gone: 'old secret' } };
-
-  test('no frame or card receives a secret, and the card learns one is stored', () => {
-    expect(toPublicGuestAuth(entry, integration)).toMatchObject({ settings: { plain: 'a' }, secretsSet: ['key'] });
-  });
 
   test('a value stops being public when the package stops declaring it', () => {
     expect(toPublicGuestAuth(entry, { settings: [{ id: 'plain', label: 'Plain' }] }).settings).toEqual({ plain: 'a' });

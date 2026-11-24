@@ -2,16 +2,7 @@
 import type { Extension } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
 
-// Text, caret and selection caret take the composer's foreground, which pairs
-// with its fill (design-system.css, `.oc-composer-surface`): the elevated
-// foreground over the elevated fill in dark themes, the canvas foreground over
-// the canvas fill in light ones. Outside a composer it falls back to the
-// elevated foreground.
 
-/**
- * Exported for the regression test, which asserts the caret is styled where it
- * is actually drawn.
- */
 export const COMPOSER_EDITOR_THEME_SPEC = {
     '&': {
         backgroundColor: 'transparent',
@@ -43,9 +34,6 @@ export const COMPOSER_EDITOR_THEME_SPEC = {
     '& .cm-content.cm-composer-empty .cm-line': { position: 'relative' },
     '& .cm-content.cm-composer-empty .cm-line::before': {
         content: 'var(--composer-placeholder)',
-        // Faded on purpose: the hint is the same sentence every time and
-        // nobody needs to read it, and at full muted strength it was the
-        // loudest thing in an empty composer (maintainer, 2026-11-12).
         color: 'var(--surface-muted-foreground)',
         opacity: '0.6',
         position: 'absolute',

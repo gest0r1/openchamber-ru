@@ -1,5 +1,14 @@
 import { createProjectIdFromPath, projectConfigFileStemOf } from '../projects/project-id.js';
 import { isMessageSearchEnabled } from './settings-helpers.js';
+import type { SettingsDocument, createSettingsHelpers } from './settings-helpers.js';
+import type { SettingsProject, createSettingsNormalizationRuntime } from './settings-normalization-runtime.js';
+import type { createManagedTunnelConfigRuntime } from '../tunnels/managed-config.js';
+import type { PreferenceFields, SettingsSurface } from './settings-files.js';
+import { createSettingsWriteQueue } from './settings-write-queue.js';
+import { isBoolean, isString } from '../shared/object-guards.js';
+import type fsModule from 'node:fs/promises';
+import type pathModule from 'node:path';
+import type cryptoModule from 'node:crypto';
 import {
   buildPreferencesFields,
   flattenPreferences,
@@ -113,8 +122,8 @@ const MANAGED_PLUGIN_SETTINGS_KEYS = new Set([
   'agentImageToolEnabled',
   'agentSecretToolEnabled',
   'agentUsageToolEnabled',
+  'agentTerminalToolEnabled',
   'agentWorkflowToolEnabled',
-  // The limit failover plugin loads only while one of these is set.
   'fallbackModel',
   'accountSwitchProviders',
 ]);
@@ -1071,14 +1080,11 @@ export const createSettingsRuntime = (deps: SettingsRuntimeDependencies) => {
     return normalizeSettingsSurface(surface) ? readSettingsFromDisk({ surface }) : migration9.settings;
   };
 
-  // For a caller whose change depends on the settings on disk: `resolveChanges`
-  // runs inside the queue, so no other save lands between that read and this write.
-  const persistResolvedSettings = async (resolveChanges, { surface = null } = {}) => {
-    const result = persistSettingsLock.then(async () => {
+  const { enqueue, updateSettingsFromDisk } = createSettingsWriteQueue(readSettingsFromDiskMigrated, writeSettingsToDisk);
+  const persistResolvedSettings = async (resolveChanges: (current: SettingsDocument) => SettingsDocument, { surface = null }: SettingsReadOptions = {}) => {
+    return enqueue(async () => {
       const current = await readSettingsFromDisk({ surface });
       const changes = resolveChanges(current);
-      // Log field names only — changes can carry credentials (UI password,
-      // client tokens, tunnel tokens) that must never reach the log file.
       console.log('[persistSettings] Updating fields:', Object.keys(changes || {}).join(', ') || '(none)');
       const sanitized = sanitizeSettingsUpdate(changes);
       for (const key of Object.keys(sanitized)) {
@@ -1182,12 +1188,10 @@ export const createSettingsRuntime = (deps: SettingsRuntimeDependencies) => {
     });
   };
 
-  const persistSettings = (changes, options) => persistResolvedSettings(() => changes, options);
+  const persistSettings = (changes: SettingsDocument, options?: SettingsReadOptions) => persistResolvedSettings(() => changes, options);
 
-  // A background session may discover a project while another window saves
-  // settings. Resolve the append inside the settings queue, without activation.
-  const registerSessionProject = (resolveProject) => {
-    const result = persistSettingsLock.then(async () => {
+  const registerSessionProject = (resolveProject: (projects: SettingsProject[]) => SettingsProject | Promise<SettingsProject>) => {
+    return enqueue(async () => {
       const current = await readSettingsFromDiskStrict();
       if (Array.isArray(current) || (current.projects !== undefined && !Array.isArray(current.projects))) {
         throw new Error('Project registry is malformed');
@@ -1208,6 +1212,7 @@ export const createSettingsRuntime = (deps: SettingsRuntimeDependencies) => {
     writeSettingsToDisk,
     persistSettings,
     persistResolvedSettings,
+    updateSettingsFromDisk,
     registerSessionProject,
   };
 };

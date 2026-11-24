@@ -124,9 +124,6 @@ export const WorkStatusPanel: React.FC<Props> = ({ sessionId, directory, visible
           'max-h-[calc(100%-1.5rem)]',
         ],
         'motion-reduce:transition-none',
-        // Beside the chat: the layout panels' hairline ring (`oc-panel-edge`,
-        // shared with the context panel card). Over the chat it is a dropdown
-        // and takes the dropdown's full edge (`data-edge-floating`).
         'oc-panel-edge rounded-xl',
         !overlay && 'bg-background',
       )}
@@ -135,7 +132,6 @@ export const WorkStatusPanel: React.FC<Props> = ({ sessionId, directory, visible
       style={{
         // external: https://drafts.csswg.org/filter-effects-2/#BackdropRoot Ancestor opacity below 1 blocks the glass from sampling the transcript.
         width: WORK_STATUS_PANEL_WIDTH,
-        // The overlay can sit in a VS Code sidebar narrower than the card.
         maxWidth: overlay ? 'calc(100% - 1.5rem)' : undefined,
         opacity: overlay || interactive ? 1 : 0,
         transform: overlay ? (visible ? 'translateY(0) scale(1)' : 'translateY(-6px) scale(0.98)') : undefined,
@@ -156,20 +152,14 @@ export const WorkStatusPanel: React.FC<Props> = ({ sessionId, directory, visible
           transitionTimingFunction: PANEL_TRANSITION_EASING,
         } : undefined}
       >
-      {/* Overlaid rather than placed in flow: the panel has no header of its
-          own, and giving it one would cost a row of height on every session. */}
       <Tooltip>
         <TooltipTrigger asChild>
           <button
             type="button"
             aria-label={t('chat.workStatus.sections.open')}
             onClick={() => setSectionsDialogOpen(true)}
-            // Centred on the first heading's line (the card's 8px padding plus
-            // half the 24px heading), at the rows' 13px icon size.
             className="absolute inset-e-2 top-2 z-10 inline-flex h-6 items-center rounded px-1 text-muted-foreground transition-colors hover:text-foreground"
           >
-            {/* Acts on the card itself (which sections show): the glyph of every
-                control that configures what a list shows, as on the rail. */}
             <Icon name="list-settings" className="size-[13px]" />
           </button>
         </TooltipTrigger>

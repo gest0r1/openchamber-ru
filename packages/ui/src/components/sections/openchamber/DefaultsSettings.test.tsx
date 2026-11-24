@@ -70,6 +70,8 @@ const updateCalls: Array<Partial<DesktopSettings>> = [];
 mock.module('@/stores/useConfigStore', () => ({
   useConfigStore: <T,>(selector: (state: ConfigState) => T): T => selector(configState),
   selectIsModelMissingFromCatalog: () => false,
+  selectProvidersForDirectory: (state: ConfigState) => state.providers,
+  selectConfigAgentsForDirectory: () => [],
 }));
 mock.module('@/stores/useUIStore', () => ({
   useUIStore: <T,>(selector: (state: typeof settingsState) => T): T => selector(settingsState),

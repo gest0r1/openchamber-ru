@@ -58,7 +58,6 @@ export const guestSessionActions = (
   entries: readonly GuestActionEntry[],
 ): GuestActionEntry[] => entries.filter((entry) => entry.action.where === 'session');
 
-/** Entries for text selected in a message, a Files row, or selected lines. */
 export const guestActionsWhere = (
   entries: readonly GuestActionEntry[],
   where: 'selection' | 'file' | 'diff',

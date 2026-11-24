@@ -53,10 +53,8 @@ export function createGlobalMessageStreamHub({
   replayLimit = MESSAGE_STREAM_GLOBAL_REPLAY_LIMIT,
   replayByteLimit = MESSAGE_STREAM_GLOBAL_REPLAY_BYTES,
   deltaCoalesceWindowMs = DELTA_COALESCE_WINDOW_MS,
-  // Events of sessions OpenChamber runs for itself (`../opencode/hidden-sessions.js`)
-  // stop here, before replay and before any subscriber or browser sees them.
   isHiddenPayload = () => false,
-}) {
+}: HubOptions) {
   if (!Number.isSafeInteger(replayLimit) || replayLimit < 0 || !Number.isSafeInteger(replayByteLimit) || replayByteLimit < 0) {
     throw new RangeError('Replay limits must be nonnegative safe integers');
   }
@@ -193,7 +191,7 @@ export function createGlobalMessageStreamHub({
         notifyStatus({ type: 'disconnect', reason });
       },
       onEvent(event) {
-        if (isHiddenPayload(event?.payload)) return;
+        if (isHiddenPayload(event?.payload) || isStaleTurnBoundary(event.payload)) return;
         coalescer.push(event);
       },
       onError(error) {
@@ -231,7 +229,6 @@ export function createGlobalMessageStreamHub({
     isConnected() {
       return connected;
     },
-    // The directory-scoped bridges read their own upstream and apply the same filter.
     isHiddenPayload,
     hasConnected() {
       return everConnected;

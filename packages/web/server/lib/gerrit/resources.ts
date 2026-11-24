@@ -1,5 +1,5 @@
 import { documentDataUrl } from '../source-control/document-versions.js';
-import { isPlainObject, isString } from '../shared/guards.js';
+import { isPlainObject, isPresent, isString } from '../shared/guards.js';
 import { mapLimited } from '../shared/map-limited.js';
 import { joinProjectPath } from '../source-control/project-path.js';
 import { readLocalRevision as readLocalRevisionDefault, readUpstreamBranch as readUpstreamBranchDefault } from './local-revision.js';
@@ -400,12 +400,7 @@ export function createGerritResourceService({
       return { patch: diffOfPatch(patch.toString('utf8')), meta: { owner: primary.owner, repo: primary.name, number } };
     },
 
-    /**
-     * Both sides of one file: the patchset's first parent (`parent=1`) and
-     * the patchset. `/COMMIT_MSG` is the commit message, which has no
-     * earlier side.
-     */
-    async changeRequestFileContents(directory, number, { project, remote, path, previousPath, status, revision, binary, linked }) {
+    async changeRequestFileContents(directory: string, number: number, { project, remote, path, previousPath, status, revision, binary, linked }: ReadOptions & { path: string; previousPath?: string | undefined; status?: string | undefined; binary?: boolean | undefined }) {
       const { primary, raw } = await findChange(directory, number, project, remote, HEAD_OPTIONS, { linked });
       const sha = revisionOf(raw, revision);
       const readFile = async (filePath: string, parent: boolean) => {
@@ -464,15 +459,14 @@ export function createGerritResourceService({
       return { ready: true };
     },
 
-    async draft({ providerTarget }) {
+    async draft({ providerTarget }: Pick<MutationCall, 'providerTarget'>) {
       const current = await readTarget(providerTarget);
       if (current.work_in_progress === true) return { draft: true };
       await client.post(`${targetPath(providerTarget)}/wip`, {});
       return { draft: true };
     },
 
-    /** Closed is abandoned; open is restored. */
-    async setState({ providerTarget, state }) {
+    async setState({ providerTarget, state }: Pick<MutationCall, 'providerTarget'> & { state: 'open' | 'closed' }) {
       const raw = await client.post(`${targetPath(providerTarget)}/${state === 'closed' ? 'abandon' : 'restore'}`, {});
       if (!plainObject(raw) || raw._number !== providerTarget.number || changeState(raw.status) !== state) {
         throw malformed('Gerrit returned an unexpected change state');

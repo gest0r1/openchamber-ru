@@ -48,8 +48,6 @@ export const useSidebarGroupStatus = ({
     const pausedDirectories = new Set(pausedSnapshot ? pausedSnapshot.split('\u0001') : []);
     const statuses = new Map<string, SessionSidebarGroupStatus>();
     for (const { key, archived, directories: groupDirectories } of groups) {
-      // A folder the user declined to trust lists its sessions but runs no
-      // agent; that says more than whatever its load failed with.
       const pausedDirectory = groupDirectories.find((directory) => pausedDirectories.has(directory));
       if (pausedDirectory) {
         statuses.set(key, { state: 'trust-paused', directory: pausedDirectory, canGrantAccess: false });

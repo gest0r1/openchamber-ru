@@ -46,7 +46,6 @@ const SearchAction: React.FC<{
 }> = ({ label, icon, disabled, onClick }) => (
   <Tooltip>
     <TooltipTrigger asChild>
-      {/* The span keeps the tooltip on a disabled button, which takes no pointer events. */}
       <span className="inline-flex">
         <Button type="button" variant="ghost" size="icon" className="h-6 w-6" disabled={disabled} onClick={onClick} aria-label={label}>
           <Icon name={icon} className="h-4 w-4" />

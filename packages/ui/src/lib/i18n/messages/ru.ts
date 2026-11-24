@@ -1,5 +1,4 @@
 import { dict as enDict } from './en';
-import { ruUpstream280Translations } from './ru-upstream-280';
 import { guestStatusViewI18n } from './guest-status-view.i18n';
 import { sessionReferencesI18n } from './session-references.i18n';
 import { workflowsI18n } from './workflows.i18n';
@@ -53,12 +52,10 @@ import { pluginsGridI18n } from './plugins-grid.i18n';
 import { integrationsCatalogI18n } from './integrations-catalog.i18n';
 import { diffFindI18n } from './diff-find.i18n';
 
-// Keep the earlier Russian fork's translations intact and add the 2.8 strings.
-// Historical keys whose feature disappeared upstream stay in this source but
-// are omitted from the runtime dictionary to preserve exact key parity.
-const fullRuDict = {
+// Untranslated keys introduced upstream remain available in English until localized.
+// Existing Russian entries below always override these defaults.
+export const dict = {
   ...enDict,
-  ...ruUpstream280Translations,
   'opencodeCompatibility.bundled': 'OpenCode входит в состав OpenChamber. Обновите OpenChamber, чтобы получить OpenCode v2.',
   'opencodeCompatibility.title': 'Требуется OpenCode v2',
   'opencodeCompatibility.outdatedTitle': 'Обновите OpenCode',
@@ -4564,7 +4561,3 @@ const fullRuDict = {
   'filesView.preview.outline.noHeadings': "В документе нет заголовков",
   'filesView.preview.outline.noMatches': "Подходящие заголовки не найдены",
 };
-
-export const dict = Object.fromEntries(
-  Object.entries(fullRuDict).filter(([key]) => Object.prototype.hasOwnProperty.call(enDict, key)),
-) as Record<keyof typeof enDict, string>;

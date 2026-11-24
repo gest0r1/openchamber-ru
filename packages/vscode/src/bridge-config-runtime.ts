@@ -543,9 +543,6 @@ export async function handleConfigBridgeMessage(
         const result = target === 'entry'
           ? setPluginEntryEnabled(pluginId, enabled, workingDirectory, switchDirectory)
           : setPluginFileEnabled(pluginId, enabled, workingDirectory, switchDirectory);
-        // The store is the durable state and is already written. When the
-        // managed layer cannot follow, the child applies the switch at its next
-        // launch, so this answers saved with a restart, like the web route.
         let requiresManualRestart = true;
         try {
           ({ requiresManualRestart } = await manager.refreshPluginSwitches());

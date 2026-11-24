@@ -1,29 +1,25 @@
-/**
- * Root OpenChamber serves owner UI only. Third-party guest service code and
- * persistent guest data must run under opencode without traversing /root.
- *
- * The mirror's parents are root-owned (0755), the executable snapshot is
- * root-owned read-only, and only the guest's data leaf is opencode-owned.
- * All writes by the service are therefore confined to its unprivileged UID.
- */
 import fs from 'node:fs/promises';
 import fssync from 'node:fs';
 import path from 'node:path';
 import { randomBytes } from 'node:crypto';
+
+type GuestIdentity = { uid: number; gid: number };
+type GuestRuntimeOptions = Partial<GuestIdentity> & { root?: string };
+type GuestPackage = { guestId: string; packageRoot: string; entry: string; dataDir: string };
 
 const ROOT = '/var/lib/my-opencode-guest-runtime';
 const GUEST = /^[a-z][a-z0-9-]*$/;
 const MAX_ENTRIES = 6000;
 const MAX_BYTES = 128 * 1024 * 1024;
 
-const ensureRootDir = async (dir) => {
+const ensureRootDir = async (dir: string) => {
   await fs.mkdir(dir, { recursive: true, mode: 0o755 });
   const st = await fs.lstat(dir);
   if (!st.isDirectory() || st.isSymbolicLink() || st.uid !== 0) throw new Error('ROOT_GUEST_RUNTIME_DIR_UNTRUSTED');
   await fs.chmod(dir, 0o755);
 };
 
-const identity = (options) => {
+const identity = (options: GuestRuntimeOptions): GuestIdentity => {
   if (options?.uid !== undefined && options?.gid !== undefined) return { uid: options.uid, gid: options.gid };
   const rawUid = process.env.OPENCHAMBER_EXECUTION_UID;
   const rawGid = process.env.OPENCHAMBER_EXECUTION_GID;
@@ -34,10 +30,7 @@ const identity = (options) => {
   return { uid, gid };
 };
 
-/** A model-owned project path is not allowed to become a root file-copy
- * source. Walk every existing ancestor to prevent symlink and UID bypasses.
- */
-const assertRootOwnedSource = async (source) => {
+const assertRootOwnedSource = async (source: string) => {
   let current = path.resolve(source);
   while (true) {
     const st = await fs.lstat(current);
@@ -49,9 +42,9 @@ const assertRootOwnedSource = async (source) => {
   }
 };
 
-const inspectTree = async (src) => {
+const inspectTree = async (src: string) => {
   let entries = 0, bytes = 0;
-  const check = async (name) => {
+  const check = async (name: string): Promise<void> => {
     const st = await fs.lstat(name);
     if (st.isSymbolicLink() || !(st.isDirectory() || st.isFile()) || st.nlink > 1 && st.isFile()) {
       throw new Error('ROOT_GUEST_SOURCE_UNSAFE');
@@ -66,12 +59,12 @@ const inspectTree = async (src) => {
   await check(src);
 };
 
-const makeMirror = async (src, destination) => {
+const makeMirror = async (src: string, destination: string) => {
   const stage = destination + '.new-' + randomBytes(6).toString('hex');
   await inspectTree(src);
   try {
     await fs.cp(src, stage, { recursive: true, force: false, errorOnExist: true, dereference: false });
-    const sanitize = async (dir) => {
+    const sanitize = async (dir: string): Promise<void> => {
       const st = await fs.lstat(dir);
       if (st.isSymbolicLink()) throw new Error('ROOT_GUEST_SNAPSHOT_SYMLINK');
       if (st.isDirectory()) {
@@ -81,7 +74,6 @@ const makeMirror = async (src, destination) => {
       else throw new Error('ROOT_GUEST_SNAPSHOT_SPECIAL_FILE');
     };
     await sanitize(stage);
-    // Snapshot replacement may occur only after the previous process stopped.
     const old = destination + '.old-' + randomBytes(6).toString('hex');
     if (fssync.existsSync(destination)) await fs.rename(destination, old);
     try { await fs.rename(stage, destination); }
@@ -93,7 +85,7 @@ const makeMirror = async (src, destination) => {
   } finally { await fs.rm(stage, { recursive: true, force: true }).catch(() => {}); }
 };
 
-const copyGuestData = async (source, destination, uid, gid) => {
+const copyGuestData = async (source: string, destination: string, uid: number, gid: number) => {
   if (fssync.existsSync(destination)) {
     const st = await fs.lstat(destination);
     if (!st.isDirectory() || st.isSymbolicLink() || st.uid !== uid) throw new Error('ROOT_GUEST_DATA_UNTRUSTED');
@@ -105,7 +97,7 @@ const copyGuestData = async (source, destination, uid, gid) => {
       await inspectTree(source);
       await fs.cp(source, stage, { recursive: true, force: false, errorOnExist: true, dereference: false });
     } else await fs.mkdir(stage, { mode: 0o700 });
-    const changeOwner = async (name) => {
+    const changeOwner = async (name: string): Promise<void> => {
       const st = await fs.lstat(name);
       if (st.isSymbolicLink()) throw new Error('ROOT_GUEST_DATA_SYMLINK');
       if (st.isDirectory()) {
@@ -121,17 +113,11 @@ const copyGuestData = async (source, destination, uid, gid) => {
   } finally { await fs.rm(stage, { recursive: true, force: true }).catch(() => {}); }
 };
 
-/**
- * Production only calls this from a root OpenChamber service with verified
- * process credentials. Options are an injectable test seam, NOT a route input.
- */
-export async function prepareRootGuestService({ guestId, packageRoot, entry, dataDir }, options = {}) {
+export async function prepareRootGuestService({ guestId, packageRoot, entry, dataDir }: GuestPackage, options: GuestRuntimeOptions = {}) {
   if (!GUEST.test(guestId)) throw new Error('ROOT_GUEST_INVALID_ID');
   const { uid, gid } = identity(options);
   const root = options.root ?? ROOT;
   const source = path.resolve(packageRoot);
-  // Test-only injection uses its own root, while production requires a
-  // root-owned, non-writable path all the way to the filesystem root.
   if (options.root === undefined) await assertRootOwnedSource(source);
   const absoluteEntry = path.resolve(source, entry);
   if (!absoluteEntry.startsWith(source + path.sep) || !(await fs.stat(absoluteEntry)).isFile()) {
@@ -150,10 +136,9 @@ export async function prepareRootGuestService({ guestId, packageRoot, entry, dat
   return { packageRoot: codeTarget, entry: mappedEntry, dataDir: dataTarget };
 }
 
-export async function removeRootGuestServiceData(id, options = {}) {
+export async function removeRootGuestServiceData(id: string, options: Pick<GuestRuntimeOptions, 'root'> = {}) {
   if (!GUEST.test(id)) throw new Error('ROOT_GUEST_INVALID_ID');
   const root = options.root ?? ROOT;
-  // Parent is root-owned. A plugin cannot replace it to redirect deletion.
   const dataRoot = path.join(root, 'data');
   if (!fssync.existsSync(dataRoot)) return;
   const st = await fs.lstat(dataRoot);

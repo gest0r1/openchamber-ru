@@ -19,12 +19,7 @@ interface MobileOverlayPanelProps {
   contentMaxHeightClassName?: string;
   contentRef?: React.Ref<HTMLElement>;
   renderHeader?: (closeButton: React.ReactNode) => React.ReactNode;
-  /** Stays above the scrolling content: a sheet's search field. */
   subheader?: React.ReactNode;
-  /**
-   * False for content that scrolls on its own (a virtual list): the panel only
-   * bounds its height, so the two never scroll one inside the other.
-   */
   scrollContent?: boolean;
 }
 
@@ -167,12 +162,6 @@ export const MobileOverlayPanel: React.FC<MobileOverlayPanelProps> = ({
       aria-label={title}
       aria-modal="true"
       onClick={onClose}
-      // The panel centers over the CHAT column, not the whole app: on a tablet
-      // the shell keeps a persistent sessions sidebar, and a sheet centered on
-      // the window reads as belonging to nothing. The shell publishes the
-      // column's insets; on phones they are 0 and this is a no-op. The scrim
-      // deliberately still covers everything. The screen's own side insets
-      // (a landscape notch, the status bar column of iPhone Duo) come on top.
       style={{
         paddingLeft: `calc(${chatInsets.left}px + var(--oc-safe-area-left, 0px))`,
         paddingRight: `calc(${chatInsets.right}px + var(--oc-safe-area-right, 0px))`,

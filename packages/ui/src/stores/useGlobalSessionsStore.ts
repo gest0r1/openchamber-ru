@@ -135,12 +135,14 @@ const buildSessionsByDirectory = (sessions: Session[]): Map<string, Session[]> =
   return next;
 };
 
-// A `session.patched` can change any of these without advancing `updated`, so
-// a signature without them reads a usage or selection patch as no change and
-// drops it.
 const sessionUsageSignature = (session: Session): string => [
-  session.cost ?? 0,
-  JSON.stringify(session.tokens ?? null),
+  sessionSpendSignature(session),
+  sessionSelectionSignature(session),
+].join(':');
+
+const sessionSpendSignature = (session: Session): string => `${session.cost ?? 0}:${JSON.stringify(session.tokens ?? null)}`;
+
+const sessionSelectionSignature = (session: Session): string => [
   JSON.stringify(session.model ?? null),
   JSON.stringify(session.permissions ?? null),
   JSON.stringify(session.outcome ?? null),
@@ -173,16 +175,11 @@ const getSessionStructuralSignature = (session: Session): string => {
     session.parentID ?? '',
     session.time?.created ?? 0,
     session.time?.archived ?? 0,
-    // A finished turn and a view of it decide the unread mark, so they publish
-    // at once instead of waiting with the recency-only updates. A usage or
-    // selection change publishes at once for the same reason: the deferred
-    // record is rebuilt from the record the deferral started from, so a later
-    // patch in the same stream would drop what an earlier one carried.
     session.time?.idle ?? 0,
     session.time?.viewed ?? 0,
     JSON.stringify(session.metadata ?? null),
     resolveGlobalSessionDirectory(session) ?? '',
-    sessionUsageSignature(session),
+    sessionSelectionSignature(session),
   ].join(':');
 };
 

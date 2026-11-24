@@ -48,7 +48,7 @@ import { SettingsBackButton } from '@/components/sections/shared/SettingsCards';
 import { ProviderAccounts } from './ProviderAccounts';
 import { ProviderAccountSwitchToggle } from './ProviderAccountSwitchToggle';
 import { isVSCodeRuntime } from '@/lib/desktop';
-import { CustomProviderForm } from './CustomProviderForm';
+import { CustomProviderForm, type CatalogProviders } from './CustomProviderForm';
 import { ProviderLogoImageControl } from './ProviderLogoImageControl';
 import { providerLogoUploadSupported, removeProviderLogo, uploadProviderLogo } from '@/lib/customProviderLogos';
 
@@ -334,7 +334,6 @@ export const ProvidersPage: React.FC = () => {
   const selectedSources = selectedProviderId ? providerSources[selectedProviderId] : undefined;
 
   const [logoBusyId, setLogoBusyId] = React.useState<string | null>(null);
-  /** Uploads or removes the provider's logo image; a failure is a toast and leaves the stored logo as it was. */
   const applyLogoPlan = async (providerId: string, logoPlan: CustomProviderLogoPlan) => {
     if (logoPlan.kind === 'keep' || !providerLogoUploadSupported()) return;
     if (logoPlan.kind === 'remove' && !useUIStore.getState().customProviderLogos[providerId]) return;
@@ -395,8 +394,6 @@ export const ProvidersPage: React.FC = () => {
       else delete nextCustomProviderIcons[plan.providerID];
       await updateDesktopSettings({ customProviderIcons: nextCustomProviderIcons });
       setCustomProviderIcon(plan.providerID, plan.icon);
-      // The provider is saved by now; a failed image write is reported on its own
-      // and does not reopen the form, whose next Save would store the key again.
       await applyLogoPlan(plan.providerID, plan.logo);
 
       toast.success(t('settings.providers.page.toast.customProviderSaved', { provider: plan.name }));
@@ -837,7 +834,6 @@ export const ProvidersPage: React.FC = () => {
         ) : null}
       </SettingsSection>
 
-      {/* A custom provider sets its logo in the edit form, unless enterprise mode hides the form. */}
       {providerLogoUploadSupported() && sourcesLoaded && (!isEditableCustomProvider || enterpriseLocked) ? (
         <SettingsSection
           title={t('settings.providers.page.logo.title')}

@@ -953,7 +953,6 @@ export const McpPage: React.FC = () => {
   React.useEffect(() => {
     setSignInAgain(null);
   }, [selectedMcpName]);
-  /** A sign-in in progress keeps the status card while the server reconnects. */
   const [oauthSignInActive, setOAuthSignInActive] = React.useState(false);
 
   const handleOAuthConnected = async () => {
@@ -1174,7 +1173,6 @@ export const McpPage: React.FC = () => {
           <SettingsLegacyFormatNote legacy={selectedServer.legacy === true} path={selectedServer.path} />
         )}
 
-        {/* Runtime Status - Simplified for connected, expanded for errors; a started authorize flow needs the card too */}
         {!isNewServer && (shouldShowFullStatusCard(effectiveStatusName) || signInAgainRun > 0 || oauthSignInActive) && (
           <SettingsSection>
             <div className={cn('rounded-lg p-3', statusCardClass(effectiveStatusName))}>
@@ -1212,9 +1210,6 @@ export const McpPage: React.FC = () => {
                     onActiveChange={setOAuthSignInActive}
                     autoStart={signInAgainRun > 0}
                     showStartButton={signInAgainRun === 0 || getMcpOAuthMethods(oauthIntegration ?? undefined).length > 1}
-                    // On `needs_auth` the header's Connect only retries the
-                    // connection; this button signs in, so it must not read
-                    // "Connect" as well.
                     connectLabel={signInAgainRun === 0 ? t('settings.mcp.page.actions.signIn') : undefined}
                   />
                 )}

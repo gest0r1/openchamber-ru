@@ -61,7 +61,6 @@ interface ShortcutRecordingDialogProps {
 interface RecordingOptions {
   maxKeys: number;
   macModifiers: boolean;
-  /** Backspace records as a key; by default it removes the last chord. */
   recordBackspace: boolean;
 }
 

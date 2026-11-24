@@ -15,11 +15,6 @@ const columnOfEvent = (event: KeyboardEvent): ColumnKind => (
   event.target instanceof Element && event.target.closest('[data-chat-column="pinned"]') ? 'pinned' : 'main'
 );
 
-/**
- * The reply a key press gives. "Always" needs something to save. Bindings are
- * single chords matched here, in the capture phase, because the composer would
- * otherwise take the default Alt+Enter as a new line.
- */
 export const permissionShortcutReply = (
   event: KeyboardEvent,
   canSave: boolean,

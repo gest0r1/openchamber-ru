@@ -207,7 +207,7 @@ return 409, including through Run now.
 
 `resolveExecutionDirectory` on the task service returns the project checkout
 or Chats root after scope ID normalization. For a target task it reuses
-`existing-session.js` target validation and returns the session's own directory.
+`existing-session.ts` target validation and returns the session's own directory.
 The task service uses this directory for named-model catalog checks, so a
 target in a linked worktree uses that worktree's configuration.
 

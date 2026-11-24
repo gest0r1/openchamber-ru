@@ -12,7 +12,6 @@ const CONTENT_SHELL_METADATA_KEY = "openchamberContentShell"
 
 const contentShellMarker = z.object({
   chars: z.number(),
-  // An OpenChamber tool envelope the result was: what the collapsed row says about the call.
   envelope: z.object({ ok: z.boolean(), action: z.string().min(1) }).optional().catch(undefined),
 })
 
@@ -23,19 +22,10 @@ const readMarker = (part: Part) => {
   return marker.success ? marker.data : null
 }
 
-/**
- * Length of the result text the server left out of this call, or `null` when
- * the call is whole: a call from the event stream, a single-message fetch, or
- * any server that does not shell pages.
- */
 export function toolContentShellChars(part: Part): number | null {
   return readMarker(part)?.chars ?? null
 }
 
-/**
- * The action and outcome of the OpenChamber tool envelope the server left out
- * of this call, or `null` when it left out none.
- */
 export function toolContentShellEnvelope(part: Part): { ok: boolean; action: string } | null {
   return readMarker(part)?.envelope ?? null
 }

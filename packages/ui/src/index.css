@@ -2084,7 +2084,9 @@ diffs-container {
 .markdown-content code[data-streamdown="inline-code"][data-openchamber-file-link="true"] {
   background-color: transparent !important;
   background-image: none;
-  padding-inline: 0;
+  /* Without a fill the padding only gave the reference an edge that starts
+     no text selection, so a drag from just above the path selected nothing. */
+  padding: 0;
 }
 
 /* Markdown links - use theme colors */
@@ -2890,19 +2892,6 @@ textarea[data-terminal-hidden-input="true"]::placeholder {
   /* Nothing scrolls, so the ellipsis stays under the pointer too. */
   .group:hover .marquee-text--active,
   .marquee-text--active:hover {
-    display: inline;
-  }
-
-  .open-file-name-marquee-track {
-    display: block;
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    will-change: auto;
-  }
-
-  .open-file-name-marquee-track .open-file-name-marquee-item {
     display: inline;
   }
 

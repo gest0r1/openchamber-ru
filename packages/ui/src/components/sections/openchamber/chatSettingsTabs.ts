@@ -58,6 +58,5 @@ const SEARCH_TARGET_TABS = new Map<string, ChatSettingsTab>([
 
 export const chatSettingsTabForSearchTarget = (id: string): ChatSettingsTab | null => SEARCH_TARGET_TABS.get(id) ?? null;
 
-/** The search targets one tab holds, for the tab's "new" badge. */
 export const chatSettingsTabAnchors = (tab: ChatSettingsTab): string[] =>
   [...SEARCH_TARGET_TABS].filter(([, owner]) => owner === tab).map(([id]) => id);

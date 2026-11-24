@@ -113,7 +113,6 @@ const PermissionDockRequest: React.FC<{
                 </TooltipTrigger>
                 <TooltipContent side="top" sideOffset={6}>{collapsed ? t('chat.permissionDock.expandAria') : t('chat.permissionDock.collapseAria')}</TooltipContent>
                 </Tooltip>
-                {/* One dot per pending request, the current one solid. */}
                 {!collapsed && permissions.length > 1 ? (
                     <div className="flex shrink-0 items-center gap-1" role="tablist">
                         {permissions.map((entry, index) => {

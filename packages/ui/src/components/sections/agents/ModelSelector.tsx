@@ -34,12 +34,7 @@ interface ModelSelectorProps {
     directory?: string;
     compact?: boolean;
     offerAuto?: boolean;
-    /**
-     * Tooltip on the desktop trigger alone, so it never catches focus or the
-     * mouse from the list.
-     */
     triggerTooltip?: string;
-    /** Shown but closed, so a row can keep its layout while its option is off. */
     disabled?: boolean;
 }
 
@@ -216,8 +211,6 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
                     !canOpen && 'opacity-60 cursor-not-allowed',
                     className,
                 )}
-                // The name is gone from the trigger, so it has to stay
-                // reachable somewhere.
                 title={compact && displayReady && !triggerTooltip ? triggerLabel : undefined}
             >
                 {!displayReady ? (

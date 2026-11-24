@@ -100,17 +100,6 @@ const matchDescriptor = (url: URL, descriptor: SourceControlProviderDescriptor):
   return null;
 };
 
-/**
- * The issue or change request a link names, read against the providers'
- * URL patterns. `descriptors` are in registry order.
- *
- * 1. A provider whose instance the host is known to be (a connected account's
- *    instance, or the provider's default instance) wins. A host that is one of
- *    a known instance's aliases names that instance.
- * 2. Otherwise the only provider whose pattern matches.
- * 3. When several match, the first by `order`: an unknown host with
- *    `/issues/N` or `/pull/N` keeps reading as GitHub-shaped.
- */
 export const parseRepositoryItemUrl = (
   link: string,
   descriptors: readonly SourceControlProviderDescriptor[],

@@ -48,9 +48,6 @@ export const useNestedGitDirectory = (
     gitDirectory && gitDirectory !== root ? gitDirectory : null,
   );
 
-  // Git could not read the root: the surfaces show Git's message instead of
-  // their content. A selected repository Git cannot read is dropped like a
-  // stale one below, so the picker stays reachable.
   const rootUnreadable = useGitRepoUnreadable(root);
   const unreadable = rootUnreadable !== null && root ? { directory: root, message: rootUnreadable } : null;
   const selectedUnreadable = useGitRepoUnreadable(gitDirectory && gitDirectory !== root ? gitDirectory : null) !== null;
@@ -160,8 +157,6 @@ export const useNestedGitDirectory = (
     repositoryOptions = rootIsGitRepo === true ? [root, ...discovered] : discovered;
   }
 
-  // Whether `repositoryOptions` is the answer: a failed discovery counts, since
-  // nothing more is coming, and a root that is not searched has none to wait for.
   const repositoriesKnown = rootIsGitRepo !== null && (!searchesNested || nestedRepos !== undefined);
 
   return { rootIsGitRepo, gitDirectory, nestedRepos, nestedRepoSelection, repositoryOptions, repositoriesKnown, unreadable };

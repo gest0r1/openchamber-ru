@@ -13,12 +13,6 @@ type GuestFileEditorMatch = {
 
 const fileNameOf = (filePath: string): string => filePath.slice(filePath.replace(/\\/g, '/').lastIndexOf('/') + 1);
 
-/**
- * The first active guest's first editor whose patterns match the file's name,
- * in catalog order. `null` when none does. VS Code keeps the catalog empty,
- * so files there always stay with the host's own views. The phone needs no
- * opt-in: the editor owns the whole Files view there as on the desktop.
- */
 export const findGuestFileEditor = (
   guests: readonly InstalledGuest[],
   filePath: string,

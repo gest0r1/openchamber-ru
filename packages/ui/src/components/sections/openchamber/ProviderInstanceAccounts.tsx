@@ -28,7 +28,6 @@ import { asksForUsername, providerSettingsCopy, tokenCreationUrl } from './sourc
 
 type ConnectMethod = 'device' | 'pat';
 
-/** Aliases as the field shows them: hosts, the way the instance heading reads. */
 const aliasesText = (aliases: readonly string[] | undefined): string => (aliases ?? [])
   .map((alias) => alias.replace(/^https:\/\//, ''))
   .join(', ');
@@ -70,13 +69,10 @@ export const ProviderInstanceAccounts: React.FC<ProviderInstanceAccountsProps> =
   const [aliases, setAliases] = React.useState(aliasesText(identity.instanceAliases));
   const [aliasError, setAliasError] = React.useState<{ reason: 'invalid' | 'taken'; alias: string } | 'failed' | null>(null);
   const [savingAliases, setSavingAliases] = React.useState(false);
-  // An instance the user added and the server already lists (an account or a
-  // CLI login made it known), never one the provider serves by default.
   const defaultInstances = descriptor.instances.defaultInstances
     ?? (descriptor.instances.defaultInstance ? [descriptor.instances.defaultInstance] : []);
   const takesAliases = useSourceControlAuthStore((state) => !defaultInstances.includes(identity.instance)
     && state.identities.some((known) => known.provider === identity.provider && known.instance === identity.instance));
-  // An HTTP Basic host verifies the token as this username's password, so both are needed.
   const needsUsername = asksForUsername(descriptor);
   const [isAddingAccount, setIsAddingAccount] = React.useState(false);
   const [chosenMethod, setChosenMethod] = React.useState<ConnectMethod | null>(null);
@@ -277,8 +273,6 @@ export const ProviderInstanceAccounts: React.FC<ProviderInstanceAccountsProps> =
       if (!isCurrentRuntime()) return;
       await refreshInstances(sourceControl, { force: true });
       if (!isCurrentRuntime()) return;
-      // Saved, but links read through the listed instances: until a refresh
-      // lands they still miss the new addresses, so say so and let Save retry.
       if (useSourceControlAuthStore.getState().identitiesError) {
         setAliasError('failed');
         return;
@@ -609,8 +603,6 @@ export const ProviderInstanceAccounts: React.FC<ProviderInstanceAccountsProps> =
         </div>
       )}
 
-      {/* While the CLI login is a listed account, its own row carries the switch.
-          A switch the server kept for a CLI that cannot answer has no row, so it shows here. */}
       {!serviceOnly && descriptor.auth.methods.includes('cli') && cli && (cli.disabled || cli.active || (connected && cli.available))
         && (cli.disabled || !accounts.some((account) => account.source === 'cli')) && (
         <div>

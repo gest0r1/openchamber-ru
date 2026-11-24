@@ -34,7 +34,6 @@ export function getCustomizableShortcutActions(): ReadonlyArray<CustomizableShor
   );
 }
 
-/** False for a native menu key on a runtime without that menu item. */
 export function isShortcutAvailable(action: ShortcutAction): boolean {
   if (!('nativeMenu' in action)) return true;
   return isDesktopShell() && (action.nativeMenu === 'all' || !isMacOS());
@@ -44,7 +43,6 @@ export function isSingleChordShortcut(action: ShortcutAction): boolean {
   return 'singleChord' in action || 'nativeMenu' in action;
 }
 
-/** What the desktop app menu shows and listens to; empty means unassigned. */
 export function getNativeMenuShortcutCombos(
   overrides?: Record<string, ShortcutCombo>,
 ): Record<string, ShortcutCombo> {
@@ -91,7 +89,6 @@ export function getEffectiveShortcutPrefix(
   return action.defaultBinding;
 }
 
-/** What an action is bound to: a prefix-style action's bare prefix, otherwise its combo. */
 export function getEffectiveShortcutBinding(
   action: ShortcutAction,
   overrides?: Record<string, ShortcutCombo>,
@@ -101,13 +98,6 @@ export function getEffectiveShortcutBinding(
     : getEffectiveShortcutCombo(action.id, overrides);
 }
 
-/**
- * Whether the recorded normalized combo fires this action. A sequence also
- * answers to its second key with the leader's modifiers held, as in dispatch.
- * A digit prefix has no chord of its own, so its action answers to the prefix
- * plus a digit it accepts: session tabs start at 1, and context surfaces take
- * 0 as the tenth.
- */
 export function shortcutMatchesRecordedCombo(
   action: ShortcutAction,
   recorded: ShortcutCombo,

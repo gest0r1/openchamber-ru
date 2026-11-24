@@ -196,12 +196,9 @@ export function registerGitRoutes(app: Application, {
       .join('\n');
   };
 
-  const isNonRepoGitError = (error) => /not a git repository/i.test(extractGitErrorText(error));
-  // Git could not tell whether the directory is a repository (`probeRepository`):
-  // its message goes to the client instead of a "not a repository" answer.
-  const isUnreadableRepositoryError = (error) => error?.code === 'GIT_REPOSITORY_UNREADABLE';
-  const unreadableRepositoryBody = (error) => ({ error: error.message, code: error.code });
-  // Every repository check a client acts on reports a Git that could not answer.
+  const isNonRepoGitError = <Cause>(error: Cause) => /not a git repository/i.test(extractGitErrorText(error));
+  const isUnreadableRepositoryError = <Cause>(error: Cause) => errorFields(error)?.code === 'GIT_REPOSITORY_UNREADABLE';
+  const unreadableRepositoryBody = <Cause>(error: Cause) => ({ error: messageOf(error), code: errorFields(error)?.code });
   const probeOptions = { failOnGitError: true };
 
   const instanceDisposer = () => (buildOpenCodeUrl && getOpenCodeAuthHeaders
@@ -234,16 +231,42 @@ export function registerGitRoutes(app: Application, {
     return worktrees;
   };
 
-  // A contributor-fork checkout runs no project command before its checkout
-  // trust passes, so its teardown is skipped. A provenance read that fails
-  // throws, and the removal keeps the worktree.
   const isContributorCheckout = contributorProvenance?.read instanceof Function
-    ? async (worktreeDirectory) => (await contributorProvenance.read(worktreeDirectory)).provenance?.kind === 'contributor-fork'
+    ? async (worktreeDirectory: string) => (await contributorProvenance.read(worktreeDirectory)).provenance?.kind === 'contributor-fork'
     : undefined;
-  const worktreeTeardownCodeOf = (error) => (error?.code === 'WORKTREE_TEARDOWN_FAILED' ? error.code : undefined);
+  const checkoutProvenance = (provenance: ContributorProvenance) => {
+    const { sourceSha } = provenance;
+    if (!isString(sourceSha)) {
+      throw Object.assign(new Error('Contributor worktree HEAD changed'), { code: 'STALE_CONFIG', status: 409 });
+    }
+    return { ...provenance, sourceSha };
+  };
+  const worktreeTeardownCodeOf = <Cause>(error: Cause) => (errorFields(error)?.code === 'WORKTREE_TEARDOWN_FAILED' ? 'WORKTREE_TEARDOWN_FAILED' : undefined);
 
-  const sendNetworkOperationError = (req, res, error) => {
-    const code = isString(error?.code) ? error.code : 'UNKNOWN';
+  const NETWORK_ERROR_MESSAGES = {
+    NOT_FOUND: 'Git network operation was not found',
+    INVALID_REQUEST: 'Invalid Git network operation request',
+    STALE_REPOSITORY: 'Git repository authority changed',
+    STALE_BINDING: 'Source control binding changed',
+    STALE_CONFIG: 'Git repository configuration changed',
+    REMOTE_CHANGED: 'Git remote or transport binding changed',
+    REMOTE_URL_USERINFO: 'Remove the name before @ from remote URL',
+    AUTHENTICATION_REQUIRED: 'Git authentication is required',
+    DESTINATION_SELECTION_REQUIRED: 'Contributor push destination selection is required',
+    CONTRIBUTOR_MANAGED_TRANSPORT_REQUIRED: 'Contributor transfers require managed credentials',
+    TIMEOUT: 'Git network operation timed out',
+    RUNTIME_UNSUPPORTED: 'Git network operations are unavailable',
+    UNKNOWN: 'Git network operation request failed',
+  };
+  type PublicNetworkCode = keyof typeof NETWORK_ERROR_MESSAGES;
+  const PRESERVED_NETWORK_CODES: readonly PublicNetworkCode[] = [
+    'STALE_REPOSITORY', 'STALE_BINDING', 'STALE_CONFIG', 'REMOTE_CHANGED',
+    'AUTHENTICATION_REQUIRED', 'TIMEOUT', 'RUNTIME_UNSUPPORTED',
+    'DESTINATION_SELECTION_REQUIRED', 'CONTRIBUTOR_MANAGED_TRANSPORT_REQUIRED',
+  ];
+  const sendNetworkOperationError = <Cause>(req: Request, res: Response, error: Cause) => {
+    const fields = errorFields(error);
+    const code = isString(fields?.code) ? fields.code : 'UNKNOWN';
     const storageFailure = code === 'GIT_NETWORK_OPERATION_STORAGE_INVALID';
     let status = 500;
     const errorStatus = fields?.status;
@@ -268,22 +291,7 @@ export function registerGitRoutes(app: Application, {
     const body = fieldsOf(req.body);
     const requestPaths = [body?.directory, body?.destinationPath].filter(isString);
     const redactor = createGitRedactor({ secrets: [...errorRedactionSecrets, ...requestPaths] });
-    const messages = {
-      NOT_FOUND: 'Git network operation was not found',
-      INVALID_REQUEST: 'Invalid Git network operation request',
-      STALE_REPOSITORY: 'Git repository authority changed',
-      STALE_BINDING: 'Source control binding changed',
-      STALE_CONFIG: 'Git repository configuration changed',
-      REMOTE_CHANGED: 'Git remote or transport binding changed',
-      REMOTE_URL_USERINFO: 'Remove the name before @ from remote URL',
-      AUTHENTICATION_REQUIRED: 'Git authentication is required',
-      DESTINATION_SELECTION_REQUIRED: 'Contributor push destination selection is required',
-      CONTRIBUTOR_MANAGED_TRANSPORT_REQUIRED: 'Contributor transfers require managed credentials',
-      TIMEOUT: 'Git network operation timed out',
-      RUNTIME_UNSUPPORTED: 'Git network operations are unavailable',
-      UNKNOWN: 'Git network operation request failed',
-    };
-    const reason = redactor.error(error, messages[publicCode]);
+    const reason = redactor.error(error, NETWORK_ERROR_MESSAGES[publicCode]);
     console.error('Git network operation request failed:', reason);
     return res.status(status).json({ error: publicCode === 'INVALID_REQUEST' ? reason : NETWORK_ERROR_MESSAGES[publicCode], code: publicCode });
   };
@@ -881,8 +889,6 @@ export function registerGitRoutes(app: Application, {
       if (isUnreadableRepositoryError(error)) {
         return res.status(500).json(unreadableRepositoryBody(error));
       }
-      // Non-repo / GitError must not abort callers that enumerate projects or
-      // sessions (e.g. sidebar discovery). Log a warning and continue.
       if (isNonRepoGitError(error)) {
         console.warn('Git status skipped for non-repository path:', extractGitErrorText(error));
         return res.json(nonRepoStatusPayload());
@@ -1139,25 +1145,6 @@ export function registerGitRoutes(app: Application, {
     }
   });
 
-  app.get('/api/git/range-file-versions', async (req, res) => {
-    const { getRangeFileVersions } = await getGitLibraries();
-    try {
-      const directory = resolveDirectoryQuery(req.query.directory);
-      const [base, head, filePath] = [req.query.base, req.query.head, req.query.path].map((value) => String(value ?? ''));
-      if (!directory) {
-        return res.status(400).json({ error: 'directory parameter is required' });
-      }
-      if (!base || !head || !filePath) {
-        return res.status(400).json({ error: 'base, head and path parameters are required' });
-      }
-      const previousPath = String(req.query.previousPath ?? '') || undefined;
-      res.json(await getRangeFileVersions(directory, { base, head, path: filePath, previousPath, includeWorkingTree: req.query.includeWorkingTree === 'true' }));
-    } catch (error) {
-      console.error('Failed to read file versions:', error);
-      res.status(500).json({ error: error.message || 'Failed to read file versions' });
-    }
-  });
-
   app.get('/api/git/branch-base', async (req, res) => {
     const { getBranchBase } = await getGitLibraries();
     try {
@@ -1392,9 +1379,6 @@ export function registerGitRoutes(app: Application, {
       }
 
       const [remotes, addresses] = await Promise.all([getRemotes(directory), getRepositoryRemoteUrls(directory)]);
-      // Git operations here cannot use a remote on disk, so it is not offered.
-      // `getRemotes` reads an address with a space as empty, so the addresses
-      // that decide this come from the reader repository identity uses.
       const onDisk = new Set(addresses
         .filter((remote) => isDiskPathRemoteUrl(remote.fetchUrl) || isDiskPathRemoteUrl(remote.pushUrl))
         .map((remote) => remote.name));
@@ -1928,7 +1912,6 @@ export function registerGitRoutes(app: Application, {
     }
   });
 
-  // A user action, so the teardown command gets the project's current environment, as creation does.
   app.delete('/api/git/worktrees', userAction(async (req, res) => {
     const { removeWorktree } = await getGitLibraries();
     try {
@@ -1947,41 +1930,36 @@ export function registerGitRoutes(app: Application, {
 
       const result = await removeWorktree(directory, {
         directory: worktreeDirectory,
-        deleteLocalBranch: req.body?.deleteLocalBranch === true,
-        teardownCommand: z.string().safeParse(req.body?.teardownCommand).data,
+        deleteLocalBranch: fieldsOf(req.body)?.deleteLocalBranch === true,
+        teardownCommand: z.string().safeParse(fieldsOf(req.body)?.teardownCommand).data,
         isContributorCheckout,
-        disposeInstance: canDisposeWorktreeInstance
-          ? createWorktreeInstanceDisposer({ buildOpenCodeUrl, getOpenCodeAuthHeaders })
-          : undefined,
+        disposeInstance: instanceDisposer(),
       }, {
         bootstrapStore: worktreeBootstrapStore,
       });
       res.json({ success: Boolean(result) });
     } catch (error) {
       console.error('Failed to remove worktree:', error);
-      res.status(500).json({ error: error.message || 'Failed to remove worktree', code: worktreeTeardownCodeOf(error) });
+      res.status(500).json({ error: messageOf(error) || 'Failed to remove worktree', code: worktreeTeardownCodeOf(error) });
     }
   }));
 
-  // Runs a worktree's teardown commands without removing it: a delete that also
-  // removes the remote branch calls this first, so a failing teardown stops it
-  // before the remote branch goes.
   app.post('/api/git/worktrees/teardown', userAction(async (req, res) => {
     const { teardownWorktree } = await getGitLibraries();
     const directory = resolveDirectoryQuery(req.query.directory);
     if (!directory) return res.status(400).json({ error: 'directory parameter is required' });
-    const worktreeDirectory = z.string().min(1).safeParse(req.body?.directory).data;
+    const worktreeDirectory = z.string().min(1).safeParse(fieldsOf(req.body)?.directory).data;
     if (!worktreeDirectory) return res.status(400).json({ error: 'worktree directory is required' });
     try {
       await teardownWorktree(directory, {
         directory: worktreeDirectory,
-        teardownCommand: z.string().safeParse(req.body?.teardownCommand).data,
+        teardownCommand: z.string().safeParse(fieldsOf(req.body)?.teardownCommand).data,
         isContributorCheckout,
       });
       res.json({ success: true });
     } catch (error) {
       console.error('Failed to tear down worktree:', error);
-      res.status(500).json({ error: error.message || 'Failed to tear down worktree', code: worktreeTeardownCodeOf(error) });
+      res.status(500).json({ error: messageOf(error) || 'Failed to tear down worktree', code: worktreeTeardownCodeOf(error) });
     }
   }));
 

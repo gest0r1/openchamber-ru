@@ -173,8 +173,6 @@ export function useInlineCommentController<TRange extends LineRangeBase>(
     }
   }, [editingDraftId, removeDraft, reset, target]);
 
-  // True when the editor is done with the text. False keeps it open: a refused
-  // comment exists nowhere but in the field.
   const saveComment = React.useCallback((textToSave: string, rangeOverride?: TRange): boolean => {
     const targetRange = rangeOverride ?? selection;
     const trimmedText = textToSave.trim();
@@ -185,7 +183,6 @@ export function useInlineCommentController<TRange extends LineRangeBase>(
       return false;
     }
 
-    // The edited comment was sent or removed meanwhile: nothing left to save to.
     if (editingDraftId && !useInlineCommentDraftStore.getState().getDrafts(target).some((draft) => draft.id === editingDraftId)) {
       reset();
       return true;

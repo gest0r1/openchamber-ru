@@ -17,9 +17,8 @@ export interface ProviderCapabilities {
   issues: boolean;
   changeRequests: boolean;
   draftChangeRequests: boolean;
-  /** The host turns an open change request into a draft, not only the reverse. Absent means no. */
   draftConversion?: boolean;
-  merge: false | { methods: MergeMethod[] };
+  merge: false | { methods: readonly MergeMethod[] };
   ci: boolean;
   comments: boolean;
   commentEdit?: boolean;
@@ -56,7 +55,7 @@ export interface ProviderDescriptor {
   repositoryPath: 'owner/name' | 'namespace/name' | 'path';
   projectPathOfRemote?(remote: { protocol: string; path: string }): string;
   capabilities: ProviderCapabilities;
-  authMethods: { device: boolean; pat: boolean; cli: false | { tool: string } | { kind: 'service'; hint: string } };
+  authMethods: { device: boolean; pat: boolean; cli: false | { tool: string; kind?: never; hint?: never } | { kind: 'service'; hint: string; tool?: never } };
   transport: {
     httpsUsername: { kind: 'fixed'; value: string } | { kind: 'login' };
     managedHttpsInstances: 'default-only' | 'any';
@@ -278,21 +277,9 @@ export interface ProviderImplementation<MutationInput = Json, ProviderTarget = J
     readChangeRequestPatch?(input: Omit<ReadInput, 'context'> & {
       number: number; sourceRepo?: { owner: string; repo: string } | null | undefined; revision?: string; linked?: true;
     }): Promise<Json>;
-    listIssues?(input: ReadInput & { page: number; query?: string; state: string; people: string }): Promise<Json>;
-    getIssue?(input: ReadInput & { number: number; project?: ProjectSelector }): Promise<Json>;
-    issueComments?(input: ReadInput & { number: number; project?: ProjectSelector }): Promise<Json>;
-    projectUpstream?(input: ReadInput): Promise<Json>;
-    projectBranches?(input: ReadInput & { project: ProjectSelector }): Promise<Json>;
-    listLabels?(input: ReadInput & { project: ProjectSelector }): Promise<Json>;
-    listReviewerCandidates?(input: ReadInput & { project: ProjectSelector }): Promise<Json>;
-    /** The attachment as the provider's fetch Response; the shell checks its type and streams it. */
-    readUpload?(input: ReadInput & { project: ProjectSelector; secret: string; filename: string; range?: string; signal: AbortSignal }): Promise<Response>;
-    /** `revision` (40-hex) only when the descriptor declares `capabilities.revisions`; absent means the current one. */
-    readChangeRequestPatch?(input: ReadInput & { number: number; sourceRepo?: { owner: string; repo: string }; revision?: string }): Promise<Json>;
-    readChangeRequestFile?(input: ReadInput & {
-      number: number; sourceRepo?: { owner: string; repo: string }; path: string; previousPath?: string; status?: string; revision?: string;
-      /** Both sides as `data:` URLs of the file's bytes, for documents the viewer compares itself. A provider may ignore it. */
-      binary?: boolean;
+    readChangeRequestFile?(input: Omit<ReadInput, 'context'> & {
+      number: number; sourceRepo?: { owner: string; repo: string } | null | undefined; path: string; previousPath?: string | undefined; status?: string;
+      revision?: string; binary?: true | undefined; linked?: true;
     }): Promise<Json>;
     liveSummaries?(input: { session: ProviderSession; refs: ThreadRef[]; issueRefs: ThreadRef[]; discussionRefs: ThreadRef[]; details: boolean }): Promise<Omit<LiveSummariesResult, 'connected'>>;
     readChangeRequestHead?(input: ReadInput & { number: number }): Promise<{

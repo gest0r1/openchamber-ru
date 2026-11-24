@@ -18,15 +18,6 @@ export type UpdateInfo = {
   nextSuggestedCheckInSec?: number;
   packageManager?: string;
   updateCommand?: string;
-  /**
-   * The server cannot install this update itself. `service-manager`: run
-   * `updateCommand` by hand. `manual-install`: no package manager installed
-   * this copy, so the new version is installed the way this one was.
-   * `desktop-host`: a desktop installed from a Linux package asks for the
-   * administrator password on its own screen, so it updates only there.
-   * `opencode-version`: the new version needs OpenCode
-   * `requiredOpenCodeVersion`, newer than the server's `openCodeVersion`.
-   */
   installBlocked?: 'service-manager' | 'manual-install' | 'desktop-host' | 'opencode-version';
   requiredOpenCodeVersion?: string;
   openCodeVersion?: string;
@@ -563,14 +554,6 @@ const pendingSessionLinksSchema = z.array(z.object({
 
 type PendingDesktopSessionLink = { sessionId: string; messageId: string | null; runtimeKey: string | null; requireKnownSession: boolean };
 
-/**
- * Session links (`openchamber://session/...`) that reached the desktop app
- * before this window could listen for them — the link that launched the app,
- * or "open in main window" from a closed main window. A link that names its
- * host (`?host=<id>`) carries that host's runtime key. Taking them removes
- * them; outside the desktop local page there are none.
- */
-/** Install links that launched the app, before any window could listen. */
 export const takePendingDesktopExtensionInstalls = async (): Promise<string[]> => {
   if (!isDesktopShell()) return [];
   try {

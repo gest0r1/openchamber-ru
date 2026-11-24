@@ -44,10 +44,14 @@ const validatePath = (value: string, { absolute }: { absolute: boolean }) => {
   return decoded;
 };
 
-// `ownRemote` marks the repository's own remote, as opposed to an endpoint its
-// content names. Its HTTPS URL may carry a user name on System transport; the
-// name is dropped here, so nothing derived from the remote inherits it.
-const parseEndpoint = (value, { ownRemote = false } = {}) => {
+const stripTrailingSlash = (value: string, parsed: URL) => {
+  const rawPath = value.match(RAW_URL_PATH_PATTERN)?.[1];
+  if (!rawPath || /[?#\\]/.test(value)) throw discoveryError('Git discovery endpoint is unsafe');
+  validatePath(rawPath.slice(0, -1), { absolute: true });
+  parsed.pathname = parsed.pathname.slice(0, -1);
+};
+
+const parseEndpoint = (value: string, { ownRemote = false, trailingSlash = false }: EndpointOptions = {}): ParsedEndpoint => {
   if (!isString(value) || !value || value.trim() !== value
     || value.startsWith('-') || CONTROL_PATTERN.test(value) || value.includes('::')) {
     throw discoveryError('Git discovery endpoint is invalid');
@@ -81,6 +85,7 @@ const parseEndpoint = (value, { ownRemote = false } = {}) => {
     throw discoveryError('Git discovery endpoint is unsafe');
   }
   if (parsed.protocol === 'https:') parsed.username = '';
+  if (trailingSlash && value.endsWith('/')) stripTrailingSlash(value, parsed);
   const endpointPath = validatePath(parsed.pathname, { absolute: true });
   parsed.hostname = parsed.hostname.toLowerCase();
   const endpoint = parsed.toString().replace(/\/$/, '');
@@ -143,12 +148,12 @@ const publicEndpoint = <Extra extends object>(parsed: ParsedEndpoint, extra: Ext
   ...extra,
 });
 
-export function normalizeDiscoveryEndpoint(value, options) {
-  return publicEndpoint(parseEndpoint(value, options));
+export function normalizeDiscoveryEndpoint(value: string, options?: EndpointOptions) {
+  return publicEndpoint(parseEndpoint(value, options), {});
 }
 
-export function resolveGitRelativeEndpoint(value, parentRemoteUrl) {
-  const parent = parseEndpoint(parentRemoteUrl, { ownRemote: true });
+export function resolveGitRelativeEndpoint(value: string, parentRemoteUrl: string, { trailingSlash = false } = {}) {
+  const parent = parseEndpoint(parentRemoteUrl, { ownRemote: true, trailingSlash });
   const resolved = /^(?:\.\.?\/)/.test(value)
     ? parseEndpoint(formatRelativeEndpoint(parent, joinRelativePath(parent.endpointPath, value)))
     : parseEndpoint(value, { trailingSlash });

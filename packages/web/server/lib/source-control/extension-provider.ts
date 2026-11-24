@@ -154,7 +154,7 @@ export function createExtensionProvider({
   const { id, label } = descriptor;
   const tokenFormat = descriptor.extension.token;
   const basicAuth = tokenFormat?.scheme === 'basic';
-  const serviceLogin = descriptor.authMethods.cli?.kind === 'service';
+  const serviceLogin = descriptor.authMethods.cli !== false && descriptor.authMethods.cli?.kind === 'service';
 
   let disposed = false;
   const guardedWrite = <Args extends unknown[], Result>(write: (...args: Args) => Promise<Result>) => (...args: Args) => {
@@ -190,13 +190,7 @@ export function createExtensionProvider({
     throw serviceError(new GuestServiceError('the extension may no longer serve this Git host', 'NO_SERVICE'), []);
   };
 
-  /**
-   * One forwarded call. `token` is the secret the handle carries (null for
-   * none), `user` the acting account (null before one is known), `login` the
-   * username a `basic` token is sent with. Answers the parsed data and what
-   * the proxy saw the call send to the forge.
-   */
-  const forward = async (method, { instance, token, user, login = null, input, tokenless = false }) => {
+  const forward = async <M extends SourceControlProviderMethod>(method: M, { instance, token, user, login = null, input, tokenless = false }: ForwardInput) => {
     if (token && basicAuth && !isProviderUsername(login)) {
       throw refusedInput('SOURCE_CONTROL_USERNAME_REQUIRED', `${label} signs in with a username, and this account has none it can send`);
     }
@@ -266,8 +260,10 @@ export function createExtensionProvider({
       if (!data.success) throw malformed(label, `${method} does not match its schema`, grant.outbound);
       return { data: data.data, outbound: grant.outbound };
     } catch (error) {
-      // The proxy cannot observe writes a service performs through its own CLI.
-      if (tokenless) error.sourceControlServiceLogin = true;
+      if (tokenless) {
+        if (!isCallFailure(error)) throw new TypeError(`Cannot set properties of ${error} (setting 'sourceControlServiceLogin')`);
+        error.sourceControlServiceLogin = true;
+      }
       throw error;
     } finally {
       grant.revoke();
@@ -277,24 +273,24 @@ export function createExtensionProvider({
   const verify = async (origin: string, token: string | undefined, { username = null }: { username?: string | null | undefined } = {}) => (await forward('auth.verify', {
     instance: origin, token, user: null, login: username, input: {},
   })).data.user;
-  const probe = async (origin) => (await forward('auth.probe', { instance: origin, token: null, user: null, input: {} })).data;
-  const classifyFailure = (error) => error?.kind ?? 'provider-error';
+  const probe = async (origin: string) => (await forward('auth.probe', { instance: origin, token: null, user: null, input: {} })).data;
+  const classifyFailure = (error: Parameters<PatAccountAuthOptions['classifyFailure']>[0]) => error?.kind ?? 'provider-error';
   const cli = serviceLogin ? {
-    status: async (instance) => (await forward('auth.status', {
+    status: async (instance: string) => (await forward('auth.status', {
       instance, token: null, user: null, input: {}, tokenless: true,
     })).data.user,
     listInstances: async () => [...descriptor.instance.defaultInstances],
   } : null;
   const accounts = createPatAccountAuth({ descriptor, store, events, verify, probe, classifyFailure, cli });
 
-  const userOf = async (session) => {
-    const account = session.persisted
+  const userOf = async (session: ProviderSession) => {
+    const account: SessionAccount | null = session.persisted
       ? await store.readAccount(session.instance, session.accountId, session.credentialRevision)
       : { user: accounts.userFor(session) };
     const login = account?.user?.login ?? account?.user?.username;
     const userId = account?.user?.id;
-    const validId = Number.isSafeInteger(userId) && userId > 0
-      || typeof userId === 'string' && userId.length > 0 && userId.length <= 256;
+    const validId = isSourceControlInteger(userId) && userId > 0
+      || isStringUserId(userId) && userId.length > 0 && userId.length <= 256;
     return validId && login ? { id: userId, login } : null;
   };
 
@@ -418,7 +414,7 @@ export function createExtensionProvider({
     const error = isCallFailure(cause) ? cause : undefined;
     if (error?.sourceControlNotReached) return 'failed';
     if (error?.sourceControlServiceLogin) return 'outcome-unknown';
-    const outbound = Array.isArray(error?.sourceControlOutbound) ? error.sourceControlOutbound : null;
+    const outbound = isAttemptList(error?.sourceControlOutbound) ? error.sourceControlOutbound : null;
     if (!outbound) return 'outcome-unknown';
     const writes = outbound.filter((request) => attemptField(request, 'method') !== 'GET');
     return writes.every((request) => hasIntegerAttemptStatus(request) && request.status >= 400 && request.status < 500)

@@ -156,14 +156,12 @@ export const createWorkflowRunStore = ({ fsPromises, path, dataDir, now = Date.n
     }
   };
 
-  /** Saves a call-time snapshot; publishes new/replacement working objects only on success. */
-  const save = async (run) => {
+  const save = async (run: WorkflowRun) => {
     const snapshot = structuredClone(run);
     await load();
     const writing = writeChain.then(async () => {
       await writeRun(snapshot);
-      runs.set(snapshot.id, run);
-      // Retention cannot turn a committed snapshot into a failed save.
+      runs.set(snapshot.id, held(run));
       await prune(snapshot.id).catch((error) => {
         console.warn('[workflows] failed to prune runs:', error?.message ?? error);
       });
@@ -174,8 +172,13 @@ export const createWorkflowRunStore = ({ fsPromises, path, dataDir, now = Date.n
     return writing;
   };
 
-  // These are mutable working references, not evidence of a successful save.
-  const get = async (id) => {
+  const readRun = async (id: string) => {
+    const parsed = runSchema.safeParse(await fsPromises.readFile(fileFor(id), 'utf8').then(JSON.parse).catch(() => null));
+    return parsed.success ? parsed.data : null;
+  };
+
+  const pendingReads = new Map<string, Promise<WorkflowRun | null>>();
+  const get = async (id: string) => {
     await load();
     const run = runs.get(id) ?? null;
     if (!run || !lightRuns.has(run)) return run;
@@ -211,7 +214,6 @@ export const createWorkflowRunStore = ({ fsPromises, path, dataDir, now = Date.n
       runs.set(id, run);
       throw error;
     }
-    // An earlier queued save may have published its working object meanwhile.
     runs.delete(id);
     return true;
   };

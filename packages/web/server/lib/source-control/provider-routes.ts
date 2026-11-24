@@ -9,6 +9,71 @@ import { readBranchTip } from './change-id.js';
 import { createChangeRequestStatusCache } from './status-cache.js';
 import { allowsTopLevelProjects } from './project-path.js';
 import { isProviderUserId, isProviderUsername } from './provider-id.js';
+import { assertMutationContextObject } from './binding-input.js';
+import type { SourceControlJson } from '@openchamber/sdk';
+import type { Query, QueryValue, Request, RequestHandler, Response, Router } from '../shared/http-contracts.js';
+import type { AccountIdentity, ProviderDescriptor, ProviderMutationContext, ProviderReadContext, ReadContextRequest } from './provider-contract.js';
+import type { createMutationExecutor } from './mutation-executor.js';
+import type { MutationRecord } from './mutation-storage.js';
+import type { RegisteredMutationInput, RegisteredProvider, createSourceControlProviders } from './provider-registry.js';
+import type { LiveSummariesResult, TrackedItemReaderOptions } from '../tracked-items/contracts.js';
+import type { ChangeRequestFileInput, ChangeRequestReadInput } from '../walkthrough/pull-request.js';
+import type { SourceRequest } from '../git/network-execution-contracts.js';
+
+type Resources = RegisteredProvider['resources'];
+type LiveSummariesInput = Parameters<NonNullable<TrackedItemReaderOptions['readLiveSummaries']>>[0];
+type RegisteredMutations = NonNullable<RegisteredProvider['mutations']>;
+type ResolvedMutation = Awaited<ReturnType<RegisteredMutations['resolveTarget']>>;
+interface MutationNotice { context: ProviderMutationContext; kind: string; input: RegisteredMutationInput }
+export interface ProviderRouteOptions {
+  providers: ReturnType<typeof createSourceControlProviders>;
+  validateReadContext?: ((input: ReadContextRequest) => Promise<ProviderReadContext>) | undefined;
+  validateMutationContext?: ((input: SourceControlJson) => Promise<ProviderMutationContext>) | undefined;
+  mutationExecutor?: Pick<ReturnType<typeof createMutationExecutor>, 'read' | 'execute'> | undefined;
+  onMutationSucceeded?: ((notice: MutationNotice & { record: MutationRecord; replayed: boolean }) => void | Promise<void>) | undefined;
+  onMutationStarting?: ((notice: MutationNotice & { target: ResolvedMutation['target'] }) => (() => void) | null | undefined) | undefined;
+  oauthFlowRegistry?: ReturnType<typeof createOAuthFlowRegistry> | undefined;
+}
+type QueryRequest = Pick<Request, 'query'>;
+type ProviderHandler = RequestHandler<SourceControlJson | undefined>;
+interface RouteError {
+  cause?: unknown;
+  response?: unknown;
+  status?: unknown;
+  statusCode?: unknown;
+  code?: unknown;
+  kind?: unknown;
+  message?: unknown;
+  current?: unknown;
+  sourceControlResponse?: unknown;
+  sourceControlIdentity?: unknown;
+  sourceControlAccountUnavailable?: unknown;
+  sourceControlAuthUnknown?: unknown;
+  sourceControlPersistedAccount?: unknown;
+  sourceControlServiceLogin?: unknown;
+}
+const isRouteError = (value: unknown): value is RouteError => value != null;
+const routeError = (cause: unknown): RouteError | undefined => (isRouteError(cause) ? cause : undefined);
+const isResponseStatus = (value: unknown): value is { status?: unknown } => value != null;
+const isProviderResponse = (value: unknown): value is { status?: unknown; body?: unknown } => value != null;
+const isFailedIdentity = (value: unknown): value is FailedIdentity => value != null;
+const failedIdentity = (error: RouteError | undefined) => (isFailedIdentity(error?.sourceControlIdentity) ? error.sourceControlIdentity : undefined);
+const isInteger = (value: unknown): value is number => Number.isInteger(value);
+const isProjectKey = (value: string): value is 'id' | 'owner' | 'name' => ['id', 'owner', 'name'].includes(value);
+const isReferenceKind = (value: string): value is 'issue' | 'pull' | 'discussion' => ['issue', 'pull', 'discussion'].includes(value);
+const isSafeInteger = (value: unknown): value is number => Number.isSafeInteger(value);
+const hasCapabilityKey = (value: unknown): value is Readonly<Record<string, unknown>> => value != null;
+interface BoundReadInput { req: QueryRequest; res: Response; impl: RegisteredProvider; instance: string; directory: string; trustedContext: ProviderReadContext }
+interface BoundReadChecks {
+  validate?: (req: QueryRequest) => string | { error: string; code: string } | null;
+  validateAfterInstance?: (req: QueryRequest) => string | null;
+}
+interface ListFilter { state: string; people: string; labels?: string[] }
+interface SourceControlErrorBody { error: unknown; code: unknown; current?: unknown }
+interface ChangeRequestStatus { fetchedAt?: unknown }
+interface FailedIdentity { provider?: unknown; instance?: unknown; accountId?: unknown }
+interface StartedMutation { settle: (() => void) | null }
+const bodyField = <Body>(body: Body, key: string) => (hasProperties(body) ? body[key] : undefined);
 
 
 const STATUS_CACHE_TTL_MS = 90_000;
@@ -440,9 +505,7 @@ export function registerProviderRoutes(app: Router, {
           mergeMethods: capabilities.merge ? [...capabilities.merge.methods] : [],
           ci: capabilities.ci,
         };
-        // Only a host that can turn an open change request into a draft says so.
-        if (capabilities.draftConversion) published.draftConversion = true;
-        return res.json(published);
+        return res.json(capabilities.draftConversion ? { ...published, draftConversion: true } : published);
       } catch (error) {
         const kind = impl ? impl.classifyFailure(error) : 'provider-error';
         return res.status(errorStatus(kind)).json({ error: routeError(error)?.message || `Failed to probe ${label}`, status: kind });
@@ -456,7 +519,7 @@ export function registerProviderRoutes(app: Router, {
       } catch (cause) {
         const lockResponse = sendAuthStorageError(res, cause);
         if (lockResponse) return lockResponse;
-        // A service login that could not be read is not an empty account list.
+        const error = routeError(cause);
         if (error?.sourceControlAuthUnknown) {
           return res.status(errorStatus(error.kind)).json({ error: error.message });
         }
@@ -698,7 +761,7 @@ export function registerProviderRoutes(app: Router, {
       const actor = { provider: id, instance: context.instance, accountId: context.accountId };
       const session = await sessionFor(impl, context.instance, context.accountId);
       if (session.accountId !== context.accountId
-        || !Number.isSafeInteger(session.credentialRevision) || session.credentialRevision < 1
+        || !isSafeInteger(session.credentialRevision) || session.credentialRevision < 1
         || !isProviderUserId(id, context.instance, session.providerUserId)) {
         throw Object.assign(new Error(`${label} account is unavailable`), {
           code: 'SOURCE_CONTROL_ACCOUNT_UNAVAILABLE', status: 401,
@@ -1094,21 +1157,22 @@ export function registerProviderRoutes(app: Router, {
       }
       try {
         return { connected: true, ...(await impl.resources.liveSummaries({ session, refs, issueRefs, discussionRefs: askedDiscussions, details })) };
-      } catch (error) {
-        if (error?.sourceControlServiceLogin && error.code === 'ACCOUNT_CHANGED' && error.sourceControlIdentity?.accountId) {
-          const identity = error.sourceControlIdentity;
-          statusCaches.get(identity.provider)?.invalidate({ instance: identity.instance, accountId: identity.accountId });
+      } catch (cause) {
+        const error = routeError(cause);
+        const identity = error?.sourceControlServiceLogin && error.code === 'ACCOUNT_CHANGED' ? failedIdentity(error) : undefined;
+        if (identity?.accountId) {
+          (isString(identity.provider) ? statusCaches.get(identity.provider) : undefined)?.invalidate({ instance: identity.instance, accountId: identity.accountId });
           await impl.auth.invalidateAccount({ instance: identity.instance, accountId: identity.accountId, persisted: false });
         }
-        throw error;
+        throw cause;
       }
     },
     readChangeRequestPatch: async ({ context, number, sourceRepo, revision }: ChangeRequestReadInput) => readWithBoundAccount(
       context, (resources) => resources.readChangeRequestPatch, withRevision({ number, sourceRepo, ...linkedRead(context) }, readRevision(context ? providers.describe(context.provider) : null, revision)),
     ),
-    readChangeRequestFile: async ({ context, number, sourceRepo, path, previousPath, status, revision, binary }) => readWithBoundAccount(
-      context, 'readChangeRequestFile',
-      withRevision({ number, sourceRepo, path, previousPath, status, binary: binary || undefined, ...linkedRead(context) }, readRevision(providers.describe(context?.provider), revision)),
+    readChangeRequestFile: async ({ context, number, sourceRepo, path, previousPath, status, revision, binary }: ChangeRequestFileInput) => readWithBoundAccount(
+      context, (resources) => resources.readChangeRequestFile,
+      withRevision({ number, sourceRepo, path, previousPath, status, binary: binary || undefined, ...linkedRead(context) }, readRevision(context ? providers.describe(context.provider) : null, revision)),
     ),
     readChangeRequestHead: (input: { context?: ReadContextRequest | undefined; number: number }) => trustedRead(input, (resources) => resources.readChangeRequestHead, () => ({ number: input.number })),
     resolveChangeRequestSource: (input: SourceRequest) => trustedRead(input, (resources) => resources.resolveChangeRequestSource, () => ({

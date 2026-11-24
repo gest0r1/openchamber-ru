@@ -100,7 +100,6 @@ export const CustomProviderForm: React.FC<CustomProviderFormProps> = ({
   const seededEditProviderIdRef = React.useRef<string | null>(null);
   const logoProviderId = form.providerID.trim() || 'custom';
   const { hasLogo: providerHasLogo } = useProviderLogo(logoProviderId);
-  // A logo stored under the typed ID: kept when the provider was removed and is added again.
   const storedLogo = useUIStore((state) => state.customProviderLogos[logoProviderId]);
   const pickedLogoFile = form.logo instanceof File ? form.logo : null;
   const [pickedLogoUrl, setPickedLogoUrl] = React.useState<string | null>(null);

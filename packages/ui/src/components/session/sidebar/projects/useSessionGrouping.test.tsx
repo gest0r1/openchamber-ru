@@ -228,36 +228,6 @@ describe('useSessionGrouping malformed hierarchy fallbacks', () => {
     expect(collectIds(groups.find((group) => group.isMain)?.sessions ?? [])).toEqual([]);
   });
 
-  test('uses the row-local descendant snapshot for archive and hard-delete actions', async () => {
-    type ActionsCapture = { handleDeleteSession?: ReturnType<typeof useSessionActions>['handleDeleteSession'] };
-    const state: ActionsCapture = {};
-    const Harness = () => {
-      state.handleDeleteSession = useSessionActions({
-        mobileVariant: false,
-        allowReselect: false,
-        descendantIds: ['active-child', 'archived-child'],
-        showDeletionDialog: false,
-        setDeleteSessionConfirm: () => undefined,
-        deleteSessionConfirm: null,
-        setEditingId: () => undefined,
-        setEditingRowKey: () => undefined,
-        editingSessionId: 'root',
-        editingOccurrenceKey: 'project:session:root',
-        setEditTitle: () => undefined,
-        editingId: null,
-        editTitle: '',
-      }).handleDeleteSession;
-      return null;
-    };
-
-    renderToStaticMarkup(React.createElement(I18nProvider, null, React.createElement(Harness)));
-    const handleDeleteSession = state.handleDeleteSession;
-    if (!handleDeleteSession) throw new Error('session actions callback was not mounted');
-
-    handleDeleteSession(session('root'));
-    handleDeleteSession(session('root'), { hardDelete: true });
-  });
-
   test('keeps active unknown-directory sessions in their resolved project root group', () => {
     const state: GroupingCapture = {};
     const restored = { ...session('restored'), directory: '/deleted/worktree', time: { created: 1, updated: 1 } };

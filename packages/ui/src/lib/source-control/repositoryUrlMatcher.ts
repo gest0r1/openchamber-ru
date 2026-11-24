@@ -68,17 +68,11 @@ export const createRepositoryUrlMatcher = (
   };
 };
 
-/** What the provider of a change request link calls it; an address no provider claims reads as a pull request. */
 export const changeRequestTermOfUrl = (url: string, urls: RepositoryUrlMatcher): ChangeRequestTerm => {
   const item = urls.match(url);
   return item ? urls.descriptorOf(item.provider).terminology.changeRequest : 'pullRequest';
 };
 
-/**
- * The matcher for the current runtime's providers and connected instances.
- * One object while neither list changes, so it can sit in the dependencies of
- * the memos that read a session's links.
- */
 export const useRepositoryUrlMatcher = (): RepositoryUrlMatcher => {
   const descriptors = useSourceControlProviderRegistry((state) => state.ordered);
   const identities = useSourceControlAuthStore((state) => state.identities);

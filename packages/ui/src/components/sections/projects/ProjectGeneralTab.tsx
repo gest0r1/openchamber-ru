@@ -37,8 +37,6 @@ const ChatDefaultsSection: React.FC<{ form: ProjectIdentityFormState }> = ({ for
   const { t } = useI18n();
   const providers = useConfigStore((state) => selectProvidersForDirectory(state, form.project?.path));
   const { parsedDefaultModel, defaultVariant } = form;
-  // New sessions skip a model the project's live catalog no longer lists; say
-  // so, and where they go instead.
   const modelUnavailableNote = useConfigStore((state) => {
     const directory = form.project?.path;
     if (!selectIsModelMissingFromCatalog(state, directory, parsedDefaultModel.providerId, parsedDefaultModel.modelId)) return null;

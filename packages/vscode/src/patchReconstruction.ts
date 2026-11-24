@@ -89,7 +89,6 @@ const detectStrippedIndent = (fileLines: string[], hunks: ParsedDiffHunk[]): str
   return prefix ?? '';
 };
 
-/** The patch removes the whole file: it has hunks and none keeps a line. */
 export const isFileDeletionPatch = (patch: string): boolean => {
   const hunks = parseUnifiedDiffHunks(patch);
   return hunks.length > 0 && hunks.every((hunk) => hunk.newLines.length === 0);

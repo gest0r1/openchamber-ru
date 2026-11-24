@@ -1,51 +1,3 @@
-/**
- * Session notices: the labelled messages OpenCode, a plugin or OpenChamber
- * puts into a session that the timeline shows as a one-line info row.
- *
- * A notice is a `synthetic` message with a `description`, or the `system`
- * message OpenCode writes when the session's instructions change. OpenCode's
- * own TUI shows every such message; the timeline shows the subset below and
- * hides the rest. A message without a description is never a notice.
- * Expanding a row shows the text the model received.
- *
- * Shown:
- * - A plugin's notice: any synthetic message with a description that no rule
- *   below claims (a quota plugin's "waiting for quota reset"). The row reads
- *   the plugin's description as it is.
- * - "Continuing after restart" (`metadata.notice: "restart"`): the OpenCode
- *   server restarted mid-turn and the agent carries on.
- * - A `!command` that could not start (`source: "shell"`, `state: "error"`,
- *   no `shellID`): otherwise the failure shows nowhere.
- * - "Moved to <folder>": an "Instructions updated" whose sources include the
- *   environment (`core/environment`), which changes when the session moves to
- *   a worktree, a project or back from a removed worktree. The folder is the
- *   `Working directory` line of the text OpenCode gave the model.
- * - A pull request watch waking the agent (`source: "openchamber-pr-watch"`,
- *   `web/server/lib/pr-watch`): the row says what changed and opens the pull
- *   request. It does not expand, because the text only repeats that in an
- *   envelope and tells the agent what to do next.
- * - An extension wait waking the agent (`source: "openchamber-wait"`,
- *   `web/server/lib/extension-waits`): the row names the wait and opens to
- *   the extension's report, which can run longer than the description's one
- *   line.
- *
- * Hidden, and why:
- * - The rest about the session's instructions, as noise the maintainer saw in
- *   real sessions (2026-10-19): "Instructions updated" without the
- *   environment (AGENTS.md and config instruction files, skills, MCP servers,
- *   Code Mode, references or the date changed) and "Loaded <files>"
- *   (`metadata.instruction.paths`, an AGENTS.md of a folder the agent entered).
- * - Composer context (an inline comment, terminal output, a linked issue):
- *   it folds into the user message as context chips.
- * - A background subagent's report and a dispatched session's result: they
- *   render as their own rows already (`subagent-run`, `dispatched-session`).
- * - A background shell command's completion: it finishes the shell call's
- *   own row (`background-shell`).
- * - OpenChamber's notes to the agent that the user stopped a subagent or a
- *   background command: the row of that call already says stopped.
- * - "ACP embedded context": editor context an ACP client sends; it is the
- *   user's own attachment, not news.
- */
 
 import { z } from "zod"
 
@@ -76,10 +28,34 @@ const extensionWaitNoticeSchema = z.object({
   subject: z.string().min(1),
   outcome: z.enum(["fired", "ended"]),
   summary: z.string(),
+  timerMinutes: z.number().optional(),
   text: z.string(),
 })
 
 export type ExtensionWaitNotice = z.infer<typeof extensionWaitNoticeSchema>
+
+const pageAnswerOutcomeSchema = z.enum(["answered", "declined", "ui-not-drawn"])
+
+const pageAnswerNoticeSchema = z.object({
+  kind: z.literal("page-answer"),
+  title: z.string(),
+  outcome: pageAnswerOutcomeSchema,
+  summary: z.string(),
+  details: z.string(),
+  text: z.string(),
+})
+
+export type PageAnswerNotice = z.infer<typeof pageAnswerNoticeSchema>
+
+const leadAnswerNoticeSchema = z.object({
+  kind: z.literal("lead-answer"),
+  answers: z.array(z.object({ question: z.string(), answer: z.string() })),
+  suggestions: z.array(z.object({ item: z.string(), accepted: z.boolean() })),
+  text: z.string(),
+})
+const leadHandoverNoticeSchema = z.object({ kind: z.literal("lead-handover"), title: z.string(), text: z.string() })
+
+export type LeadNotice = z.infer<typeof leadAnswerNoticeSchema> | z.infer<typeof leadHandoverNoticeSchema>
 
 export type SessionNotice =
   | { kind: "plugin"; label: string; text: string }
@@ -88,6 +64,8 @@ export type SessionNotice =
   | { kind: "moved"; folder: string | null; text: string }
   | PullRequestNotice
   | ExtensionWaitNotice
+  | PageAnswerNotice
+  | LeadNotice
 
 const HIDDEN_DESCRIPTIONS = new Set(["ACP embedded context"])
 
@@ -106,7 +84,6 @@ const readMove = (message: Extract<Message, { role: "system" }>): SessionNotice 
   return { kind: "moved", folder, text: message.text }
 }
 
-// A message from before the wake carried its names has none, and reads without them.
 const pullRequestWakeSchema = pullRequestNoticeSchema.pick({ url: true, events: true }).extend({
   source: z.literal("openchamber-pr-watch"),
   failedChecks: z.array(z.string()).default([]),
@@ -124,16 +101,66 @@ const readPullRequestWake = (text: string, metadata: Metadata): PullRequestNotic
 
 const extensionWaitWakeSchema = extensionWaitNoticeSchema.pick({ subject: true, outcome: true, summary: true }).extend({
   source: z.literal("openchamber-wait"),
+  extension: z.string().nullable().optional().catch(undefined),
+  type: z.string().optional().catch(undefined),
+  minutes: z.number().optional().catch(undefined),
 })
 
 const readExtensionWaitWake = (text: string, metadata: Metadata): ExtensionWaitNotice | undefined => {
   const parsed = extensionWaitWakeSchema.safeParse(metadata)
   if (!parsed.success) return undefined
-  const { subject, outcome, summary } = parsed.data
-  return { kind: "extension-wait", subject, outcome, summary, text }
+  const { subject, outcome, summary, extension, type, minutes } = parsed.data
+  const builtInTimer = extension === null && type === "timer" && minutes !== undefined
+  return builtInTimer
+    ? { kind: "extension-wait", subject, outcome, summary, timerMinutes: minutes, text }
+    : { kind: "extension-wait", subject, outcome, summary, text }
 }
 
-/** The notice a message carries, or undefined when the timeline does not show it. */
+const pageAnswerWakeSchema = z.object({
+  source: z.literal("openchamber-page-answer"),
+  title: z.string(),
+  outcome: pageAnswerOutcomeSchema,
+})
+const findPageAnswerFieldsLine = (text: string) => text.split("\n").find((line) => line.startsWith("{") && line.endsWith("}"))
+const pageAnswerFieldsSchema = z.object({
+  page: z.string().catch(""),
+  summary: z.string().catch(""),
+  data: z.json().optional().catch(undefined),
+  errors: z.array(z.string()).catch([]),
+})
+
+const readPageAnswerFields = (text: string) => {
+  const line = findPageAnswerFieldsLine(text)
+  if (!line) return pageAnswerFieldsSchema.parse({})
+  try {
+    return pageAnswerFieldsSchema.parse(JSON.parse(line))
+  } catch {
+    return pageAnswerFieldsSchema.parse({})
+  }
+}
+
+const readPageAnswerWake = (text: string, metadata: Metadata): PageAnswerNotice | undefined => {
+  const parsed = pageAnswerWakeSchema.safeParse(metadata)
+  if (!parsed.success) return undefined
+  const { title, outcome } = parsed.data
+  const fields = readPageAnswerFields(text)
+  const summary = outcome === "answered" ? fields.summary.replace(/\s+/g, " ").trim() : ""
+  const details = outcome === "answered"
+    ? (fields.data === undefined || fields.data === null ? fields.summary : `\`\`\`json\n${JSON.stringify(fields.data, null, 2)}\n\`\`\``)
+    : outcome === "ui-not-drawn" ? fields.errors.map((error) => `- ${error}`).join("\n") : ""
+  return { kind: "page-answer", title, outcome, summary, details, text }
+}
+
+const leadReplyMetadataSchema = z.object({ [LEAD_ANSWER_METADATA_KEY]: leadReplySchema })
+const leadHandoverMetadataSchema = z.object({ source: z.literal("openchamber-lead-handover"), title: z.string() })
+
+const readLeadNotice = (text: string, metadata: Metadata): LeadNotice | undefined => {
+  const reply = leadReplyMetadataSchema.safeParse(metadata).data?.[LEAD_ANSWER_METADATA_KEY]
+  if (reply) return { kind: "lead-answer", answers: reply.answers, suggestions: reply.suggestions, text }
+  const handover = leadHandoverMetadataSchema.safeParse(metadata).data
+  return handover ? { kind: "lead-handover", title: handover.title, text } : undefined
+}
+
 export function readSessionNotice(message: Message): SessionNotice | undefined {
   if (message.role === "system") return readMove(message)
   if (message.role !== "synthetic") return undefined
@@ -149,7 +176,10 @@ export function readSessionNotice(message: Message): SessionNotice | undefined {
   const text = message.text
   if (restartSchema.safeParse(metadata).success) return { kind: "restart", text }
   if (failedCommandSchema.safeParse(metadata).success) return { kind: "command-failed", command: description, text }
-  return readPullRequestWake(text, metadata) ?? readExtensionWaitWake(text, metadata) ?? { kind: "plugin", label: description, text }
+  return readPullRequestWake(text, metadata)
+    ?? readExtensionWaitWake(text, metadata)
+    ?? readPageAnswerWake(text, metadata)
+    ?? { kind: "plugin", label: description, text }
 }
 
 
@@ -164,6 +194,9 @@ const noticeSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("moved"), folder: z.string().nullable(), text: z.string() }),
   pullRequestNoticeSchema,
   extensionWaitNoticeSchema,
+  pageAnswerNoticeSchema,
+  leadAnswerNoticeSchema,
+  leadHandoverNoticeSchema,
 ])
 
 const noticePartMetadataSchema = z.object({ [NOTICE_METADATA_KEY]: noticeSchema })

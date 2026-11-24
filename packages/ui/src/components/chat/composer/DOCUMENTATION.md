@@ -881,15 +881,6 @@ the row's head states the file and line it anchors to.
   Resting geometry is measured without morph styles and re-read when the keyboard
   root class changes, so unpinning cannot jump by the form's changed padding.
 
-A mouse opens the preview on hover and a click toggles it; a tap only toggles
-it. The hover handlers are pointer events that act only for
-`pointerType === 'mouse'`: a tap, by finger or by a pen without hover, fires
-its enter right before its `click`, so a
-mouse-hover handler opened the preview and the click closed it again in the
-same tap, and phones could not open it at all. On desktop the preview's pencil
-edits the comment in place; on mobile it opens the comment shell (see "Mobile
-comment mode").
-
 ## Layers
 
 | Directory | Owns |
@@ -966,24 +957,26 @@ element takes focus and that can be before the report arrives. The paste handler
 focus as a backstop for that window. Every other runtime pastes images through `handlePaste` unchanged, and an IME
 without content insertion keeps refusing.
 With the profile setting `savePastedImagesAsFiles` on, pasted, dropped and
-picked images (`attachFilesWithCitation`, `attachFiles`) are written into a new
-folder under OpenCode's own temp folder (`opencodeClient.writeOpenCodeTempFiles`:
-`GET /api/info` names the folder, `POST /api/experimental/fs/write` writes it)
-and cited as `[name](absolute path)` (a plain link: a draft starting with `!`
-turns into a shell command), so the model, a subagent or a tool reads the file
-by path; OpenCode's agents may read that folder without asking.
-`imageSaveModeForModel` picks one of three cases. A model whose metadata lists
-no `image` input gets only the link, since it could not read the attachment
-(#5087), and the modality toast says where the images went. Any other model,
-unknown metadata included, also gets the image attached under the link's name,
-with no second `[name]` citation (#5218). An image that could not be saved
-attaches as before, with an error toast. A HEIC the bundled decoder cannot read
-(Apple's HDR gain-map photos) is saved unconverted under its own name and gets
-only its link in both cases: providers refuse HEIC image parts, and the store's
-own fallback for it (`sync/DOCUMENTATION.md`) would write a second copy and add
-a chip that repeats the link. With the setting off nothing is
-saved. One setting covers both cases: a split by model kind read as a puzzle of
-exceptions in Settings, and nobody needs the files for one kind of model only.
+picked images (`attachFilesWithCitation`, `attachFiles`) attach with an
+ordinary `[name]` citation and stay in the draft; nothing is written while the
+user composes. Send or Queue writes each into a new folder under OpenCode's own
+temp folder (`saveAttachmentsHeldForSend`, through
+`opencodeClient.writeOpenCodeTempFiles`: `GET /api/info` names the folder,
+`POST /api/experimental/fs/write` writes it), so the model, a subagent or a tool
+reads the file by path; OpenCode's agents may read that folder without asking.
+`imageSaveModeForModel` picks one of three cases when the image lands. A model
+whose metadata lists no `image` input gets only the path note, since it could
+not read the attachment (#5087): the image is held with `saveOnSend:
+'reference'` and swapped for its path note at Send, and the modality notice
+says the images go as paths. Any other model, unknown metadata included, gets
+the image itself plus a path note to the saved copy (`saveOnSend: 'copy'`): the
+note shares the image's name, so the image's one citation sends both (#5218).
+A HEIC the bundled decoder cannot read (Apple's HDR gain-map photos) goes as
+its path note only in both cases, since providers refuse HEIC image parts, and
+so does an image too large to attach inline (over 10 MB). A
+write that fails at Send stops the send with a toast naming the file and keeps
+the draft. With the setting off the image attaches as an image, and the send
+step below covers a text-only model.
 The browser annotation screenshot and comment-field image pastes keep
 attaching. The bytes go through the active runtime's OpenCode route (the
 OpenChamber server's proxy, the VS Code bridge, the relay for a phone), so the
@@ -1792,40 +1785,104 @@ is read the way the picker reads a chosen item (`resolveReferenceLink` in
 picker uses, and then draws as a chip where it stands: its number and title.
 
 - The text decides what is sent, as with session links: each linked item once,
-  after the chips above the composer, as the same context part the picker
-  sends, and the session records it as a linked issue. An item a picker chip
-  already carries keeps the chip's version, so its diff choice stands. A link
-  deleted from the text is not sent. The model reads the link where the user
+  as the same context part the picker sends, and the session records it as a
+  linked issue. An item the picker chose keeps the picker's version, so its
+  diff choice stands. A link deleted from the text is not sent. The model reads the link where the user
   put it. A send waits for a paste still being read, so a quick Enter never
   sends the link bare; a second Enter meanwhile does nothing.
 - Only a paste that lands in the text reads a link, afresh each time, as the
   picker does; a large paste that goes as a file reads none. A link
   typed by hand stays text: typing passes through `/issues/1` on the way to
-  `/issues/12`, and a read per keystroke would attach the wrong item. A link
-  this composer has read before draws as its chip again wherever it reappears
+  `/issues/12`, and a read per keystroke would attach the wrong item. This
+  holds for an extension's review-portal address too (`urls.resolve`): only a
+  paste asks the extension to convert it, and only a change request comes
+  back as a chip, which opens that change request rather than the portal
+  address. A pasted link read again that now finds no item, or another one,
+  loses its earlier result, including the item a restored queued message
+  attached to it (unless another link in the text still names that item); a
+  failed read keeps it.
+  A link this composer has read before draws as its chip again wherever it reappears
   (typed or restored), with that read.
-- Editing a queued message puts each item its text links back as that link's
-  chip, the rest above the text.
+- An item attached any other way (the issue, PR and tracker pickers, an
+  extension's `attach`, a handed-over or restored item, a shared page) is its
+  link in the text too: the draft keeps the item (`linkedReferenceDrafts.ts`),
+  and its link goes in at the caret when it arrives, or into the saved text of
+  a draft no longer on screen (a picker that finished reading after a session
+  switch). Picking an item again with its link already there writes nothing.
+  A click on the chip opens the item in the Tracker; an extension's item goes
+  back to its extension, a shared page opens its card.
 - The sent message draws the same chips where the links stand
   (`message/parts/referenceLinkChips.tsx`, from the message's context parts;
   in Markdown mode through `MarkdownLink`, by the link's `href`). A link names
   an item whatever page of it opens (`isSameRepositoryItemLink`, the tracker's
   identifier), so a picker item whose link the user also typed draws there too.
-  An item drawn inline leaves the attachment row; one the text does not link,
-  or links only inside code, stays there. Both chips open the item in the
-  Tracker (`useOpenTrackerItem`), Cmd or Ctrl its page.
+  A change request can also carry optional `sourceLinks` in its existing context
+  metadata. These original portal addresses take precedence over template
+  matching, so every address draws inline while the MR context stays deduplicated.
+  Sending and restoring a queued message preserve this association without
+  rewriting the user's text or adding source links to the model's context text.
+  History display makes no resolver request; older messages without the field
+  keep native-template matching.
+  An item drawn inline leaves the message's preview strip; one the text does
+  not link (messages sent before items were links in the text), or links only
+  inside code, stays there. Both chips open the item in the Tracker
+  (`useOpenTrackerItem`), Cmd or Ctrl its page.
 - A link on another host than the project's, or one no account can read, stays
   text with the picker's attach-failed toast. A link past the project's fork
   network is read again as a linked item, as the Tracker does. Discussions stay
   text. A change request goes without its diff, the picker's default.
 - `/btw` and VS Code read no links, as they take no picker chips.
 
-### Why inline chips and not picker chips
+### Why portal MR links stay with their context
 
-The picker's chips sit above the text, apart from the sentence. A pasted link
-is part of the sentence ("compare this with that"); turning it into a chip
-above the composer would cut the sentence apart. The maintainer chose the chip
-in place.
+The canonical MR address cannot recover the portal addresses that named it.
+An optional source-link list on the existing MR context keeps that association
+through send and reload, without another resolver, cache or persisted store.
+
+### Why every item is a chip in the text
+
+Picker chips used to sit above the text, apart from the sentence, while a
+pasted link drew in place: two looks and two ways to remove the same item. A
+pasted link is part of the sentence ("compare this with that"), and the
+maintainer chose that one form for everything attached from outside: an item
+is its link's chip where the caret was, and the text decides what goes. A
+shared page is a chip like the rest; its PIN and status live in the card the
+chip opens, so it needs no row of its own above the input.
+
+### Why the files are a pool the text cites
+
+Detaching a file the moment its chip leaves the text was the alternative.
+Undo, a draft restore, history recall and the clear after a send all rewrite
+the text, and each would read as "every chip deleted". Keeping the pool and
+sending only what the text cites makes undo bring the chip and its file back
+with no extra state. Keeping the file after its chip is gone was rejected
+too: it would ride along with nothing on screen showing it.
+
+### Why a plain click opens a chip
+
+Cmd or Ctrl and a click would hide the preview behind a modifier the phone
+does not have. The chip is atomic, so a click beside it or the arrow keys put
+the caret next to it, and Backspace deletes it.
+
+### Why a chip whose file is gone stays a chip
+
+After a reload a file that lived only in memory is gone. Drawing its citation
+as plain `[name]` text would make the chip vanish with no explanation; the
+dashed chip says why it will not be sent and can be deleted.
+
+### Why a browser annotation's screenshot is not a chip in the text
+
+The screenshot belongs to its annotation: a chip in the prompt would separate
+the two, and removing it left the prompt claiming the screenshot was
+attached. It is a chip in the annotation's own row and leaves with it. The
+chip's own remove button, shown on hover and always on a touch screen, drops
+only the screenshot: the row keeps its comment and selection, and its prompt
+says `Screenshot: not attached`.
+
+### Why a sent message keeps its image and file previews
+
+Every other attachment shows in a sent message only as its chip, but images
+and files keep their strip: people rely on the quick look at what they sent.
 
 ## Paste routing
 
@@ -2276,8 +2333,8 @@ A stale runtime closes the comment without writing to the new runtime.
 Desktop's floating comment input also remains open when the store rejects
 an attachment, using the same localized error.
 
-Editing an attached comment on mobile reuses the same shell. The pencil in the
-context-chip preview calls `openEdit` with the draft's id, quoted text and
+Editing an attached comment on mobile reuses the same shell. A tap on its
+composer row calls `openEdit` with the draft's id, quoted text and
 comment, inside the tap (`flushSync`, for the soft keyboard), and the shell
 opens with the caret after the text, a Save (check) action and Cancel editing
 on its close button. Save goes through the same attach path, but the plan
@@ -2414,9 +2471,11 @@ the Ctrl/Cmd+Enter send behavior.
 
 Shift+Enter at the end of a numbered item continues the list: the next line
 carries the following number with the same indentation and delimiter (`1.` →
-`2.`, `1)` → `2)`). Anywhere else Shift+Enter is the plain newline above,
-including numbered text inside a code fence: `text.ts` reads fences through
-`matchFenceOpen` and `isFenceClose`, the same boundaries the highlighter uses,
+`2.`, `1)` → `2)`). On an item with no text the key ends the list instead: the
+marker and its indentation are removed, so a nested item leaves the list too,
+and the caret stays on the empty line. Anywhere else Shift+Enter is the plain
+newline above, including numbered text inside a code fence: `text.ts` reads
+fences through `matchFenceOpen` and `isFenceClose`, the same boundaries the highlighter uses,
 so an unclosed fence runs to the end of the prompt.
 `getOrderedListContinuationEdit` in `text.ts` owns that rule and runs inside the
 same markdown-source branch as auto-pairing, so autocomplete and Alt/Option+Enter

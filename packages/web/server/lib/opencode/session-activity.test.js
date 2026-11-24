@@ -147,6 +147,45 @@ describe('queue descendant activity', () => {
   });
 });
 
+describe('working children', () => {
+  const running = { type: 'running' };
+  const link = (parentID) => ({ openchamber: { kind: 'workflow-agent', parentID } });
+  // `children` is what OpenCode lists for `?parentID=root`; `sessions` answers single reads.
+  const probeWith = ({ children = [], sessions = {} }) => createSessionActivityProbe({
+    buildOpenCodeUrl: (route) => `http://opencode.test${route}`,
+    getOpenCodeAuthHeaders: () => ({}),
+    fetchImpl: async (url) => {
+      const { pathname, searchParams } = new URL(url);
+      if (pathname === '/api/session') return Response.json({ data: searchParams.get('parentID') === 'root' ? children : [], cursor: {} });
+      const id = decodeURIComponent(pathname.split('/').at(-1));
+      return sessions[id] ? Response.json({ data: sessions[id] }) : new Response(null, { status: 404 });
+    },
+  });
+
+  it('counts a running OpenCode child', async () => {
+    expect(await probeWith({ sessions: { child: { id: 'child', parentID: 'root' } } }).hasWorkingChildren('root', { child: running })).toBe(true);
+  });
+
+  it('counts a running workflow agent, which OpenCode does not list as a child', async () => {
+    const probe = probeWith({ sessions: { agent: { id: 'agent', metadata: link('root') } } });
+    expect(await probe.hasWorkingChildren('root', { agent: running })).toBe(true);
+  });
+
+  it("counts a running subagent of an idle workflow agent", async () => {
+    const probe = probeWith({ sessions: { agent: { id: 'agent', metadata: link('root') }, sub: { id: 'sub', parentID: 'agent' } } });
+    expect(await probe.hasWorkingChildren('root', { sub: running })).toBe(true);
+  });
+
+  it("does not count another session's workflow agent or an unrelated session", async () => {
+    const probe = probeWith({ sessions: { agent: { id: 'agent', metadata: link('other') }, other: { id: 'other' }, plain: { id: 'plain' } } });
+    expect(await probe.hasWorkingChildren('root', { root: running, agent: running, plain: running })).toBe(false);
+  });
+
+  it('is unknown when a running session cannot be read', async () => {
+    expect(await probeWith({}).hasWorkingChildren('root', { gone: running })).toBeNull();
+  });
+});
+
 describe('running background jobs', () => {
   const probeAnswering = (response) => createSessionActivityProbe({
     buildOpenCodeUrl: (route) => `http://opencode.test${route}`,

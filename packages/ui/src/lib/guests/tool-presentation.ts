@@ -20,7 +20,6 @@ export type GuestToolRule = GuestToolContribution & {
   guestId: string;
   prefix: string;
   wildcard: boolean;
-  /** The guest's setting values a card link reads as `{settings.<id>}`. */
   linkSettings: Readonly<Record<string, string>>;
 };
 
@@ -75,12 +74,6 @@ export const resolveGuestToolPresentation = (fullToolName: string | undefined | 
   return rules.length === 0 ? null : matchGuestToolRule(rules, fullToolName);
 };
 
-/**
- * The rule for one rendered tool part. Subscribes to the catalog array only,
- * which changes on load, install, pause, approval, and runtime switch, never
- * while a tool streams. VS Code keeps the store empty, so this is `null`
- * there.
- */
 export const useGuestToolPresentation = (fullToolName: string | undefined | null): GuestToolRule | null => {
   const guests = useGuestsStore((state) => state.guests);
   return React.useMemo(() => {
@@ -196,26 +189,15 @@ export const guestToolTableRows = (output: TemplateValue): JsonValue[] | null =>
   return null;
 };
 
-/** Rows drawn for a list; the rest is a count line, as in a table. */
 export const GUEST_TOOL_CARD_ROWS_MAX = 200;
 
 const CARD_PLACEHOLDER = guestToolPlaceholderPattern(GUEST_TOOL_CARD_TEMPLATE_ROOTS);
 
-/**
- * A value a card or a link can show: text that is not blank, a number or a
- * boolean. Nothing, a blank string, an object and an array are all "missing":
- * the JSON text of an object has no place in a card.
- */
 const cardScalar = (value: TemplateValue): string | null => {
   if (String(value) === value) return value.trim() === '' ? null : value;
   return Number(value) === value || Boolean(value) === value ? String(value) : null;
 };
 
-/**
- * One card template over one output. `null` when none of its placeholders
- * resolves, which hides the part; a placeholder that misses beside one that
- * resolves renders as nothing, the way it does in a title.
- */
 const renderCardText = (template: string, output: TemplateValue): string | null => {
   let resolved = false;
   const text = template.replace(PLACEHOLDER, (written, root: string, rest: string) => {
@@ -228,12 +210,6 @@ const renderCardText = (template: string, output: TemplateValue): string | null 
   return resolved && text !== '' ? text : null;
 };
 
-/**
- * An address the host may put in an `href`: it parses, it is `https`, it
- * carries no user name or password, and it is not longer than a link may be.
- * Returns the address as the parser wrote it, so what was checked is what
- * opens. `null` otherwise.
- */
 export const safeHttpsAddress = (address: string): string | null => {
   if (address.length > GUEST_TOOL_CARD_URL_MAX) return null;
   let url: URL;
@@ -246,24 +222,12 @@ export const safeHttpsAddress = (address: string): string | null => {
   return url.href.length > GUEST_TOOL_CARD_URL_MAX ? null : url.href;
 };
 
-// What the manifest wrote between the host and the query, as its steps. The
-// substituted values are percent-encoded, so every separator is the template's.
 const writtenPathSteps = (address: string): string[] => (
   (/^https:\/\/[^/\\?#]*([^?#]*)/i.exec(address)?.[1] ?? '').split(/[/\\]/)
 );
 
 const isDotStep = (step: string): boolean => /^(?:\.|%2e){1,2}$/i.test(step);
 
-/**
- * The address of a card's link, or `null` for no link. A template that is one
- * placeholder takes the output's own address as it is. Anything longer is an
- * address the manifest wrote around values: each value is percent-encoded, so
- * it stays inside the step or the query value it was written into, and a value
- * that would walk the path (`..`) gives no link. In the host a value keeps its
- * dots, which is why the manifest parse lets a placeholder stand there only
- * for whole labels. Every placeholder has to resolve, and the finished address
- * passes `safeHttpsAddress`.
- */
 export const renderGuestToolLinkUrl = (
   template: string,
   data: { output: TemplateValue; settings: Readonly<Record<string, string>> },
@@ -286,7 +250,6 @@ export const renderGuestToolLinkUrl = (
     try {
       return encodeURIComponent(value.trim());
     } catch {
-      // A lone surrogate has no percent-encoding.
       missing = true;
       return '';
     }
@@ -295,7 +258,6 @@ export const renderGuestToolLinkUrl = (
   return safeHttpsAddress(address);
 };
 
-/** One card, or one row of a list, with the parts that resolved. */
 export type GuestToolCardView = {
   label: string | null;
   title: string | null;
@@ -306,7 +268,6 @@ export type GuestToolCardView = {
 
 export type GuestToolCardResult =
   | { kind: 'card'; card: GuestToolCardView }
-  /** `hidden` counts the output items past the row cap. */
   | { kind: 'list'; rows: GuestToolCardView[]; hidden: number };
 
 const cardView = (
@@ -338,14 +299,6 @@ const cardView = (
   };
 };
 
-/**
- * What `output: "card"` draws for a parsed output: one card for an object, a
- * list for an array or an `items` array, one row per item from the same
- * templates with `output` bound to the item. `null` when there is nothing to
- * draw (not JSON data, no part of the card resolves, no row does), and the
- * caller then shows the output the way it would without the rule. A list row
- * carries no link.
- */
 export const resolveGuestToolCard = (rule: GuestToolRule, output: TemplateValue): GuestToolCardResult | null => {
   if (!rule.card) return null;
   const items = guestToolTableRows(output);

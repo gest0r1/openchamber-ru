@@ -11,11 +11,6 @@ export interface SourceControlIdentity {
   provider: SourceControlProvider;
   instance: string;
   instanceSshUrl?: string;
-  /**
-   * Other web addresses the instance is served under, in its own spelling (a
-   * host or an origin). A link on one names an item of this instance; reads
-   * still go to `instance`. Absent where none were added.
-   */
   instanceAliases?: string[];
 }
 
@@ -256,7 +251,6 @@ export interface SourceControlCapabilities {
   issues: boolean;
   changeRequests: boolean;
   draftChangeRequests: boolean;
-  /** The host also turns an open change request back into a draft; absent means it cannot. */
   draftConversion?: boolean;
   mergeChangeRequests: boolean;
   mergeMethods?: MergeMethod[];
@@ -672,7 +666,6 @@ export interface MergeChangeRequestInput extends SourceControlMutationContext<So
 }
 
 export type ReadyChangeRequestInput = SourceControlMutationContext<SourceControlExistingMutationTarget>;
-/** A draft and a ready-for-review change request carry the same target; the route says which way. */
 export type DraftChangeRequestInput = SourceControlMutationContext<SourceControlExistingMutationTarget>;
 
 export interface CommentInput extends SourceControlMutationContext<SourceControlExistingMutationTarget> {

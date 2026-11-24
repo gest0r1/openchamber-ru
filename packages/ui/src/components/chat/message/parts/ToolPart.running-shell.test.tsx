@@ -14,17 +14,6 @@ import { ThemeSystemContext, type ThemeContextValue } from '@/contexts/theme-sys
 import { getDefaultTheme } from '@/lib/theme/themes';
 import { useDirectoryStore } from '@/stores/useDirectoryStore';
 
-// Bun does not implement Vite's worker asset-query imports.
-plugin({
-  name: 'tool-running-shell-worker-url',
-  setup(build) {
-    build.onLoad({ filter: /markdown-shiki\.worker\.ts\?worker&url$/ }, ({ path }) => ({
-      contents: `export default ${JSON.stringify(pathToFileURL(path.split('?')[0]).href)};`,
-      loader: 'js',
-    }));
-  },
-});
-
 const { default: ToolPart } = await import('./ToolPart');
 
 const unexpectedThemeChange = (): never => { throw new Error('Rendering must not change the theme'); };

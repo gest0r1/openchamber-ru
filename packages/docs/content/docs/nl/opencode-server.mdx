@@ -12,10 +12,37 @@ OpenChamber gebruikt een OpenCode-server. Standaard start het die voor u; u hoef
 Bij het starten zoekt OpenChamber in deze volgorde:
 
 1. Een server hergebruiken die het zelf al heeft gestart.
-2. Verbinding maken met een externe server als u die hebt geconfigureerd.
-3. Anders zelf een server starten en beheren.
+2. Verbinding maken met een externe server als u `OPENCODE_HOST`, `OPENCODE_PORT` of `OPENCODE_SKIP_START` hebt geconfigureerd.
+3. Verbinding maken met de gedeelde lokale `opencode serve --service`-daemon als **Gedeelde OpenCode-service gebruiken** aanstaat.
+4. Anders zelf een server starten en beheren.
 
 Standaard beheert OpenChamber zijn eigen server op een toegewezen poort. Na een herstart kan de poort veranderen. OpenChamber maakt niet automatisch verbinding met een andere OpenCode-server op poort `4096`.
+
+## De gedeelde OpenCode-service gebruiken
+
+Als u ook de OpenCode CLI of TUI gebruikt, kunt u OpenChamber laten verbinden met dezelfde lokale achtergrondservice `opencode serve --service` zonder omgevingsvariabelen in te stellen.
+
+1. Open **Instellingen → Algemeen → OpenCode-server**.
+2. Zet **Gedeelde OpenCode-service gebruiken** aan.
+
+OpenChamber leest het adres en wachtwoord van de draaiende service uit het bestand `service.json` van OpenCode en schakelt ernaar over. Draait er geen service en is er een OpenCode CLI-binary geïnstalleerd, dan start OpenChamber `opencode serve --service` voor u. In enterprise-modus verbindt OpenChamber alleen met een al draaiende lokale service en start het er zelf geen.
+
+Zet u de optie weer uit, dan schakelt OpenChamber terug naar zijn eigen privé-OpenCode-server zonder de gedeelde service te stoppen.
+
+Na `opencode update` blijft de draaiende service op de oude versie tot hij opnieuw start. Als OpenChamber bij het verbinden een geïnstalleerde OpenCode-release vindt die nieuwer is dan de draaiende service, herstart het de service, behalve in de bedrijfsmodus. Kies in de OpenCode-updatemelding **Bijwerken** om `opencode upgrade` uit te voeren en daarna **OpenCode herladen** om de service met de nieuwe versie te herstarten.
+
+## OpenChamber-tools inschakelen op een externe lokale server
+
+Wanneer OpenChamber verbindt met een lokale externe server (via **Gedeelde OpenCode-service gebruiken** of via `OPENCODE_HOST` en `OPENCODE_SKIP_START`), kan OpenChamber zijn beheerde plugins niet bij het starten van de server injecteren. In plaats daarvan biedt het één pluginmap die u in uw globale OpenCode-configuratie registreert:
+
+1. Open **Instellingen → Algemeen → OpenCode-server**.
+2. Kies in de infobanner **Toevoegen aan OpenCode-config**.
+
+Is uw globale `opencode.json` alleen-lezen of wordt dit bestand door uw organisatie beheerd? Kies dan in dezelfde banner **Pad kopiëren** en voeg dat mappad toe aan de lijst `plugins` in uw beheerde OpenCode-configuratie.
+
+Na registratie worden de tools, limiet-failover en sessietitels van OpenChamber automatisch actief zodra OpenChamber draait, en verbergen ze overlappende ingebouwde OpenCode-tools (zoals de ingebouwde browser- en automatiseringstools van OpenCode) zolang OpenChamber openstaat. Wanneer OpenChamber sluit, schakelt de plugin uit en keert OpenCode terug naar zijn standaard ingebouwde tools en prompts.
+
+OpenChamber-tools vereisen een lokale OpenCode-server op dezelfde computer en zijn niet beschikbaar bij verbinding met een server op afstand.
 
 ## Een bestaande server gebruiken
 

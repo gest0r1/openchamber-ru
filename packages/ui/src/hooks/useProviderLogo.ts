@@ -9,7 +9,6 @@ interface UseProviderLogoReturn {
     src: string | null;
     onError: () => void;
     hasLogo: boolean;
-    /** `src` is a logo the app ships, so drawing it takes no request. */
     isBundled: boolean;
 }
 
@@ -68,11 +67,6 @@ const buildLogoCandidates = (providerId: string | null | undefined) => {
     return [...new Set(candidates)];
 };
 
-/**
- * The IDs an extension's logo can be named under, most specific first: the
- * provider's own, then the ones the app draws it with. A logo for `anthropic`
- * reaches the `claude` usage card, which draws the same bundled logo.
- */
 export const providerLogoIds = (providerId: string): string[] => [providerId, ...buildLogoCandidates(providerId)];
 
 const resolveProviderLogoSrc = (providerId: string | null | undefined): string | null => {
@@ -89,9 +83,7 @@ const resolveProviderLogoSrc = (providerId: string | null | undefined): string |
 
 const preloadProviderLogo = (providerId: string | null | undefined): void => {
     if (typeof Image === 'undefined') return;
-    // An uploaded logo replaces this one and comes from the OpenChamber server when drawn.
     if (providerId && providerLogoUploadSupported() && useUIStore.getState().customProviderLogos[providerId]) return;
-    // So does an extension's.
     if (providerId && guestProviderLogoOf(providerLogoIds(providerId))) return;
     const src = resolveProviderLogoSrc(providerId);
     if (!src || PRELOADED_LOGO_SRCS.has(src)) return;

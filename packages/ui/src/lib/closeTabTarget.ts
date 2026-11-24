@@ -1,26 +1,5 @@
 import { hasDesktopInvoke, invokeDesktop } from '@/lib/desktop';
 
-/**
- * What Cmd/Ctrl+W closes in the desktop app.
- *
- * The window menu owns the shortcut, so the page cannot catch the key itself.
- * A surface with a tab of its own (a file open in the editor, a terminal, a
- * browser tab) registers here; so do Settings and a full page covering the
- * chat, so the key closes what covers the chat before the window. The desktop
- * shell is told whether one is registered, and while one is, the shortcut
- * arrives as an `openchamber:close-tab` event instead of closing the window.
- *
- * The surface the user clicked or focused last wins. A surface's place is the
- * zone it sits in (`[data-context-zone]`), so a click on the zone's tab strip
- * counts as much as one in its content. When places nest, such as the header's
- * session tabs registered on the whole page around a zone with tabs, a click
- * counts for the innermost one, so a click in that zone goes to its tabs and
- * a click anywhere else, a zone without tabs included, to the sessions'.
- * Registering counts as being used, so a surface just shown wins until the
- * user goes elsewhere. A covering surface (Settings, a full page over the
- * chat) registers with a higher priority: while it is open it wins over every
- * tab, even ones clicked in a part of the page it does not cover.
- */
 type Target = { close: () => void; area: { current: Element | null }; usedAt: number; priority: number };
 
 const targets: Target[] = [];

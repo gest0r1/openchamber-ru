@@ -32,7 +32,6 @@ export type PersonalProjectSetup = {
   setupWorktreeWait: boolean | null;
   setupWorktreeMode: SetupWorktreeMode;
   teardownWorktree: string[];
-  /** Replaces the built-in `git worktree add`; `''` keeps the built-in creation. */
   createWorktreeCommand: string;
   projectActions: ProjectAction[];
   projectActionsPrimaryId: string | null;
@@ -79,11 +78,6 @@ export type ProjectSetupView = {
 export const SHARED_CONFIG_RELATIVE_PATH = '.openchamber/project.json';
 const SHARED_CONFIG_VERSION = 1;
 
-/**
- * The keys of the shared file the setup writer owns. Every other key
- * (`magicPrompts`, keys from newer builds) belongs to another writer and goes
- * back out exactly as it was read.
- */
 export const SHARED_SETUP_KEYS: readonly string[] = Object.freeze(['version', 'setupWorktree', 'setupWorktreeWait', 'teardownWorktree', 'projectActions', 'draftStarters', 'plansDir']);
 const SHARED_SETUP_KEY_SET: ReadonlySet<string> = new Set(SHARED_SETUP_KEYS);
 
@@ -111,7 +105,6 @@ const clamp = (value: string, maxLength: number): string => (value.length > maxL
 
 const trimmedString = (value: unknown): string => (typeof value === 'string' ? value.trim() : '');
 
-/** Personal only: it names a tool installed on this machine, which a teammate may not have. */
 const sanitizeCreateWorktreeCommand = (value: string): string => clamp(value.trim(), SETUP_COMMAND_MAX_LENGTH);
 
 export const sanitizeSetupCommands = (value: unknown): string[] => {
@@ -224,12 +217,6 @@ const sharedTrustOf = (value: unknown): PersonalProjectSetup['sharedTrust'] => {
   return { hash, trustedAt: typeof trustedAt === 'number' && Number.isFinite(trustedAt) ? trustedAt : 0 };
 };
 
-/**
- * What a trust answer covers: the shared setup and teardown commands and the
- * shared actions' commands, canonical order, hashed; `null` when nothing
- * executes. Teardown enters the hash only when there is some, so answers
- * recorded before teardown commands existed still match.
- */
 export const sharedTrustHashOf = (shared: SharedProjectConfig): string | null => {
   const commands = shared.setupWorktree;
   const teardown = shared.teardownWorktree;
@@ -305,13 +292,6 @@ export const parseSharedProjectConfig = (raw: string): SharedProjectConfigRead =
 const withSource = <T,>(entries: T[], source: ProjectSetupSource): Array<T & { source: ProjectSetupSource }> =>
   entries.map((entry) => ({ ...entry, source }));
 
-/**
- * One merged view from the personal part and the shared read. Same rules as
- * the server: shared setup commands first (unless personal replaces), the
- * personal wait flag wins when set, shared teardown commands first (the mode
- * does not apply), actions union by id with personal replacing shared and
- * hidden shared ids dropped, starters union by key.
- */
 export const mergeProjectSetup = (personal: PersonalProjectSetup, sharedRead: SharedProjectConfigRead): ProjectSetupView => {
   const shared = sharedRead.status === 'ok' ? sharedRead.config : EMPTY_SHARED;
   const hidden = new Set(personal.hiddenSharedActionIds);

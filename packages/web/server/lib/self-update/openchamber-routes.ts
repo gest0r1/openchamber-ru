@@ -1,6 +1,51 @@
 import { publicEnterprisePolicy } from '../enterprise-mode.js';
 import { withUserEnv } from '../injected-env.js';
-import { isOpenCodeOlderThan } from './compatibility.js';
+import { isOpenCodeOlderThan } from '../opencode/compatibility.js';
+import { webPackagePaths } from '../web-package-paths.js';
+import type { Application, QueryValue } from '../shared/http-contracts.js';
+import type { JsonValue } from '../shared/json-values.js';
+import type { UpdateCheckResult } from '../package-manager.js';
+import type { DesktopUpdater } from '../../index.js';
+import type { createNotificationTemplateRuntime } from '../notifications/template-runtime.js';
+import { isString } from '../shared/object-guards.js';
+
+export interface OpenChamberRouteDependencies {
+  fs: typeof import('node:fs');
+  os?: Pick<typeof import('node:os'), 'homedir'>;
+  path: typeof import('node:path');
+  process: Pick<NodeJS.Process, 'env' | 'platform' | 'execPath' | 'exit' | 'getuid'>;
+  server: Pick<import('node:http').Server, 'address' | 'close'>;
+  cliEntry?: string;
+  openchamberDataDir: string;
+  modelsDevApiUrl: string;
+  modelsMetadataCacheTtl: number;
+  readSettingsFromDiskMigrated: ReturnType<typeof import('../settings/settings-runtime.js').createSettingsRuntime>['readSettingsFromDiskMigrated'];
+  fetchFreeZenModels: ReturnType<typeof createNotificationTemplateRuntime>['fetchFreeZenModels'];
+  getCachedZenModels: ReturnType<typeof createNotificationTemplateRuntime>['getCachedZenModels'];
+  desktopUpdater?: DesktopUpdater | null | undefined;
+  getOpenCodeCompatibility: () => Promise<{ version: string | null }>;
+}
+
+type RouteUpdateInfo = Omit<UpdateCheckResult, 'currentVersion' | 'body'> & {
+  currentVersion?: UpdateCheckResult['currentVersion'];
+  body?: string | null | undefined;
+  updateOwner?: string;
+  installBlocked?: string;
+  requiredOpenCodeVersion?: string;
+  openCodeVersion?: string;
+};
+
+type LaunchOptions = {
+  port?: JsonValue;
+  daemon?: JsonValue;
+  launchMode?: JsonValue;
+  host?: JsonValue;
+  apiOnly?: JsonValue;
+  uiPassword?: JsonValue;
+};
+
+const hasLaunchProperties = (value: JsonValue): value is LaunchOptions => value !== null;
+const hasErrorName = (value: unknown): value is { name?: unknown } => value !== null && value !== undefined;
 
 const SYSTEMD_SERVICE_UNIT_PATTERN = /^[A-Za-z0-9:_.@-]+\.service$/;
 
@@ -75,27 +120,6 @@ export const registerOpenChamberRoutes = (app: Application, dependencies: OpenCh
       : null;
   };
 
-  /**
-   * The offered release needs a newer OpenCode than this server runs: after
-   * the install the new build would refuse to start against it, and an
-   * external OpenCode cannot be updated from the app. Null when the release
-   * does not say what it needs or the OpenCode version cannot be read.
-   */
-  const readOpenCodeShortfall = async (version) => {
-    const { fetchRequiredOpenCodeVersion } = await import('../package-manager.js');
-    const requiredOpenCodeVersion = await fetchRequiredOpenCodeVersion(version);
-    if (!requiredOpenCodeVersion) return null;
-    const openCodeVersion = (await getOpenCodeCompatibility().catch(() => null))?.version ?? null;
-    return openCodeVersion && isOpenCodeOlderThan(openCodeVersion, requiredOpenCodeVersion)
-      ? { requiredOpenCodeVersion, openCodeVersion }
-      : null;
-  };
-
-  /**
-   * How this server was launched, read from its instance file. A foreground
-   * server outside systemd has no process that can restart it after an
-   * install, so it cannot update itself.
-   */
   const readLaunchState = async () => {
     const address = server.address();
     const currentPort = (address && !isString(address) ? address.port : undefined) || 3000;
@@ -183,8 +207,6 @@ export const registerOpenChamberRoutes = (app: Application, dependencies: OpenCh
           if (openCodeShortfall) {
             updateInfo = { ...updateInfo, installBlocked: 'opencode-version', ...openCodeShortfall };
           } else if (process.getuid?.() === 0 && process.env.OPENCHAMBER_ROOT_MODE === 'separated') {
-            // Root OpenChamber is delivered atomically by my-opencode installer.
-            // A UI-triggered shell update must never mutate root binaries.
             updateInfo = { ...updateInfo, installBlocked: 'manual-install' };
           } else if (isUnmanagedInstall()) {
             updateInfo = { ...updateInfo, installBlocked: 'manual-install' };
@@ -206,13 +228,9 @@ export const registerOpenChamberRoutes = (app: Application, dependencies: OpenCh
     }
   });
 
-  // Release notes for Settings > About: `version` alone, or what an update
-  // from `since` to `version` brings. 502 when GitHub could not be read, so
-  // the page never mistakes an outage for a release without notes.
   app.get('/api/openchamber/release-notes', async (req, res) => {
     const { fetchReleaseNotes, VERSION_PATTERN, CANARY_VERSION_PATTERN } = await import('../changelog/update-notes.js');
-    // Query values can be arrays; only the string form is checked and used.
-    const isVersion = (value) => VERSION_PATTERN.test(value) || CANARY_VERSION_PATTERN.test(value);
+    const isVersion = (value: string) => VERSION_PATTERN.test(value) || CANARY_VERSION_PATTERN.test(value);
     const version = String(req.query.version ?? '');
     const since = req.query.since === undefined ? undefined : String(req.query.since);
     if (!isVersion(version) || (since !== undefined && !isVersion(since))) {
@@ -295,7 +313,6 @@ export const registerOpenChamberRoutes = (app: Application, dependencies: OpenCh
         });
       }
 
-      // A global install would add a second copy and leave this one as it is.
       if (isUnmanagedInstall()) {
         return res.status(409).json({
           error: 'This copy can\'t update itself. Install the new version the way you installed it.',

@@ -1,23 +1,3 @@
-/**
- * The tools OpenCode v2 ships, and the only place chat rendering is allowed to
- * branch on a tool name.
- *
- * v2 renamed and reshaped the built-ins: `bash` became `shell`, `task` became
- * `subagent`, `apply_patch` became `patch`, and `todoread`, `lsp`, `multiedit`
- * and `list` are gone; `todowrite` came back behind `experimental.todo`. File
- * tools take `path` (not `filePath`), and
- * a tool state no longer carries a server-rendered `title` — the row's
- * description has to be derived from the call's own input and metadata.
- *
- * Everything outside this module works with the predicates and accessors here,
- * so the next rename is one file. Names that are not in this list (MCP servers,
- * OpenChamber's own plugin tools) still flow through the generic renderers;
- * every helper answers "no"/"unknown" for them instead of throwing.
- *
- * A call's `input` and `metadata` are free-form JSON the model and the tool
- * produced, so every read here parses the fields it claims to understand and
- * ignores the rest: one malformed field must not blank a whole tool row.
- */
 
 import { z } from "zod"
 
@@ -97,10 +77,6 @@ const inputSchema = z
     description: optionalText,
     agent: optionalText,
     name: optionalText,
-    // `skill` names the skill by `id`; `session_rename` carries `title`,
-    // `session_move` a `directory`, `models` a `query` (`search` in older
-    // OpenCode) and a `provider`, the MCP resource tools a `server` and `uri`,
-    // `schedule_create` a `prompt`.
     id: optionalText,
     server: optionalText,
     uri: optionalText,
@@ -204,15 +180,6 @@ const renderPageInputSchema = renderPageFields
   .extend({ parameters: renderPageFields.optional().catch(undefined) })
   .catch({})
 
-/**
- * The plugin also revives a call a harness spilled into `action` as JSON text,
- * and the server then waits on the page it revived. The chat reads the same
- * fields, or a waiting page had nothing to draw and its wait ended as "the
- * user wrote in the chat" (#6709). A field the call carried itself wins, and
- * the spilled object's own `parameters` wins over its siblings, as in the
- * plugin. A `parameters` that is not an object is ignored there and here, so
- * its siblings still make the page.
- */
 const jsonObject = z.record(z.string(), z.json())
 
 const spilledCallSchema = z
@@ -236,8 +203,6 @@ const spilledCallFields = (input: JsonValue | undefined): z.infer<typeof renderP
   spilledCallSchema.parse(input ?? {})
 )
 
-// What the user answered on a page that waited (render.page with
-// awaitAnswer), as the plugin records it in the call's metadata.
 const pageAnswerSchema = z.union([
   z.object({ answered: z.literal(true), summary: z.string(), data: z.json().catch(null) }),
   z.object({ answered: z.literal(false), reason: z.string().optional().catch(undefined) }),
@@ -266,9 +231,7 @@ export function toolFileDiffs(metadata: Metadata | undefined): ToolFileDiff[] {
 
 export type ExecuteToolCall = {
   tool: string
-  /** The action of an OpenChamber tool call (`browser.open`). */
   action?: string
-  /** `completed`, `error`, or whatever else the runtime reported. */
   status?: string
   input?: string
 }
@@ -325,26 +288,16 @@ export function lastExecuteToolCall(metadata: Metadata | undefined): { tool: str
 
 type SoleCall = { tool: string; input: { [key: string]: JsonValue }; status: string | undefined }
 
-/** The one call an `execute` script made, as Code Mode recorded it; `undefined` when it made none or several. */
 function soleRawCall(metadata: Metadata | undefined): { tool: string; input?: JsonValue; status?: string } | undefined {
   const calls = executeRawCallSchema.parse(metadata ?? {}).toolCalls ?? []
   if (calls.length !== 1 || !calls[0]?.tool) return undefined
   return { ...calls[0], tool: calls[0].tool }
 }
 
-/** A sole call under the name the row shows it by; arguments that are not an object count as none. */
 function soleCallAs(tool: string, { input, status }: { input?: JsonValue; status?: string }): SoleCall {
   return { tool, input: input && typeof input === "object" && !Array.isArray(input) ? input : {}, status }
 }
 
-/**
- * The one call an `execute` script made to OpenChamber's own tools or to
- * OpenCode's `opencode` namespace, or `undefined` when it made none, several,
- * or called anything else. Both sit behind Code Mode, and a script almost
- * always makes exactly this one call; the chat then shows the row as that
- * tool's own, with its action, detail and icon. `status` is the call's own:
- * a script can catch a failed call and still finish.
- */
 export function soleNamedCall(metadata: Metadata | undefined): SoleCall | undefined {
   const call = soleRawCall(metadata)
   if (!call) return undefined
@@ -353,33 +306,14 @@ export function soleNamedCall(metadata: Metadata | undefined): SoleCall | undefi
   return tool ? soleCallAs(tool, call) : undefined
 }
 
-/**
- * The name OpenCode gives a tool called directly, from the name a Code Mode
- * script calls it by. A script reaches a tool through its namespace
- * (`linear.list_issues`); the direct name joins the two with `_`
- * (`linear_list_issues`). A tool without a namespace has one name for both.
- */
 export function directToolName(called: string): string {
   return called.replaceAll(".", "_")
 }
 
-/** What Code Mode puts in a script's scope beside the tools; a call to one is recorded like a tool without a namespace. */
 const CODE_MODE_HELPERS = new Set(["search", "fetch"])
 
 const BUILT_IN_TOOLS = new Set<string>(Object.values(OPENCODE_TOOLS))
 
-/**
- * The one call an `execute` script made, under the name a direct call of the
- * same tool has. Rules written for a tool's direct name (an extension's
- * `contributes.tools`) find the call through it.
- *
- * `undefined` whenever the script's result is not that call's: it made no
- * call or several, the call did not complete, or the script failed after it
- * (OpenCode then finishes the part with `error: true` and the error as its
- * output). Also for Code Mode's own `search` and `fetch`, and for a name a
- * built-in tool has, which a script cannot call: neither is the tool a rule
- * for that name was written for.
- */
 export function soleDirectCall(metadata: Metadata | undefined): SoleCall | undefined {
   const call = soleRawCall(metadata)
   if (!call || call.status !== "completed" || CODE_MODE_HELPERS.has(call.tool)) return undefined
@@ -388,14 +322,6 @@ export function soleDirectCall(metadata: Metadata | undefined): SoleCall | undef
   return BUILT_IN_TOOLS.has(normalizeToolName(tool)) ? undefined : soleCallAs(tool, call)
 }
 
-/**
- * The one namespace every call of an `execute` script went to, or `undefined`
- * when the calls mix namespaces or name none. OpenCode's namespace is
- * `opencode`, each OpenChamber tool is a namespace of its own
- * (`openchamber_web`), and any other call names its namespace before the dot
- * (`linear.list_issues`). The row then carries that namespace's name in place
- * of "Script".
- */
 export function executeNamespace(metadata: Metadata | undefined): string | undefined {
   const spaces = new Set(executeToolCalls(metadata).map(({ tool }) => {
     if (opencodeNamespaceTool(tool)) return "opencode"
@@ -407,7 +333,6 @@ export function executeNamespace(metadata: Metadata | undefined): string | undef
   return spaces.size === 1 && space ? space : undefined
 }
 
-/** `JSON.stringify` that answers `undefined` for anything it cannot serialize. */
 function stringifyOrUndefined(value: ExecuteToolCallInput): string | undefined {
   if (value === undefined || value === null) return undefined
   try {
@@ -438,19 +363,12 @@ const todoWriteInputSchema = z
 
 export type TodoItem = z.infer<typeof todoItemSchema>
 
-/**
- * The whole list a `todowrite` call set, in the agent's order, or `null` when
- * the input carries no list yet (still streaming) or none at all. An entry
- * without text drops out; an unknown status reads as pending, as the server's
- * session list does (`packages/web/server/lib/session-todos`).
- */
 export function todoWriteItems(input: ToolInput | undefined): TodoItem[] | null {
   const todos = todoWriteInputSchema.parse(input ?? {}).todos
   if (!todos) return null
   return todos.filter((item): item is TodoItem => item !== null)
 }
 
-/** The agent a `subagent` call runs (`input.agent`). */
 const isRenderTool = (toolName: ToolName): boolean => toolName === OPENCHAMBER_RENDER_TOOL
 
 export type RenderedPageAsk =
@@ -459,10 +377,8 @@ export type RenderedPageAsk =
   | { kind: "answered"; summary: string; data: JsonValue; undelivered?: true }
   | { kind: "answered-in-chat" }
   | { kind: "chat-sent-earlier" }
-  /** The chat could not draw the page's ui; the agent got the parser's errors. */
-  | { kind: "not-drawn" }
-  /** The user declined to answer on the page. */
-  | { kind: "declined" }
+  | { kind: "not-drawn"; undelivered?: true }
+  | { kind: "declined"; undelivered?: true }
   | { kind: "unanswered" }
   | { kind: "later" }
 
@@ -486,14 +402,16 @@ export function renderedPage(
   const parsed = renderPageInputSchema.parse(state.input ?? {})
   const spilled = spilledCallFields(state.input)
   const html = parsed.parameters?.html ?? parsed.html ?? spilled.html ?? ""
-  // A ui page (the UI block language) is drawn by the chat's own components.
   const ui = parsed.parameters?.ui ?? parsed.ui ?? spilled.ui
   const page = ui?.trim() ? { html: "", ui } : html.trim() ? { html } : null
   if (!page) return null
-  // Empty when neither the call nor the page names it; the chat shows its own word then.
   const title = (parsed.parameters?.title ?? parsed.title ?? spilled.title)?.trim() || pageTitleFromHtml(html)
-  // A page that waited stays in the chat when its call ends without an
-  // answer (the user stopped the turn), so the question it asked is still there.
+  const share = parsed.parameters?.share ?? parsed.share ?? spilled.share
+  if (share) {
+    if (state.status !== "completed") return null
+    const result = openChamberResultSchema.parse(state.metadata ?? {}).openchamber
+    return result?.ok === true ? { ...page, title, ask: { kind: "show" }, share } : null
+  }
   if ((parsed.parameters?.awaitAnswer ?? parsed.awaitAnswer ?? spilled.awaitAnswer) === true) {
     if (state.status === "running") return { ...page, title, ask: { kind: "waiting" } }
     if (state.status === "error") return { ...page, title, ask: { kind: "unanswered" } }
@@ -535,7 +453,6 @@ const secretRunFields = z.object({
   inputs: z.array(secretRunField).min(1).optional().catch(undefined),
 })
 
-// Read like the other actions' input: inside `parameters` or beside `action`.
 const secretRunInputSchema = secretRunFields
   .extend({ action: z.string().optional().catch(undefined), parameters: secretRunFields.optional().catch(undefined) })
   .catch({})
@@ -550,14 +467,7 @@ export type RequestedSecretRun = {
   fields: { env: string; label: string; placeholder: string | undefined }[]
 }
 
-/**
- * The command line as the user approved it, the same line the plugin shows in
- * the permission request (`secretRunCommandLine` in
- * packages/web/server/lib/openchamber-control/secret-run.js): change both together.
- */
 export function secretRunCommandLine(program: string, args: readonly string[]): string {
-  // C0 and C1 controls, the Arabic letter mark, zero-width and direction marks,
-  // line and paragraph separators, embeddings and overrides, isolates, BOM.
   const hidden = (code: number) => code < 0x20 || (code >= 0x7f && code <= 0x9f) || code === 0x61c
     || (code >= 0x200b && code <= 0x200f) || (code >= 0x2028 && code <= 0x202e)
     || (code >= 0x2060 && code <= 0x2069) || code === 0xfeff
@@ -569,7 +479,6 @@ export function secretRunCommandLine(program: string, args: readonly string[]): 
   return [program, ...args].map(word).join(" ")
 }
 
-/** The detail of a secret tool row: the command line a `secret.run` ran, the label a `secret.request` asked for. */
 function secretDetail(action: string | undefined, input: ToolInput | undefined): string | undefined {
   if (action === "secret.run" || action === "run") {
     const parsed = secretRunInputSchema.parse(input ?? {})
@@ -583,11 +492,6 @@ function secretDetail(action: string | undefined, input: ToolInput | undefined):
   return undefined
 }
 
-/**
- * The card a running `secret.run` call asks on, or `null` otherwise. A
- * finished run is an ordinary tool row: the command line, then what it
- * printed (`ToolPart`, `secretRunView`).
- */
 export function requestedSecretRun(toolName: ToolName, state: ToolState): RequestedSecretRun | null {
   if (toolName !== OPENCHAMBER_SECRET_TOOL || state.status !== "running") return null
   const parsed = secretRunInputSchema.parse(state.input ?? {})
@@ -605,10 +509,9 @@ export function requestedSecretRun(toolName: ToolName, state: ToolState): Reques
   }
 }
 
-/**
- * The card a running `secret.request` call asks on, or `null` otherwise. An
- * answered request is an ordinary tool row (`ToolPart`, `secretRowView`).
- */
+export const requestedSecretForget = (toolName: ToolName, state: ToolState): boolean => toolName === OPENCHAMBER_SECRET_TOOL && state.status === "running"
+  && forgetsSavedSecrets(openChamberCallSchema.parse(state.input ?? {}))
+
 export function requestedSecret(toolName: ToolName, state: ToolState): RequestedSecret | null {
   if (toolName !== OPENCHAMBER_SECRET_TOOL || state.status !== "running") return null
   const action = secretRunInputSchema.parse(state.input ?? {}).action
@@ -639,11 +542,6 @@ export type ToolDescription =
   | { kind: "text"; value: string }
   | { kind: "questions"; count: number }
   | { kind: "files"; count: number; files: string[] }
-  /** An `execute` script, described by the tools it called. */
-  /**
-   * `completed`: every call of that tool reported completed. `actions`: the
-   * actions its OpenChamber calls ran, in first-seen order with a count.
-   */
   | { kind: "tools"; calls: Array<{ name: string; count: number; completed: boolean; actions: Array<{ action: string; count: number }> }>; overflow: number }
 
 const MAX_COMMAND_LENGTH = 100
@@ -655,10 +553,8 @@ const OPENCHAMBER_SECRET_TOOL = "openchamber_secret"
 const OPENCHAMBER_WORKFLOW_TOOL = "openchamber_workflow"
 const OPENCHAMBER_IMAGE_TOOL = "openchamber_image"
 
-/** The control, schedule, browser, memory, knowledge, notify, usage, render, image, secret and workflow tools OpenChamber gives a session. */
 const OPENCHAMBER_TOOLS = new Set(["openchamber", "openchamber_schedule", "openchamber_web", "openchamber_memory", "openchamber_knowledge", "openchamber_notify", "openchamber_usage", OPENCHAMBER_RENDER_TOOL, OPENCHAMBER_IMAGE_TOOL, OPENCHAMBER_SECRET_TOOL, OPENCHAMBER_WORKFLOW_TOOL])
 
-/** Whether a tool is one of OpenChamber's own. */
 export const isOpenChamberTool = (toolName: ToolName): boolean => OPENCHAMBER_TOOLS.has(normalizeToolName(toolName))
 
 const proposedWorkflowResultSchema = z.object({
@@ -703,6 +599,7 @@ export const isShownInPlace = (toolName: ToolName, state: ToolState): boolean =>
   || generatedImagePaths(toolName, state).length > 0
   || requestedSecret(toolName, state) !== null
   || requestedSecretRun(toolName, state) !== null
+  || requestedSecretForget(toolName, state)
 )
 
 const openChamberCallSchema = z
@@ -717,31 +614,6 @@ const forgetsSavedSecrets = (call: z.infer<typeof openChamberCallSchema>) => isS
 
 export type OpenChamberToolCall = { tool: string; action?: string; awaitsAnswer: boolean }
 
-/**
- * The tools of OpenCode's `opencode` namespace, which manage OpenCode itself.
- * They run inside Code Mode, which names them by registry id
- * (`opencode_session_rename`); the dotted form is how the namespace is written.
- */
-const OPENCODE_NAMESPACE_TOOLS = new Set([
-  "session_rename",
-  "session_move",
-  "worktree_create",
-  "worktree_list",
-  "worktree_remove",
-  "models",
-  "list_mcp_resources",
-  "read_mcp_resource",
-  "schedule_create",
-  "schedule_list",
-  "schedule_pause",
-  "schedule_resume",
-  "schedule_delete",
-  "artifact_create",
-  "artifact_read",
-  "artifact_update",
-  "artifact_delete",
-])
-const OPENCODE_NAMESPACE_PREFIX = "opencode_"
 
 export function mcpToolServer(toolName: ToolName, servers: readonly string[]): string | undefined {
   const trimmed = toolName?.trim() ?? ""
@@ -757,18 +629,12 @@ export function openChamberToolCall(toolName: ToolName, input: JsonValue | undef
   const tool = normalizeToolName(toolName)
   if (!OPENCHAMBER_TOOLS.has(tool)) return null
   const parsed = openChamberCallSchema.parse(input ?? {})
-  // Only the render tool revives a spilled action; the multi-action tools
-  // refuse that input, so it never waits there.
   const spilledWait = tool === OPENCHAMBER_RENDER_TOOL ? spilledCallFields(input).awaitAnswer : undefined
   const waits = parsed.parameters?.awaitAnswer ?? parsed.awaitAnswer ?? spilledWait
-  const awaitsAnswer = (tool === OPENCHAMBER_SECRET_TOOL && !isSecretForget(parsed.action)) || waits === true
+  const awaitsAnswer = (tool === OPENCHAMBER_SECRET_TOOL && (!isSecretForget(parsed.action) || forgetsSavedSecrets(parsed))) || waits === true
   return { tool, action: parsed.action, awaitsAnswer }
 }
 
-/**
- * The one detail of an OpenChamber tool call that tells calls apart: what was
- * linked, created, saved, opened, asked or read.
- */
 function openChamberDetail(parsed: ParsedInput): string | undefined {
   const parameters = parsed.parameters
   const link = parameters?.link
@@ -790,11 +656,6 @@ function openChamberDetail(parsed: ParsedInput): string | undefined {
   return detail || undefined
 }
 
-/**
- * The detail of a call in OpenCode's `opencode` namespace beyond the ones
- * `toolDescription` names itself: the worktree, resource, schedule or artifact
- * it worked on.
- */
 function describeOpencodeNamespaceTool(parsed: ParsedInput): ToolDescription | null {
   const resource = parsed.uri ?? parsed.server
   return text(parsed.name)
@@ -805,17 +666,11 @@ function describeOpencodeNamespaceTool(parsed: ParsedInput): ToolDescription | n
     ?? text(parsed.id)
 }
 
-/**
- * The action an OpenChamber tool call ran and its detail. Notifications have
- * no action, so their title stands alone.
- */
 function describeOpenChamberTool(parsed: ParsedInput, input: ToolInput | undefined): ToolDescription | null {
   const label = [parsed.action, secretDetail(parsed.action, input) ?? openChamberDetail(parsed)].filter(Boolean).join(" · ")
   return label ? { kind: "text", value: label.slice(0, MAX_COMMAND_LENGTH) } : null
 }
 
-// A tool that names its own kind of action takes a bare one (`save` on the
-// memory tool), as the server does (`resolveAgentToolAction`).
 const ACTION_PREFIX_BY_TOOL = new Map<string, string>(Object.entries({
   openchamber_memory: "memory",
   openchamber_knowledge: "knowledge",
@@ -829,10 +684,6 @@ const ACTION_PREFIX_BY_TOOL = new Map<string, string>(Object.entries({
   openchamber_workflow: "workflow",
 }))
 
-/**
- * The full action an OpenChamber tool call ran (`memory.save`) and its detail,
- * or `null` for any other tool. A notification without an action is `notify.send`.
- */
 export function openChamberCallSummary(toolName: ToolName, input: ToolInput | undefined): { action: string | undefined; detail: string | undefined } | null {
   const tool = normalizeToolName(toolName)
   if (!OPENCHAMBER_TOOLS.has(tool)) return null
@@ -872,7 +723,6 @@ const LISTING_NEUTRAL_TOOLS = new Set<string>([
   OPENCODE_TOOLS.websearch,
   OPENCODE_TOOLS.question,
   OPENCODE_TOOLS.todowrite,
-  // A subagent's own calls arrive in its child session.
   OPENCODE_TOOLS.subagent,
   OPENCODE_TOOLS.sessionRename,
   OPENCODE_TOOLS.sessionMove,
@@ -972,8 +822,6 @@ export function toolDescription(
       return count > 0 ? { kind: "questions", count } : null
     }
 
-    // "1/7 · <the item in progress>", the Tasks panel's count: cancelled
-    // items are out of the list there, so they are out of the count here.
     case OPENCODE_TOOLS.todowrite: {
       const items = (todoWriteItems(input) ?? []).filter((item) => item.status !== "cancelled")
       if (items.length === 0) return null
@@ -982,7 +830,6 @@ export function toolDescription(
       return text(active ? `${done}/${items.length} · ${active.content}` : `${done}/${items.length}`)
     }
 
-    // MCP and plugin tools: anything they call a description, then a path.
     default:
       if (OPENCHAMBER_TOOLS.has(name)) return describeOpenChamberTool(parsed, input)
       if (opencodeNamespaceTool(toolName)) return describeOpencodeNamespaceTool(parsed)

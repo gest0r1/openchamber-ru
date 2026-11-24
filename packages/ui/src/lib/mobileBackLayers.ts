@@ -34,16 +34,10 @@ export function isInsideOpenPopup(target: EventTarget | null): boolean {
   return target instanceof Element && target.closest(OPEN_POPUP_SELECTOR) !== null;
 }
 
-/** Whether `closeTopmostBackLayer` has something to close. */
 export function hasOpenBackLayer(): boolean {
   return overlayLayers.length > 0 || isInsideOpenPopup(document.activeElement);
 }
 
-/**
- * Calls the listener when `hasOpenBackLayer` may have changed. A popup counts
- * while it holds focus, so focus moves are its signal. They are read a task
- * later: focus crossing between two fields passes through the body.
- */
 export function subscribeBackLayers(listener: () => void): () => void {
   let timer: number | null = null;
   const handleFocusChange = () => {
@@ -64,7 +58,6 @@ export function subscribeBackLayers(listener: () => void): () => void {
   };
 }
 
-/** Closes the topmost layer; false when nothing above the shell is open. */
 export function closeTopmostBackLayer(): boolean {
   const focused = document.activeElement;
   if (focused instanceof HTMLElement && isInsideOpenPopup(focused)) {

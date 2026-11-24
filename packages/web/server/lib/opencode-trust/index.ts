@@ -62,7 +62,7 @@ const directoriesNamedBy = (url: URL, headers: Record<string, string | undefined
       try {
         directory = decodeURIComponent(header);
       } catch {
-        // OpenCode falls back to the raw header if decoding fails.
+        directory = header;
       }
     }
     directories.push(directory);

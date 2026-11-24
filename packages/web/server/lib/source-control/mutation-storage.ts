@@ -114,13 +114,13 @@ export const SOURCE_CONTROL_MUTATION_KINDS = Object.freeze([
   'discussion-state',
   'discussion-answer',
   'discussion-labels',
+  'discussion-update',
 ]);
 const KINDS = new Set(SOURCE_CONTROL_MUTATION_KINDS);
 const STATES = ['running', 'succeeded', 'failed', 'outcome-unknown'];
 const TERMINAL_STATES = ['succeeded', 'failed'];
-const TARGET_OPTIONAL_KEYS = ['number', 'head', 'base', 'headSha'];
-const RESULT_KEYS = [...TARGET_OPTIONAL_KEYS, 'state', 'merged', 'outcome', 'stacked', 'ready', 'draft', 'commented', 'failureStatus', 'failureCode'];
-// A merge GitHub accepted without finishing it yet: in a merge queue, or still running.
+const TARGET_OPTIONAL_KEYS: Array<'number' | 'head' | 'base' | 'headSha'> = ['number', 'head', 'base', 'headSha'];
+const RESULT_KEYS: Array<Exclude<keyof MutationResult, 'project'>> = [...TARGET_OPTIONAL_KEYS, 'state', 'merged', 'outcome', 'stacked', 'ready', 'draft', 'commented', 'failureStatus', 'failureCode'];
 const MERGE_OUTCOMES = ['queued', 'merging', 'auto-merge', 'cancelled'];
 
 const emptyState = (): MutationSnapshot => ({ version: VERSION, records: {} });

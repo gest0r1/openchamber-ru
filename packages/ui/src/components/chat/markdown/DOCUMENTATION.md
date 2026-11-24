@@ -147,6 +147,18 @@ A link target can contain repeated spaces, angle brackets, or encoded `://` in i
 
 Text references are trimmed as prose, but an href's encoded edge spaces identify a different file. Href resolution opts out of trimming, and stat checks and absolute file-tab targets retain those spaces.
 
+### Why a code file reference drops its tab stop while the pointer is down
+
+The code reference keeps `role="button"` and Enter/Space activation, but Chromium focuses any tab stop on mousedown before it decides whether the gesture is a drag. A drag that starts inside the now-focused reference never becomes a text selection, so the release reads as a plain click and opens the file. Removing `tabindex` for the press and restoring it on the next task leaves keyboard access intact while the browser starts the selection as it would in ordinary prose. A reference drawn as a link keeps its `href`: the browser owns a link drag from it, and disarming the link for the press would take that away.
+
+### Why a flow construct plus a block merge and not a text construct
+
+Multiline bracket math uses a concrete micromark flow construct because text constructs end at paragraph breaks; concrete flow keeps blank lines and Markdown-looking formula content inside the equation, while rejecting lazy container continuation. The equation ends at the first line that is a standalone `\]` or ends in `\]`, the same close the text construct accepts, so prose after `x\]` never joins a formula that a later `\]` would otherwise close.
+
+`parseMarkdownBlocksWithMath` (`mathBlocks.ts`, free of the renderer's plugins so the chat timeline can import it eagerly) rejoins Streamdown chunks split inside a closed equation for streaming and windowed rendering and for the settled answer's row cuts; its opener, close and fence rules must agree with the tokenizer so splitting cannot change the rendered formula. It only needs to handle top-level equations: Streamdown keeps a whole list or blockquote, nested ones included, in one block, so an equation inside a container is never split. That is why a chunk that starts a fence, list, blockquote or indented code never opens a join, and the opener rule is document-level (a standalone `\[` indented at most three spaces).
+
+The flow construct interrupts a paragraph only when the equation crosses a blank line. One that closes inside the paragraph is left to the text construct, which keeps the inline precedence of code spans around delimiter lines.
+
 # Commands run from a reply
 
 ## Ownership
@@ -161,6 +173,11 @@ A `bash`, `sh`, `shell` or `zsh` fence in a finished assistant reply has a run b
 - A continuation goes out only after OpenCode's completion message, so the output is in context first. A command the user stopped gets none.
 - A run started here is watched from the event stream, because its block can scroll away or its session can close. After a reload the block continues any run still owed one.
 - The block shows the run instead of the shell row. A run whose reply is outside the loaded history keeps its row (`dropReplyCommandRows`).
+- Run controls require a finished reply on a surface with controls because a streaming command could execute an incomplete source.
+
+The separate terminal action (`replyTerminal.ts`) starts a command-mode runtime terminal in the reply's directory. It never adds transcript messages or continues the agent. It is available on web, desktop, hosted mobile and Capacitor; VS Code has no integrated terminal and Mini Chat has no terminal panel, so neither shows it. A `bash`, `sh` or `zsh` fence runs in that shell, and the server refuses one it cannot find, which the action shows as a start error instead of running the text in the wrong shell; a `shell` fence uses the user's terminal shell. Control characters a fence can carry are stripped the way project actions strip them, because the text reaches the shell as an argument.
+
+The session is created before its tab is published, so the terminal view cannot auto-create an interactive shell for the new tab, and its id doubles as the tab id, so the server's listing adopts it into that same tab, whether it arrives before the create response or after a reload. A response without command mode comes from an older server that opened an interactive shell instead: the action closes it, drops any tab the listing already adopted for it, and shows the start error. The action opens the mobile workspace when mounted, otherwise the desktop context panel, and opens neither when the user switched to another conversation meanwhile: the mobile drawer shows the current conversation's terminal, not the one the command runs in. The tab never closes on its own (`components/views/DOCUMENTATION.md`, *Terminal tabs whose shell exits*), and interactive Restart is disabled because the server cannot restart command-mode sessions.
 
 ## Decisions
 
@@ -174,7 +191,7 @@ The VS Code extension has no OpenChamber server, and a server runtime would need
 
 ### Why the output is drawn like a shell tool row
 
-The tool row is the one place that already turns terminal bytes into text (`renderTerminalOutput`: colour codes, `\r` progress lines) and highlights a settled output as `bash`, so a block and a row read the same. While the command runs the block stays plain, because each poll would highlight again.
+The tool row is the one place that already turns terminal bytes into text (`renderTerminalOutput`: colour codes, `\r` progress lines) and highlights a settled output as `bash`, so a block and a row read the same. While the command runs the block stays plain, because each poll would highlight again. The highlighter's code background stays transparent because the surrounding block already supplies the surface.
 
 ### Why the output of a stopped command comes from the live view
 

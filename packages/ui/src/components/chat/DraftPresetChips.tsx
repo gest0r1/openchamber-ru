@@ -41,17 +41,9 @@ type DraftPresetChipsProps = {
 
 const TRASH_DROPPABLE_ID = '__draft-starter-trash__';
 
-// Shared box for the icon buttons in the "+" slot (add picker and the
-// mobile trash drop-zone). Identical so swapping one for the other never shifts
-// layout or changes the button size. shrink-0 keeps it from being compressed by
-// the flex row. The border is transparent at rest and only the trash target
-// colours it, so the box is the same in every state.
 const CHIP_ICON_BUTTON_CLASS =
     'inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-transparent transition-colors';
 
-// A starter at rest is a quiet word on the page: flat and muted, with a fill
-// only under the pointer. It is a suggestion, not the loudest control on the
-// draft screen.
 const CHIP_CLASS =
     'group inline-flex h-6 touch-none select-none items-center gap-1.5 rounded-full px-2.5 typography-meta text-muted-foreground transition-colors hover:bg-[var(--interactive-hover)] hover:text-foreground';
 
@@ -62,13 +54,10 @@ const SortableChip: React.FC<{
     onRemove: () => void;
     onToggleShared?: () => void;
     hideRemove?: boolean;
-    /** Past the end of the row: kept out of flow and out of reach, but measured. */
     overflowed?: boolean;
 }> = ({ item, onSubmit, onRemove, onToggleShared, hideRemove, overflowed }) => {
     const { t } = useI18n();
     const { currentTheme } = useThemeSystem();
-    // A chip past the end of the row is no drag source and no drop target:
-    // its hidden box overlaps the visible row, and closestCenter would pick it.
     const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: item.id, disabled: overflowed });
     const chipStyle: React.CSSProperties = {
         backgroundColor: currentTheme?.colors?.surface?.elevated,
@@ -92,7 +81,6 @@ const SortableChip: React.FC<{
                         onClick={() => onSubmit(item)}
                         className={CHIP_CLASS}
                     >
-                        {/* 16px beside the meta-size label, the composer footer's ratio. */}
                         <Icon name={item.icon} className="size-4 shrink-0" />
                         <span className="whitespace-nowrap">{item.label}</span>
                     </button>
@@ -143,7 +131,6 @@ const StarterGroup: React.FC<{
     hideRemove?: boolean;
     overflowedIds: ReadonlySet<string>;
 }> = ({ items, onSubmit, onRemove, onToggleShared, hideRemove, overflowedIds }) => (
-    // Only the chips in the row take part in sorting.
     <SortableContext items={items.filter((i) => !overflowedIds.has(i.id)).map((i) => i.id)} strategy={rectSortingStrategy}>
         {items.map((item) => (
             <SortableChip
@@ -208,7 +195,6 @@ const AddStarterPicker: React.FC<{
                         <button
                             type="button"
                             aria-label={t('chat.draftStarters.add')}
-                            // A starter's own box, so it reads as one more chip of the row.
                             className={CHIP_CLASS}
                         >
                             <Icon name="add" className="size-4 shrink-0" />
@@ -238,23 +224,15 @@ const DraftPresetChipsContent: React.FC<DraftPresetChipsProps> = ({ onSubmit, cl
     const { isMobile } = useDeviceInfo();
     const [isDragging, setIsDragging] = React.useState(false);
     const chipsRef = React.useRef<HTMLDivElement | null>(null);
-    // How many starters fit one row before the "+"; null while all of them do.
     const [fitCount, setFitCount] = React.useState<number | null>(null);
     const starters = React.useMemo(() => [...global, ...project], [global, project]);
 
-    // On the desktop the starters keep to one row; the rest wait behind the
-    // "+", which lists them above the picker. Every chip stays mounted so its
-    // width can be measured: the ones past the row sit out of flow, unseen.
-    // The phone keeps its wrapping rows, where a chip is dragged to reorder.
     React.useLayoutEffect(() => {
         const chipsRow = chipsRef.current;
         if (isMobile || !chipsRow) {
             setFitCount(null);
             return;
         }
-        // The room is the chip row's own width, which the layout below keeps
-        // at what the container allows whichever chips are shown; a row as
-        // wide as its chips shrank each time one hid and hid the next.
         const measure = () => {
             const chips = Array.from(chipsRow.querySelectorAll<HTMLElement>('[data-starter-chip]'));
             const add = chipsRow.querySelector<HTMLElement>('[data-starter-add]');
@@ -267,10 +245,6 @@ const DraftPresetChipsContent: React.FC<DraftPresetChipsProps> = ({ onSubmit, cl
             ));
         };
         measure();
-        // The chip row is the width read above: it follows the caller's box
-        // (the composer column narrows and widens with the wide-chat setting
-        // while the full-width wrapper stays put). The chips too: a label
-        // changes width when its font arrives.
         const observer = new ResizeObserver(measure);
         observer.observe(chipsRow);
         for (const chip of chipsRow.querySelectorAll('[data-starter-chip]')) observer.observe(chip);
@@ -328,11 +302,6 @@ const DraftPresetChipsContent: React.FC<DraftPresetChipsProps> = ({ onSubmit, cl
             onDragCancel={handleDragCancel}
             onDragEnd={handleDragEnd}
         >
-            {/* A full-width block around a centred one: the caller's box (a max
-                width, or the composer column) takes its width from the
-                container rather than from its chips, so the room measured
-                above stays put as chips hide and show. As a flex item of a
-                centred column it would shrink to its chips instead. */}
             <div className="w-full min-w-0">
                 <div className={cn('mx-auto', className)}>
                 <div ref={chipsRef} className={cn('relative flex w-full items-center justify-center gap-1.5', isMobile ? 'flex-wrap' : 'flex-nowrap')}>

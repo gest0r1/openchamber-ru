@@ -85,7 +85,6 @@ export const deleteSidebarPinList = (id: string): void => {
   stopAskingFor('pins', id);
 };
 
-/** A deleted folder leaves the sections as a deleted pin list does. */
 export const removeFolderFromSections = (id: string): void => stopAskingFor('folders', id);
 
 const stopAskingFor = (category: 'pins' | 'folders', id: string): void => {

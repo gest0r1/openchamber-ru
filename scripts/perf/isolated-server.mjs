@@ -211,7 +211,9 @@ export const startIsolatedServer = async ({ repo, dist, state, project, port, fi
     ...extraEnv,
   }
   if (opencodeBinary) env.OPENCODE_BINARY = opencodeBinary
-  const child = spawn(process.execPath, [join(repo, "packages/web/bin/cli.js"), "serve", "--port", String(port), "--foreground"], {
+  const sourceResolver = join(repo, "packages/web/scripts/register-server-sources.mjs")
+  const preload = existsSync(sourceResolver) ? ["--import", pathToFileURL(sourceResolver).href] : []
+  const child = spawn(process.execPath, [...preload, join(repo, "packages/web/bin/cli.js"), "serve", "--port", String(port), "--foreground"], {
     cwd: project ?? join(state, "home"),
     env,
     // Its own process group, so stopping it stops the OpenCode it manages.

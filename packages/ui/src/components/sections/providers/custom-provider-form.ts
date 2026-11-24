@@ -59,17 +59,21 @@ export type HeaderRow = {
   value: string;
 };
 
-/** What Save does with the uploaded logo image. */
 export type CustomProviderLogoPlan =
   | { kind: 'keep' }
   | { kind: 'remove' }
   | { kind: 'upload'; file: File };
 
+export type ClientCertificateFields = {
+  cert: string;
+  key: string;
+  passphrase: string;
+};
+
 export type CustomProviderFormState = {
   providerID: string;
   name: string;
   icon: CustomProviderIcon | null;
-  /** The logo image: a file picked here, the stored one cleared, or null for whatever is stored. Wins over `icon`. */
   logo: File | 'removed' | null;
   protocol: CustomProviderProtocol;
   package?: CustomProviderPackage;
@@ -132,7 +136,6 @@ export type CustomProviderPersistPlan = {
   name: string;
   icon: CustomProviderIcon | null;
   logo: CustomProviderLogoPlan;
-  /** Literal API key stored as an OpenCode credential after the config write; omitted when using {env:VAR} or empty. */
   apiKey?: string;
   keepsStoredCredential?: boolean;
   config: CustomProviderConfig;
@@ -744,8 +747,6 @@ export function validateCustomProvider(input: ValidateCustomProviderInput): Vali
   };
 }
 
-// Only what the user did in the field changes the stored image; an untouched
-// field keeps whatever is stored, including a logo another client just uploaded.
 function logoPlanOf(logo: CustomProviderFormState['logo']): CustomProviderLogoPlan {
   if (logo === null) return { kind: 'keep' };
   if (logo === 'removed') return { kind: 'remove' };

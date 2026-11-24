@@ -3,6 +3,38 @@ import { forkRemoteName } from './contributor-remote.js';
 import { sourceControlProviderDescriptors } from '../source-control/provider-descriptors.js';
 import { asNonEmptyString } from '../shared/guards.js';
 import { fingerprintRemoteUrl, redactRemoteUrl } from '../source-control/url-redaction.js';
+import type { SourceControlChangeRequestSource } from '@openchamber/sdk';
+import type { BindingRead } from '../source-control/binding-service-contracts.js';
+import type { ProviderReadContext } from '../source-control/provider-contract.js';
+import type { GitRouteDependencies } from './routes.js';
+import type { SourceRequest } from './network-execution-contracts.js';
+import type { WorktreeCreateInput, WorktreeServerOptions } from './service-contracts.js';
+
+export interface WorktreeCreationInput extends WorktreeCreateInput {
+  changeRequestSource?: SourceRequest | null | undefined;
+  taskTitle?: unknown;
+  generatedBranchName?: unknown;
+  generatedBranchPrefix?: unknown;
+}
+
+type ResolvedChangeRequestSource = SourceControlChangeRequestSource & {
+  context: ProviderReadContext;
+  requestedRemoteName: string;
+  remoteUrl?: string;
+};
+type GitLibraries = Pick<typeof import('./index.js'), 'getRepositoryRemoteUrls' | 'validateWorktreeCreate'
+  | 'createWorktree' | 'markGeneratedBranchName' | 'seedBranchTaskTitle'>;
+type OptionalDependency<Key extends keyof GitRouteDependencies> = GitRouteDependencies[Key];
+interface WorktreeCreationOptions {
+  getGitLibraries(): Promise<GitLibraries>;
+  networkOperations: OptionalDependency<'networkOperations'>;
+  getSourceControlBinding: ((directory: string) => Promise<BindingRead>) | undefined;
+  contributorProvenance: OptionalDependency<'contributorProvenance'>;
+  resolveChangeRequestSource: ((input: SourceRequest) => Promise<ResolvedChangeRequestSource>) | undefined;
+  createHttpsCredentialReference: OptionalDependency<'createHttpsCredentialReference'>;
+  resolveSourceControlAccount: OptionalDependency<'resolveSourceControlAccount'>;
+  worktreeBootstrapStore: OptionalDependency<'worktreeBootstrapStore'>;
+}
 
 export class WorktreeCreationError extends Error {
   declare status: number;
@@ -134,13 +166,24 @@ export const createWorktreeCreation = ({
         'INVALID_REQUEST',
       );
     }
-    const authMethods = sourceControlProviderDescriptors.get(source.context.provider)?.authMethods;
-    if (authMethods?.cli?.kind === 'service' && !authMethods.pat) {
+    const descriptor = sourceControlProviderDescriptors.get(source.context.provider);
+    const authMethods = descriptor?.authMethods;
+    const cli = authMethods?.cli;
+    const enterprisePrimary = source.context.provider === 'github'
+      && source.classification === 'same-repository'
+      && descriptor?.transport.managedHttpsInstances === 'default-only'
+      && !descriptor.instance.defaultInstances.includes(source.context.instance);
+    if (enterprisePrimary || (cli && cli.kind === 'service' && !authMethods.pat)) {
       if (source.classification !== 'same-repository') {
         throw new WorktreeCreationError('Service-login worktrees require a head in the primary remote repository', 501, 'RUNTIME_UNSUPPORTED');
       }
+      if (!getSourceControlBinding) throw new TypeError('getSourceControlBinding is not a function');
       const { repository, binding } = await getSourceControlBinding(directory);
       const remote = source.context.primaryRemote;
+      const transportMode = binding ? binding.remotes.find((entry) => entry.name === remote)?.mode : 'system';
+      if (enterprisePrimary && !matchesGitHubHeadRemote(source, transportMode)) {
+        throw new WorktreeCreationError('The primary remote must point to the GitHub Enterprise pull request head repository', 409, 'RUNTIME_UNSUPPORTED');
+      }
       const planned = await networkOperations.plan({
         operation: 'fetch', directory,
         repositoryId: source.context.repositoryId,
@@ -150,14 +193,14 @@ export const createWorktreeCreation = ({
           displayUrl: redactRemoteUrl(source.remoteUrl),
           fingerprint: fingerprintRemoteUrl(source.remoteUrl),
         } },
-        transportMode: binding ? binding.remotes.find((entry) => entry.name === remote)?.mode : 'system',
+        transportMode,
         sourceRef: source.headRef, destinationRef,
       });
       const transfer = await networkOperations.execute(planned.operationId);
       if (transfer.state !== 'succeeded') {
         throw new WorktreeCreationError(transfer.error?.message || 'Change request head fetch failed', 409, transfer.error?.code || 'UNKNOWN');
       }
-      await resolveChangeRequestSource(input.changeRequestSource);
+      await resolveChangeRequestSource(sourceRequest);
       return {
         source: { ...source, endpoint: source.remoteUrl },
         input: { ...transferInput, contributorTransferComplete: true },

@@ -204,9 +204,6 @@ const deriveRoleBucket = (message: SessionMessage): 'user' | 'assistant' | 'tool
   return 'other';
 };
 
-// Keyed by the message record, which the sync layer replaces whenever the
-// message or its parts change: a streamed delta re-measures one message, and
-// records that leave the session are collected with the map entry.
 const messageCharsCache = new WeakMap<SessionMessage, ContextBuckets>();
 
 const messageChars = (message: SessionMessage): ContextBuckets => {
@@ -273,7 +270,6 @@ const resolveProviderAndModel = (
 };
 
 type TokenFigures = {
-  /** Every prompt token, cached or not; the cache cells beside it split it up. */
   prompt: number;
   output: number;
   reasoning: number;
@@ -282,7 +278,6 @@ type TokenFigures = {
   cacheHitPercent: number | null;
 };
 
-/** Six token figures under a title; `null` figures, not yet known, read as dashes. */
 const TokenFiguresCard: React.FC<{ title: string; figures: TokenFigures | null }> = ({ title, figures }) => {
   const { t } = useI18n();
   const items = [
@@ -324,9 +319,6 @@ type RawMessageRowProps = {
   onCopy: (messageId: string, value: string) => void;
 };
 
-// Memoized on the message record, which the sync layer keeps by reference
-// while the message is unchanged: a streamed delta re-renders only the row of
-// the message it touched, not one row per message of the session.
 const RawMessageRow = React.memo(function RawMessageRow({
   message,
   isExpanded,
@@ -344,8 +336,6 @@ const RawMessageRow = React.memo(function RawMessageRow({
   const tokens = isAssistant ? extractTokenBreakdown(message) : null;
   const userSnippet = isUser ? deriveUserSnippet(message.parts) : '';
   const previewTime = formatMessagePreviewTime(messageCreatedAt, timeFormatPreference);
-  // Keep token/time columns stable; the message label owns all
-  // remaining space and truncates before it can push metrics.
   const assistantLeft = partsLabel || '—';
   const assistantMiddle = tokens
     ? formatAssistantTokens(tokens.input, tokens.output, formatNumber)
@@ -411,7 +401,7 @@ const RawMessageRow = React.memo(function RawMessageRow({
                 <TooltipContent sideOffset={6}>{isCopied ? t('contextSidebar.actions.copied') : t('contextSidebar.actions.copyJson')}</TooltipContent>
               </Tooltip>
             </div>
-            <WorkerHighlightedCode
+            <HighlightedCode
               language="json"
               code={jsonValue}
               style={{
@@ -637,7 +627,6 @@ export const ContextPanelContent: React.FC = () => {
           ))}
         </div>
 
-        {/* ── Whole-session tokens, then the last turn's, in the same columns ── */}
         <TokenFiguresCard
           title={t('contextSidebar.section.sessionTotals')}
           figures={viewModel.sessionTotals}

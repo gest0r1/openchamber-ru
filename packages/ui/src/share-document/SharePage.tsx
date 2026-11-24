@@ -49,7 +49,8 @@ export function SharePage({ source, takesAnswer, initialLocale, subscribeLocale,
   }, [direction, locale]);
 
   const i18n = React.useMemo<I18nContextValue>(() => {
-    const dictionary = new Map(Object.entries(SHARE_DOCUMENT_MESSAGES[locale]));
+    const messages: Record<Locale, Record<string, string>> = SHARE_DOCUMENT_MESSAGES;
+    const dictionary = new Map(Object.entries(messages[locale]));
     const english = new Map(Object.entries(SHARE_DOCUMENT_MESSAGES.en));
     const t: I18nContextValue['t'] = (key, params) => formatTemplate(dictionary.get(key) ?? english.get(key) ?? key, params);
     return { locale, direction, locales: LOCALES, setLocale: noop, label: (target) => t(LOCALE_LABEL_KEYS[target]), t };

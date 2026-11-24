@@ -114,8 +114,6 @@ export async function listGlobalSessionPages(
 
         const next = page.cursor.next;
         if (!next) break;
-        // A stalled or cycling page is incomplete. Returning it as a complete
-        // list would let callers remove sessions and overwrite recovery caches.
         if (seenCursors.has(next) || accepted.length === 0) {
             throw new Error("Session pagination did not advance; retaining the previous snapshot");
         }

@@ -1,10 +1,46 @@
 import { z } from 'zod';
+import type { Application, RequestHandler, Response } from '../shared/http-contracts.js';
+import type { createUiAuth } from '../ui-auth/ui-auth.js';
+import type { createSessionCompletionProof, TelegramSession, TelegramSourceFor } from '../guests/session-completion-proof.js';
+import { telegramSessionRecord } from '../guests/session-completion-proof.js';
+import type { createTelegramRuntime, TelegramSender } from './telegram-runtime.js';
+import type { createTelegramConfig } from './telegram-config.js';
+import type { createTelegramWatch } from './telegram-watch.js';
+import type { createTelegramApproval } from './telegram-approval.js';
 
-/** UI-authenticated routes. The server stores all credentials and destinations. */
-export const registerTelegramRoutes = (app, { telegram, config, watch, approval, getSource, dispatchPending, uiAuthController, completionProof, sdkSenderReady = async () => false }) => {
-  // The route that the host asks inside a space must remain accessible over
-  // the trusted dispatcher. All user-facing configuration/send routes require
-  // a UI session independently of the upstream OpenCode API auth gate.
+type Runtime = ReturnType<typeof createTelegramRuntime>;
+type Subscription = Awaited<ReturnType<Runtime['listSubscriptions']>>[number];
+type Config = ReturnType<typeof createTelegramConfig>;
+type RoutesOptions = {
+  telegram: Runtime;
+  config: Config;
+  watch: ReturnType<typeof createTelegramWatch>;
+  approval: ReturnType<typeof createTelegramApproval>;
+  getSource: TelegramSourceFor;
+  dispatchPending: () => Promise<readonly { parentSessionId: string }[]>;
+  uiAuthController: Pick<ReturnType<typeof createUiAuth>, 'ensureSessionToken'> | null;
+  completionProof: ReturnType<typeof createSessionCompletionProof>;
+  sdkSenderReady?: () => Promise<boolean>;
+};
+const inputSchema = z.object({
+  sessionId: z.string().trim().min(1),
+  directory: z.string().trim().min(1),
+  spaceId: z.string().trim().min(1).nullish(),
+});
+const aliasSchema = z.object({
+  alias: z.string(), chatId: z.union([z.string(), z.number()]).nullish(),
+  threadId: z.union([z.string(), z.number()]).nullish(),
+  kind: z.enum(['private', 'group', 'topic']).optional(),
+  previousName: z.string().nullish(),
+});
+const contentSchema = z.object({
+  alias: z.string().optional(), text: z.string().optional(),
+  file: z.string().optional(), mode: z.string().optional(), caption: z.string().optional(),
+});
+const getField = (body: Parameters<typeof contentSchema.safeParse>[0], key: string) =>
+  z.record(z.string(), z.json()).safeParse(body).data?.[key];
+
+export const registerTelegramRoutes = (app: Application, { telegram, config, watch, approval, getSource, dispatchPending, uiAuthController, completionProof, sdkSenderReady = async () => false }: RoutesOptions) => {
   app.use('/api/notifications/telegram', async (req, res, next) => {
     if (req.path === '/pending') return next();
     try {
@@ -16,22 +52,21 @@ export const registerTelegramRoutes = (app, { telegram, config, watch, approval,
       next();
     } catch (error) { next(error); }
   });
-  const asyncRoute = (handler) => (req, res, next) => {
-    Promise.resolve(handler(req, res)).catch(next);
+  const asyncRoute = (handler: RequestHandler): RequestHandler => (req, res, next) => {
+    Promise.resolve(handler(req, res, next)).catch(next);
   };
-  const fail = (res, error) => res.status(error instanceof TypeError ? 400 : 502).json({
+  const fail = (res: Response, error: Parameters<typeof contentSchema.safeParse>[0]) => res.status(error instanceof TypeError ? 400 : 502).json({
     error: error instanceof TypeError ? error.message : 'Telegram operation failed',
   });
-  const asString = (value) => z.string().safeParse(value).data?.trim() ?? '';
-  const sessionInput = (body) => {
-    const sessionId = asString(body?.sessionId);
-    const directory = asString(body?.directory);
-    const spaceId = body?.spaceId == null ? null : asString(body.spaceId);
-    if (!sessionId || !directory || (body?.spaceId != null && !spaceId)) throw new TypeError('Session and directory required');
-    return { sessionId, directory, spaceId };
+  const asString = (value: Parameters<typeof contentSchema.safeParse>[0]) => z.string().safeParse(value).data?.trim() ?? '';
+  const sessionInput = (body: Parameters<typeof inputSchema.safeParse>[0]) => {
+    const parsed = inputSchema.safeParse(body);
+    if (!parsed.success) throw new TypeError('Session and directory required');
+    const { sessionId, directory, spaceId } = parsed.data;
+    return { sessionId, directory, spaceId: spaceId ?? null };
   };
-  const verify = async (item) => {
-    const source = getSource(item.spaceId);
+  const verify = async (item: TelegramSession) => {
+    const source = getSource(item.spaceId ?? null);
     if (!source) throw new TypeError('Session source unavailable');
     const url = source.buildOpenCodeUrl('/api/session/' + encodeURIComponent(item.sessionId), '');
     const response = await source.fetchImpl(url, {
@@ -40,7 +75,7 @@ export const registerTelegramRoutes = (app, { telegram, config, watch, approval,
     });
     if (!response.ok) throw new TypeError('Session not found');
     const raw = await response.json();
-    const record = raw?.data ?? raw;
+    const record = telegramSessionRecord.safeParse(raw?.data ?? raw).data;
     const actual = record?.location?.directory;
     if (record?.id !== item.sessionId || actual !== item.directory || record?.parentID) {
       throw new TypeError('Only a root session in its actual location can be subscribed');
@@ -48,10 +83,8 @@ export const registerTelegramRoutes = (app, { telegram, config, watch, approval,
     return record;
   };
 
-  // Capture a pre-opt-in terminal checkpoint. If unreadable, the SDK sender
-  // must not start from an arbitrary old completion.
-  const baselineIdleId = async (item) => {
-    const source = getSource(item.spaceId);
+  const baselineIdleId = async (item: TelegramSession) => {
+    const source = getSource(item.spaceId ?? null);
     if (!source) return undefined;
     try {
       const url = source.buildOpenCodeUrl('/api/session/' + encodeURIComponent(item.sessionId) + '/message', '');
@@ -61,15 +94,16 @@ export const registerTelegramRoutes = (app, { telegram, config, watch, approval,
       });
       if (!response.ok) return undefined;
       const body = await response.json();
-      const rows = Array.isArray(body) ? body : body?.data;
-      if (!Array.isArray(rows)) return undefined;
-      const idle = rows.find((row) => row?.type === 'idle' && typeof row.id === 'string');
-      return idle?.id ?? null;
+      const rows = z.array(z.json()).safeParse(Array.isArray(body) ? body : body?.data);
+      if (!rows.success) return undefined;
+      for (const row of rows.data) {
+        const idle = z.object({ type: z.literal('idle'), id: z.string() }).safeParse(row);
+        if (idle.success) return idle.data.id;
+      }
+      return null;
     } catch { return undefined; }
   };
 
-  // The host reads this status inside an isolated space over its authenticated
-  // dispatcher. The external space proxy refuses /api/notifications routes.
   app.get('/api/notifications/telegram/pending', asyncRoute(async (req, res) => {
     const sessionId = asString(req.query?.sessionId);
     if (!sessionId) return res.status(400).json({ error: 'sessionId required' });
@@ -82,10 +116,11 @@ export const registerTelegramRoutes = (app, { telegram, config, watch, approval,
     res.json({ approvals: approval.list() });
   }));
   app.post('/api/notifications/telegram/approvals/decide', asyncRoute(async (req, res) => {
-    if (!z.object({ id: z.string(), approved: z.boolean() }).safeParse(req.body).success) {
+    const decision = z.object({ id: z.string(), approved: z.boolean() }).safeParse(req.body);
+    if (!decision.success) {
       return res.status(400).json({ error: 'id and approved are required' });
     }
-    res.json({ resolved: approval.decide(req.body.id, req.body.approved) });
+    res.json({ resolved: approval.decide(decision.data.id, decision.data.approved) });
   }));
   app.get('/api/notifications/telegram/delivery-issues', asyncRoute(async (_req, res) => {
     res.setHeader('Cache-Control', 'no-store');
@@ -93,12 +128,9 @@ export const registerTelegramRoutes = (app, { telegram, config, watch, approval,
   }));
   app.post('/api/notifications/telegram/delivery-issues/retry', asyncRoute(async (req, res) => {
     try {
-      res.json({ delivered: await telegram.retryDelivery(req.body?.key) });
+      res.json({ delivered: await telegram.retryDelivery(asString(getField(req.body, 'key'))) });
     } catch (error) { fail(res, error); }
   }));
-  // UI-auth operator change; exactly one sender may own automatic delivery.
-  // Pause before draining the previous sender's live verification and Bot API
-  // operations, then validate a quiescent checkpoint before SDK ownership.
   let switchingSender = false;
   let subscriptionsInFlight = 0;
   app.get('/api/notifications/telegram/sender', asyncRoute(async (_req, res) => {
@@ -106,18 +138,17 @@ export const registerTelegramRoutes = (app, { telegram, config, watch, approval,
     res.json({ sender: (await config.read()).sender, sdkReady: await sdkSenderReady() });
   }));
   app.post('/api/notifications/telegram/sender', asyncRoute(async (req, res) => {
-    const mode = asString(req.body?.sender);
-    if (!['legacy', 'sdk'].includes(mode)) return res.status(400).json({ error: 'Invalid sender' });
+    const mode = asString(getField(req.body, 'sender'));
+    if (mode !== 'legacy' && mode !== 'sdk') return res.status(400).json({ error: 'Invalid sender' });
     if (switchingSender || subscriptionsInFlight > 0) return res.status(409).json({ error: 'Sender change or subscription in progress' });
     switchingSender = true;
     let paused = false;
-    let previous = 'legacy';
+    let previous: TelegramSender = 'legacy';
     try {
       const current = (await config.read()).sender;
       previous = current;
       if (current === mode) return res.json({ sender: mode });
       if (mode === 'legacy') {
-        // Also supports explicit recovery from a persisted paused state.
         await config.update({ sender: 'paused' });
         paused = true;
         await telegram.waitForSettledDeliveries();
@@ -126,14 +157,12 @@ export const registerTelegramRoutes = (app, { telegram, config, watch, approval,
         await watch.start();
         return res.json({ sender: 'legacy' });
       }
-      if (current !== 'legacy' || !await sdkSenderReady() || typeof completionProof !== 'function') {
+      if (current !== 'legacy' || !await sdkSenderReady()) {
         return res.status(409).json({ error: 'Approved and ready SDK notifier required' });
       }
       await config.update({ sender: 'paused' });
       paused = true;
       await telegram.waitForSettledDeliveries();
-      // Legacy subscriptions must match a known, quiescent checkpoint.
-      // None of the already-recorded ambiguous deliveries may be replayed.
       const entries = await telegram.listSubscriptions();
       const old = await watch.checkpoints();
       if (entries.some((entry) => entry.spaceId)) {
@@ -160,8 +189,6 @@ export const registerTelegramRoutes = (app, { telegram, config, watch, approval,
       return res.json({ sender: 'sdk' });
     } catch (error) {
       if (paused) {
-        // Failed cutover must not create a second owner. Restore only the
-        // originally selected sender; the previous ledger remains intact.
         const restore = previous === 'sdk' ? 'sdk' : 'legacy';
         await config.update({ sender: restore });
         if (restore === 'legacy') await watch.start();
@@ -176,17 +203,19 @@ export const registerTelegramRoutes = (app, { telegram, config, watch, approval,
     res.json(await config.publicConfig());
   }));
   app.post('/api/notifications/telegram/config', asyncRoute(async (req, res) => {
-    const input = req.body || {};
-    const patch = {};
+    const input = z.record(z.string(), z.json()).safeParse(req.body).data ?? {};
+    const patch: Parameters<Config['update']>[0] = {};
     if (input.enabled !== undefined) {
-      if (!z.boolean().safeParse(input.enabled).success) return res.status(400).json({ error: 'enabled must be a boolean' });
-      patch.enabled = input.enabled;
+      const enabled = z.boolean().safeParse(input.enabled);
+      if (!enabled.success) return res.status(400).json({ error: 'enabled must be a boolean' });
+      patch.enabled = enabled.data;
     }
     if (input.botToken !== undefined && input.botToken !== '') {
-      if (!z.string().regex(/^[0-9]+:[A-Za-z0-9_-]+$/).safeParse(input.botToken).success) {
+      const token = z.string().regex(/^[0-9]+:[A-Za-z0-9_-]+$/).safeParse(input.botToken);
+      if (!token.success) {
         return res.status(400).json({ error: 'Invalid bot token' });
       }
-      patch.botToken = input.botToken;
+      patch.botToken = token.data;
     }
     if (input.defaultAlias !== undefined) {
       const alias = asString(input.defaultAlias);
@@ -203,14 +232,16 @@ export const registerTelegramRoutes = (app, { telegram, config, watch, approval,
   }));
   app.post('/api/notifications/telegram/aliases', asyncRoute(async (req, res) => {
     try {
-      const a = req.body ?? {};
-      await telegram.configureAlias(a.alias, a.chatId, a.threadId == null || a.threadId === '' ? null : Number(a.threadId), a.kind ?? 'private', a.previousName || null);
+      const parsed = aliasSchema.safeParse(req.body);
+      if (!parsed.success) throw new TypeError('Invalid Telegram alias or destination');
+      const a = parsed.data;
+      await telegram.configureAlias(a.alias, a.chatId ?? null, a.threadId == null || a.threadId === '' ? null : Number(a.threadId), a.kind ?? 'private', a.previousName || null);
       res.json({ ok: true });
     } catch (error) { fail(res, error); }
   }));
   app.delete('/api/notifications/telegram/aliases', asyncRoute(async (req, res) => {
     try {
-      const alias = asString(req.body?.alias);
+      const alias = asString(getField(req.body, 'alias'));
       await telegram.deleteAlias(alias);
       if ((await config.read()).defaultAlias.toLocaleLowerCase() === alias.toLocaleLowerCase()) {
         await config.update({ defaultAlias: '' });
@@ -220,16 +251,13 @@ export const registerTelegramRoutes = (app, { telegram, config, watch, approval,
   }));
   app.post('/api/notifications/telegram/test', asyncRoute(async (req, res) => {
     try {
-      const result = await telegram.sendContent({ alias: req.body?.alias, text: 'OpenChamber Telegram test' });
+      const result = await telegram.sendContent({ alias: asString(getField(req.body, 'alias')), text: 'OpenChamber Telegram test' });
       res.json(result);
     } catch (error) { fail(res, error); }
   }));
-  // Includes every active opt-in, including long-lived and archived sessions.
-  // Search must resolve the *current* title before filtering: a renamed session
-  // may not match its stored name and must still be possible to unsubscribe.
-  const subscriptionLiveTitle = async (item) => {
+  const subscriptionLiveTitle = async (item: Subscription) => {
     let title = item.title || item.sessionId;
-    const source = getSource(item.spaceId);
+    const source = getSource(item.spaceId ?? null);
     if (source) {
       try {
         const url = source.buildOpenCodeUrl('/api/session/' + encodeURIComponent(item.sessionId), '');
@@ -239,21 +267,22 @@ export const registerTelegramRoutes = (app, { telegram, config, watch, approval,
         });
         if (answer.ok) {
           const data = await answer.json();
-          const row = data?.data ?? data;
+          const row = telegramSessionRecord.safeParse(data?.data ?? data).data;
           if (row?.id === item.sessionId && row?.location?.directory === item.directory &&
-              typeof row.title === 'string' && row.title.trim()) title = row.title.slice(0, 200);
+              row.title?.trim()) title = row.title.slice(0, 200);
         }
-      } catch { /* An inaccessible session retains its saved title or ID. */ }
+      } catch { void 0; }
     }
     return { ...item, title };
   };
-  const refreshTitles = async (items) => {
+  const refreshTitles = async (items: Subscription[]) => {
     let cursor = 0;
-    const rows = new Array(items.length);
+    const rows: Subscription[] = new Array(items.length);
     const worker = async () => {
       while (cursor < items.length) {
         const i = cursor++;
-        rows[i] = await subscriptionLiveTitle(items[i]);
+        const item = items[i];
+        if (item) rows[i] = await subscriptionLiveTitle(item);
       }
     };
     await Promise.all(Array.from({ length: Math.min(6, items.length) }, worker));
@@ -266,12 +295,10 @@ export const registerTelegramRoutes = (app, { telegram, config, watch, approval,
       const query = asString(req.query?.q).slice(0, 120).toLocaleLowerCase();
       const entries = (await telegram.listSubscriptions())
         .sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0));
-      // Normal list only reads the current page. Search resolves live titles
-      // for all active opt-ins (bounded concurrency), then applies pagination.
       const candidates = query ? await refreshTitles(entries) : entries;
       const matches = candidates.filter((item) => !query ||
         [item.title, item.directory, item.sessionId, item.alias]
-          .some((field) => typeof field === 'string' && field.toLocaleLowerCase().includes(query)));
+          .some((field) => field?.toLocaleLowerCase().includes(query)));
       const slice = matches.slice(page * limit, (page + 1) * limit);
       const subscriptions = query ? slice : await refreshTitles(slice);
       res.setHeader('Cache-Control', 'no-store');
@@ -284,9 +311,6 @@ export const registerTelegramRoutes = (app, { telegram, config, watch, approval,
       res.json({ subscribed: await telegram.hasSubscription(item.directory, item.sessionId) });
     } catch (error) { fail(res, error); }
   }));
-  // An isolated space is selected by directory query/header *before* this
-  // host-only route is reached. POST keeps the directory in the request body,
-  // so subscription status is answered by the host's subscription store.
   app.post('/api/notifications/telegram/subscription/status', asyncRoute(async (req, res) => {
     try {
       const item = sessionInput(req.body);
@@ -295,8 +319,6 @@ export const registerTelegramRoutes = (app, { telegram, config, watch, approval,
   }));
   app.post('/api/notifications/telegram/subscribe', asyncRoute(async (req, res) => {
     if (switchingSender) return res.status(409).json({ error: 'Sender cutover in progress' });
-    // Prevent a sender preflight from taking a snapshot while a new opt-in
-    // is between verification and its durable write.
     subscriptionsInFlight += 1;
     try {
       const item = sessionInput(req.body);
@@ -310,14 +332,10 @@ export const registerTelegramRoutes = (app, { telegram, config, watch, approval,
       if (senderAtStart === 'sdk' && baseline === undefined) {
         throw new TypeError('Cannot establish a safe Telegram subscription baseline');
       }
-      await telegram.subscribe(item.directory, item.sessionId, req.body?.alias, {
-        origin: 'user', spaceId: item.spaceId, title: record.title,
+      await telegram.subscribe(item.directory, item.sessionId, asString(getField(req.body, 'alias')), {
+        origin: 'user', spaceId: item.spaceId, title: record.title ?? null,
         baselineIdleId: baseline ?? null,
       });
-      // Passive legacy checkpoint is kept for crash/rollback recovery even
-      // during SDK ownership. readSettings() forbids legacy delivery under SDK,
-      // so there is always only one sender; this snapshot prevents missed
-      // completions when an SDK subscription is rolled back immediately.
       try {
         await watch.track(item);
       } catch (error) {
@@ -339,10 +357,9 @@ export const registerTelegramRoutes = (app, { telegram, config, watch, approval,
   }));
   app.post('/api/notifications/telegram/send', asyncRoute(async (req, res) => {
     try {
-      const result = await telegram.sendContent({
-        alias: req.body?.alias, text: req.body?.text, file: req.body?.file,
-        mode: req.body?.mode, caption: req.body?.caption,
-      });
+      const parsed = contentSchema.safeParse(req.body);
+      if (!parsed.success) throw new TypeError('Invalid Telegram message');
+      const result = await telegram.sendContent(parsed.data);
       res.json(result);
     } catch (error) { fail(res, error); }
   }));

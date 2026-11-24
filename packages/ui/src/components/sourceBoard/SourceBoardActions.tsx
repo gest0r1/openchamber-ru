@@ -5,6 +5,7 @@ import { useFireworksCelebration } from '@/contexts/FireworksContext';
 import { Icon } from '@/components/icon/Icon';
 import { DiffViewIcon } from '@/components/icons/DiffIcon';
 import { ButtonTooltip } from '@/components/ui/action-toolbar';
+import { forgetLabelWrite } from '@/components/references/labelWrites';
 import { REFERENCE_META_TEXT, referenceNumberLabel } from '@/components/references/referencePickerItems';
 import type { IconName } from '@/components/icon/icons';
 import { toast } from '@/components/ui';
@@ -274,7 +275,6 @@ export const SourceBoardActions: React.FC<{
                         <Button
                             size="sm"
                             variant="outline"
-                            // Two halves of one control: the inner corners stay square.
                             className={cn(mergeMethods.length > 1 && 'rounded-e-none')}
                             disabled={busy === 'merge' || submitBlocked}
                             onClick={(event) => void merge(event.currentTarget)}
@@ -310,7 +310,6 @@ export const SourceBoardActions: React.FC<{
                 </div>
             ) : null}
             {openPull && !openPull.draft && unmet.length > 0 ? (
-                // What the disabled button waits for is said beside it.
                 <span
                     className="min-w-0 max-w-[16rem] truncate typography-meta text-muted-foreground"
                     title={unmet.map((requirement) => requirement.description ? `${requirement.name}: ${requirement.description}` : requirement.name).join('\n')}
@@ -582,8 +581,6 @@ const ItemStateMenuItems: React.FC<{
     const repositoryItem = item.source === 'repository' && item.reference.kind !== 'discussion' ? item.reference : null;
     const descriptor = useSourceControlProvider(repositoryItem?.provider);
     const nextState = !repositoryItem || repositoryItem.state === 'merged' ? null : repositoryItem.state === 'open' ? 'closed' : 'open';
-    // A draft is a state of an open change request too: the host that can move
-    // it either way is asked, and none is read for anything else.
     const openPull = repositoryItem?.kind === 'pull' && repositoryItem.state === 'open' ? repositoryItem : null;
     const capabilities = useCapabilities(openPull ? context : null);
     const stateLabel = (() => {
@@ -639,7 +636,6 @@ const ItemStateMenuItems: React.FC<{
     if (!repositoryItem) return null;
     return (
         <>
-            {/* The state pill says draft or open, so its menu offers the other one. */}
             {openPull?.draft && capabilities?.draftChangeRequests ? (
                 <DropdownMenuItem onSelect={() => void markDraft(false)}>
                     <Icon name="git-pull-request" className="size-4 shrink-0" />

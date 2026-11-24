@@ -43,19 +43,10 @@ function isHintCurrent(session: Session | null | undefined, writtenAt: number | 
 
 const openchamberSchema = z.object({ openchamber: z.record(z.string(), z.json()) });
 
-/**
- * The metadata with its work closed when it is in work, unchanged otherwise:
- * pinning a session takes it out of In work for good, and a session that was
- * never in work gets no record.
- */
 export function withSessionWorkClosed(metadata: Metadata, now: number): Metadata {
   return inWorkSchema.safeParse(metadata).success ? withSessionWorkState(metadata, 'done', now) : metadata;
 }
 
-/**
- * The metadata after the user tracked the session (`open`) or marked it done.
- * Done keeps when and by whom the work was opened and drops Jev's hints.
- */
 export function withSessionWorkState(metadata: Metadata, state: SessionWork['state'], now: number): Metadata {
   const namespace = openchamberSchema.safeParse(metadata).data?.openchamber ?? {};
   const current = namespaceSchema.safeParse(metadata).data?.openchamber.work ?? null;

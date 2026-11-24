@@ -51,16 +51,6 @@ const normalizeRuntimeUrlKey = (value: string): string => {
   }
 };
 
-// Runtime keys that mean "no instance connected": the uninitialized default
-// (`normalizeRuntimeUrlKey` of an empty/unparseable base URL) and the mobile
-// disconnect state (`MobileApp` switches to it when the connection drops).
-// Per-instance client state (e.g. the scoped theme entry) must not be read
-// from or written under them.
-//
-// The VS Code webview is the exception for the default key: it reaches its one
-// instance through the extension bridge, has no base URL, and so keeps
-// `url:default` for its whole life. There the key names a connected instance,
-// and the stores persisted under it already depend on that.
 export const MOBILE_DISCONNECTED_RUNTIME_KEY = 'mobile-disconnected';
 const UNINITIALIZED_RUNTIME_KEY = 'url:default';
 

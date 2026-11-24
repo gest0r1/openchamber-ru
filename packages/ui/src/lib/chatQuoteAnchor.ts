@@ -10,11 +10,6 @@ export type ChatQuoteAnchor = {
     prefix: string;
     suffix: string;
     start: number;
-    /**
-     * Set when the text lives in a page the agent showed (`openchamber_render`)
-     * instead of the message's own text: the stream is then that page's body.
-     * UI pages render in the chat; other pages measure inside their frame.
-     */
     page?: { partId: string; kind?: 'ui' };
 };
 
@@ -37,14 +32,20 @@ export function findChatQuoteRoots(scope: ParentNode, messageId: string): Elemen
         .sort((left, right) => left.getBoundingClientRect().top - right.getBoundingClientRect().top);
 }
 
-/** The UI render page named by a quote, whether hoisted or in the final answer. */
 export function findUiRenderQuoteRoot(scope: ParentNode, messageId: string, partId: string): Element | null {
     return scope.querySelector(`[data-ui-render-message="${CSS.escape(messageId)}"][data-ui-render-part="${CSS.escape(partId)}"]`);
 }
 
-// The anchor's context around `index`, as far as `stream` reaches: a row of
-// a long answer that is not mounted leaves the stream short of it.
-function hasContextAt(stream: string, anchor: ChatQuoteAnchor, index: number): boolean {
+type StreamPieces = readonly number[] | undefined;
+
+function contextBounds(stream: string, pieces: StreamPieces, start: number, end: number): [number, number] {
+    if (!pieces) return [0, stream.length];
+    let low = 0;
+    for (const base of pieces) if (base <= start) low = base;
+    return [low, pieces.find((base) => base >= end) ?? stream.length];
+}
+
+function hasContextAt(stream: string, anchor: ChatQuoteAnchor, index: number, pieces?: StreamPieces): boolean {
     const end = index + anchor.text.length;
     const [low, high] = contextBounds(stream, pieces, index, end);
     const before = stream.slice(Math.max(low, index - anchor.prefix.length), index);

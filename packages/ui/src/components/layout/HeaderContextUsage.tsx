@@ -11,21 +11,12 @@ import { useCurrentContextReading } from './useCurrentContextReading';
 
 const UNKNOWN_PERCENT = '—';
 
-// Neutral until the warning threshold, as the Session card's meter: green
-// means finished, and a context in use is not.
 const TONE_COLOR = {
   safe: 'var(--muted-foreground)',
   warn: 'var(--status-warning)',
   critical: 'var(--status-error)',
 } as const;
 
-/**
- * The header's context fill: a ring in the fill's tone and the percent, the
- * same figure the Work Status row shows. While the Session card is on screen
- * with its Context row, the card carries the figure and the header leaves it
- * out, so the reading shows once. A click opens the context overview and a
- * second click closes it; the rail's Context item does the same.
- */
 const HeaderContextUsageComponent: React.FC<{ buttonClassName: string }> = ({ buttonClassName }) => {
   const { t } = useI18n();
   const { sessionId, fill, limit } = useCurrentContextReading();

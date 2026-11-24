@@ -1,15 +1,3 @@
-/**
- * The goal progress check: three yes/no questions about the agent's latest
- * turn, asked either of Jev (the classification model) or of the small model,
- * and one decision taken from the answers in code.
- *
- * Jev answers each question with a probability; the small model answers the
- * same questions as JSON booleans, read as 1 or 0, so both go through the same
- * decision. Measured on 144 goal-report turns (hand-written, labelled before
- * any answer was seen) plus 8 real goal turns: Jev 142/144 with both misses
- * on the safe side (a finished turn read as "continue"), gpt-6-luna 141/144.
- * Change the wording or the thresholds only with a new run of that measurement.
- */
 import { z } from 'zod';
 import type { createJevClient, JevRequest } from '../routing/jev.js';
 

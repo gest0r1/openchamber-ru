@@ -447,17 +447,18 @@ describe('workflow durability checkpoints', () => {
   });
 
   it('keeps deletion final while an earlier terminal checkpoint is pending', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
     const disk = diskFault();
     const agents = fakeAgentSessions();
     const { runtime, act, store, dataDir } = await setup(agents, { storeFs: disk.fs });
     const gate = deferred();
-    const entered = deferred();
+    let checkpointEntered = false;
     disk.beforeRename = async (snapshot) => {
-      if (snapshot.state === 'completed') { entered.resolve(); await gate.promise; }
+      if (snapshot.state === 'completed') { checkpointEntered = true; await gate.promise; }
     };
     const { runId } = await act('workflow.run', { script: script("return agent('work')") });
     await runtime.approve({ runId });
-    await entered.promise;
+    await waitFor(() => checkpointEntered);
     const removal = runtime.remove({ runId });
     gate.resolve();
     await removal;
@@ -568,6 +569,41 @@ describe('workflow runtime', () => {
     expect(status.agents[0]).toMatchObject({ model: 'openai/gpt-6-luna', usage: { cost: 0.01, input: 100 } });
     expect(await runtime.detail({ runId: proposed.runId })).toMatchObject({ script: expect.stringContaining('pipeline(args.items'), args: { items: ['a', 'b'] }, result: ['done: check a', 'done: check b'] });
     expect(await runtime.agentDetail({ runId: proposed.runId, key: status.agents[1].key })).toMatchObject({ prompt: 'check b', result: 'done: check b' });
+  });
+
+  it('starts a run at once while the settings allow it, and the user can still stop it', async () => {
+    let allowed = false;
+    const agents = fakeAgentSessions({ hang: ['hold'] });
+    const { runtime, act, finished, events } = await setup(agents, { startsWithoutApproval: async () => allowed });
+    const waiting = await act('workflow.run', { script: script("return agent('one')") });
+    expect(waiting.state).toBe('awaiting-approval');
+    expect(agents.started).toEqual([]);
+
+    allowed = true;
+    const started = await act('workflow.run', { script: script("return agent('one')") });
+    expect(started).toMatchObject({ state: 'running', note: expect.stringContaining('started without waiting for approval') });
+    expect((await finished(started.runId)).state).toBe('completed');
+    expect(agents.started).toEqual(['one']);
+    expect(events.filter((event) => event.properties.run?.id === started.runId).map((event) => event.properties.run.state)).not.toContain('awaiting-approval');
+    expect((await runtime.detail({ runId: started.runId })).logs[0].message).toContain('Started without approval');
+    await expect(runtime.approve({ runId: started.runId })).rejects.toMatchObject({ statusCode: 409 });
+
+    const held = await act('workflow.run', { script: script("return agent('hold')") });
+    await waitFor(() => agents.started.includes('hold'));
+    await runtime.stop({ runId: held.runId });
+    expect((await finished(held.runId)).state).toBe('stopped');
+    expect((await act('workflow.status', { runId: waiting.runId })).state).toBe('awaiting-approval');
+  });
+
+  it('publishes no run when the first save of a run started without approval fails', async () => {
+    const disk = diskFault();
+    disk.beforeRename = async () => { throw new Error('disk unavailable'); };
+    const agents = fakeAgentSessions();
+    const { act, store, events } = await setup(agents, { storeFs: disk.fs, startsWithoutApproval: async () => true });
+    await expect(act('workflow.run', { script: script("return agent('one')") })).rejects.toThrow('Could not save workflow run');
+    expect(await store.list()).toEqual([]);
+    expect(events).toEqual([]);
+    expect(agents.started).toEqual([]);
   });
 
   it('keeps at most the concurrency limit of agents working', async () => {

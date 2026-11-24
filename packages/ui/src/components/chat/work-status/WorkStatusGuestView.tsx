@@ -380,9 +380,7 @@ const RowTooltip: React.FC<{ text: string; children: React.ReactElement }> = ({ 
 );
 
 const Line: React.FC<{ row: Extract<GuestStatusRow, { kind: 'line' }> }> = ({ row }) => {
-  // Touch controls are 36px: on the phone a row grows to fit them instead of overlapping the next one.
   const touch = React.useContext(WorkStatusTouchContext);
-  // An icon the app does not have is left out rather than replaced.
   const icon = row.icon && isGuestIconName(row.icon) ? row.icon : null;
   const labelTooltip = row.tooltip && row.content?.kind === 'chart' ? row.tooltip : null;
   const rowTooltip = labelTooltip ? null : row.tooltip ?? null;

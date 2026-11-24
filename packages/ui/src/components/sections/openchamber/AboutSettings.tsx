@@ -24,6 +24,7 @@ import { getDesktopAppVersion } from '@/lib/desktopNative';
 import { getUpdateCheckErrorMessage } from '@/lib/updateCheckError';
 import { InstanceServiceUrls } from './InstanceServiceUrls';
 import { AboutReleaseNotes } from './AboutReleaseNotes';
+import { AboutUpdateBanners } from './AboutUpdateBanners';
 import { ScrollableOverlay } from '@/components/ui/ScrollableOverlay';
 import {
   SettingsChipGroup,
@@ -221,26 +222,36 @@ export const AboutSettings: React.FC<AboutSettingsProps> = ({ initialUpdateDialo
   const appVersion = describeVersion(desktopAppVersion || updateStore.info?.currentVersion || 'unknown', offeredVersion);
   const remoteHostVersion = openChamberVersion || remoteHostUpdate?.info?.currentVersion || 'unknown';
 
-  // Release notes follow the first version row: the notes of the installed
-  // version, or of the releases its offered update brings. Stable offered to
-  // a Canary build is one release, not a run of them since the build.
+  const renderReleaseNotes = (
+    installed: string | null | undefined,
+    offered: string | null | undefined,
+    owner: React.ComponentProps<typeof AboutReleaseNotes>['owner'],
+  ) => {
+    if (!installed) return null;
+    const leavesCanary = Boolean(offered && parseCanaryVersion(installed) && !parseCanaryVersion(offered));
+    return (
+      <AboutReleaseNotes
+        version={offered || installed}
+        since={offered && !leavesCanary ? installed : null}
+        describeVersion={describeVersion}
+        owner={owner}
+      />
+    );
+  };
   const installedVersion = isDesktopRemote
     ? desktopAppVersion || updateStore.info?.currentVersion
     : openChamberVersion || update.info?.currentVersion;
-  const leavesCanary = Boolean(offeredVersion && parseCanaryVersion(installedVersion) && !parseCanaryVersion(offeredVersion));
-  const releaseNotes = installedVersion ? (
-    <AboutReleaseNotes
-      version={offeredVersion || installedVersion}
-      since={offeredVersion && !leavesCanary ? installedVersion : null}
-      describeVersion={describeVersion}
-    />
-  ) : null;
+  const releaseNotes = (
+    <>
+      {isAndroidApp && renderReleaseNotes(
+        updateStore.info?.currentVersion,
+        updateStore.available ? updateStore.info?.version : null,
+        'app',
+      )}
+      {renderReleaseNotes(installedVersion, offeredVersion, isAndroidApp ? 'server' : 'installed')}
+    </>
+  );
 
-  // The update channel of the desktop app, or of the server installed from npm
-  // that this browser page belongs to (a browser on a desktop app's server
-  // gets the app's updates, which this page does not switch). Picking Canary
-  // checks at once, so the update to the Canary build shows up where every
-  // update does.
   const isDesktopApp = updateStore.runtimeType === 'desktop';
   const [isWebServer, setIsWebServer] = React.useState(false);
   const isNpmServer = updateStore.runtimeType === 'web' && isWebServer && openChamberVersion !== null;
@@ -274,11 +285,21 @@ export const AboutSettings: React.FC<AboutSettingsProps> = ({ initialUpdateDialo
       ? t('settings.openchamber.about.actions.updateAppToVersion', { version })
       : t('settings.openchamber.about.actions.updateOpenChamberToVersion', { version });
   })();
-  // An update that needs a newer OpenCode keeps its button, disabled, with
-  // the reason under it; the other blocks replace the button with steps.
   const needsNewerOpenCode = (info: UpdateInfo | null) => info?.installBlocked === 'opencode-version';
   const isInstallBlocked = (info: UpdateInfo | null) => Boolean(info?.installBlocked) && !needsNewerOpenCode(info);
   const installBlocked = update.available && isInstallBlocked(update.info);
+
+  const appDownloadUrl = isAndroidApp && updateStore.runtimeType === 'mobile' && updateStore.available
+    ? updateStore.info?.downloadUrl ?? null
+    : null;
+  const appUpdateButton = appDownloadUrl ? (
+    <Button type="button" size="sm" variant="outline" onClick={() => void openExternalUrl(appDownloadUrl)}>
+      <Icon name="download" className="size-4" />
+      {t('settings.openchamber.about.actions.downloadAppVersion', {
+        version: describeVersion(updateStore.info?.version || '', nativeAppVersion),
+      })}
+    </Button>
+  ) : null;
 
   const chooseUpdateChannel = async (channel: UpdateChannel) => {
     if (channel === updateChannel) return;
@@ -333,8 +354,6 @@ export const AboutSettings: React.FC<AboutSettingsProps> = ({ initialUpdateDialo
         scopes: ['all'],
       });
     }).then(() => {
-      // An OpenChamber update held back for an older OpenCode may be
-      // installable now.
       void update.checkForUpdates();
       if (remoteHostUpdate) void remoteHostUpdate.check();
     });
@@ -684,11 +703,6 @@ export const AboutSettings: React.FC<AboutSettingsProps> = ({ initialUpdateDialo
         {t('settings.openchamber.about.state.checking')}
       </span>
     </>
-  ) : update.available && !installBlocked ? (
-    <Button size="sm" variant="default" onClick={() => setUpdateDialogOpen(true)} disabled={needsNewerOpenCode(update.info)}>
-      <Icon name="download" className="size-4" />
-      {openChamberUpdateLabel}
-    </Button>
   ) : !update.available && !update.error ? (
     <>
       {statusSeparator}
@@ -754,7 +768,18 @@ export const AboutSettings: React.FC<AboutSettingsProps> = ({ initialUpdateDialo
               </SettingsFieldRow>
               <SettingsFieldRow label={t('settings.openchamber.about.field.serverVersion')} {...valueRow}>
                 {versionValue(remoteHostVersion)}
-                {remoteHostUpdateButton}
+              </SettingsFieldRow>
+            </>
+          ) : isNativeApp ? (
+            <>
+              {nativeAppVersion && (
+                <SettingsFieldRow label={t('settings.openchamber.about.field.appVersion')} {...valueRow}>
+                  {versionValue(describeVersion(nativeAppVersion, updateStore.info?.version))}
+                </SettingsFieldRow>
+              )}
+              <SettingsFieldRow label={t('settings.openchamber.about.field.serverVersion')} {...valueRow}>
+                {versionValue(currentVersion)}
+                {openChamberStatus}
               </SettingsFieldRow>
             </>
           ) : (

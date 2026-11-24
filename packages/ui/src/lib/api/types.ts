@@ -211,7 +211,6 @@ interface GitStatusFile {
   path: string;
   index: string;
   working_dir: string;
-  /** Set on a rename: the path this file came from. */
   previousPath?: string;
 }
 
@@ -276,7 +275,6 @@ export interface GetGitDiffOptions {
   path: string;
   staged?: boolean;
   contextLines?: number;
-  /** A rename's source path. */
   previousPath?: string;
 }
 
@@ -296,7 +294,6 @@ export interface GetGitRangeDiffOptions {
   path?: string;
   contextLines?: number;
   includeWorkingTree?: boolean;
-  /** A rename's source path. */
   previousPath?: string;
 }
 
@@ -309,12 +306,7 @@ export interface GetGitRangeFilesOptions {
 export interface GitRangeFileEntry {
   path: string;
   status: string;
-  /** A rename's source path. */
   previousPath?: string;
-  /**
-   * Working-tree listings only: changes exactly when this file's patch can
-   * change (merge base moved, or the file was written). Absent elsewhere.
-   */
   revision?: string;
 }
 
@@ -333,7 +325,6 @@ export interface GitFileDiffResponse {
 export interface GetGitFileDiffOptions {
   path: string;
   staged?: boolean;
-  /** A rename's source path. */
   previousPath?: string;
 }
 
@@ -962,13 +953,7 @@ export interface CreateGitWorktreePayload {
   existingBranch?: string;
   startRef?: string;
   startCommand?: string;
-  /**
-   * The project's own command that creates the worktree in place of
-   * `git worktree add`, given `$WORKTREE_PATH` and `$WORKTREE_BRANCH`. The
-   * request then waits for it, even with `returnAfterDirectoryCreated`.
-   */
   createCommand?: string;
-  /** Configure upstream tracking for the created/attached local branch. */
   setUpstream?: boolean;
   upstreamRemote?: string;
   upstreamBranch?: string;
@@ -1012,13 +997,10 @@ export interface GitCheckoutTrustInspection {
 export interface RemoveGitWorktreePayload {
   directory: string;
   deleteLocalBranch?: boolean;
-  /** Runs inside the worktree before anything is removed; a failure keeps the worktree. */
   teardownCommand?: string;
 }
 
-/** Runs a worktree's teardown commands without removing it. */
 export interface TeardownGitWorktreePayload {
-  /** The worktree. */
   directory: string;
   teardownCommand: string;
 }
@@ -1103,9 +1085,7 @@ interface GitWorktreeAPI {
   preview?(directory: string, payload: CreateGitWorktreePayload): Promise<GitWorktreeCreateResult>;
   create?(directory: string, payload: CreateGitWorktreePayload): Promise<GitWorktreeCreateResult>;
   remove?(directory: string, payload: RemoveGitWorktreePayload): Promise<{ success: boolean }>;
-  /** `directory` is the project; runs the worktree's teardown and keeps it. */
   teardown?(directory: string, payload: TeardownGitWorktreePayload): Promise<{ success: boolean }>;
-  /** Sets the task title of the worktree at `directory` as the user's; an empty title clears it. */
   setTitle?(directory: string, title: string, by?: 'user' | 'agent'): Promise<GitWorktreeTitleResult>;
   setPinned?(directory: string, pinned: boolean, list?: string | null): Promise<GitWorktreePinResult>;
   snapshot?(directory: string, payload: GitWorktreeSnapshotPayload): Promise<GitWorktreeSnapshotResult>;
@@ -1668,10 +1648,6 @@ export class SourceControlInstanceOtherProviderError extends Error {
   }
 }
 
-/**
- * Saving an instance's aliases refused one: `invalid` when it is not an HTTPS
- * address, `taken` when it already is (or aliases) another instance's.
- */
 export class SourceControlInstanceAliasError extends Error {
   readonly reason: 'invalid' | 'taken';
   readonly alias: string;
@@ -1697,11 +1673,6 @@ export interface SourceControlAPI {
   authComplete(identity: SourceControlIdentity, flowId: string): Promise<SourceControlDeviceFlowComplete>;
   authSetToken(identity: SourceControlIdentity, token: string, options?: { username?: string }): Promise<SourceControlAuthStatus>;
   authSetSshUrl(identity: SourceControlIdentity, sshUrl: string | null): Promise<{ sshUrl: string | null }>;
-  /**
-   * Replaces the other web addresses of an instance the user added; an empty
-   * list removes them. Answers them as stored, in the instance's spelling.
-   * Throws `SourceControlInstanceAliasError` for an address it refuses.
-   */
   setInstanceAliases(identity: SourceControlIdentity, aliases: string[]): Promise<{ aliases: string[] }>;
   authDisconnect(identity: SourceControlIdentity, accountId: string): Promise<{ removed: boolean }>;
   authActivate(identity: SourceControlIdentity, accountId: string): Promise<SourceControlAuthStatus>;

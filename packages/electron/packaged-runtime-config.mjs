@@ -1,29 +1,7 @@
-/**
- * How a packaged application document receives its runtime values (local
- * origin, API base, client token, request headers) from main.
- *
- * The scheme answers any frame in the app's session, and the request gives main
- * nothing to tell the frames apart: no fetch metadata, no origin, the same mode
- * for every kind of load. So served documents hold no values. A script at the
- * top of <head> asks main for them through the preload bridge, and main checks
- * the frame that asked (see isRuntimeConfigFrame).
- *
- * On a plain local launch main navigates to the application before the local
- * server is listening, so the values do not exist yet: the document then ends
- * with a parser-blocking script that main answers once startup has resolved.
- * Meanwhile Chromium parses and paints the document and fetches and compiles its
- * module scripts, but module scripts run only after parsing finishes, so no
- * application code runs, and no request leaves the renderer, before the values
- * are set.
- */
 
 export const RUNTIME_CONFIG_SCRIPT_PATHNAME = '/__runtime-config.js';
 const PACKAGED_UI_ORIGIN = 'openchamber-ui://app';
 
-/**
- * Sets the values the bridge returns. A frame without the bridge sets nothing,
- * and a value the preload already exposed for this window stays.
- */
 export const RUNTIME_CONFIG_SCRIPT = '(function(){var read=window.__OPENCHAMBER_READ_RUNTIME_CONFIG__;var c=read&&read();if(!c)return;if(window.__OPENCHAMBER_LOCAL_ORIGIN__===undefined){window.__OPENCHAMBER_LOCAL_ORIGIN__=c.localOrigin;}if(window.__OPENCHAMBER_API_BASE_URL__===undefined){window.__OPENCHAMBER_API_BASE_URL__=c.apiBaseUrl;}if(window.__OPENCHAMBER_CLIENT_TOKEN__===undefined&&c.clientToken){window.__OPENCHAMBER_CLIENT_TOKEN__=c.clientToken;}if(window.__OPENCHAMBER_RUNTIME_HEADERS__===undefined&&c.requestHeaders&&Object.keys(c.requestHeaders).length>0){window.__OPENCHAMBER_RUNTIME_HEADERS__=c.requestHeaders;}}())';
 
 export const injectRuntimeConfig = (html, { pending }) => {

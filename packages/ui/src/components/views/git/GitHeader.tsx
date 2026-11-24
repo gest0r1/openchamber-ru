@@ -129,7 +129,6 @@ interface IdentityIconProps {
 }
 
 const IdentityIcon: React.FC<IdentityIconProps> = ({ icon, className, colorToken, quiet = false }) => {
-  // Identities made from a connected account carry the provider's mark: their icon key is the provider id.
   const providers = useSourceControlProviderRegistry((state) => state.byId);
   const iconName = IDENTITY_ICON_MAP[icon ?? 'branch'];
   const provider = !iconName && icon ? providers.get(icon) : undefined;
@@ -162,7 +161,6 @@ interface IdentityDropdownProps {
   triggerClassName?: string;
   menuAlign?: 'start' | 'end';
   onOpen?: () => void;
-  /** The trigger leaves out the identity's colour; the menu keeps it. */
   quiet?: boolean;
 }
 

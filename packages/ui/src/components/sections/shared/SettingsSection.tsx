@@ -16,15 +16,6 @@ export const SETTINGS_SELECT_TRIGGER_CLASS = SETTINGS_TRIGGER_WIDTH_CLASS;
 
 export const SETTINGS_SELECT_ROW_TRIGGER_CLASS = SETTINGS_TRIGGER_WIDTH_CLASS;
 
-/**
- * Width for every settings NumberInput stepper. Font-relative for the same
- * reason as the trigger cap above: a rem-fixed `w-16`/`w-20`/`w-24`/`w-32`
- * clips its own digits once the interface font is scaled up. The explicit
- * `typography-ui-label` pins `ch` to the same scaled font the inner numeric
- * field renders in, since the wrapper would otherwise inherit an unscaled one.
- * The rem part holds the two buttons, which are wider on a phone than `ch`
- * grows; the `ch` part holds five digits, the longest value (a port).
- */
 export const SETTINGS_NUMBER_INPUT_CLASS = 'typography-ui-label w-[calc(5.75rem+5ch)]';
 
 export const SETTINGS_ICON_BUTTON_CLASS =
@@ -38,10 +29,6 @@ export const SETTINGS_CUSTOM_TRIGGER_CLASS = cn(
 
 export const SETTINGS_CONTROL_CLUSTER_CLASS = 'w-full max-w-[24rem]';
 
-/**
- * Row wrapping a NumberInput + unit label + reset.
- * Keep the stepper intrinsic — never flex-grow it or +/- buttons stretch unevenly.
- */
 export const SETTINGS_NUMBER_STEPPER_ROW_CLASS = 'flex w-full min-w-0 items-center gap-2';
 
 export const SETTINGS_NUMBER_UNIT_CLASS =
@@ -72,19 +59,9 @@ export const SettingsBadge: React.FC<{ children: React.ReactNode }> = ({ childre
   </span>
 );
 
-/**
- * The device context the Settings view tests availability with. A badge outside
- * it (the project edit dialog) stays hidden, and an opener such as a tab never
- * announces a control the device does not render.
- */
 const SettingsAvailabilityContext = React.createContext<SettingsSearchAvailabilityContext | null>(null);
 export const SettingsAvailabilityProvider = SettingsAvailabilityContext.Provider;
 
-/**
- * The "new" badge for one or more search anchors: shown when any of them is new
- * to this client. The shared rows render it for their own `settingsItem`, so a
- * page's nav badge always has a row on that page that says which control it means.
- */
 export const SettingsNewBadge: React.FC<{ items: readonly (string | undefined)[] }> = ({ items }) => {
   const { t } = useI18n();
   const ctx = React.useContext(SettingsAvailabilityContext);
@@ -99,22 +76,12 @@ interface SettingsSectionProps {
   info?: React.ReactNode;
   headerAction?: React.ReactNode;
   children: React.ReactNode;
-  /**
-   * A rule above the section. Sections are set apart by space (the gap above
-   * each one), so this is for the rare section that needs a line as well.
-   * @default false
-   */
   divider?: boolean;
   className?: string;
   contentClassName?: string;
   settingsItem?: string;
 }
 
-/**
- * Shared settings section chrome: single-style header, set apart from the
- * section above by one gap (`pt-10`). The first section of its container,
- * and the first one the page renders (SettingsPageLayout), takes no gap.
- */
 export const SettingsSection: React.FC<SettingsSectionProps> = ({
   title,
   description,
@@ -142,8 +109,6 @@ export const SettingsSection: React.FC<SettingsSectionProps> = ({
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0 space-y-1">
             {title != null ? (
-              // Beside a header action, the title line is the action's 28px
-              // height, so the two share a centre line.
               <div className={cn('flex items-center gap-2', headerAction != null && 'min-h-7')}>
                 {typeof title === 'string' || typeof title === 'number' ? (
                   <h2 className={SETTINGS_SECTION_TITLE_CLASS}>{title}</h2>

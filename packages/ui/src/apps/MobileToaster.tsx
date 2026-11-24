@@ -3,8 +3,6 @@ import React from 'react';
 import { Toaster } from '@/components/ui/sonner';
 
 const TOP_OFFSET = 'calc(var(--oc-safe-area-top, 0px) + var(--oc-visual-viewport-offset-top, 0px) + 16px)';
-// The sides clear the screen's insets: a landscape notch, the status bar
-// column of iPhone Duo. mobile.css lets the two sides differ.
 const MOBILE_OFFSET = {
   top: TOP_OFFSET,
   left: 'calc(var(--oc-safe-area-left, 0px) + 16px)',

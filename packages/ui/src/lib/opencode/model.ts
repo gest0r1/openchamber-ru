@@ -199,7 +199,6 @@ export type CompactionMessage = MessageBase & {
   status: "running" | "completed" | "failed"
   reason: "auto" | "manual"
   summary: string
-  /** The model that wrote this summary, not the session's current model. */
   model?: ModelRef
   error?: StructuredError
   cost?: number

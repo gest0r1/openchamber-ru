@@ -27,12 +27,6 @@ interface BackgroundShellsStripProps {
 
 const COMMAND_TOOLTIP_DELAY_MS = 500;
 
-/**
- * Which sessions with background work belong to this session's tree. The tree
- * is resolved only for sessions that run something, and the result is
- * compared as a string, so the session list changing during a stream
- * re-renders nothing here.
- */
 const useTreeIds = (sessionId: string, workingSessionIds: ReadonlySet<string>): ReadonlySet<string> => {
   const treeKey = useGlobalSessionsStore(React.useCallback((state) => (
     workingSessionIds.size === 0
@@ -42,7 +36,6 @@ const useTreeIds = (sessionId: string, workingSessionIds: ReadonlySet<string>): 
   return React.useMemo(() => new Set(treeKey ? treeKey.split('\n') : []), [treeKey]);
 };
 
-/** Commands of this session and of its subagents. */
 const useSessionTreeShells = (sessionId: string): TrackedShell[] => {
   const treeIds = useTreeIds(sessionId, useBackgroundShellsStore((state) => state.sessionIds));
   return useBackgroundShellsStore(useShallow(React.useCallback((state) => (
@@ -50,7 +43,6 @@ const useSessionTreeShells = (sessionId: string): TrackedShell[] => {
   ), [treeIds])));
 };
 
-/** Images this session and its subagents are generating. */
 const useSessionTreeImages = (sessionId: string): RunningImageJob[] => {
   const treeIds = useTreeIds(sessionId, useBackgroundImagesStore((state) => state.sessionIds));
   return useBackgroundImagesStore(useShallow(React.useCallback((state) => (
@@ -58,7 +50,6 @@ const useSessionTreeImages = (sessionId: string): RunningImageJob[] => {
   ), [treeIds])));
 };
 
-/** Its own leaf, so the once-a-second tick re-renders this text alone. */
 const ShellElapsed: React.FC<{ startedAt: number }> = ({ startedAt }) => {
   const { t } = useI18n();
   const now = useDurationTickerNow(true);
@@ -77,7 +68,6 @@ const useStopShells = (rootSessionId: string, rootDirectory: string | undefined)
   const [stoppingIds, setStoppingIds] = React.useState<ReadonlySet<string>>(() => new Set());
 
   const stop = React.useCallback((shells: readonly TrackedShell[]) => {
-    // A command its chat row is stopping already gets no second note.
     const pending = shells.filter((shell) => !stoppingIds.has(shell.id) && !isForegroundShellStopping(shell.id));
     if (pending.length === 0) return;
     setStoppingIds((current) => new Set([...current, ...pending.map((shell) => shell.id)]));
@@ -161,13 +151,8 @@ const ShellRow: React.FC<{
   );
 };
 
-/** The name an image gets, without its folder; the path has no extension yet. */
 const imageName = (path: string): string => path.split(/[\\/]/).filter(Boolean).at(-1) ?? path;
 
-/**
- * An image being generated. OpenCode has no route that cancels an image job,
- * so the row has no Stop.
- */
 const ImageRow: React.FC<{ job: RunningImageJob; fromSubagent: boolean }> = ({ job, fromSubagent }) => {
   const { t } = useI18n();
 
@@ -194,13 +179,6 @@ const ImageRow: React.FC<{ job: RunningImageJob; fromSubagent: boolean }> = ({ j
   );
 };
 
-/**
- * Commands the agent left running in the background (dev servers, watchers,
- * test pages) and images it is generating, as a top row of the composer next
- * to the "looks done" hint. One item is its own row; several collapse into a
- * count that expands in place, so the composer grows by one row unless the
- * user asks for the list.
- */
 export const BackgroundShellsStrip: React.FC<BackgroundShellsStripProps> = React.memo(({ sessionId, directory }) => {
   const { t } = useI18n();
   const shells = useSessionTreeShells(sessionId ?? '');
@@ -209,8 +187,6 @@ export const BackgroundShellsStrip: React.FC<BackgroundShellsStripProps> = React
   const listId = React.useId();
   const { stoppingIds, stop } = useStopShells(sessionId ?? '', directory);
   const stopOne = React.useCallback((shell: TrackedShell) => stop([shell]), [stop]);
-  // Stops started from a command's chat row count too, so Stop all is off
-  // while it would stop nothing and comes back when such a stop fails.
   const foregroundStoppingIds = useForegroundShellStoppingIds();
 
   const count = shells.length + images.length;
@@ -264,7 +240,6 @@ export const BackgroundShellsStrip: React.FC<BackgroundShellsStripProps> = React
           </TooltipTrigger>
           <TooltipContent side="top" sideOffset={6}>{t(expanded ? 'contextTooltips.chat.shellsHide' : 'contextTooltips.chat.shellsShow')}</TooltipContent>
         </Tooltip>
-        {/* Stops the commands only: an image job cannot be cancelled. */}
         {shells.length > 0 ? (
           <Tooltip>
             <TooltipTrigger asChild>

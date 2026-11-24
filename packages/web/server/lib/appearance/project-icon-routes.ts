@@ -1,10 +1,61 @@
-// An uploaded image opened as a page would run an SVG's scripts on the app's
-// origin; this policy keeps it inert and changes nothing where it is drawn as
-// an <img>.
+import type fs from 'node:fs/promises';
+import type nodePath from 'node:path';
+import type nodeCrypto from 'node:crypto';
+import type { spawn as nodeSpawn } from 'node:child_process';
+import type { Application } from '../shared/http-contracts.js';
+import type { SessionProject } from '../projects/contracts.js';
+import type { createFsSearchRuntime as createSearchRuntime, FilesystemFile } from '../fs/search.js';
+import { isString } from '../shared/object-guards.js';
+
+export interface ProjectIconProject extends SessionProject {
+  iconImage?: { mime: string; updatedAt: number; source: 'custom' | 'auto' } | null;
+}
+
+export interface ProjectIconSettings {
+  projects?: unknown;
+}
+
+export type ProjectIconSavedSettings = {
+  projects?: ProjectIconProject[];
+};
+
+export interface ProjectIconDependencies {
+  fsPromises: Pick<typeof fs, 'readFile' | 'writeFile' | 'unlink' | 'mkdir' | 'readdir'>;
+  path: typeof nodePath;
+  crypto: Pick<typeof nodeCrypto, 'createHash'>;
+  openchamberDataDir: string;
+  sanitizeProjects: (input: ProjectIconSettings['projects']) => ProjectIconProject[] | undefined;
+  readSettingsFromDiskMigrated: () => Promise<ProjectIconSettings>;
+  persistSettings: (changes: ProjectIconSavedSettings) => Promise<ProjectIconSavedSettings>;
+  persistResolvedSettings: (resolve: (current: ProjectIconSettings) => ProjectIconSavedSettings) => Promise<ProjectIconSavedSettings>;
+  createFsSearchRuntime: typeof createSearchRuntime;
+  spawn: typeof nodeSpawn;
+  resolveGitBinaryForSpawn: () => string;
+}
+
+interface IconUploadBody {
+  dataUrl?: unknown;
+  force?: unknown;
+}
+
+type ParsedProjectIcon =
+  | { ok: false; error: string }
+  | { ok: true; mime: string; bytes: Buffer };
+
+interface IconMimeExtensions {
+  [mime: string]: string | undefined;
+}
+
+interface FaviconExtensionScores {
+  [extension: string]: number | undefined;
+}
+
+const hasErrorCode = (error: unknown): error is { code?: unknown } =>
+  Boolean(error) && typeof error === 'object';
+
 export const INERT_IMAGE_CSP = "default-src 'none'; style-src 'unsafe-inline'; sandbox";
 
-/** Sets the CSS `color` of an SVG document, so its `currentColor` follows the theme. */
-export const injectSvgRootColor = (svgMarkup, color) => {
+export const injectSvgRootColor = (svgMarkup: string, color: string) => {
   const svgTagIndex = svgMarkup.search(/<svg\b/i);
   if (svgTagIndex === -1) {
     return svgMarkup;
@@ -19,7 +70,7 @@ export const injectSvgRootColor = (svgMarkup, color) => {
   return `${svgMarkup.slice(0, svgOpenTagEndIndex + 1)}${overrideStyle}${svgMarkup.slice(svgOpenTagEndIndex + 1)}`;
 };
 
-export const registerProjectIconRoutes = (app, dependencies) => {
+export const registerProjectIconRoutes = (app: Application, dependencies: ProjectIconDependencies) => {
   const {
     fsPromises,
     path,
@@ -244,7 +295,6 @@ export const registerProjectIconRoutes = (app, dependencies) => {
             ? metadataMime
             : projectIconExtensionToMime[ext] || 'application/octet-stream';
           const contentType = resolvedMime === 'image/svg+xml' ? 'image/svg+xml; charset=utf-8' : resolvedMime;
-          // Icons come from repositories.
           res.setHeader('Content-Security-Policy', INERT_IMAGE_CSP);
           res.setHeader('X-Content-Type-Options', 'nosniff');
 
@@ -415,9 +465,6 @@ export const registerProjectIconRoutes = (app, dependencies) => {
         return res.status(415).json({ error: 'Unsupported favicon format' });
       }
 
-      // The search above can outlast other saves, and every added project runs
-      // it. The project may be gone or have a chosen icon by now, and the new
-      // icon goes onto the list as it is at write time.
       const { project: latest } = findProjectById(await readSettingsFromDiskMigrated(), projectId);
       if (!latest) {
         return res.status(404).json({ error: 'Project not found' });

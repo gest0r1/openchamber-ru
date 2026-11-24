@@ -55,12 +55,6 @@ export const getModelDisplayName = (
     return getProviderModelDisplayName(provider, modelId, { fallbackLabel });
 };
 
-/**
- * The composer's effort label is tinted by how hard the model thinks: only the
- * `default` level stays grey; light levels and any unknown name read info,
- * medium and high warning, the top levels error. Pure status text colors, so
- * old WebViews without color-mix render them; opacity keeps them quiet.
- */
 const EFFORT_TONE_CLASS = {
     default: 'text-muted-foreground',
     info: 'text-[var(--status-info-text)] opacity-75',

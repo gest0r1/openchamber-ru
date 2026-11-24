@@ -13,11 +13,8 @@ interface SessionFolderItemProps<TSessionNode> {
   folder: SessionFolder;
   displayName?: string;
   sessions: readonly TSessionNode[];
-  /** Everything filed here, what a section lists elsewhere and whole worktrees included. */
   memberCount?: number;
-  /** The project's name, where folders of several projects share a list. */
   projectLabel?: string;
-  /** Sub-folders that belong directly to this folder */
   subFolderItems?: React.ReactNode;
   isCollapsed: boolean;
   collapsedActivityState?: CollapsedActivityState;

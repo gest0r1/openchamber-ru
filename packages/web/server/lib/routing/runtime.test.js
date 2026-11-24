@@ -603,29 +603,6 @@ describe('routeSend', () => {
   });
 });
 
-describe('routeSend', () => {
-  afterEach(() => vi.unstubAllGlobals());
-
-  it('switches a form reply onto the routed model and agent, judged on the answer', async () => {
-    const calls = [];
-    vi.stubGlobal('fetch', vi.fn(async (input, init) => {
-      const url = new URL(input instanceof Request ? input.url : input);
-      const body = input instanceof Request ? await input.clone().text() : init?.body;
-      calls.push({ path: url.pathname, body: JSON.parse(body) });
-      return new Response(null, { status: 204 });
-    }));
-    const { runtime, jev } = makeRuntime({ answers: { category: { choice: 'hard', confidence: 0.97 } } });
-
-    await runtime.routeSend({ sessionId: 's1', directory: '/repo', body: { answer: { plan: 'rewrite the scheduler' } } });
-
-    expect(jev.ask.mock.calls[0][0].state.request).toBe('rewrite the scheduler');
-    expect(calls).toEqual([
-      { path: '/api/session/s1/model', body: { model: { providerID: 'openai', id: 'gpt-6-astra', variant: 'high' } } },
-      { path: '/api/session/s1/agent', body: { agent: 'plan' } },
-    ]);
-  });
-});
-
 describe('auto sessions', () => {
   it('remembers the sentinel selection and forgets it when a real model is chosen', () => {
     const { runtime } = makeRuntime({ answers: {} });

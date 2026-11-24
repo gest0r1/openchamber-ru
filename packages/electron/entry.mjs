@@ -2,6 +2,7 @@
 import { app, protocol } from 'electron';
 import fs from 'node:fs';
 import path from 'node:path';
+import { setTimeout as delay } from 'node:timers/promises';
 import { plainChromeUserAgent } from './browser-panel-security.mjs';
 import { enableMainProcessCompileCache } from './compile-cache.mjs';
 import { shouldIgnoreLoopbackConnectionLimit } from './startup-url-selection.mjs';
@@ -32,11 +33,7 @@ if (process.platform === 'linux') {
   // external: https://www.electronjs.org/docs/latest/api/command-line-switches#enable-speech-dispatcher-linux Linux speech synthesis requires the opt-in speech-dispatcher backend.
   app.commandLine.appendSwitch('enable-speech-dispatcher');
 }
-// Shared and service workers ignore the browser panel's session user agent and
-// use this fallback. Left at Electron's default, a page saw plain Chrome in its
-// window and Electron plus the app name in those workers, and Cloudflare
-// Turnstile rejected it (error 600010). Set before the first window: once one
-// has loaded, the default session keeps Electron's agent for its own requests.
+// external: https://www.electronjs.org/docs/latest/api/app#appuseragentfallback Set the worker user agent before any window loads so workers and panel pages present the same browser identity.
 app.userAgentFallback = plainChromeUserAgent(app.userAgentFallback);
 if (isDev) {
   app.setPath('userData', path.join(app.getPath('appData'), 'OpenChamber Dev'));

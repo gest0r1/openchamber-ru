@@ -248,12 +248,6 @@ const prepareStructuredText = async (file: File, extension: string): Promise<Fil
   return new File([text], file.name, { type: "text/plain" })
 }
 
-/**
- * A HEIC/HEIF image the bundled decoder cannot read. Apple's HDR gain-map
- * photos are the known case: the vendored `heic2any` predates that format.
- * The store attaches such a file as a note naming it where OpenCode runs, and
- * names the cause only when it cannot put the file there either.
- */
 export class HeicConversionError extends Error {
   constructor(file: File) {
     super(`Could not convert ${file.name} from HEIC to JPEG`)
@@ -313,9 +307,6 @@ export const prepareAttachmentFiles = (
       try {
         output = await prepareAttachmentFile(image)
       } catch (error) {
-        // An image inside a document that cannot be converted leaves the
-        // document unreadable as an attachment, as it did before; the file the
-        // user dropped is not the HEIC here, so the reason is not theirs to fix.
         if (!(error instanceof HeicConversionError)) throw error
       }
       if (!output || !output.mimeType.startsWith("image/")) return

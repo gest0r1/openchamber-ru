@@ -115,7 +115,6 @@ export type SessionProjectScrollerView = {
   hideDirectoryControls: boolean;
   mobileVariant: boolean;
   alwaysShowActions: boolean;
-  /** VS Code draws no line between open projects; see DOCUMENTATION.md, "One view". */
   isVSCode: boolean;
   projectSortOrder: ProjectSortOrder;
 };
@@ -333,8 +332,6 @@ function SessionProjectScrollerComponent({ model, view, actions }: SessionProjec
     </div>;
   }, [childStores, resumeFolder, t]);
 
-  // The Pages section's rows name their page; the page itself (label, icon,
-  // toggle) is read here, only while the list draws any.
   const listsPages = React.useMemo(() => model.rowModel.rows.some((row) => row.kind === 'page'), [model.rowModel.rows]);
   const sidebarPages = useSidebarPages(listsPages);
   const pageById = React.useMemo(() => new Map(sidebarPages.map((page) => [page.id, page])), [sidebarPages]);
@@ -346,8 +343,6 @@ function SessionProjectScrollerComponent({ model, view, actions }: SessionProjec
     }
     if (row.kind === 'activity-header') {
       return sortableSection(row, <CrossfadeZoneHeader
-        // The touch sidebar sits on the editor's background rather than the
-        // sidebar surface, so its sticky header takes the list's own colour.
         className={cn('sticky top-0 z-20', view.mobileVariant ? 'bg-background' : 'bg-sidebar')}
         data-sidebar-sticky-header="true"
       >
@@ -374,8 +369,6 @@ function SessionProjectScrollerComponent({ model, view, actions }: SessionProjec
       return <SortableProjectItem
         id={project.id}
         sortGroup={sortGroup}
-        // A group of projects keeps the order the user gives it, whatever the
-        // projects' sort; Projects sorts by hand only when sorted manually.
         disabled={model.singleProjectMode || model.state.editingId !== null
           || (sortGroup === PROJECTS_SORT_GROUP && view.projectSortOrder !== 'manual')}
         projectLabel={label}

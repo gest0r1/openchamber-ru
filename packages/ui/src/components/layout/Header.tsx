@@ -370,15 +370,11 @@ export const Header: React.FC = () => {
   const [headerSessionTitleDraft, setHeaderSessionTitleDraft] = React.useState('');
   const [moveSessionTarget, setMoveSessionTarget] = React.useState<{ sessionId: string; directory: string } | null>(null);
   const sessionExport = useSessionMarkdownExport();
-  // Archive runs at once with Undo in its toast, as in the sidebar; only a
-  // delete asks first.
   const [pendingDeleteSessionId, setPendingDeleteSessionId] = React.useState<string | null>(null);
   const pendingDeleteSessionTitle = useGlobalSessionsStore((state) => (pendingDeleteSessionId
     ? state.entityById.get(pendingDeleteSessionId)?.title?.trim() || null
     : null)) ?? t('sessions.sidebar.session.untitled');
   const headerRenameFormRef = React.useRef<HTMLFormElement | null>(null);
-  // Set as the rename starts, before the field renders: a tab menu closing in
-  // the same pass must leave the focus to the field.
   const headerRenameOpenRef = React.useRef(false);
   headerRenameOpenRef.current = isRenamingHeaderSession;
 
@@ -509,8 +505,6 @@ export const Header: React.FC = () => {
   }, [guestPage, isArchiveSurfaceOpen, isIntegrationsCatalogSurfaceOpen, overviewRunTitle, runOverviewKey, isScheduledSurfaceOpen, isSourceBoardSurfaceOpen, isOverviewSurfaceOpen, isUsageStatsSurfaceOpen, spacesSurfaceProjectId, surfaceProjectLabel, t, worktreesSurfaceProjectId]);
 
 
-  // The header's Mini Chat button opens whatever is on screen: the new-session
-  // draft as a new Mini Chat, or the current session.
   const handleOpenDraftMiniChat = React.useCallback(() => {
     void invokeDesktop('desktop_open_draft_mini_chat_window', {
       directory: isChatContext ? '' : draftDirectory,
@@ -542,7 +536,6 @@ export const Header: React.FC = () => {
 
 
 
-
   const desktopHeaderIconButtonClass = DESKTOP_HEADER_ICON_BUTTON_CLASS;
   const titlebarLeftInset = React.useMemo(() => {
     if (isDesktopApp && isMacPlatform && !isDesktopWindowFullscreen) {
@@ -556,9 +549,6 @@ export const Header: React.FC = () => {
     }
     return '0.75rem';
   }, [isDesktopApp, isDesktopWindowFullscreen, isMacPlatform, isTabletStandalonePwa, isVSCode, usesFramelessChrome]);
-  // 10px, as the header's pe-2.5: the last 24px button's centre sits 22px
-  // from the window edge, on the axis of the 44px icon rail below it. 12px
-  // here put it 2px off that axis.
   const titlebarRightInset = (!isDesktopApp || usesFramelessChrome) && !isVSCode
     ? 'calc(0.625rem + var(--oc-wco-right-inset, 0px))'
     : '0.625rem';
@@ -1042,14 +1032,9 @@ export const Header: React.FC = () => {
                   onClick={handleWorkStatusToggle}
                   className={cn(
                     DESKTOP_HEADER_ICON_BUTTON_CLASS,
-                    // On, it takes the flat selected fill of sidebar rows and
-                    // rail surfaces (oc-selected), so the card shows which
-                    // toggle opened it; raised stays for buttons and fields.
                     workStatusToggleActive && 'oc-selected text-interactive-selection-foreground hover:text-interactive-selection-foreground',
                   )}
                 >
-                  {/* A window with a card in its corner: the toggle opens a card,
-                      not a full-height sidebar (layout-right promised one). */}
                   <Icon name="panel-card" className="h-4 w-4" />
                 </button>
               </TooltipTrigger>

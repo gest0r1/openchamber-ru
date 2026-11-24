@@ -34,10 +34,6 @@ interface ProviderOAuthMethodsProps {
   showMethodLabels?: boolean;
   connectLabel?: string;
   showStartButton?: boolean;
-  /**
-   * Told `true` when a sign-in starts and `false` when it ends, fails or this unmounts,
-   * so a caller that mounts this only in some states can keep it until then.
-   */
   onActiveChange?: (active: boolean) => void;
 }
 
@@ -74,13 +70,11 @@ export const ProviderOAuthMethods: React.FC<ProviderOAuthMethodsProps> = ({
   const [flow, setFlow] = React.useState<Flow>(IDLE);
   const [fieldValues, setFieldValues] = React.useState<Record<string, FormValue>>({});
   const [codeInput, setCodeInput] = React.useState('');
-  /** The address pasted into a waiting `paste` attempt, and how handing it over went. */
   const [redirectInput, setRedirectInput] = React.useState('');
   const [redirectSubmit, setRedirectSubmit] = React.useState<{ submitting: boolean; error: string | null }>({
     submitting: false,
     error: null,
   });
-  /** Set while a poll loop is live; clearing it stops the loop at its next tick. */
   const activeAttemptRef = React.useRef<string | null>(null);
 
   const cancelAttempt = React.useCallback((attemptID: string) => {
@@ -278,18 +272,12 @@ export const ProviderOAuthMethods: React.FC<ProviderOAuthMethodsProps> = ({
     }
   };
 
-  /**
-   * Hands a waiting attempt the address the browser landed on. OpenCode settles
-   * the attempt through its status, which the poll loop already watches; a
-   * rejected address leaves the attempt waiting, so the user can paste again.
-   */
   const submitRedirect = async () => {
     if (flow.phase !== 'waiting') return;
     const address = redirectInput.trim();
     if (!address) return;
     const { attemptID } = flow.attempt;
     setRedirectSubmit({ submitting: true, error: null });
-    // Accepted, it stays submitting until the poll loop reads the result.
     try {
       await sdk().integration.oauth.complete({ integrationID: integrationId, attemptID, code: address });
     } catch (error) {
@@ -301,7 +289,6 @@ export const ProviderOAuthMethods: React.FC<ProviderOAuthMethodsProps> = ({
     }
   };
 
-  /** Drops the attempt upstream so a half-finished sign-in cannot be resumed by accident. */
   const cancel = () => {
     if (flow.phase === 'waiting' || flow.phase === 'awaitingCode') {
       cancelAttempt(flow.attempt.attemptID);
@@ -471,7 +458,6 @@ export const ProviderOAuthMethods: React.FC<ProviderOAuthMethodsProps> = ({
                         {t('settings.providers.page.actions.complete')}
                       </Button>
                     </div>
-                    {/* Reserved, so an error does not push what follows. */}
                     <p className="typography-meta min-h-[1lh] text-[var(--status-error)]">
                       {redirectSubmit.error}
                     </p>

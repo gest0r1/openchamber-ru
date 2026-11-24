@@ -37,6 +37,7 @@ import { useGuestActions } from '@/hooks/useGuestSurfaces';
 import { guestActionsWhere, type GuestActionEntry } from '@/lib/guests/actions';
 import { runGuestAction } from '@/lib/guests/run-action';
 import { MobileRowMenu } from './mobileSidebar/MobileRowMenu';
+import { mobileFilesList, type MobileFilesListedFor, type MobileFilesRoute } from './mobileFilesList';
 import { MOBILE_HEADER_BUTTON_CLASS, MOBILE_HEADER_CLASS, MOBILE_HEADER_TITLE_CLASS } from '@/components/ui/mobileHeader';
 
 const LazyFilesEditor = React.lazy(() =>
@@ -283,8 +284,6 @@ const MobileFilesSurfaceForRoot: React.FC<MobileFilesSurfaceProps & { root: stri
   return (
     <div className="flex h-full flex-col overflow-hidden bg-background text-foreground">
       {uploadElements}
-      {/* The tab above already names the surface, so the first row is the search
-          and the folder's actions; a subfolder adds only the way back. */}
       <div className="shrink-0 px-2 pt-1">
         <MobileSheetSearch
           value={query}
@@ -332,11 +331,11 @@ const MobileFilesSurfaceForRoot: React.FC<MobileFilesSurfaceProps & { root: stri
         ) : null}
       </div>
 
-      <ScrollableOverlay outerClassName="min-h-0 flex-1" className="px-2 pb-3 pt-1" useScrollShadow disableHorizontal>
+      <ScrollableOverlay memoryKey={list.key} memoryReady={list.ready} outerClassName="min-h-0 flex-1" className="px-2 pb-3 pt-1" useScrollShadow disableHorizontal>
         {directoryError ? (
           <MobileFilesState message={directoryError} />
         ) : query.trim() ? (
-          <MobileSearchResults root={root} results={visibleSearchResults} isSearching={isSearching} actions={fileActions} onOpenFile={openFile} />
+          <MobileSearchResults root={root} results={visibleSearchResults} isSearching={list.searchLoading} actions={fileActions} onOpenFile={openFile} />
         ) : (
           <>
             {entries.length === 0 && !isLoadingDirectory ? (
@@ -362,7 +361,6 @@ const MobileFilesSurfaceForRoot: React.FC<MobileFilesSurfaceProps & { root: stri
 
 const FILES_ACTION_CLASS = '-my-1 flex size-9 shrink-0 items-center justify-center rounded-full text-muted-foreground touch-manipulation focus:outline-none active:bg-interactive-hover disabled:opacity-50';
 
-/** Extensions' file actions and the root they act in; a row's long-press menu lists them after Copy path. */
 type MobileFileActions = { root: string; entries: GuestActionEntry[] };
 
 const MobileFileRow: React.FC<{
@@ -391,7 +389,6 @@ const MobileFileRow: React.FC<{
       {directory ? <RiArrowRightSLine className="size-4 shrink-0 text-muted-foreground" /> : null}
     </button>
   );
-  // The desktop row menu's Copy path, then the extensions' file actions.
   const copyPath = () => {
     void copyTextToClipboard(path).then((result) => {
       if (result.ok) {

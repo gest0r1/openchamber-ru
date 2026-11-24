@@ -343,17 +343,13 @@ const httpsCandidate = (value: string, gitRemoteUrl: string) => {
   return candidate;
 };
 
-// Git LFS falls back to the same host over HTTPS for an SSH checkout when the
-// server does not answer `git-lfs-authenticate`: it drops the SSH port and
-// adds `.git` to a repository path that lacks it. `gitRemote.path` is already
-// URL-decoded, so each segment is encoded again before the URL parser sees it.
-const sshRemoteHttpsEndpoint = (gitRemote) => {
+const sshRemoteHttpsEndpoint = (gitRemote: ReturnType<typeof normalizeDiscoveryEndpoint>) => {
   const decodedPath = gitRemote.path.startsWith('/') ? gitRemote.path : `/${gitRemote.path}`;
   const repositoryPath = decodedPath.split('/').map((part) => part ? encodeURIComponent(part) : part).join('/');
   return `https://${gitRemote.host}${repositoryPath}${repositoryPath.endsWith('.git') ? '' : '.git'}/info/lfs`;
 };
 
-export function resolveLfsPushConfig({ lfsConfigOutput, effectiveConfigOutput, gitRemoteName, gitRemoteUrl }) {
+export function resolveLfsPushConfig({ lfsConfigOutput, effectiveConfigOutput, gitRemoteName, gitRemoteUrl }: LfsPushConfigInput) {
   const committed = parseConfig(lfsConfigOutput, LFS_DISCOVERY_LIMITS, 'Committed LFS configuration');
   const effective = parseConfig(effectiveConfigOutput, LFS_DISCOVERY_LIMITS, 'Effective LFS configuration', { allowRepeatedCanonicalFilters: true });
   validateExecutableConfig(effective);
@@ -438,8 +434,6 @@ export function discoverLfs({
 
   const needed = attributePaths.length > 0 || pointers.length > 0 || lfsConfig.size > 0;
 
-  // Git LFS reads `.lfsconfig` only below Git's own configuration, and
-  // `lfs.url` wins over `remote.<name>.lfsurl` within either source.
   const remoteUrlKey = `remote.${gitRemoteName.toLowerCase()}.lfsurl`;
   const configuredEndpoints: [string, string | undefined, string][] = [
     ['lfs.url', effectiveConfig.get('lfs.url'), 'git-config'],
@@ -468,7 +462,6 @@ export function discoverLfs({
       candidate: httpsCandidate(sshRemoteHttpsEndpoint(gitRemote), gitRemoteUrl),
     });
   } else {
-    // A checkout that needs no LFS transfer has no endpoint to derive.
     endpoint = Object.freeze({ status: 'unresolved', reason: 'ssh-git-remote' });
   }
   if (!needed && !pointerScanComplete) {

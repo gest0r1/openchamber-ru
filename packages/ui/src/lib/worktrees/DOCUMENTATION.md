@@ -58,6 +58,26 @@ This module owns worktree topology, creation and bootstrap, archive recovery, re
 
 A topology change requires another read of the same project. An instance change makes that project's path obsolete. Retrying both through one generation check sent the old path to the new instance, so reads now retain an instance predicate separately from the topology revision.
 
+### Why source defaults follow the remote and not an earlier selection
+
+New tasks prefer the bound remote's default branch and its fresher tracking ref so a feature branch checked out at the root does not carry unmerged work into the task. Earlier selections are not remembered because later tasks can silently inherit a branch that has moved on; an explicit branch-on-top action prefers the local branch so it includes unpushed work.
+
+### Why checkout has a deadline and not setup
+
+Checkout uses the server gate's deadline. Setup can take much longer in large repositories, so it waits for the server's completion or failure report; bootstrap subscriptions keep transient checkout files out of change views.
+
+### Why path helpers stay independent of stores
+
+Sync and multi-run code reached by the manager also need containment helpers. Keeping those helpers free of store and runtime imports prevents an import cycle; failed-start cleanup loads the manager dynamically for the same reason, because the manager reaches the session store that imports start-directory resolution.
+
+### Why branch search ranks local and remote candidates together
+
+Match quality determines the shared order so exact and prefix matches appear before weaker matches regardless of branch source or alphabetic grouping. Pinned remote defaults lead only the untyped list for the same reason: a query never shows a default branch it does not match.
+
+### Why benchmark imports happen before measurement
+
+The benchmark dynamically loads the manager once before measuring calls so subscriber registration and other module-level side effects stay outside the measurements. Warmup lets the runtime optimize the measured code, and the stringify comparison consumes both results to prevent dead-code elimination.
+
 ### Keeping a worktree's sessions on delete
 
 Deleting a worktree with "Keep sessions in the project" moves its sessions to their projects, then removes it (`moveSessionsThenRemoveWorktree`, wired in `moveWorktreeSessionsThenRemove`).

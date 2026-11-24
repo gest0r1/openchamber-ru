@@ -5,6 +5,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { test } from 'vitest';
 
+const sourceLoader = new URL('../../scripts/register-server-sources.mjs', import.meta.url).href;
 const moduleUrl = new URL('./cli-startup.js', import.meta.url).href;
 function fixture() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'native-startup-'));
@@ -17,7 +18,7 @@ function fixture() {
   return { root, bin, launcher, dropDir };
 }
 function enable(f, launcher = f.launcher, startService = true) {
-  return spawnSync(process.execPath, ['--input-type=module', '-e', `import {enableStartupService} from ${JSON.stringify(moduleUrl)}; enableStartupService({host:'127.0.0.1',port:3000,envSnapshot:false,uiPassword:'test-password',startService:${startService}});`], {
+  return spawnSync(process.execPath, ['--import', sourceLoader, '--conditions=openchamber-source', '--input-type=module', '-e', `import {enableStartupService} from ${JSON.stringify(moduleUrl)}; enableStartupService({host:'127.0.0.1',port:3000,envSnapshot:false,uiPassword:'test-password',startService:${startService}});`], {
     encoding: 'utf8', env: { ...process.env, HOME: f.root, OPENCHAMBER_DATA_DIR: path.join(f.root, 'data'), PATH: `${f.bin}:${process.env.PATH}`, STARTUP_TEST_LOG: path.join(f.root, 'calls'), OPENCHAMBER_STARTUP_LAUNCHER: launcher, OPENCHAMBER_MIGRATE_MANAGED_STARTUP: '1', OPENCODE_BINARY: '/opt/opencode/bin/opencode' },
   });
 }

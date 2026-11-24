@@ -1,4 +1,3 @@
-import { androidWidgetsI18n } from './android-widgets.i18n';
 import { settingsDict } from './he.settings';
 import { linearIssuePickerI18n } from './linear-issue-picker.i18n';
 import { referencePickerI18n } from './reference-picker.i18n';
@@ -30,17 +29,23 @@ import { compactionSettingsI18n } from './compaction-settings.i18n';
 import { heapSnapshotI18n } from './heap-snapshot.i18n';
 import { consoleBudgetsI18n } from './console-budgets.i18n';
 import { imageToolI18n } from './image-tool.i18n';
+import { sharePagesI18n } from './share-pages.i18n';
+import { receivedPagesI18n } from './received-pages.i18n';
 import { memoryDreamingI18n } from './memory-dreaming.i18n';
 import { usageToolI18n } from './usage-tool.i18n';
+import { externalOpenCodePluginI18n } from './external-opencode-plugin.i18n';
 import { openchamberToolsLayoutI18n } from './openchamber-tools-layout.i18n';
 import { openchamberToolOutputI18n } from './openchamber-tool-output.i18n';
 import { opencodeToolOutputI18n } from './opencode-tool-output.i18n';
 import { agentStatusI18n } from './agent-status.i18n';
+import { androidWidgetsI18n } from './android-widgets.i18n';
 import { selectionApprovalI18n } from './selection-approval.i18n';
 import { snippetsI18n } from './snippets.i18n';
 import { sidebarWorkI18n } from './sidebar-work.i18n';
 import { sidebarSectionsI18n } from './sidebar-sections.i18n';
 import { worktreeArchiveI18n } from './worktree-archive.i18n';
+import { operatorChildrenI18n } from './operator-children.i18n';
+import { leadI18n } from './lead.i18n';
 import { omniSearchI18n } from './omni-search.i18n';
 import { overviewI18n } from './overview.i18n';
 import { isolatedSpacesI18n } from './isolated-spaces.i18n';
@@ -783,7 +788,7 @@ export const dict = {
   'sessions.sidebar.session.status.backgroundCommand': 'פקודה פועלת ברקע',
   'sessions.sidebar.session.status.backgroundImage': 'תמונה נוצרת ברקע',
   'sessions.sidebar.session.status.waitingOnPullRequest': 'ממתין לבדיקות או לסקירה',
-  'sessions.sidebar.session.status.waitingOnExtension': 'ממתין להרחבה',
+  'sessions.sidebar.session.status.waitingOnExtension': 'ממתין לטיימר או להרחבה',
   'sessions.sidebar.session.status.pinned': 'הפעלה מוצמדת',
   'sessions.sidebar.session.status.movingToWorktree': 'ההפעלה מועברת לעץ עבודה חדש',
   'sessions.sidebar.session.status.permissionRequired': 'נדרשת הרשאה',
@@ -2370,7 +2375,6 @@ export const dict = {
   'session.githubIntegration.validation.branchAlreadyCheckedOut': 'הענף כבר פתוח בעץ עבודה',
   'session.githubIntegration.validation.failed': 'האימות נכשל',
   'chat.fileAttachment.toast.tooLarge': '{name} גדול מדי לצירוף (מעל {size}). אם הקובץ נמצא בפרויקט, אפשר לאזכר אותו עם @.',
-  'chat.fileAttachment.toast.heicConversionFailed': 'לא ניתן היה להמיר את {name} מ-HEIC ל-JPEG, ולכן הוא לא צורף. שמרו את התמונה כ-JPEG וצרפו אותה שוב.',
   'chat.fileAttachment.toast.overSendLimit': '{name} גדול מדי לצירוף (מעל {size}).',
   'chat.fileAttachment.toast.documentAttachedAsPath': 'לא ניתן היה להמיר את {name} לטקסט, ולכן הסוכן מקבל את הנתיב שלו וקורא את הקובץ בעצמו.',
   'chat.fileAttachment.activeEditor.addFile': 'הוסף את file:{name} להקשר',
@@ -3497,6 +3501,7 @@ export const dict = {
   'markdownRenderer.code.actions.copyTitle': 'העתק קוד',
   'markdownRenderer.code.actions.copiedTitle': 'הועתק',
   'markdownRenderer.code.actions.runTitle': 'הרצת הפקודה. הסוכן ימשיך מהפלט שלה',
+  'markdownRenderer.code.actions.runInTerminalTitle': 'הרצה במסוף',
   'markdownRenderer.code.actions.stopTitle': 'עצירת הפקודה',
   'markdownRenderer.code.run.startFailed': 'לא ניתן היה להפעיל את הפקודה',
   'markdownRenderer.code.run.running': 'פועלת',
@@ -3667,6 +3672,7 @@ export const dict = {
   'chat.workStatus.breakdown.planCountSingle': 'תוכנית {count}',
   'chat.workStatus.breakdown.planCountPlural': '{count} תוכניות',
   'chat.workStatus.linkedPlans.open': 'פתיחת התוכנית {title}',
+  'chat.workStatus.loadedSkills.open': 'פתיחת המיומנות {name}',
   'chat.workStatus.sections.open': 'בחר מקטעים',
   'chat.workStatus.sections.dialogTitle': 'מקטעי החלונית',
   'chat.workStatus.sections.reorder': 'גרור את {label} כדי לשנות את הסדר',
@@ -3974,8 +3980,11 @@ export const dict = {
   ...heapSnapshotI18n.he,
   ...consoleBudgetsI18n.he,
   ...imageToolI18n.he,
+  ...sharePagesI18n.he,
+  ...receivedPagesI18n.he,
   ...memoryDreamingI18n.he,
   ...usageToolI18n.he,
+  ...externalOpenCodePluginI18n.he,
   ...openchamberToolsLayoutI18n.he,
   ...openchamberToolOutputI18n.he,
   ...opencodeToolOutputI18n.he,
@@ -3985,6 +3994,8 @@ export const dict = {
   ...sidebarWorkI18n.he,
   ...sidebarSectionsI18n.he,
   ...worktreeArchiveI18n.he,
+  ...operatorChildrenI18n.he,
+  ...leadI18n.he,
   ...omniSearchI18n.he,
   ...overviewI18n.he,
   ...isolatedSpacesI18n.he,
@@ -4080,5 +4091,4 @@ export const dict = {
   'chat.promptHistorySearch.hint': "↑ ↓ לעיון · Enter לטעינה · Esc לסגירה",
   'helpDialog.item.searchPromptHistory': "חיפוש בהיסטוריית ההנחיות (קלט צ׳אט)",
 
-  "settings.openchamber.keyboardShortcuts.action.new_lead.label": "מוביל חדש",
 } as const;

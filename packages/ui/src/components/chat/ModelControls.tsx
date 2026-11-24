@@ -84,7 +84,6 @@ const selectLatestReplyModelChoice = (messages: Message[], state: State) => find
     (messageId) => state.part[messageId],
 );
 
-/** A section caption in the composer's pickers, the same as the model picker's. */
 
 const AgentDescriptionTooltip: React.FC<{
     description?: string;
@@ -356,13 +355,7 @@ type ModelControlsProps = {
     | { selection?: never; sessionId?: never; modelSelectorOpen?: never; onModelSelectorOpenChange?: never }
     | {
         selection: BtwSelection;
-        /** The session an agent pick is saved for: a chat pinned in the side panel, or a BTW fork. */
         sessionId: string | null;
-        /**
-         * The model picker's open state, owned by a composer that answers the
-         * model and effort shortcuts for this selection (BTW). The tooltips
-         * then name those shortcuts.
-         */
         modelSelectorOpen?: boolean;
         onModelSelectorOpenChange?: (open: boolean) => void;
     }
@@ -524,8 +517,6 @@ export const ModelControls: React.FC<ModelControlsProps> = ({
         ? { providerID: AUTO_PROVIDER_ID, modelID: AUTO_MODEL_ID, model: { id: AUTO_MODEL_ID, name: t('chat.modelControls.autoModel') } }
         : null), [autoReady, t]);
     const isAutoSelected = isAutoModel(currentProviderId, currentModelId);
-    // Its provider was removed: the send would stop with an error, so the
-    // picker says so beforehand, as it does for a missing agent.
     const modelUnavailable = useModelMissingFromCatalog(catalogDirectory, currentProviderId, currentModelId);
 
     const { isMobile: deviceIsMobile } = useDeviceInfo();
@@ -598,10 +589,7 @@ export const ModelControls: React.FC<ModelControlsProps> = ({
     const [agentSearchQuery, setAgentSearchQuery] = React.useState('');
     React.useEffect(() => {
         if (isAgentSelectorOpen) return;
-        // Every picker drops its query, so the next open lists every agent.
         setAgentSearchQuery('');
-        // The focus return is the main composer's: a controlled picker's own
-        // column owns where the caret goes.
         if (!selection && !isCompact) requestAnimationFrame(focusColumnInput);
     }, [focusColumnInput, isAgentSelectorOpen, isCompact, selection]);
 
@@ -626,8 +614,6 @@ export const ModelControls: React.FC<ModelControlsProps> = ({
     const controlIconSize = sizeVariant === 'mobile' ? 'size-5' : sizeVariant === 'vscode' ? 'size-4' : 'size-4';
     const providerLogoSize = sizeVariant === 'mobile' ? 'size-[21px]' : 'size-[17px]';
     const controlTextSize = isCompact ? 'typography-micro' : 'typography-meta';
-    // The model unit (logo, name, effort) to the agent: 16px on the desktop
-    // footer, a group gap; the footer adds 20px before the mic and Send.
     const inlineGapClass = sizeVariant === 'mobile' ? 'gap-x-1' : sizeVariant === 'vscode' ? 'gap-x-2' : 'gap-x-4';
 
     const currentProvider = selection ? providers.find((provider) => provider.id === currentProviderId) : getCurrentProvider();
@@ -1365,14 +1351,7 @@ export const ModelControls: React.FC<ModelControlsProps> = ({
     const handleAgentChange = React.useCallback((agentName: string, options?: { closeModelSelector?: boolean }) => {
         if (selection) {
             if (!controlledSessionId) return;
-            // The pick belongs to the controlled session only; the app-wide
-            // agent stays the main chat's.
             pickSessionAgent(controlledSessionId, agentName);
-            // An effort is remembered per agent and model, so an agent this
-            // session has not run yet has none for the current model. Carry
-            // the level the composer is on, including an explicit Default;
-            // without it a BTW fork loses the effort it copied from the main
-            // chat the moment its agent changes.
             if (
                 currentProviderId && currentModelId && selection.variant !== undefined
                 && getAgentModelVariantForSession(controlledSessionId, agentName, currentProviderId, currentModelId) === undefined
@@ -1955,7 +1934,6 @@ export const ModelControls: React.FC<ModelControlsProps> = ({
             >
                 {favoriteAgentRows.length > 0 ? (
                     <>
-                        {/* The composer's agent button cycles through these on a tap. */}
                         <MobileSheetSection title={t('chat.modelControls.favorites')} hint={t('chat.modelControls.favoriteAgentsTapHint')}>
                             {favoriteAgentRows.map(renderAgentRow)}
                         </MobileSheetSection>
@@ -2217,7 +2195,6 @@ export const ModelControls: React.FC<ModelControlsProps> = ({
                                             ref={modelLabelRef}
                                             key={`${currentProviderId}-${currentModelId}`}
                                             className={cn(
-                                                // Cut short, the name ends in an ellipsis (`.marquee-text--active`).
                                                 'model-controls__model-label overflow-hidden text-ellipsis',
                                                 controlTextSize,
                                                 'font-medium whitespace-nowrap text-foreground min-w-0',
@@ -2283,7 +2260,6 @@ export const ModelControls: React.FC<ModelControlsProps> = ({
                                         : false;
 
                                     return (
-                                        // Hint groups 16px apart, so they read as separate keys and not one sentence.
                                         <div className="flex items-center gap-x-4 whitespace-nowrap overflow-hidden">
                                             <span>{t('chat.modelControls.keyboardHintNavigate')}</span>
                                             {agentShortcut ? <span>{t('chat.modelControls.keyboardHintSwitchAgent', { shortcut: agentShortcut })}</span> : null}
@@ -2495,14 +2471,9 @@ export const ModelControls: React.FC<ModelControlsProps> = ({
         const displayVariant = currentVariant ? formatEffortLabel(currentVariant) : t('chat.modelControls.default');
         const isDefault = !currentVariant;
         const isGreyEffort = getEffortTone(currentVariant) === 'default';
-        // The effort reads as a quiet suffix of the model name: "Opus 5.5 / medium",
-        // tinted by level. It brightens on its own hover, so the pointer shows it
-        // is a control of its own; where the row is too narrow for it, its icon
-        // stands in.
         const triggerLabel = (
             <>
                 <Icon name="brain-ai-3" className={cn('model-controls__variant-icon flex-shrink-0 text-muted-foreground group-hover:text-foreground', controlIconSize)} />
-                {/* At the label's size, so it sits on the label's baseline. */}
                 <span aria-hidden="true" className={cn('model-controls__variant-slash text-muted-foreground/60', controlTextSize)}>/</span>
                 <span
                     className={cn(
@@ -2547,7 +2518,6 @@ export const ModelControls: React.FC<ModelControlsProps> = ({
                     }}
                     aria-label={tooltipText}
                     className={cn(
-                        // Drawn as the main composer's phone row: 36px to tap in a 26px row.
                         'model-controls__variant-trigger group -my-[5px] flex flex-shrink-0 items-center gap-1 px-1.5 focus:outline-none',
                         buttonHeight,
                         'cursor-pointer hover:bg-transparent',
@@ -2567,7 +2537,6 @@ export const ModelControls: React.FC<ModelControlsProps> = ({
                                 ref={variantTriggerRef}
                                 aria-label={tooltipText}
                                 className={cn(
-                                    // Keeps its width: the model's name is what truncates (index.css).
                                     'model-controls__variant-trigger group flex flex-shrink-0 items-center gap-1 cursor-pointer select-none hover:bg-transparent overflow-hidden',
                                     buttonHeight,
                                 )}
@@ -2600,7 +2569,6 @@ export const ModelControls: React.FC<ModelControlsProps> = ({
                                 </DropdownMenuItem>
                             );
                         })}
-                        {/* The model picker's footer, flush with the menu's edges. */}
                         <div className="-mx-1 -mb-1 mt-1 flex items-center gap-x-4 overflow-hidden whitespace-nowrap border-t border-edge-muted px-3 pt-1 pb-1.5 typography-micro text-muted-foreground">
                             <span>{t('chat.modelControls.keyboardHintNavigate')}</span>
                             {thinkingShortcut ? <span>{t('chat.modelControls.keyboardHintSwitchThinking', { shortcut: thinkingShortcut })}</span> : null}
@@ -2623,7 +2591,6 @@ export const ModelControls: React.FC<ModelControlsProps> = ({
                 'flex-shrink-0',
                 uiAgentName ? '' : 'text-muted-foreground'
             )}
-            // At rest in the composer: the agent's hue, quieted (restingAgentColor).
             style={uiAgentName ? { color: restingAgentColor(getAgentColor(uiAgentName).color) } : undefined}
         />
     );
@@ -2674,7 +2641,6 @@ export const ModelControls: React.FC<ModelControlsProps> = ({
                 </AgentDescriptionTooltip>
             );
             return (
-                // Keeps its width: the model's name truncates first, so the agent keeps its label (index.css).
                 <div className="flex flex-shrink-0 items-center gap-2">
                     <Tooltip delayDuration={600}>
                         <DropdownMenu open={canSelectAgent && isAgentSelectorOpen} onOpenChange={canSelectAgent ? setIsAgentSelectorOpen : undefined}>
@@ -2811,8 +2777,6 @@ export const ModelControls: React.FC<ModelControlsProps> = ({
                     </>
                 ) : (
                     <>
-                        {/* As the main composer's agent button: the name in the
-                            agent's colour, a mark only when it is missing. */}
                         {agentUnavailable ? renderAgentMark() : null}
                         <span
                             className={cn(
@@ -2834,11 +2798,7 @@ export const ModelControls: React.FC<ModelControlsProps> = ({
     const inlineMobileSelection = isMobile && Boolean(selection);
     const inlineClassName = cn(
         'flex items-center min-w-0',
-        // The labels collapse to icons as a desktop row narrows (index.css). A
-        // phone keeps them, as the main composer's row does, and truncates.
         !isMobile && '@container/model-controls',
-        // Only force full-width + truncation behaviors on true mobile layouts.
-        // VS Code also uses "compact" mode, but should keep its right-aligned inline sizing.
         isMobile && 'w-full',
         className,
     );
@@ -2853,19 +2813,11 @@ export const ModelControls: React.FC<ModelControlsProps> = ({
                 <div
                     className={cn(
                         'flex items-center min-w-0 flex-1',
-                        // A phone lays the row out as the main composer's: model left, agent right.
                         inlineMobileSelection ? 'justify-between' : 'justify-end',
-                        // No overflow-hidden: mobile.css makes it a vertical scroller,
-                        // and the 36px triggers in this 26px row would draw its thumb.
                         inlineGapClass,
-                        // The desktop footer's group gaps: 16px to the agent here,
-                        // and this padding plus the footer's 8px gap make 20px to
-                        // the mic. Collapsed narrow, both tighten to 12px (index.css).
                         sizeVariant === 'default' && 'model-controls__row pe-3',
                     )}
                 >
-                    {/* The effort follows the model as its suffix, one unit with it:
-                        6px on the desktop, as an icon to its label. */}
                     <div className={cn('flex items-center min-w-0', isMobile ? 'gap-x-0.5' : sizeVariant === 'vscode' ? 'gap-x-2' : 'gap-x-1.5')}>
                         {renderModelSelector()}
                         {renderVariantSelector()}

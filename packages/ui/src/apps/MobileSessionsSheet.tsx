@@ -46,7 +46,8 @@ import { updateDesktopSettings } from '@/lib/persistence';
 import { sessionEvents } from '@/lib/sessionEvents';
 import { cn } from '@/lib/utils';
 import { useConfigStore } from '@/stores/useConfigStore';
-import { refreshGlobalSessions, useGlobalSessionsStore } from '@/stores/useGlobalSessionsStore';
+import { refreshGlobalSessionsWhenShown, useGlobalSessionsStore } from '@/stores/useGlobalSessionsStore';
+import { GLOBAL_SESSIONS_FULL_REFRESH_INTERVAL_MS } from '@/hooks/useGlobalSessionsPolling';
 import { useProjectsStore } from '@/stores/useProjectsStore';
 import { resolveSidebarGrouping, useSessionDisplayStore, type ProjectSortOrder } from '@/stores/useSessionDisplayStore';
 import { useUIStore } from '@/stores/useUIStore';
@@ -188,11 +189,10 @@ export const MobileSessionsSheet: React.FC<MobileSessionsSheetProps> = ({ open, 
   const customSections = React.useMemo(() => savedSections.filter((entry) => entry.kind === 'custom'), [savedSections]);
   const hiddenSections = useSessionDisplayStore((state) => state.hiddenSections);
   const shortcutOverrides = useUIStore((state) => state.shortcutOverrides);
-  const hasChats = useGlobalSessionsStore((state) => state.activeSessions.some((session) => isChatDirectoryPath(getSessionDirectory(session))));
+  const hasChats = useGlobalSessionsStore(selectHasChats);
   const [searchText, setSearchTextState] = React.useState('');
   const [searchScope, setSearchScope] = React.useState<SearchScope>('everything');
   const [searchStatus, setSearchStatus] = React.useState<ContentSearchStatus>(IDLE_SEARCH_STATUS);
-  // A cleared search drops its scope too: the next one starts wide.
   const setSearchText = React.useCallback((text: string) => {
     setSearchTextState(text);
     if (text === '') setSearchScope('everything');
@@ -210,8 +210,6 @@ export const MobileSessionsSheet: React.FC<MobileSessionsSheetProps> = ({ open, 
   const searchShown = variant === 'drawer' || searchOpen;
   const searchInputRef = React.useRef<HTMLInputElement | null>(null);
   const toggleSearch = () => {
-    // Closing the field clears its query: no list stays filtered by text
-    // nobody can see.
     if (searchOpen) clearSearchText();
     setSearchOpen(!searchOpen);
   };
@@ -238,17 +236,13 @@ export const MobileSessionsSheet: React.FC<MobileSessionsSheetProps> = ({ open, 
     // oxlint-disable-next-line react-hooks/exhaustive-deps
   }, [listActive]);
 
-  // Events sent while the stream was down are lost, so a list on screen when
-  // it comes back (the iPad's sidebar, a drawer left open in the background)
-  // reads again, as opening it does.
   const connectionPhase = useConfigStore((state) => state.connectionPhase);
   const previousConnectionPhaseRef = React.useRef(connectionPhase);
   React.useEffect(() => {
     const reconnected = previousConnectionPhaseRef.current === 'reconnecting' && connectionPhase === 'connected';
     previousConnectionPhaseRef.current = connectionPhase;
     if (!reconnected || !listActive) return;
-    void refreshGlobalSessions(liveSessions).then(() => seedGlobalSessionStatusFromHost());
-    // only on the reconnect edge
+    void refreshGlobalSessionsWhenShown(GLOBAL_SESSIONS_FULL_REFRESH_INTERVAL_MS, liveSessions).then(() => seedGlobalSessionStatusFromHost());
     // oxlint-disable-next-line react-hooks/exhaustive-deps
   }, [connectionPhase]);
 
@@ -311,8 +305,6 @@ export const MobileSessionsSheet: React.FC<MobileSessionsSheetProps> = ({ open, 
     reorderProjects(fromIndex, toIndex);
   };
 
-  // Drag order IS the manual order: offering it under another sort would let
-  // the user rearrange a list that is about to be re-sorted anyway.
   const canEditOrder = !searchText && projects.length > 1 && projectSortOrder === 'manual' && grouping === 'project';
 
   const displayMenu = !editingOrder && projects.length > 0 ? (
@@ -352,7 +344,6 @@ export const MobileSessionsSheet: React.FC<MobileSessionsSheetProps> = ({ open, 
             {!hiddenSections.includes(section.id) ? <Icon name="check" className="size-4 text-primary" /> : null}
           </DropdownMenuItem>
         ))}
-        {/* A pinned work stays in its project unless asked; one in In work leaves it unless asked. */}
         {showPinnedSection ? renderMenuChoice('pinned-in-place', 'sessions.sidebar.header.displayMode.keepPinnedInPlace', keepPinnedInPlace, toggleSetting(keepPinnedInPlace, setKeepPinnedInPlace, (next) => {
           void updateDesktopSettings({ sidebarKeepPinnedInPlace: next });
         })) : null}
@@ -454,7 +445,6 @@ export const MobileSessionsSheet: React.FC<MobileSessionsSheetProps> = ({ open, 
         {pageItem('calendar-schedule', t('sessions.sidebar.header.actions.scheduledTasks'), footer.onOpenScheduled)}
         {pageItem('archive', t('sessions.sidebar.nav.archive'), footer.onOpenArchive)}
         {pageItem('bar-chart', t('usageStats.openAction'), footer.onOpenUsage)}
-        {/* Extension pages that opted into the phone; the shell shows the open one full screen. */}
         {guestPages.map((guest) => (
           <DropdownMenuItem key={guest.id} onClick={() => useUIStore.getState().setOpenGuestPage(guest.id)} className={MOBILE_MENU_ITEM_CLASS}>
             <span className="flex min-w-0 items-center gap-2">
@@ -501,7 +491,6 @@ export const MobileSessionsSheet: React.FC<MobileSessionsSheetProps> = ({ open, 
                 <SearchInMenu mobile scope={searchScope} onChange={setSearchScope} />
               </> : undefined}
             />
-            {/* A phone has no tooltips, so a failed message search says so in words. */}
             {searchText !== '' && searchFailure ? <p role="status" className="px-2.5 pt-1 typography-micro text-muted-foreground">{searchFailure}</p> : null}
           </div>
         ) : null}
@@ -637,8 +626,6 @@ export const MobileSessionsSheet: React.FC<MobileSessionsSheetProps> = ({ open, 
   if (variant === 'sidebar') {
     return (
       <div className="flex h-full min-h-0 flex-col">
-        {/* No title: the list below says what this is, and the actions need
-            the width. Search opens from the leading button, as on the desktop. */}
         <div className={cn(MOBILE_HEADER_CLASS, 'border-b border-edge')}>
           {!editingOrder && !empty ? (
             <Button

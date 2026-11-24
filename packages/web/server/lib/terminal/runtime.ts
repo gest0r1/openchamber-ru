@@ -11,11 +11,193 @@ import { terminalPlainText } from './plain-text.js';
 import { consumeTerminalThemeQueries, terminalThemeModeReport } from './theme-response.js';
 import { buildTerminalShellLaunch, createTerminalShellResolver, normalizeTerminalShell } from './shells.js';
 import { stripAppImageArgv0Leak, stripAppImageLauncherEnv, resolvePosixPtyLaunch } from '../inherited-env.js';
-import { separatePtyLaunch } from '../root-execution-boundary.js';
 import { assignInjectedEnv } from '../injected-env.js';
+import { separatePtyLaunch } from '../root-execution-boundary.js';
 import { shutdownTerminalProcesses } from './shutdown.js';
 import { bunVersionRunsBunPty } from './bun-pty-support.js';
-import { isOpaqueOriginRequest, isPasswordlessSocketOriginAllowed } from '../security/request-security.js';
+import { isString as isText } from '../shared/object-guards.js';
+import type { Server } from 'node:http';
+import type { Duplex } from 'node:stream';
+import type { Stats } from 'node:fs';
+import type * as nodePath from 'node:path';
+import type { IWindowsPtyForkOptions, IPtyForkOptions } from 'node-pty';
+import type { Application } from '../shared/http-contracts.js';
+import type { WebSocket, WebSocketServer as TerminalWebSocketServer } from '../shared/websocket-contracts.js';
+import type { RequestOriginChecker } from '../security/request-security.js';
+import type { createUiAuth } from '../ui-auth/ui-auth.js';
+import type { createTunnelAuth } from '../tunnels/tunnel-auth.js';
+import type { createEnvironmentRuntime } from '../environment/runtime.js';
+import type { TerminalShellResolverOptions, TerminalShellPreference, TerminalLaunchMode, TerminalShellLaunchOptions } from './shells.js';
+import type { TerminalHistoryPending } from './history.js';
+import type { TerminalThemeMode } from './theme-response.js';
+import type { TerminalWsFrameOptions, TerminalWsJsonObject, TerminalWsJsonValue } from './terminal-ws-protocol.js';
+
+export type TerminalPurpose = { type: 'terminal' } | { type: 'project-action'; actionId: string; executionId: string };
+type TerminalStatus = 'running' | 'exited';
+type TerminalBackend = 'bun-pty' | 'node-pty';
+type PtyOptions = IPtyForkOptions & IWindowsPtyForkOptions;
+type PtyExit = { exitCode: number; signal?: number | string | undefined };
+type Disposable = { dispose(): void };
+
+interface TerminalPty {
+  pid: number;
+  onData(listener: (data: string) => void): Disposable;
+  onExit(listener: (event: PtyExit) => void): Disposable;
+  write(data: string): void;
+  resize(cols: number, rows: number): void;
+  kill(signal?: string): void;
+}
+
+interface TerminalPtyModule {
+  spawn(executable: string, args: string[], options: PtyOptions): TerminalPty | Promise<TerminalPty>;
+}
+
+export interface TerminalPtyProvider extends TerminalPtyModule {
+  backend: TerminalBackend;
+}
+
+export interface TerminalRuntimeOptions extends Pick<TerminalShellResolverOptions, 'searchPathFor' | 'isExecutable'> {
+  app: Pick<Application, 'get' | 'post' | 'delete'>;
+  server: Pick<Server, 'on' | 'off'>;
+  fs: { promises: TerminalShellResolverOptions['fs']['promises'] & { stat(cwd: string): Promise<Pick<Stats, 'isDirectory'>> } };
+  path: Pick<typeof nodePath, 'join' | 'resolve'>;
+  uiAuthController?: Pick<ReturnType<typeof createUiAuth>, 'enabled' | 'ensureSessionToken'> | null;
+  tunnelAuthController?: Pick<ReturnType<typeof createTunnelAuth>, 'classifyRequestScope' | 'getActiveTunnelOrigin' | 'getTunnelSessionFromRequest' | 'bindTunnelSession'>;
+  buildAugmentedPath: () => string;
+  isRequestOriginAllowed: RequestOriginChecker;
+  rejectWebSocketUpgrade(socket: Duplex, code: number, reason: string): void;
+  TERMINAL_INPUT_WS_HEARTBEAT_INTERVAL_MS: number;
+  loadPtyProvider?: () => TerminalPtyProvider | Promise<TerminalPtyProvider>;
+  terminalTerminationGraceMs?: number;
+  shutdownProcesses?: typeof shutdownTerminalProcesses;
+  environmentRuntime?: Pick<ReturnType<typeof createEnvironmentRuntime>, 'applyToDirectory'> | null;
+  broadcastUiEvent?: (event: { type: 'openchamber:terminal-sessions-changed'; properties: object }) => void;
+  logger?: { warn?: typeof console.warn };
+}
+
+interface TerminalAppearanceInput {
+  themeMode?: unknown;
+  terminalBackground?: unknown;
+  terminalForeground?: unknown;
+}
+
+interface TerminalRequestFields extends TerminalAppearanceInput {
+  cwd?: unknown;
+  sessionId?: unknown;
+  sessionIds?: unknown;
+  cols?: unknown;
+  rows?: unknown;
+  shell?: unknown;
+  loginShell?: unknown;
+  mode?: unknown;
+  command?: unknown;
+  purpose?: unknown;
+}
+
+interface TerminalErrorBody {
+  error: unknown;
+  code?: string;
+}
+
+interface TerminalSpawnOptions extends Pick<TerminalShellLaunchOptions, 'mode' | 'command'> {
+  cwd: string;
+  cols: number;
+  rows: number;
+  themeMode: unknown;
+  shell: unknown;
+  loginShell: boolean;
+}
+
+interface TerminalStartOptions extends Omit<TerminalSpawnOptions, 'cwd' | 'themeMode'>, TerminalAppearanceInput {
+  cwd: unknown;
+  purpose?: TerminalPurpose;
+}
+
+interface TerminalHistory {
+  chunks: { buffer: Buffer; length: number }[];
+  head: number;
+  offset: number;
+  bytes: number;
+  original: string[] | null;
+  originalTail: string;
+  originalLast: string | undefined;
+}
+
+type PtyEvent = ({ type: 'output'; data: string } | ({ type: 'exit'; signal: PtyExit['signal'] } & Pick<PtyExit, 'exitCode'>)) & { process: TerminalPty };
+
+interface TerminalSessionSeed {
+  id: string;
+  sequence: number;
+  history: TerminalHistory;
+  pendingHistoryControlSequence: TerminalHistoryPending;
+  pendingThemeControlSequence: string;
+  eventQueue: PtyEvent[];
+  draining: boolean;
+  createdAt: number;
+  outputTimer?: ReturnType<typeof setTimeout> | null;
+  pendingOutput?: { raw: string[]; replay: string[]; chars: number } | null;
+  themeModeEnabled?: boolean;
+}
+
+interface TerminalSession extends TerminalSessionSeed {
+  retired: boolean;
+  cwd: string;
+  cols: number;
+  rows: number;
+  process: TerminalPty | null;
+  backend: TerminalBackend;
+  shell: TerminalShellPreference;
+  loginShell: boolean;
+  shellExecutable: string;
+  status: TerminalStatus;
+  exitCode: number | null;
+  signal: number | null;
+  mode: TerminalLaunchMode;
+  command: string | null;
+  purpose: TerminalPurpose;
+  themeMode: TerminalThemeMode;
+  terminalBackground: unknown;
+  terminalForeground: unknown;
+  lastActivity: number;
+}
+
+export interface TerminalListing {
+  sessionId: string;
+  cwd: string;
+  status: TerminalStatus;
+  createdAt: number | null;
+  mode: TerminalLaunchMode;
+  purpose: TerminalPurpose;
+}
+
+export interface TerminalRead extends TerminalListing {
+  exitCode: number | null;
+  signal: number | null;
+  text: string;
+  truncated: boolean;
+  retainedBytes: number;
+}
+
+interface PendingCreate {
+  cwd: string;
+  shell: TerminalShellPreference;
+  loginShell: boolean;
+  mode: TerminalLaunchMode;
+  command: string | null;
+  purpose: TerminalPurpose;
+  cancelled: boolean;
+  promise: Promise<TerminalSession> | null;
+}
+
+const pendingCreatePromise = ({ promise }: PendingCreate) => {
+  if (!promise) throw new Error('Missing pending terminal creation');
+  return promise;
+};
+
+type TerminalEvent = { t: 'output'; d: string; r?: string } | { t: 'exit'; exitCode: number | null; signal: number | null } | { t: 'restarted'; history: string };
+type PublishedEvent = TerminalEvent & { v: number; s: string; q: number };
+interface Attachment { initializing: boolean; pending: PublishedEvent[] }
+interface Connection { socket: WebSocket; attachments: Map<string, Attachment> }
 
 const MAX_SESSIONS = 20;
 const MAX_HISTORY_BYTES = 512 * 1024;
@@ -195,9 +377,12 @@ const appendHistory = (history: TerminalHistory, text: string) => {
   if (history.head > 128) { history.chunks = history.chunks.slice(history.head); history.head = 0; }
 };
 
-export async function loadTerminalPtyProvider(bunVersion = globalThis.Bun?.version, importPty = (name) => import(name)) {
+export async function loadTerminalPtyProvider(
+  bunVersion: string | null | undefined = globalThis.Bun?.version,
+  importPty: (name: TerminalBackend) => Promise<TerminalPtyModule> = (name) => name === 'bun-pty' ? import('bun-pty') : import('node-pty'),
+): Promise<TerminalPtyProvider> {
   if (bunVersionRunsBunPty(bunVersion)) {
-    try { const pty = await importPty('bun-pty'); return { spawn: pty.spawn, backend: 'bun-pty' }; } catch { /* fall through */ }
+    try { const pty = await importPty('bun-pty'); return { spawn: pty.spawn, backend: 'bun-pty' }; } catch { void 0; }
   }
   const pty = await importPty('node-pty');
   return { spawn: pty.spawn, backend: 'node-pty' };
@@ -234,21 +419,14 @@ export function createTerminalRuntime({
     const provider = await getPtyProvider();
     const resolvedShell = await shellResolver.resolve(shell == null || isText(shell) ? shell : '');
     const hostEnv = { ...process.env, PATH: buildAugmentedPath() };
-    // Opening a terminal or running a project action is the user's own act,
-    // so it may run the project's environment command.
-    // Root UI cannot evaluate project environment commands as root.
-    const inheritedEnv = process.getuid?.() === 0 ? hostEnv :
-      (environmentRuntime ? await environmentRuntime.applyToDirectory(cwd, hostEnv, { refresh: true }) : hostEnv);
+    const inheritedEnv = process.getuid?.() !== 0 && environmentRuntime
+      ? await environmentRuntime.applyToDirectory(cwd, hostEnv, { refresh: true })
+      : hostEnv;
     let lastError = null;
     for await (const executable of resolvedShell.executables) {
       try {
-        const env = { ...inheritedEnv, TERM: 'xterm-256color', COLORTERM: 'truecolor', COLORFGBG: themeMode === 'light' ? '0;15' : '15;0' };
-        // Marks a shell running inside OpenChamber, for tools that must not
-        // restart the server under it. Recorded as injected, so a service
-        // enabled from this shell does not inherit the marker.
+        const env: NodeJS.ProcessEnv = { ...inheritedEnv, TERM: 'xterm-256color', COLORTERM: 'truecolor', COLORFGBG: themeMode === 'light' ? '0;15' : '15;0' };
         assignInjectedEnv(env, { OPENCHAMBER_EMBEDDED_TERMINAL: '1' });
-        // The daemon's IPC fd is closed inside the PTY; an inherited NODE_CHANNEL_FD
-        // (even an empty one) makes Node CLIs warn about an unparsable IPC channel.
         delete env.NODE_CHANNEL_FD;
         delete env.BASH_XTRACEFD; delete env.BASH_ENV; delete env.ENV; delete env.ELECTRON_RUN_AS_NODE;
         stripAppImageArgv0Leak(env);
@@ -257,7 +435,7 @@ export function createTerminalRuntime({
         const launch = resolvePosixPtyLaunch(shellLaunch.executable, shellLaunch.args);
         const options: PtyOptions = { name: 'xterm-256color', cwd, cols, rows, env };
         if (process.platform === 'win32') options.useConpty = true;
-        const isolated = separatePtyLaunch({ executable: launch.executable, args: launch.args, env });
+        const isolated = separatePtyLaunch({ ...launch, env });
         return { process: await provider.spawn(isolated.executable, isolated.args, { ...options, env: isolated.env }), backend: provider.backend, shell: resolvedShell.id, shellExecutable: executable, loginShell };
       } catch (error) { lastError = error; }
     }

@@ -109,15 +109,6 @@ export function groupModelsByFamilyWithGetter<T>(
 
 const GEMINI_3_MODEL = /^gemini-3[.-]/;
 
-/**
- * Get default models for a provider based on simple patterns.
- * For Google provider with gemini/ and antigravity/ prefixes:
- * - Gemini 3.x models
- * - All Claude models
- * For the Claude provider: every model it reports a limit for.
- * For the OpenCode Zen provider: every Zen model the workspace served, so the
- * first toggle keeps the rest of the list in view.
- */
 export function getDefaultModels(
   providerId: QuotaProviderId,
   availableModels: string[]

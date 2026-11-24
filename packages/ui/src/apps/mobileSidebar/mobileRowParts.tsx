@@ -7,12 +7,6 @@ import { FileTreeChevron } from '@/components/views/files/FileTreeRowParts';
 import { useI18n } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 
-/**
- * The selected row's fill, the desktop's full selection over the page. The
- * selection token is translucent, so it is painted as an inset shadow over
- * the row's own opaque background: a swipe's actions behind the row stay
- * hidden, which a translucent background let show through.
- */
 export const MOBILE_ACTIVE_ROW_CLASS = 'shadow-[inset_0_0_0_100vmax_var(--interactive-selection)]';
 
 export const MOBILE_ACTIVE_TITLE_CLASS = 'text-interactive-selection-foreground';

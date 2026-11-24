@@ -35,42 +35,26 @@ export type ShownPart = ToolPart | TextPart;
 
 const UI_BLOCK_FENCE = /^ {0,3}(`{3,}|~{3,})openui-lang[ \t]*$/m;
 
-/**
- * A form or secret card that asked the user and no longer waits: answered,
- * answered in the chat instead, or stopped. Like the question tool's card it
- * is a step from then on, so a collapsed Activity folds it.
- */
 export const isSettledAsk = (part: ToolPart): boolean => (
     part.state.status !== 'running' && part.state.status !== 'pending'
     && openChamberToolCall(part.tool, part.state.input)?.awaitsAnswer === true
 );
 
-/**
- * A settled form right after text the turn keeps in view. Text and the reply
- * would otherwise read as one passage with the question gone from between
- * them, so the form stays as the line that says how it was answered
- * (`ShownPartCard`). A settled secret card has no such line and folds.
- */
 const continuesShownText = (part: ToolPart, previous: ShownPart | undefined): boolean => (
     previous !== undefined && isSettledAsk(part) && renderedPage(part.tool, part.state) !== null
     && (previous.type === 'text' || isSettledAsk(previous))
 );
 
-/**
- * What a turn showed the user, in the order it happened: the pages of
- * `openchamber_render` calls, and forms only while they wait or when they
- * continue shown text, the workflow runs `workflow.run` calls proposed, and
- * text with a UI block that the agent wrote before a later step. The final
- * answer's own text is the answer, so it is never hoisted.
- */
-export function getShownPages(messages: readonly ChatMessageEntry[], finalMessage?: ChatMessageEntry): ShownPart[] {
+export const hasUiBlock = (text: string): boolean => UI_BLOCK_FENCE.test(fenceUiBlocks(text));
+
+export function getShownPages(messages: readonly ChatMessageEntry[], finalMessage?: ChatMessageEntry, keepText = false): ShownPart[] {
     const shown: ShownPart[] = [];
     for (const message of messages) {
         for (const part of message.parts) {
             if (part.type === 'tool') {
                 const inView = isShownInPlace(part.tool, part.state) && !isSettledAsk(part);
                 if (inView || continuesShownText(part, shown.at(-1))) shown.push(part);
-            } else if (part.type === 'text' && message !== finalMessage && UI_BLOCK_FENCE.test(fenceUiBlocks(part.text))) {
+            } else if (part.type === 'text' && message !== finalMessage && (keepText ? !isInvisibleText(part.text) : hasUiBlock(part.text))) {
                 shown.push(part);
             }
         }
@@ -78,7 +62,6 @@ export function getShownPages(messages: readonly ChatMessageEntry[], finalMessag
     return shown;
 }
 
-/** The message row that currently draws a hoisted UI page. */
 export function uiPageMessageId(turn: TurnRecord | undefined, expanded: boolean, messageId: string, partId: string): string {
     const final = turn ? getLiveFinalMessage(turn.assistantMessages) : undefined;
     return !expanded && turn && final && getShownPages(turn.assistantMessages, final).some((part) => part.id === partId && part.messageID === messageId)

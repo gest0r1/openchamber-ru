@@ -18,8 +18,6 @@ import { loadMarkdownRendererModule } from '../../markdownRendererLoader';
 
 const { TimelineNotice } = await import('../TimelineNotice');
 
-const { TimelineNotice } = await import('../TimelineNotice');
-
 const unavailable = (): never => { throw new Error('Reasoning scrolling must not call runtime APIs'); };
 const runtimeApis: RuntimeAPIs = {
   runtime: { platform: 'web', isDesktop: false, isVSCode: false },

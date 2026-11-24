@@ -323,8 +323,6 @@ export const buildRendererAdditionalArguments = ({
   `--openchamber-native-frame=${nativeFrame ? '1' : '0'}`,
 ];
 
-// Linux can opt into the desktop environment's own title bar (Settings ->
-// Desktop); it takes effect at the next start, like the window it shapes.
 export const usesLinuxNativeFrame = () => (
   process.platform === 'linux' && readSettingsRoot().desktopLinuxNativeFrame === true
 );
@@ -344,9 +342,6 @@ export const buildMainWindowOptions = ({ bounds, backgroundColor, additionalArgu
     icon: getWindowIconPath(),
     show: false,
     backgroundColor,
-    // Only the Linux system title bar keeps the window manager's frame. Electron
-    // reads a present `frame: undefined` as false, so the value is always a
-    // boolean; macOS draws its traffic lights through titleBarStyle 'hidden'.
     frame: usesLinuxNativeFrame(),
     autoHideMenuBar: process.platform !== 'darwin',
     titleBarStyle: usesCustomTitleBar ? 'hidden' : 'default',

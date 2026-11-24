@@ -95,7 +95,6 @@ export const MobileSessionRow: React.FC<{
   const showActivityDuration = (isStreaming || showUnread) && hasActivityDuration;
   const hasChildren = node.children.length > 0;
   const expanded = row.expanded === true;
-  // A folded row stands for its subsessions too: their waiting requests count here.
   const familyIds = React.useMemo(
     () => (hasChildren && !expanded ? [session.id, ...collectDescendantIds(node)] : [session.id]),
     [expanded, hasChildren, node, session.id],
@@ -103,17 +102,13 @@ export const MobileSessionRow: React.FC<{
   const pendingRequests = usePendingRequests(familyIds);
   const topLevel = !session.parentID;
   const sessionWorkEnabled = useUIStore((state) => state.sessionWorkEnabled);
-  // Only a work's own row tracks it, for every session of it: what nests in
-  // a work is tracked and finished with it.
   const pinned = useSessionPinnedStore((state) => isSessionPinned(state.ids, directory || null, session.id));
-  // A pinned session is never in work, so it offers no Track or Done.
   const ownsWork = sessionWorkEnabled && row.ownsWork && topLevel && !isChatDirectoryPath(directory) && !pinned;
   const sessionsInWork = React.useMemo(() => (ownsWork ? collectSessionWorkInWork(node) : []), [node, ownsWork]);
   const work = ownsWork
     ? { inWork: sessionsInWork.length > 0, onToggle: () => { void toggleMobileSessionWork(session, sessionsInWork, t); } }
     : undefined;
   const pin = topLevel && directory ? { pinned, onToggle: () => toggleMobileSessionPin(session, pinned, t) } : undefined;
-  // The Pinned section's header already says its rows are pinned.
   const inPinnedZone = isPinnedZoneRowKey(row.key);
   const showDoneHint = Boolean(work?.inWork) && !isStreaming && isDoneSuggested(session);
   const detailed = row.detailed === true || isMultiLineTimelineContext(row.renderContext);
@@ -138,7 +133,6 @@ export const MobileSessionRow: React.FC<{
     </span>
   ) : null);
   const inSpace = row.secondaryMeta?.inSpace === true;
-  // Extensions' marks, keyed as the desktop row keys them.
   const projectRoot = useProjectsStore(React.useCallback(
     (state) => (row.projectId ? state.projects.find((entry) => entry.id === row.projectId)?.path ?? null : null),
     [row.projectId],
@@ -167,8 +161,7 @@ export const MobileSessionRow: React.FC<{
     selectMobileSession(session, row.projectId, actions.close);
   };
   const stopRename = () => useMobileSidebarRowsStore.getState().stopRename();
-  // Extensions' session actions, after the row's own, as the desktop menu lists them.
-  const guestActions = guestSessionActions(useGuestActions());
+  const guestActions = guestSessionActions(useGuestActions([directory, projectRoot]));
   const loadRecords = useSessionMessageRecordsForExport();
   const runGuestAction = (entry: GuestActionEntry) => {
     void runGuestSessionAction({
@@ -181,8 +174,6 @@ export const MobileSessionRow: React.FC<{
       onLoadFailed: () => toast.error(t('sessions.sidebar.session.export.failedLoadHistory')),
     });
   };
-  // As on the desktop, a request waiting on the user stands for the turn:
-  // the running mark and its timer step aside for the warning badge.
   const waitingOnUser = pendingRequests.hasPermission || pendingRequests.hasForm;
   const liveState = aiRename.pending
     ? <Icon name="loader-4" className="size-3 shrink-0 animate-spin text-status-info" aria-label={t('sessions.aiRename.generating')} />
@@ -225,7 +216,6 @@ export const MobileSessionRow: React.FC<{
       <MobileProjectIcon project={project} size="xs" />
       {projectNamed ? <TimelineProjectName project={project} separated={false} /> : null}
     </> : null;
-    // A mark never opens a second line: with nothing else there it rides in the first.
     const hasSecondLine = Boolean(project || branch || getSessionGoal(session) || primaryRef || waitingOnUser);
     content = (
       <MobileTwoLineLayout
@@ -236,8 +226,6 @@ export const MobileSessionRow: React.FC<{
           ? renameForm(0, 'h-[1lh] pe-0 typography-ui-label [&_button]:size-6 [&_button>svg]:size-3.5')
           : <>
             {titleText}
-            {hasSecondLine ? null : marks}
-            {pinMarker}
             {doneHint}
             {hasSecondLine ? null : marks}
             {leadMarker}
@@ -276,9 +264,6 @@ export const MobileSessionRow: React.FC<{
           style={{ paddingInlineStart: geometry.textLeft(depth), touchAction: 'manipulation' }}
           onClick={select}
         >
-          {/* The desktop row's order: the goal, the PR, the extensions'
-              marks and the requests waiting on the user, then the pin, the
-              done hint, the live state and its time. */}
           {titleText}
           {doneHint}
           <MobileSessionGoalGlyph session={session} />
@@ -294,7 +279,6 @@ export const MobileSessionRow: React.FC<{
     </>;
   }
 
-  // The long press menu: what the swipe has no room for, then its own actions.
   const menu = (
     <>
       <SessionReadMenuItem sessionId={session.id} Item={ContextMenuItem} showShortcut={false} />
@@ -312,6 +296,19 @@ export const MobileSessionRow: React.FC<{
         <ContextMenuItem onClick={work.onToggle}>
           <Icon name={work.inWork ? 'check' : 'eye'} className="me-1 size-4" />
           {work.inWork ? t('sessions.sidebar.session.work.markDone') : t('sessions.sidebar.session.work.track')}
+        </ContextMenuItem>
+      ) : null}
+      {topLevel && !isOperatorChildSession(session) ? (
+        <ContextMenuItem onClick={() => { void setSessionLead(session.id, directory || null, !isLead).catch(() => toast.error(t('sessions.sidebar.session.lead.failed'))); }}>
+          <Icon name="lead" className="me-1 size-4" />
+          {isLead ? t('sessions.sidebar.session.menu.stopLead') : t('sessions.sidebar.session.menu.makeLead')}
+        </ContextMenuItem>
+      ) : null}
+      {topLevel && !isOperatorChildSession(session) && !isLead ? <HandToLeadItems session={session} projectId={row.projectId ?? null} /> : null}
+      {isOperatorChildSession(session) ? (
+        <ContextMenuItem onClick={() => { void takeOverSession(session.id, directory || null).catch(() => toast.error(t('sessions.sidebar.session.takeOver.failed'))); }}>
+          <Icon name="user" className="me-1 size-4" />
+          {t('sessions.sidebar.session.menu.takeOver')}
         </ContextMenuItem>
       ) : null}
       <ContextMenuItem onClick={() => { void runMobileSubtreeAction('archive', session, t); }}>
@@ -335,8 +332,7 @@ export const MobileSessionRow: React.FC<{
       revealed={revealed}
       onRevealedChange={setRevealed}
       dataActiveSession={active}
-      // A repeat of the open session (Pinned or In work above its project)
-      // takes no fill, as on the desktop: its full-strength title marks it.
+      sessionId={session.id}
       contentClassName={cn('relative flex w-full items-center bg-background transition-colors', active && !row.repeat && MOBILE_ACTIVE_ROW_CLASS)}
       actions={(
         <MobileSessionRowActions

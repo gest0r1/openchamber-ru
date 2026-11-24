@@ -24,7 +24,6 @@ export type InputHistoryAttachment = {
   mimeType: string;
   size: number;
   reference: string;
-  /** Set when `reference` is the note standing in for a desktop file on disk. */
   path?: string;
 };
 
@@ -408,7 +407,6 @@ const buildAttachmentKey = (attachment: AttachedFile): string => {
 const toRestorableAttachment = (attachment: AttachedFile): InputHistoryAttachment | null => {
   const reference = getAttachmentReference(attachment);
   if (!reference) return null;
-  // The note is a few lines, so unlike file content it may stay in history.
   const path = attachment.agentPath && attachment.serverPath === attachment.agentPath ? attachment.agentPath : undefined;
   if (!path && !canRestoreReference(reference)) return null;
   if (attachment.source === 'vscode' && attachment.vscodeSource === 'file') {

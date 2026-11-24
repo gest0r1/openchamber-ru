@@ -407,11 +407,6 @@ export function materializeSessionSnapshots(
 }
 
 export type SessionMaterializationStatusOptions = {
-  /**
-   * The message loader holds this session's history (read from the server,
-   * not evicted since). Then an assistant message still running with no parts
-   * is a step whose parts are on their way, not a gap.
-   */
   historyCovered?: boolean
 }
 
@@ -430,10 +425,6 @@ export function getSessionMaterializationStatus(
     if (message.role !== "assistant") continue
     const parts = state.part[message.id]
     if (parts) continue
-    // OpenCode 2.x opens every step of a turn as a new assistant message and
-    // sends its parts once the model answers, seconds later. In a transcript
-    // the loader holds, that wait is expected: a lost part shows as an orphan
-    // delta, and a step that ends without parts is repaired on its completion.
     if (options.historyCovered && message.time.completed === undefined) continue
     missingPartMessageIDs.push(message.id)
   }

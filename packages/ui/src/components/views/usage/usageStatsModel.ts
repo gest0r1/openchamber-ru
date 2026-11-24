@@ -8,12 +8,6 @@ const RANGE_DAYS = { '1d': 1, '7d': 7, '30d': 30, '90d': 90 } satisfies Record<E
 
 const MAX_DAILY_BARS = 92;
 
-/**
- * Start of the range in epoch ms: local midnight, so "7 days" means today plus
- * the six calendar days before it and "today" starts at this midnight,
- * matching the day buckets OpenCode builds in the viewer's time zone. `all`
- * has no start; OpenCode begins at the oldest message.
- */
 export function rangeStart(range: UsageRange, now: Date): number | undefined {
   if (range === 'all') return undefined;
   const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());

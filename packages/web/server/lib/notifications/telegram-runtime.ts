@@ -3,16 +3,82 @@ import { z } from 'zod';
 import { readFile, writeFile, mkdir, rename, realpath, stat, chmod } from 'node:fs/promises';
 import { dirname, resolve, relative, isAbsolute, basename } from 'node:path';
 
-const keyOf = (directory, sessionId) => createHash('sha256').update(JSON.stringify([directory, sessionId])).digest('hex');
-const safeAlias = (value) => z.string().trim().regex(/^[\p{L}\p{N} _-]{1,80}$/u).safeParse(value).success;
-const validChat = (value) => /^-?\d+$/.test(String(value)) || /^@[A-Za-z][A-Za-z0-9_]{4,}$/.test(String(value));
+import { hasErrorCode, hasErrorMessage } from '../guests/input-guards.js';
+import type { SessionReadFetch } from '../opencode/session-activity.js';
+
+const scopeSchema = z.enum(['once', 'run', 'session']);
+const aliasKindSchema = z.enum(['private', 'group', 'topic']);
+const notificationTypeSchema = z.enum(['completed', 'needs_input', 'error']);
+const senderSchema = z.enum(['legacy', 'sdk', 'paused']);
+const aliasRecordSchema = z.object({ chatId: z.string(), threadId: z.number().nullable(), kind: aliasKindSchema });
+const subscriptionSchema = z.object({
+  opted_in: z.boolean(), alias: z.string(), scope: scopeSchema, created_at: z.number(),
+  expires_at: z.number().nullish(), origin: z.enum(['agent', 'user']).optional(),
+  sessionId: z.string(), directory: z.string(), spaceId: z.string().nullish(),
+  title: z.string().nullish(), baselineIdleId: z.string().nullish(),
+});
+const deliverySchema = z.object({
+  status: z.enum(['reserved', 'sent', 'rejected', 'delivery_unknown']), at: z.number(),
+  directory: z.string(), sessionId: z.string(), type: notificationTypeSchema,
+  eventKey: z.string().nullable(), reason: z.string().optional(),
+});
+const storeSchema = z.object({
+  version: z.literal(1), aliases: z.record(z.string(), aliasRecordSchema),
+  subscriptions: z.record(z.string(), subscriptionSchema),
+  deliveries: z.record(z.string(), deliverySchema).default({}),
+});
+
+type Scope = z.infer<typeof scopeSchema>;
+type AliasKind = z.infer<typeof aliasKindSchema>;
+export type TelegramSender = z.infer<typeof senderSchema>;
+type TelegramStore = z.infer<typeof storeSchema>;
+type Subscription = z.infer<typeof subscriptionSchema>;
+type ConfiguredAlias = { name: string; chat_id: string; message_thread_id?: number | null; kind?: AliasKind };
+type TelegramRuntimeOptions = {
+  storePath: string;
+  getBotToken: () => Promise<string>;
+  getPublicOrigin: () => Promise<string>;
+  fetchImpl?: SessionReadFetch;
+  enabled?: () => Promise<boolean>;
+  getSender?: () => Promise<TelegramSender>;
+  allowedFileRoots?: string[];
+  getConfiguredAliases?: (() => Promise<ConfiguredAlias[]>) | null;
+  persistAliases?: ((aliases: ConfiguredAlias[]) => Promise<void>) | null;
+  getDefaultAlias?: () => Promise<string>;
+};
+type SubscribeOptions = {
+  scope?: Scope | undefined; expiresAt?: number | null | undefined; origin?: 'agent' | 'user';
+  spaceId?: string | null; title?: string | null; baselineIdleId?: string | null;
+};
+type DeliveryInput = {
+  directory: string; sessionId: string; type: z.infer<typeof notificationTypeSchema>;
+  eventKey?: string | null; aborted?: boolean; canSend?: () => Promise<boolean>;
+  manualRetry?: boolean; sender?: TelegramSender;
+};
+export type TelegramContent = {
+  alias?: string | undefined; text?: string | undefined; file?: string | undefined;
+  caption?: string | undefined; mode?: string | undefined; directory?: string | null;
+  expectedSha256?: string | null;
+};
+type Baseline = { directory: string; sessionId: string; createdAt: number; spaceId?: string | null; idleId: string };
+type TelegramFields = { chat_id: string; message_thread_id?: number; text?: string; parse_mode?: 'HTML' };
+
+class TelegramDeliveryError extends Error {
+  readonly retrySafe: boolean;
+  readonly httpStatus: number;
+
+  constructor(status: number) {
+    super(`Telegram delivery rejected (HTTP ${status})`);
+    this.retrySafe = status === 429;
+    this.httpStatus = status;
+  }
+}
+
+const keyOf = (directory: string, sessionId: string) => createHash('sha256').update(JSON.stringify([directory, sessionId])).digest('hex');
+const safeAlias = (value: string) => z.string().trim().regex(/^[\p{L}\p{N} _-]{1,80}$/u).safeParse(value).success;
+const validChat = (value: string | number | null | undefined) => /^-?\d+$/.test(String(value)) || /^@[A-Za-z][A-Za-z0-9_]{4,}$/.test(String(value));
 const MAX_TEXT = 4000;
 
-/**
- * Opt-in Telegram delivery. No OpenCode session content is transmitted:
- * automatic messages contain a fixed event title and a session deep link.
- * This runtime is intentionally independent of desktop/web push.
- */
 export const createTelegramRuntime = ({
   storePath, getBotToken, getPublicOrigin, fetchImpl = fetch,
   enabled = async () => true,
@@ -21,10 +87,10 @@ export const createTelegramRuntime = ({
   getConfiguredAliases = null,
   persistAliases = null,
   getDefaultAlias = async () => '',
-}) => {
-  let queue = Promise.resolve();
+}: TelegramRuntimeOptions) => {
+  let queue: Promise<void> = Promise.resolve();
   let aliasQueue = Promise.resolve();
-  const normalizeAlias = (value) => String(value ?? '').trim().replace(/\s+/g, ' ').toLocaleLowerCase();
+  const normalizeAlias = (value: string | undefined | null) => String(value ?? '').trim().replace(/\s+/g, ' ').toLocaleLowerCase();
   const configuredAliases = async () => {
     if (!getConfiguredAliases) return (await load()).aliases;
     const aliases = await getConfiguredAliases();
@@ -32,28 +98,28 @@ export const createTelegramRuntime = ({
       chatId: String(entry.chat_id), threadId: entry.message_thread_id ?? null, kind: entry.kind ?? 'private',
     }]));
   };
-  const recentDelivery = new Map();
-  const inflightDelivery = new Set();
-  const inflightVerification = new Set();
-  const empty = () => ({ version: 1, aliases: {}, subscriptions: {}, deliveries: {} });
+  const recentDelivery = new Map<string, number>();
+  const inflightDelivery = new Set<string>();
+  const inflightVerification = new Set<string>();
+  const empty = (): TelegramStore => ({ version: 1, aliases: {}, subscriptions: {}, deliveries: {} });
   const load = async () => {
     try {
-      const parsed = JSON.parse(await readFile(storePath, 'utf8'));
-      return parsed?.version === 1 && parsed.aliases && parsed.subscriptions ? parsed : empty();
+      const input = JSON.parse(await readFile(storePath, 'utf8'));
+      return storeSchema.parse(input);
     } catch (error) {
-      if (error.code === 'ENOENT') return empty();
+      if (hasErrorCode(error) && error.code === 'ENOENT') return empty();
       throw error;
     }
   };
-  const isExpired = (record, now = Date.now()) =>
-    Number.isFinite(record?.expires_at) && record.expires_at <= now;
-  const expireSubscriptions = (data) => {
+  const isExpired = (record: Subscription | undefined, now = Date.now()) =>
+    record?.expires_at != null && Number.isFinite(record.expires_at) && record.expires_at <= now;
+  const expireSubscriptions = (data: TelegramStore) => {
     const now = Date.now();
     for (const [key, record] of Object.entries(data.subscriptions)) {
       if (isExpired(record, now)) delete data.subscriptions[key];
     }
   };
-  const mutate = (fn) => {
+  const mutate = (fn: (data: TelegramStore) => void) => {
     const task = queue.catch(() => {}).then(async () => {
       const data = await load();
       expireSubscriptions(data);
@@ -68,7 +134,7 @@ export const createTelegramRuntime = ({
     queue = task;
     return task;
   };
-  const configureAlias = (alias, chatId, threadId = null, kind = 'private', previousName = null) => {
+  const configureAlias = (alias: string, chatId: string | number | null, threadId: number | null = null, kind: AliasKind = 'private', previousName: string | null = null) => {
     if (!safeAlias(alias) || (previousName && !safeAlias(previousName)) ||
       (chatId !== null && chatId !== '' && !validChat(chatId)) ||
       (threadId !== null && (!Number.isSafeInteger(threadId) || threadId < 1)) ||
@@ -81,7 +147,7 @@ export const createTelegramRuntime = ({
       const current = await configuredAliases();
       const peer = chatId || current[oldName]?.chatId;
       if (!validChat(peer)) throw new TypeError('Chat ID is required for a new Telegram alias');
-      if (persistAliases) {
+      if (persistAliases && getConfiguredAliases) {
         const saved = await getConfiguredAliases();
         const next = (Array.isArray(saved) ? saved : []).filter((entry) => ![normalized, oldName].includes(normalizeAlias(entry.name)));
         next.push({ name: alias.trim(), chat_id: String(peer), message_thread_id: threadId, kind });
@@ -102,11 +168,11 @@ export const createTelegramRuntime = ({
     aliasQueue = task;
     return task;
   };
-  const deleteAlias = (alias) => {
+  const deleteAlias = (alias: string) => {
     if (!safeAlias(alias)) throw new TypeError('Invalid Telegram alias');
     const normalized = normalizeAlias(alias);
     const task = aliasQueue.catch(() => {}).then(async () => {
-      if (persistAliases) {
+      if (persistAliases && getConfiguredAliases) {
         const current = await getConfiguredAliases();
         await persistAliases((Array.isArray(current) ? current : []).filter((entry) => normalizeAlias(entry.name) !== normalized));
       }
@@ -120,29 +186,26 @@ export const createTelegramRuntime = ({
     aliasQueue = task;
     return task;
   };
-  const selectAlias = async (alias) => {
+  const selectAlias = async (alias?: string | null) => {
     const name = normalizeAlias(alias || await getDefaultAlias());
     if (!name) throw new TypeError('Telegram default alias is not configured');
     const aliases = await configuredAliases();
     const target = aliases[name];
     if (target) return { name, target };
-    // Natural agent requests may include a Russian destination preposition.
-    // Resolve only an exact known name after removing it; never guess a chat.
     const withoutPreposition = name.replace(/^(?:в|во|на|для|к)\s+/u, '');
-    if (withoutPreposition !== name && aliases[withoutPreposition]) {
-      return { name: withoutPreposition, target: aliases[withoutPreposition] };
+    const shortenedTarget = aliases[withoutPreposition];
+    if (withoutPreposition !== name && shortenedTarget) {
+      return { name: withoutPreposition, target: shortenedTarget };
     }
     throw new TypeError(`Unknown Telegram alias: ${name}`);
   };
-  const subscribe = async (directory, sessionId, alias, options = {}) => {
+  const subscribe = async (directory: string, sessionId: string, alias: string | null, options: SubscribeOptions = {}) => {
     if (!z.string().trim().min(1).safeParse(directory).success || !z.string().trim().min(1).safeParse(sessionId).success) {
       throw new TypeError('Invalid subscription');
     }
     const { name } = await selectAlias(alias);
     const scope = options.scope ?? 'session';
     if (!['once', 'run', 'session'].includes(scope)) throw new TypeError('Invalid Telegram subscription scope');
-    // A session subscription remains in effect until the user opts out.
-    // Expiry applies only if a caller explicitly requests a deadline.
     const expiresAt = options.expiresAt ?? null;
     if (expiresAt !== null && (!Number.isSafeInteger(expiresAt) || expiresAt <= Date.now())) {
       throw new TypeError('Invalid Telegram expiry');
@@ -152,12 +215,12 @@ export const createTelegramRuntime = ({
       data.subscriptions[keyOf(directory, sessionId)] = {
         opted_in: true, alias: name, scope, created_at: Date.now(), expires_at: expiresAt, origin,
         sessionId, directory, spaceId: options.spaceId ?? null,
-        title: typeof options.title === 'string' && options.title.trim() ? options.title.slice(0, 200) : null,
-        baselineIdleId: typeof options.baselineIdleId === 'string' ? options.baselineIdleId : null,
+        title: options.title?.trim() ? options.title.slice(0, 200) : null,
+        baselineIdleId: options.baselineIdleId ?? null,
       };
     });
   };
-  const unsubscribe = (directory, sessionId) => mutate((data) => {
+  const unsubscribe = (directory: string, sessionId: string) => mutate((data) => {
     delete data.subscriptions[keyOf(directory, sessionId)];
   });
   const listAliasDetails = async () => {
@@ -171,56 +234,44 @@ export const createTelegramRuntime = ({
       kind: value.kind,
     }));
   };
-  const request = async (method, fields, { multipart = false } = {}) => {
+  const request = async (method: string, fields: TelegramFields | FormData) => {
     const token = await getBotToken();
     if (!token || !/^[0-9]+:[A-Za-z0-9_-]+$/.test(token)) throw new Error('Telegram is not configured');
+    const multipart = fields instanceof FormData;
     for (let attempt = 0; attempt < 3; attempt += 1) {
-      try {
-        const requestOptions = {
-          method: 'POST',
-          body: multipart ? fields : JSON.stringify(fields),
-          signal: AbortSignal.timeout(multipart ? 30000 : 10000),
-        };
-        if (!multipart) requestOptions.headers = { 'content-type': 'application/json' };
-        const response = await fetchImpl(`https://api.telegram.org/bot${token}/${method}`, requestOptions);
-        const result = await response.json().catch(() => null);
-        if (response.ok && result?.ok === true) return result.result;
-        // Rate limiting is a confirmed refusal. A 5xx may be ambiguous:
-        // Telegram could have accepted the message before failing to reply.
-        if (response.status === 429) {
-          if (attempt < 2) {
-            const retryAfter = Number(result?.parameters?.retry_after);
-            await new Promise((resolve) => setTimeout(resolve, Number.isFinite(retryAfter) && retryAfter > 0 ? Math.min(retryAfter * 1000, 10000) : 300 * (2 ** attempt)));
-            continue;
-          }
+      const requestOptions: RequestInit = {
+        method: 'POST',
+        body: multipart ? fields : JSON.stringify(fields),
+        signal: AbortSignal.timeout(multipart ? 30000 : 10000),
+      };
+      if (!multipart) requestOptions.headers = { 'content-type': 'application/json' };
+      const response = await fetchImpl(`https://api.telegram.org/bot${token}/${method}`, requestOptions);
+      const result = await response.json().catch(() => null);
+      if (response.ok && result?.ok === true) return result.result;
+      if (response.status === 429) {
+        if (attempt < 2) {
+          const retryAfter = Number(result?.parameters?.retry_after);
+          await new Promise((resolve) => setTimeout(resolve, Number.isFinite(retryAfter) && retryAfter > 0 ? Math.min(retryAfter * 1000, 10000) : 300 * (2 ** attempt)));
+          continue;
         }
-        const error = new Error(`Telegram delivery rejected (HTTP ${response.status})`);
-        error.retrySafe = response.status === 429;
-        error.httpStatus = response.status;
-        throw error;
-      } catch (error) {
-        // A lost response can mean Telegram already accepted the message.
-        // Retrying an ambiguous POST would send duplicates.
-        throw error;
       }
+      throw new TelegramDeliveryError(response.status);
     }
   };
-  const htmlEscape = (value) => value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-  // Telegram HTML is deliberately a small Markdown subset, not arbitrary HTML.
-  // Protect code and links before converting emphasis so user text remains data.
-  const markdownToTelegramHtml = (source) => {
-    const protectedSpans = [];
-    const protect = (markup) => {
+  const htmlEscape = (value: string) => value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const markdownToTelegramHtml = (source: string) => {
+    const protectedSpans: string[] = [];
+    const protect = (markup: string) => {
       const key = protectedSpans.length;
       protectedSpans.push(markup);
       return `\uE000${key}\uE001`;
     };
     let html = htmlEscape(source.replace(/\r\n?/g, '\n'));
-    html = html.replace(/^\`\`\`[^\n]*\n([\s\S]*?)\n\`\`\`[ \t]*$/gm, (_match, code) =>
+    html = html.replace(/^```[^\n]*\n([\s\S]*?)\n```[ \t]*$/gm, (_match, code) =>
       protect(`<pre>${code}</pre>`));
-    html = html.replace(/\`([^\`\n]+)\`/g, (_match, code) => protect(`<code>${code}</code>`));
-    html = html.replace(/\[([^\]\n]+)\]\((https?:\/\/[^\s)\"'<>]+)\)/gi, (_match, label, url) =>
-      protect(`<a href=\"${url}\">${label}</a>`));
+    html = html.replace(/`([^`\n]+)`/g, (_match, code) => protect(`<code>${code}</code>`));
+    html = html.replace(/\[([^\]\n]+)\]\((https?:\/\/[^\s)"'<>]+)\)/gi, (_match, label, url) =>
+      protect(`<a href="${url}">${label}</a>`));
     html = html
       .replace(/^#{1,6} +([^\n]+)$/gm, '<b>$1</b>')
       .replace(/^&gt; ?([^\n]+)$/gm, '<blockquote>$1</blockquote>')
@@ -230,19 +281,18 @@ export const createTelegramRuntime = ({
       .replace(/~~([^~\n]+)~~/g, '<s>$1</s>');
     return html.replace(/\uE000(\d+)\uE001/g, (_match, key) => protectedSpans[Number(key)] ?? '');
   };
-  const safeChunkEnd = (value, start, maxLength) => {
+  const safeChunkEnd = (value: string, start: number, maxLength: number) => {
     let end = Math.min(value.length, start + maxLength);
-    // Do not split a Unicode surrogate pair between Telegram messages.
     if (end > start && end < value.length &&
       value.charCodeAt(end - 1) >= 0xD800 && value.charCodeAt(end - 1) <= 0xDBFF &&
       value.charCodeAt(end) >= 0xDC00 && value.charCodeAt(end) <= 0xDFFF) end -= 1;
     return end;
   };
-  const sendText = async (alias, text, { formatted = false } = {}) => {
+  const sendText = async (alias: string | undefined, text: string, { formatted = false } = {}) => {
     const { target } = await selectAlias(alias);
     if (!z.string().trim().min(1).safeParse(text).success) throw new TypeError('Message is empty');
     if (text.length > 100_000) throw new TypeError('Message exceeds 100000 characters');
-    const destination = { chat_id: target.chatId };
+    const destination: TelegramFields = { chat_id: target.chatId };
     if (target.threadId) destination.message_thread_id = target.threadId;
     if (!formatted) {
       for (let offset = 0; offset < text.length;) {
@@ -266,7 +316,7 @@ export const createTelegramRuntime = ({
     }
     return true;
   };
-  const sendDocument = async (alias, filePath, { directory = null, caption = '', expectedSha256 = null } = {}) => {
+  const sendDocument = async (alias: string | undefined, filePath: string, { directory = null, caption = '', expectedSha256 = null }: Pick<TelegramContent, 'directory' | 'caption' | 'expectedSha256'> = {}) => {
     if (!z.string().trim().min(1).safeParse(filePath).success) throw new TypeError('File path required');
     if (!z.string().max(1024).safeParse(caption).success) throw new TypeError('Caption exceeds 1024 characters');
     const actual = await realpath(isAbsolute(filePath) ? filePath : resolve(directory || '', filePath));
@@ -290,7 +340,7 @@ export const createTelegramRuntime = ({
       throw new TypeError('Markdown document changed after the user approved the send');
     }
     body.append('document', new Blob([contents], { type: 'text/markdown' }), basename(actual));
-    await request('sendDocument', body, { multipart: true });
+    await request('sendDocument', body);
     return true;
   };
   let rateWindow = 0;
@@ -299,16 +349,15 @@ export const createTelegramRuntime = ({
     const now = Date.now();
     if (now - rateWindow >= 10000) { rateWindow = now; rateCount = 0; }
     if (rateCount >= 10) {
-      const error = new Error('Too many Telegram sends');
-      error.retryAfter = Math.max(1, Math.ceil((rateWindow + 10000 - now) / 1000));
-      throw error;
+      throw Object.assign(new Error('Too many Telegram sends'), {
+        retryAfter: Math.max(1, Math.ceil((rateWindow + 10000 - now) / 1000)),
+      });
     }
     rateCount += 1;
   };
-  const sendContent = async ({ alias, text, file, caption = '', mode = 'document', directory = null, expectedSha256 = null }) => {
+  const sendContent = async ({ alias, text, file, caption = '', mode = 'document', directory = null, expectedSha256 = null }: TelegramContent) => {
     if (!['document', 'formatted'].includes(mode)) throw new TypeError('Invalid Telegram mode');
     if (!text && !file) throw new TypeError('text or file required');
-    // Explicit delivery bypasses the per-session opt-in, not the channel switch.
     if (await enabled() !== true) return { delivered: false, reason: 'telegram-disabled' };
     rateLimitExplicit();
     if (file && mode === 'document') await sendDocument(alias, file, { directory, caption, expectedSha256 });
@@ -329,7 +378,7 @@ export const createTelegramRuntime = ({
     if (text) await sendText(alias, text, { formatted: mode === 'formatted' });
     return { delivered: true };
   };
-  const getSubscription = async (directory, sessionId) => {
+  const getSubscription = async (directory: string, sessionId: string) => {
     const data = await load();
     const record = data.subscriptions[keyOf(directory, sessionId)];
     return record?.opted_in && !isExpired(record) ? record : null;
@@ -342,22 +391,21 @@ export const createTelegramRuntime = ({
         title: entry.title ?? null, createdAt: entry.created_at,
         baselineIdleId: entry.baselineIdleId ?? null })).filter((entry) => entry.directory && entry.sessionId);
   };
-  // Take over only from an observed legacy idle checkpoint. Atomic with
-  // subscription identity validation; never reset an opt-in created later.
-  const seedBaselines = async (snapshots) => mutate((data) => {
+  const seedBaselines = async (snapshots: Baseline[]) => mutate((data) => {
     for (const item of snapshots) {
       const record = data.subscriptions[keyOf(item.directory, item.sessionId)];
       if (!record?.opted_in || record.created_at !== item.createdAt ||
           (record.spaceId ?? null) !== (item.spaceId ?? null) ||
-          typeof item.idleId !== 'string' || !item.idleId) {
+          !item.idleId) {
         throw new Error('Telegram cutover snapshot no longer matches subscriptions');
       }
     }
     for (const item of snapshots) {
-      data.subscriptions[keyOf(item.directory, item.sessionId)].baselineIdleId = item.idleId;
+      const record = data.subscriptions[keyOf(item.directory, item.sessionId)];
+      if (record) record.baselineIdleId = item.idleId;
     }
   });
-  const hasSubscription = async (directory, sessionId) => {
+  const hasSubscription = async (directory: string, sessionId: string) => {
     const data = await load();
     const key = keyOf(directory, sessionId);
     const record = data.subscriptions[key];
@@ -371,7 +419,7 @@ export const createTelegramRuntime = ({
   const listAliases = async () => {
     return Object.keys(await configuredAliases());
   };
-  const notify = async ({ directory, sessionId, type, eventKey = null, aborted = false, canSend = async () => true, manualRetry = false, sender = 'legacy' }) => {
+  const notify = async ({ directory, sessionId, type, eventKey = null, aborted = false, canSend = async () => true, manualRetry = false, sender = 'legacy' }: DeliveryInput) => {
     if (!directory || !sessionId || aborted || !['completed', 'needs_input', 'error'].includes(type)) return false;
     if (await enabled() !== true || await getSender() !== sender) return false;
     const data = await load();
@@ -388,18 +436,12 @@ export const createTelegramRuntime = ({
     if (data.deliveries?.[dedupKey] && !manualRetry) return true;
     if (inflightDelivery.has(dedupKey) || inflightVerification.has(dedupKey) ||
       Date.now() - (recentDelivery.get(dedupKey) ?? 0) < 5000) return false;
-    // Completion is only accepted from the server-owned durable verifier.
-    // It checks the run outcome, descendants, shells and dispatch results.
     if (type === 'completed' && eventKey?.startsWith('idle:') !== true) return false;
-    // Claim the delivery key before the first asynchronous verification. Two
-    // simultaneous event handlers must not both pass the same canSend fence.
     inflightVerification.add(dedupKey);
     let url = '';
     try {
       const origin = String(await getPublicOrigin() || '').replace(/\/$/, '');
       url = /^https:\/\//.test(origin) ? `\n${origin}/?session=${encodeURIComponent(sessionId)}` : '';
-      // Live probes and URL resolution can take several seconds. Honor an opt-out,
-      // expiry, alias switch, or channel disable that happened while awaiting them.
       const current = (await load()).subscriptions[keyOf(directory, sessionId)];
       if (!current?.opted_in || current.alias !== subscription.alias ||
         current.created_at !== subscription.created_at ||
@@ -412,14 +454,8 @@ export const createTelegramRuntime = ({
     } finally {
       inflightVerification.delete(dedupKey);
     }
-    // A failed verification before sendText cannot have reached the Bot API.
-    // Keep it distinct from an ambiguous network failure during delivery.
     let sendAttempted = false;
     try {
-      // Reserve this event before the Bot API request. Network failure or a
-      // restart after the request can leave its status ambiguous; do not retry
-      // automatically. Validation failures before sendText have no such risk
-      // and must release the reservation so verification can run again.
       await mutate((latest) => {
         latest.deliveries ??= {};
         latest.deliveries[dedupKey] = {
@@ -432,8 +468,6 @@ export const createTelegramRuntime = ({
         await mutate((latest) => { delete latest.deliveries[dedupKey]; });
         return false;
       }
-      // A subscriber may opt out while the second live activity probe runs.
-      // Check the subscription again after that await and before the Bot API.
       const finalSubscription = (await load()).subscriptions[keyOf(directory, sessionId)];
       if (!finalSubscription?.opted_in ||
         finalSubscription.created_at !== subscription.created_at ||
@@ -447,7 +481,8 @@ export const createTelegramRuntime = ({
       sendAttempted = true;
       await sendText(subscription.alias, `${type === 'completed' ? 'Agent completed the task' : type === 'error' ? 'Agent encountered an error' : 'Agent needs your input'}${url}`);
       await mutate((latest) => {
-        if (latest.deliveries?.[dedupKey]) latest.deliveries[dedupKey].status = 'sent';
+        const entry = latest.deliveries[dedupKey];
+        if (entry) entry.status = 'sent';
       });
       if (subscription.scope === 'once' || (subscription.scope === 'run' && type === 'completed')) {
         await mutate((latest) => {
@@ -459,18 +494,21 @@ export const createTelegramRuntime = ({
       recentDelivery.delete(dedupKey);
       recentDelivery.set(dedupKey, Date.now());
       while (recentDelivery.size > 1000) {
-        recentDelivery.delete(recentDelivery.keys().next().value);
+        const oldest = recentDelivery.keys().next();
+        if (oldest.done) break;
+        recentDelivery.delete(oldest.value);
       }
       return true;
     } catch (error) {
-      // Validation can fail after reservation but before the first Bot API
-      // request. Only an attempted request can have an ambiguous outcome.
       await mutate((latest) => {
-        if (!sendAttempted || error?.retrySafe === true) delete latest.deliveries?.[dedupKey];
-        else if (latest.deliveries?.[dedupKey]) {
-          latest.deliveries[dedupKey].status = error?.httpStatus && error.httpStatus < 500 ? 'rejected' : 'delivery_unknown';
-          latest.deliveries[dedupKey].reason = String(error?.message ?? 'Unknown delivery result').slice(0, 200);
+        if (!sendAttempted || (error instanceof TelegramDeliveryError && error.retrySafe)) {
+          delete latest.deliveries[dedupKey];
+          return;
         }
+        const entry = latest.deliveries[dedupKey];
+        if (!entry) return;
+        entry.status = error instanceof TelegramDeliveryError && error.httpStatus < 500 ? 'rejected' : 'delivery_unknown';
+        entry.reason = String(hasErrorMessage(error) ? error.message : 'Unknown delivery result').slice(0, 200);
       });
       throw error;
     } finally {
@@ -483,9 +521,6 @@ export const createTelegramRuntime = ({
       z.object({ status: z.enum(['reserved', 'delivery_unknown', 'rejected']) }).passthrough().safeParse(entry).success)
       .slice(-100).map(([key, entry]) => ({ key, ...entry }));
   };
-  // Changing sender must not overlap a Bot API request already begun by the
-  // previous owner. Pause first, then drain both completion probes and sends.
-  // A timeout is an unsafe cutover, never evidence that delivery finished.
   const waitForSettledDeliveries = async ({ timeoutMs = 30_000 } = {}) => {
     const deadline = Date.now() + timeoutMs;
     while (inflightVerification.size || inflightDelivery.size) {
@@ -495,7 +530,7 @@ export const createTelegramRuntime = ({
       await new Promise((resolve) => setTimeout(resolve, 50));
     }
   };
-  const retryDelivery = async (key) => {
+  const retryDelivery = async (key: string) => {
     if (!z.string().safeParse(key).success) throw new TypeError('Delivery key is required');
     const data = await load();
     const entry = data.deliveries?.[key];
@@ -508,7 +543,6 @@ export const createTelegramRuntime = ({
     if (!await hasSubscription(entry.directory, entry.sessionId)) {
       throw new TypeError('The original session is no longer subscribed');
     }
-    // Manual action from an authenticated user, never background retry.
     return notify({ directory: entry.directory, sessionId: entry.sessionId,
       type: entry.type, eventKey: entry.eventKey, manualRetry: true, sender: await getSender() });
   };

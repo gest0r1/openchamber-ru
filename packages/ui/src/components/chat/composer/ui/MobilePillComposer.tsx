@@ -88,21 +88,12 @@ export function MobilePillComposer(props: MobilePillComposerProps) {
                 data-mobile-composer-pill="true"
                 data-composer-box="true"
                 className={cn(
-                    // Lit like the desktop composer box: top edge, hairline,
-                    // shadow and, in dark themes, the faint sheen.
                     'oc-surface-floating oc-composer-surface oc-glass-floating oc-composer-sheen flex min-w-0 flex-col',
                     topRow || bottomRow ? 'rounded-[1.25rem]' : 'rounded-full',
                 )}
             >
             {topRow}
             {attachments}
-            {/* Built like the expanded footer (ComposerFooter's mobile
-                branch) so no icon shifts across the swap, whatever size the
-                runtime gives a button: the same h-12, the attach button in
-                `composer-mobile-actions` (24px wide) at the footer's 10px
-                inset, mic and Send in a gap-x-1 group, and pe-3.5 with the
-                disc at the end of its slot, so the disc's right edge lines up
-                with the agent label below. */}
             <div className="flex h-12 min-w-0 items-center gap-x-0.5 ps-2.5 pe-3.5">
                 <div className="composer-mobile-actions flex flex-shrink-0 items-center">
                     <ComposerAttachmentControls
@@ -151,20 +142,10 @@ export function MobilePillComposer(props: MobilePillComposerProps) {
                     <TooltipContent side="top"><TooltipLabelWithShortcut label={t('chat.dictation.start')} shortcut={formatShortcutForDisplay(getEffectiveShortcutCombo('toggle_dictation', shortcutOverrides), '')} /></TooltipContent>
                     </Tooltip>
                 ) : null}
-                {/* One disc in one slot, as in the expanded composer
-                    (ComposerActionButtons): Stop while a turn runs and the
-                    input is empty, Send otherwise; a draft typed during a run
-                    queues or steers as the setting says. A phone has no
-                    Escape to stop with, so while that draft waits Stop stays
-                    as a bare icon before the disc. Instant swap, no shape
-                    animation (WKWebView). */}
                 {canAbort ? (
                     <button
                         type="button"
                         className={cn(footerIconButtonClass, !hasContent && 'justify-end')}
-                        // The pill shows only while the keyboard is down — the
-                        // tap must abort in place, never focus/expand the
-                        // composer or raise the keyboard.
                         onMouseDown={(event) => event.preventDefault()}
                         onPointerDownCapture={(event) => {
                             if (event.pointerType === 'touch') {

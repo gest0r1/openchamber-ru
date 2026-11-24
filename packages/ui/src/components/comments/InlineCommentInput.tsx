@@ -22,7 +22,6 @@ import { runGuestAction } from '@/lib/guests/run-action';
 export interface InlineCommentInputProps {
   initialText?: string;
   onTextChange?: (text: string) => void;
-  /** False keeps the field open with its text: the save did not land. */
   onSave: (text: string, range?: { start: number; end: number; side?: 'additions' | 'deletions' }) => boolean | void;
   onCancel: () => void;
   fileLabel?: string;
@@ -197,7 +196,6 @@ export function InlineCommentInput({
     save();
   };
 
-  // Three worded actions do not fit one row on a phone; the paperclip reads without its word.
   const compactAttach = isMobile && Boolean(suggestionCode) && !saveLabel;
 
   const commentContext = (
@@ -277,8 +275,6 @@ export function InlineCommentInput({
             <TooltipContent side="top" sideOffset={6}>{t('inlineComment.actions.comment')}</TooltipContent>
           </Tooltip>
         ) : (
-          // A phone has no tooltips and no room for one line: the context heads
-          // the field and the actions say what they do in words.
           <div className="flex min-w-0 items-center gap-1.5 pb-1.5 pe-1.5 ps-3">
             {isMobile ? null : commentContext}
             <div className={isMobile ? 'flex flex-1 flex-wrap items-center justify-end gap-1.5' : 'contents'}>

@@ -94,9 +94,6 @@ const hasTooltipMetadata = (metadata?: ModelMetadata) => {
   );
 };
 
-// The row sits inside the list's padding, so the card's offset from the row
-// has to clear that padding too, or the card covers the picker's edge; past
-// it, about 10px of air between the picker and the card.
 const ROW_TOOLTIP_OFFSET = 20;
 
 const ROW_TOOLTIP_ROOM = 320 + ROW_TOOLTIP_OFFSET;
@@ -377,7 +374,6 @@ interface ModelPickerListProps {
   maxHeightClassName?: string;
   maxHeightStyle?: React.CSSProperties;
   sectionHeaderClassName?: string;
-  /** Uppercase section captions, as phone sheets write them; desktop lists take the sidebar's muted sentence case. */
   sheetCaptions?: boolean;
   rowClassName?: string;
   stickyHeaders?: boolean;
@@ -843,7 +839,6 @@ export const ModelPickerList: React.FC<ModelPickerListProps> = ({
     if (stickyHeaders && scrollRef.current) syncStickyFade(scrollRef.current);
   }, [stickyHeaders, syncStickyFade, rows]);
 
-  // A caption is no larger than the rows it heads (typography-meta).
   const captionClassName = sheetCaptions
     ? 'typography-micro font-semibold uppercase tracking-wider'
     : 'typography-meta font-medium';
@@ -1230,8 +1225,6 @@ export const ModelPickerList: React.FC<ModelPickerListProps> = ({
       >
         <ScrollableOverlay
           ref={attachScroller}
-          // The bottom fade says the list goes on under the key-hint footer;
-          // without it the last row read as cut off.
           useScrollShadow
           scrollShadowSize={12}
           outerClassName={maxHeightClassName}

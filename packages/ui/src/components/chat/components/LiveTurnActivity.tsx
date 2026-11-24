@@ -179,16 +179,6 @@ function TurnPage({ part }: { part: ShownPart }) {
     );
 }
 
-function TurnPage({ part }: { part: ShownPart }) {
-    const page = part.type === 'tool' ? renderedPage(part.tool, part.state) : null;
-    if (!page?.ui || page.ask.kind !== 'show') return <ShownPartCard part={part} />;
-    return (
-        <div data-ui-render-hoisted="true">
-            <ShownPartCard part={part} />
-        </div>
-    );
-}
-
 export function TurnPagesRow({ turn, keepText }: { turn: TurnRecord; keepText: boolean }) {
     const pages = React.useMemo(() => getShownPages(turn.assistantMessages, undefined, keepText), [turn.assistantMessages, keepText]);
     return pages.length > 0 ? <TurnPages pages={pages} /> : null;

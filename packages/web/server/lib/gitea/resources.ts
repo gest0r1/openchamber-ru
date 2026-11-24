@@ -1,5 +1,5 @@
 import { documentDataUrl } from '../source-control/document-versions.js';
-import { isPlainObject, isString } from '../shared/guards.js';
+import { isPlainObject, isPresent, isString } from '../shared/guards.js';
 import { mapLimited } from '../shared/map-limited.js';
 import { changeRequestNetworkTarget } from '../source-control/repository-network.js';
 import {
@@ -566,19 +566,20 @@ export function createGiteaResourceService({
       return { patch, meta: { owner: target.project.owner, repo: target.project.name, number } };
     },
 
-    /**
-     * Both sides of one file: the merge base the diff was taken against and
-     * the head commit. Gitea keeps a fork pull request's head under the
-     * target repository's `refs/pull/<n>/head`, so both reads go there.
-     */
-    async changeRequestFileContents(directory, number, { project, remote, path, previousPath, status, binary, linked }) {
+    async changeRequestFileContents(directory: string, number: number, { project, remote, path, previousPath, status, binary, linked }: ReadOptions & {
+      path: string; previousPath?: string | undefined; status?: string | undefined; binary?: boolean | undefined;
+    }) {
       const { target, raw } = await findPull(directory, number, project, { remote, linked });
       const baseSha = raw?.merge_base;
       const headSha = field(raw.head, 'sha');
       if (!COMMIT_SHA.test(String(baseSha)) || !COMMIT_SHA.test(String(headSha))) throw malformed(`${providerLabel} returned invalid pull request refs`);
-      const readFile = async (filePath, ref) => {
+      const readFile = async (filePath: string, ref: Input) => {
         const rawPath = `${repoPath(target.project)}/raw/${filePath.split('/').map(seg).join('/')}`;
-        if (binary) return documentDataUrl(await client.bytes(rawPath, { ref }));
+        if (binary) {
+          const bytes = await client.bytes(rawPath, { ref });
+          if (bytes === null) throw new TypeError('Missing file bytes');
+          return documentDataUrl(bytes);
+        }
         const content = await client.text(rawPath, { ref });
         if (!isString(content)) throw malformed(`${providerLabel} returned invalid file contents`);
         if (Buffer.byteLength(content) > MAX_FULL_FILE_BYTES) {
@@ -738,7 +739,7 @@ export function createGiteaResourceService({
       return { ready: !request.draft };
     },
 
-    async draftChangeRequest({ providerTarget, expectedTarget }) {
+    async draftChangeRequest({ providerTarget, expectedTarget }: MutationCall) {
       const current = requirePull(await readTargetPull(providerTarget), projectOfTarget(providerTarget));
       requireExpected({ number: expectedTarget.number, headSha: expectedTarget.headSha }, current);
       if (current.draft) return { draft: true };
@@ -747,8 +748,7 @@ export function createGiteaResourceService({
       return { draft: request.draft };
     },
 
-    /** Close or reopen, through the issue a pull request also is. */
-    async setState({ providerTarget, state, kind }) {
+    async setState({ providerTarget, state, kind }: WithTarget & { state: string; kind: string }) {
       const raw = await client.patch(`${repoPath(targetRepo(providerTarget))}/issues/${providerTarget.number}`, { state });
       if (!plainObject(raw) || raw.number !== providerTarget.number || raw.state !== state) {
         throw malformed(`${providerLabel} returned an unexpected ${kind.startsWith('issue') ? 'issue' : 'pull request'} state`);

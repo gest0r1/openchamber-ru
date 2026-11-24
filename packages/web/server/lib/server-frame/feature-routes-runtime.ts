@@ -8,7 +8,7 @@ import { registerWalkthroughRoutes } from '../walkthrough/routes.js';
 import { registerSessionGoalRoutes } from '../session-goal/routes.js';
 import { registerSessionWarmingRoutes } from '../session-warming/routes.js';
 import { registerSessionTodosRoutes } from '../session-todos/routes.js';
-import { setWarmingDuration, setWarmingEnabled } from './websearch-config.js';
+import { setWarmingDuration, setWarmingEnabled } from '../opencode/websearch-config.js';
 import { registerSourceControlRoutes } from '../source-control/routes.js';
 import { registerLinearRoutes } from '../linear/routes.js';
 import { registerTrackerRoutes } from '../trackers/routes.js';
@@ -45,8 +45,8 @@ import { registerRoutingPromptRewrite, registerRoutingRoutes } from '../routing/
 import { registerConfigEntityRoutes } from '../opencode/config-entity-routes.js';
 import { createThemeFolderWatch } from '../appearance/theme-watch.js';
 import { registerSettingsUtilityRoutes } from './core-routes.js';
-import { registerProjectIconRoutes } from './project-icon-routes.js';
-import { registerProviderLogoRoutes } from './provider-logo-routes.js';
+import { registerProjectIconRoutes } from '../appearance/project-icon-routes.js';
+import { registerProviderLogoRoutes } from '../appearance/provider-logo-routes.js';
 import { registerScheduledTaskRoutes } from '../scheduled-tasks/routes.js';
 import { fillScheduledWorktreeBridge } from '../scheduled-tasks/worktree-bridge.js';
 import { createTrackedItemsService } from '../tracked-items/service.js';
@@ -290,18 +290,9 @@ export const createFeatureRoutesRuntime = (dependencies: FeatureRuntimeDependenc
     });
   };
 
-  /**
-   * A worktree from a pull or merge request given by number, the same kind
-   * the New worktree dialog makes: the server reads the change request with
-   * the project's own account and creates the worktree through the Git
-   * routes' contributor pipeline. `name` and `branchName` default to the
-   * change request's head branch. `startCommand` holds the project's setup
-   * commands, as the dialog sends them; a contributor fork's worktree
-   * records them without running them (`../git/DOCUMENTATION.md`).
-   * `createCommand` is the project's own create command, which a contributor
-   * fork's worktree does not use either.
-   */
-  const createChangeRequestWorktree = async ({ directory, number, name, branchName, startCommand, createCommand }) => {
+  const createChangeRequestWorktree = async ({ directory, number, name, branchName, startCommand, createCommand }: {
+    directory: string; number: number; name?: string; branchName?: string; startCommand?: string; createCommand?: string;
+  }) => {
     if (!(gitWorktreeCreation?.createWorktree instanceof Function)
       || !(walkthroughBindingService?.resolveChangeRequestWorktreeSource instanceof Function)) {
       throw Object.assign(new Error('Worktrees from pull requests are unavailable'), {
@@ -310,7 +301,7 @@ export const createFeatureRoutesRuntime = (dependencies: FeatureRuntimeDependenc
     }
     const { headBranch, sourceRequest } = await walkthroughBindingService.resolveChangeRequestWorktreeSource({ directory, number });
     const branch = branchName || headBranch;
-    const input = {
+    const input: ChangeRequestWorktreeInput<typeof sourceRequest> = {
       mode: 'existing',
       branchName: branch,
       worktreeName: name || branch,
@@ -340,7 +331,6 @@ export const createFeatureRoutesRuntime = (dependencies: FeatureRuntimeDependenc
       onExtensionWaitsChanged = () => {},
       extensionNotificationChannels = null,
       surfaceViewerHeaders,
-      // How an extension's OpenCode plugin reaches OpenCode right now (`guests/opencode-plugin.js`).
       getOpenCodePluginDelivery = () => 'file',
       openchamberUserConfigRoot,
       managedChatsRoot,
@@ -394,6 +384,7 @@ export const createFeatureRoutesRuntime = (dependencies: FeatureRuntimeDependenc
       autoReviewRuntime,
       prWatchRuntime = null,
       extensionWaitsRuntime = null,
+      laterPagesRuntime = null,
       mergeFollowRuntime = null,
       routingRuntime,
       globalEventHub,
@@ -587,9 +578,6 @@ export const createFeatureRoutesRuntime = (dependencies: FeatureRuntimeDependenc
     const resolveTransportRepository = createPrivateRepositoryIdentityResolver({
       getTransportRevision: (directory) => readEffectiveGitTransportRevision(directory, { gitBinary }),
     });
-    // A provenance record is keyed by the repository ID alone, so its reads
-    // take the ID-only resolver: the remote and transport Git processes a
-    // binding read needs answer nothing here (#6084).
     const contributorProvenance = createContributorProvenanceStore({
       filePath: path.join(openchamberDataDir, 'git-contributor-provenance.json'),
       resolveRepositoryIdentity: resolveRepositoryId,
@@ -860,9 +848,6 @@ export const createFeatureRoutesRuntime = (dependencies: FeatureRuntimeDependenc
       persistPath: extensionsPersistPath(openchamberDataDir),
       emitChanged: () => announceChange('openchamber:tracker-providers-changed'),
     });
-    // Extensions that report usage, attached to the quota registry beside the
-    // built-ins and kept in step with the catalog. The quota module stays
-    // unloaded until a request or such an extension needs it.
     const extensionQuotaProviders = createExtensionQuotaProviders({
       listGuests: () => listInstalledGuests({ persistPath: extensionsPersistPath(openchamberDataDir) }),
       currentGuest: async (guestId) => (await listInstalledGuests({ persistPath: extensionsPersistPath(openchamberDataDir) }))

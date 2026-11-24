@@ -321,16 +321,7 @@ interface MessageQueueActions {
     markSending: (target: MessageQueueTarget, messageId: string) => void;
     clearSending: (target: MessageQueueTarget, messageId: string) => void;
     getSendableQueue: (target: MessageQueueTarget) => QueuedMessage[];
-    /**
-     * Local queue: a session moved to `destination`'s directory takes its queued messages and
-     * their in-flight marks along, so the old key has nothing left to dispatch. The server-owned
-     * queue is rekeyed by the server and arrives as a broadcast instead.
-     */
     followSessionMove: (destination: MessageQueueTarget) => void;
-    /**
-     * The key that holds a message of the target's session now: a move can rekey the local queue
-     * while that message's send is in flight. The target itself when no key holds it.
-     */
     locateQueuedMessage: (target: MessageQueueTarget, messageId: string) => MessageQueueTarget;
     setFollowUpBehavior: (behavior: FollowUpBehavior) => void;
     getQueueForTarget: (target: MessageQueueTarget) => QueuedMessage[];
@@ -388,11 +379,6 @@ const removeMessageLocally = (
     return { queuedMessages: { ...state.queuedMessages, [key]: newQueue } };
 };
 
-/**
- * Every projection of one session in this runtime, whatever directory it was keyed under; with
- * `owner`, only the directories that owner serves. A cleared key keeps its revision as a
- * tombstone, so a response that started before the clear cannot bring it back.
- */
 const clearSessionProjection = (
     state: Pick<MessageQueueState, 'queuedMessages' | 'sendingIds'>,
     runtimeKey: string,
@@ -414,11 +400,6 @@ const clearSessionProjection = (
     return { queuedMessages, sendingIds };
 };
 
-/**
- * The newest revision one owner has applied to a session under any directory. A session that
- * moves keeps its owner's revision sequence, so freshness is per session, not per directory key:
- * an old-directory response must not overwrite a newer move it started before.
- */
 const newestSessionRevision = (runtimeKey: string, owner: string, sessionId: string): number => {
     let newest = -1;
     for (const [key, revision] of appliedRevisions) {
@@ -450,9 +431,6 @@ export const useMessageQueueStore = create<MessageQueueStore>()(
                     const key = getMessageQueueKey(target);
                     if (newestSessionRevision(expectedRuntimeKey, owner, session.sessionId) > revision) return;
                     set((state) => {
-                        // A moved session speaks for one directory only: its projection under
-                        // every other directory of this owner goes, or the composer would show
-                        // the same queued message in both places until the next full snapshot.
                         const cleared = clearSessionProjection(state, expectedRuntimeKey, session.sessionId, revision, owner);
                         appliedRevisions.set(key, revision);
                         const queue = session.items.map(toQueuedMessage);
@@ -516,8 +494,6 @@ export const useMessageQueueStore = create<MessageQueueStore>()(
                             const target = createMessageQueueTarget(session.sessionId, session.directory, runtimeKey);
                             if (!target) continue;
                             const key = getMessageQueueKey(target);
-                            // Per session, not per key: a move broadcast newer than this snapshot
-                            // already placed the session under another directory.
                             if (newestSessionRevision(runtimeKey, owner, session.sessionId) > snapshot.revision) continue;
                             appliedRevisions.set(key, snapshot.revision);
                             if (session.items.length > 0) queuedMessages[key] = session.items.map(toQueuedMessage);

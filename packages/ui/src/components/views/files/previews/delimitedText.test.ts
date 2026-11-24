@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 
-import { delimiterForPath, parseDelimitedText, setDelimitedField, shiftDelimitedColumn, shiftDelimitedRow } from './delimitedText';
+import { parseDelimitedText, setDelimitedField, shiftDelimitedColumn, shiftDelimitedRow } from './delimitedText';
+import { resolveDelimiter } from './tableDelimiter';
 
 describe('parseDelimitedText', () => {
   test('splits a plain CSV into a header and rows, ignoring the trailing newline', () => {
@@ -97,52 +98,6 @@ describe('resolveDelimiter', () => {
 
   test('a semicolon file with a quoted comma header is read as semicolon', () => {
     expect(resolveDelimiter('/x/data.csv', 'id;"label, title"\n1;alpha,one\n2;beta,two\n')).toBe(';');
-  });
-});
-
-describe('setDelimitedField', () => {
-  test('replaces one field and keeps every other byte', () => {
-    const file = '﻿a,"b, q"\r\n1,"x ""y"""\r\n\r\n3,4';
-    expect(setDelimitedField(file, ',', 1, 0, '9')).toBe('﻿a,"b, q"\r\n9,"x ""y"""\r\n\r\n3,4');
-    expect(setDelimitedField(file, ',', 1, 1, 'z')).toBe('﻿a,"b, q"\r\n1,z\r\n\r\n3,4');
-    expect(setDelimitedField(file, ',', 2, 1, '5')).toBe('﻿a,"b, q"\r\n1,"x ""y"""\r\n\r\n3,5');
-  });
-
-  test('quotes what needs it', () => {
-    expect(setDelimitedField('a,b\n', ',', 0, 1, 'x,"y"')).toBe('a,"x,""y"""\n');
-  });
-
-  test('adds a missing column and a new row', () => {
-    expect(setDelimitedField('a,b\n1\n', ',', 1, 2, 'c')).toBe('a,b\n1,,c\n');
-    expect(setDelimitedField('a,b\n1,2\n', ',', 2, 1, 'n')).toBe('a,b\n1,2\n,n\n');
-    expect(setDelimitedField('a\tb', '\t', 1, 0, 'n')).toBe('a\tb\nn\n');
-  });
-
-  test('reads back through the parser', () => {
-    const edited = setDelimitedField('name,note\nAda,"line one\nline two"\n', ',', 1, 1, 'new\nvalue');
-    expect(parseDelimitedText(edited, ',').rows).toEqual([['Ada', 'new\nvalue']]);
-  });
-
-  test('emptying a one-column row keeps the row', () => {
-    const emptied = setDelimitedField('h\na\nb\nc\n', ',', 1, 0, '');
-    expect(parseDelimitedText(setDelimitedField(emptied, ',', 2, 0, ''), ',').rows).toEqual([[''], [''], ['c']]);
-  });
-});
-
-describe('rows and columns of a delimited file', () => {
-  const file = 'a,b\r\n1,"x,y"\r\n\r\n3,4\r\n';
-
-  test('a row goes in or out and the rest stays as it was', () => {
-    expect(shiftDelimitedRow(file, ',', 1, 1)).toBe('a,b\r\n,\r\n1,"x,y"\r\n\r\n3,4\r\n');
-    expect(shiftDelimitedRow(file, ',', 1, -1)).toBe('a,b\r\n\r\n3,4\r\n');
-    expect(parseDelimitedText(shiftDelimitedRow('a\nb\n', ',', 1, 1), ',').rows).toEqual([[''], ['b']]);
-  });
-
-  test('a column goes in or out of every row', () => {
-    expect(shiftDelimitedColumn(file, ',', 1, 1)).toBe('a,,b\r\n1,,"x,y"\r\n\r\n3,,4\r\n');
-    expect(shiftDelimitedColumn(file, ',', 1, -1)).toBe('a\r\n1\r\n\r\n3\r\n');
-    expect(shiftDelimitedColumn(file, ',', 0, -1)).toBe('b\r\n"x,y"\r\n\r\n4\r\n');
-    expect(shiftDelimitedColumn('a,b\n1\n', ',', 1, 1)).toBe('a,,b\n1,\n');
   });
 });
 

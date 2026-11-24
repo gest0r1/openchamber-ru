@@ -11,10 +11,6 @@ const filteredRequestHeaders = new Set([
   'trailer',
   'upgrade',
   'accept-encoding',
-  // Fetch metadata describes the hop from the client to OpenChamber, which
-  // vets its own clients. Since 2.2.6 OpenCode refuses `/api` requests marked
-  // cross-site, which every packaged client is (openchamber-ui://app,
-  // capacitor://localhost, https://localhost), so they stay on this side.
   ...BROWSER_FETCH_METADATA_HEADERS,
 ]);
 

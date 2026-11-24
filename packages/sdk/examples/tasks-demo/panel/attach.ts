@@ -188,8 +188,6 @@ const renderSessionAction = (item: GuestSessionItem): void => {
   mountButton(actions, { label: 'Close', variant: 'ghost', onClick: () => void host.close() });
 };
 
-// A `DEMO-2` or task link clicked in the chat (`contributes.links`): the
-// task it names, or a note that this board does not have it.
 const renderLink = (item: GuestLinkItem): void => {
   const task = findTask(item.identifier);
   if (task) {

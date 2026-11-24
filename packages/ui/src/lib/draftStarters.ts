@@ -15,9 +15,6 @@ type BuiltInStarter = {
     command: string;
 };
 
-// In the order the default row shows them: one row fits the first four or
-// five, so the everyday starters lead and the rarer ones wait behind the "+"
-// (maintainer, 2026-11-12).
 export const BUILTIN_STARTERS: readonly BuiltInStarter[] = [
     { name: 'explore', icon: 'compass-3', labelKey: 'chat.draftPresets.explore.label', command: '/explore' },
     { name: 'debug', icon: 'bug', labelKey: 'chat.draftPresets.debug.label', command: '/debug' },

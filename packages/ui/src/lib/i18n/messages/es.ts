@@ -1,4 +1,3 @@
-import { androidWidgetsI18n } from './android-widgets.i18n';
 import type { I18nKey } from './en';
 import { settingsDict } from './es.settings';
 import { linearIssuePickerI18n } from './linear-issue-picker.i18n';
@@ -31,17 +30,23 @@ import { compactionSettingsI18n } from './compaction-settings.i18n';
 import { heapSnapshotI18n } from './heap-snapshot.i18n';
 import { consoleBudgetsI18n } from './console-budgets.i18n';
 import { imageToolI18n } from './image-tool.i18n';
+import { sharePagesI18n } from './share-pages.i18n';
+import { receivedPagesI18n } from './received-pages.i18n';
 import { memoryDreamingI18n } from './memory-dreaming.i18n';
 import { usageToolI18n } from './usage-tool.i18n';
+import { externalOpenCodePluginI18n } from './external-opencode-plugin.i18n';
 import { openchamberToolsLayoutI18n } from './openchamber-tools-layout.i18n';
 import { openchamberToolOutputI18n } from './openchamber-tool-output.i18n';
 import { opencodeToolOutputI18n } from './opencode-tool-output.i18n';
 import { agentStatusI18n } from './agent-status.i18n';
+import { androidWidgetsI18n } from './android-widgets.i18n';
 import { selectionApprovalI18n } from './selection-approval.i18n';
 import { snippetsI18n } from './snippets.i18n';
 import { sidebarWorkI18n } from './sidebar-work.i18n';
 import { sidebarSectionsI18n } from './sidebar-sections.i18n';
 import { worktreeArchiveI18n } from './worktree-archive.i18n';
+import { operatorChildrenI18n } from './operator-children.i18n';
+import { leadI18n } from './lead.i18n';
 import { omniSearchI18n } from './omni-search.i18n';
 import { overviewI18n } from './overview.i18n';
 import { isolatedSpacesI18n } from './isolated-spaces.i18n';
@@ -232,8 +237,11 @@ export const dict: Record<I18nKey, string> = {
   ...heapSnapshotI18n.es,
   ...consoleBudgetsI18n.es,
   ...imageToolI18n.es,
+  ...sharePagesI18n.es,
+  ...receivedPagesI18n.es,
   ...memoryDreamingI18n.es,
   ...usageToolI18n.es,
+  ...externalOpenCodePluginI18n.es,
   ...openchamberToolsLayoutI18n.es,
   ...openchamberToolOutputI18n.es,
   ...opencodeToolOutputI18n.es,
@@ -243,6 +251,8 @@ export const dict: Record<I18nKey, string> = {
   ...sidebarWorkI18n.es,
   ...sidebarSectionsI18n.es,
   ...worktreeArchiveI18n.es,
+  ...operatorChildrenI18n.es,
+  ...leadI18n.es,
   ...omniSearchI18n.es,
   ...overviewI18n.es,
   ...isolatedSpacesI18n.es,
@@ -866,7 +876,7 @@ export const dict: Record<I18nKey, string> = {
   "sessions.sidebar.session.status.backgroundCommand": "Comando en ejecución en segundo plano",
   "sessions.sidebar.session.status.backgroundImage": "Imagen generándose en segundo plano",
   'sessions.sidebar.session.status.waitingOnPullRequest': 'Esperando comprobaciones o una revisión',
-  'sessions.sidebar.session.status.waitingOnExtension': 'Esperando una extensión',
+  'sessions.sidebar.session.status.waitingOnExtension': 'Esperando un temporizador o una extensión',
   "sessions.sidebar.session.status.pinned": "Sesión anclada",
   "sessions.sidebar.session.status.movingToWorktree": "Moviendo la sesión a un worktree nuevo",
   "sessions.sidebar.session.status.permissionRequired": "Permiso requerido",
@@ -2435,7 +2445,6 @@ export const dict: Record<I18nKey, string> = {
   "session.githubIntegration.validation.branchAlreadyCheckedOut": "La rama ya está en uso en un worktree",
   "session.githubIntegration.validation.failed": "No se pudo validar",
   "chat.fileAttachment.toast.tooLarge": "{name} es demasiado grande para adjuntarlo (más de {size}). Si está en el proyecto, menciónalo con @.",
-  "chat.fileAttachment.toast.heicConversionFailed": "No se pudo convertir {name} de HEIC a JPEG, así que no se adjuntó. Guarda la foto como JPEG y vuelve a adjuntarla.",
   "chat.fileAttachment.toast.overSendLimit": "{name} es demasiado grande para adjuntarlo (más de {size}).",
   "chat.fileAttachment.toast.documentAttachedAsPath": "No se pudo convertir {name} a texto, así que el agente recibe su ruta y lee el archivo por su cuenta.",
   "chat.fileAttachment.activeEditor.addFile": "Agregar archivo:{name} al contexto",
@@ -3547,6 +3556,7 @@ export const dict: Record<I18nKey, string> = {
   "markdownRenderer.code.actions.copyTitle": "Copiar código",
   "markdownRenderer.code.actions.copiedTitle": "Copiado",
   "markdownRenderer.code.actions.runTitle": "Ejecutar comando. El agente continuará a partir de su salida",
+  "markdownRenderer.code.actions.runInTerminalTitle": "Ejecutar en la terminal",
   "markdownRenderer.code.actions.stopTitle": "Detener comando",
   "markdownRenderer.code.run.startFailed": "No se pudo iniciar el comando",
   "markdownRenderer.code.run.running": "En ejecución",
@@ -3752,6 +3762,7 @@ export const dict: Record<I18nKey, string> = {
   'chat.workStatus.breakdown.planCountSingle': '{count} plan',
   'chat.workStatus.breakdown.planCountPlural': '{count} planes',
   'chat.workStatus.linkedPlans.open': 'Abrir el plan {title}',
+  'chat.workStatus.loadedSkills.open': 'Abrir la habilidad {name}',
   'chat.workStatus.sections.open': 'Elegir secciones',
   'chat.workStatus.sections.dialogTitle': 'Secciones del panel',
   'chat.workStatus.sections.reorder': 'Arrastra {label} para reordenar',
@@ -4056,6 +4067,4 @@ export const dict: Record<I18nKey, string> = {
   'chat.promptHistorySearch.hint': "↑ ↓ para explorar · Enter para cargar · Esc para cerrar",
   'helpDialog.item.searchPromptHistory': "Buscar en el historial de indicaciones (entrada de chat)",
 
-  "settings.openchamber.keyboardShortcuts.action.new_lead.label": "Nuevo líder",
-  "chat.workStatus.replyCacheHit": "Respuesta desde la caché",
 };

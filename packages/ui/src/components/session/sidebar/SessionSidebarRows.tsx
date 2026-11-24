@@ -48,9 +48,7 @@ type Props = {
   onFirstVisibleIndexChange: (index: number) => void;
   guideSlotStartPx?: number;
   scrollRequest?: { index: number; id: number } | null;
-  /** Draws the hairline between a closed section and the next project header. */
   projectDivider?: boolean;
-  /** How much of the scroller's top a pinned header covers: the row the user sees first sits under it. */
   getStickyHeaderHeight?: (scrollElement: HTMLElement) => number;
   heldRowRef?: React.RefObject<SessionSidebarHeldRow | null>;
 };
@@ -288,8 +286,6 @@ export function SessionSidebarRows({
       if (!row) return null;
       return <div
         key={row.key}
-        // Isolated virtual rows cannot collapse neighboring margins: 1px per side preserves the 2px gap.
-        // The row box, not the row: a session row in rename keeps the same margins.
         className={`[&_[data-session-row-box]]:my-px ${sectionWrapperClass(row, rows[item.index + 1], projectDivider)}`}
         data-index={item.index}
         data-sidebar-row-key={row.key}

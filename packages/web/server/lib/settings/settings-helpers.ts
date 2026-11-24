@@ -11,7 +11,8 @@ import type { createSettingsNormalizationRuntime } from './settings-normalizatio
 import type { normalizeTunnelProvider, normalizeTunnelMode, normalizeOptionalPath } from '../tunnels/types.js';
 import { idleStopSchema } from '../spaces/idle-stop.js';
 import { sshHostSchema } from '../spaces/places/ssh-host.js';
-import { PROVIDER_LOGO_MIMES } from './provider-logo-routes.js';
+import { PROVIDER_LOGO_MIMES } from '../appearance/provider-logo-routes.js';
+import { sanitizeDictationSettings } from './settings-dictation.js';
 
 const settingsDocumentSchema = z.looseObject({});
 export type SettingsDocument = z.infer<typeof settingsDocumentSchema>;
@@ -40,11 +41,27 @@ const hasUsageGroupLabels = (value: unknown): value is { id: string; label: stri
   return isString(value.id) && isString(value.label);
 };
 
-// The sidebar's sections and pin lists, the same shapes the UI keeps
-// (packages/ui/src/lib/sidebarSections.ts, which also restores missing built-in
-// sections on read). The server keeps what is well formed and drops the rest.
+interface RegistryField {
+  computed?: boolean;
+  local?: boolean;
+  owner?: string;
+  secret?: boolean;
+}
+const settingsRegistry: { fields: Record<string, RegistryField> } = createRequire(import.meta.url)('./settings-registry.json');
+
+type Normalization = ReturnType<typeof createSettingsNormalizationRuntime>;
+export type SettingsHelpersDependencies = Pick<Normalization,
+  'normalizePathForPersistence' | 'normalizeDirectoryPath' | 'normalizeTunnelBootstrapTtlMs'
+  | 'normalizeTunnelSessionTtlMs' | 'normalizeManagedRemoteTunnelHostname'
+  | 'normalizeManagedRemoteTunnelPresets' | 'normalizeManagedRemoteTunnelPresetTokens'
+  | 'normalizeStringArray' | 'sanitizeModelRefs' | 'sanitizeSkillCatalogs' | 'sanitizeProjects'
+> & {
+  normalizeTunnelProvider: typeof normalizeTunnelProvider;
+  normalizeTunnelMode: typeof normalizeTunnelMode;
+  normalizeOptionalPath: typeof normalizeOptionalPath;
+};
+
 const SIDEBAR_BUILTIN_SECTION_IDS = ['pages', 'chats', 'pinned', 'work', 'projects'];
-// The user's sections (SIDEBAR_SECTIONS_MAX in the UI) and every built-in one.
 const SIDEBAR_SECTIONS_STORED_MAX = 24 + SIDEBAR_BUILTIN_SECTION_IDS.length;
 const sidebarSectionIdSchema = z.string().trim().min(1).max(64);
 const sidebarSectionNameSchema = z.string().trim().min(1).transform((value) => value.slice(0, 60));
@@ -105,14 +122,9 @@ const sanitizeSidebarSections = (entries: readonly JsonValue[] | readonly unknow
   return result;
 };
 
-// A client saves the whole sections order, and one older than a built-in
-// section does not list it. Its save keeps the stored entry of each built-in
-// it omits, after the stored neighbour it followed (first when none did), so
-// the user's placement survives a save from an older client. A client that
-// lists the built-in decides where it goes.
-const keepOmittedBuiltinSections = (stored, incoming) => {
+const keepOmittedBuiltinSections = (stored: SidebarSection[], incoming: SidebarSection[]) => {
   const result = [...incoming];
-  const has = (id) => result.some((entry) => entry.id === id);
+  const has = (id: string) => result.some((entry) => entry.id === id);
   stored.forEach((entry, index) => {
     if (entry?.kind !== 'builtin' || has(entry.id)) return;
     const previous = stored.slice(0, index).reverse().find((candidate) => has(candidate?.id));
@@ -122,8 +134,8 @@ const keepOmittedBuiltinSections = (stored, incoming) => {
   return result;
 };
 
-const sanitizeSidebarPinLists = (entries) => {
-  const result = [];
+const sanitizeSidebarPinLists = (entries: readonly unknown[]) => {
+  const result: { id: string; name: string }[] = [];
   const seen = new Set(['pinned']);
   for (const entry of entries) {
     const parsed = z.object({ id: sidebarSectionIdSchema, name: sidebarSectionNameSchema }).safeParse(entry);
@@ -155,11 +167,18 @@ import {
   isInputHistoryScope,
 } from './input-history-scope.js';
 
-/** `provider/model` dreaming runs on, or empty for the default model. */
+const largeTextPasteBehaviorSchema = z.string().trim().pipe(z.enum(['ask', 'attach', 'inline', 'inline-double-paste']));
+const documentAttachBehaviorSchema = z.string().trim().pipe(z.enum(['ask', 'save', 'convert']));
+const fileEditorKeymapSchema = z.string().trim().pipe(z.enum(['default', 'vim']));
+
+const AGENT_TOOL_BOOLEAN_KEYS = [
+  'agentControlToolEnabled', 'agentScheduleToolEnabled', 'agentMemoryToolEnabled', 'agentMemoryDreamingEnabled',
+  'agentKnowledgeToolEnabled', 'agentWorkflowToolEnabled', 'agentWorkflowAutoApprove', 'agentWorkflowAutoApproveLeads', 'agentNotifyToolEnabled',
+  'agentRenderToolEnabled', 'agentImageToolEnabled', 'agentSecretToolEnabled', 'agentUsageToolEnabled', 'agentTerminalToolEnabled',
+] as const;
+
 const dreamingModelSchema = z.string().trim().refine((value) => value === '' || /^[^/\s]+\/\S+$/.test(value));
 
-// Icons a custom provider may show instead of its logo; mirrors
-// CUSTOM_PROVIDER_ICONS in packages/ui/src/lib/customProviderIcons.ts.
 const customProviderIconsSchema = z.record(
   z.string().trim().min(1).max(128),
   z.enum(['server', 'cloud', 'database', 'terminal', 'code', 'ai']),
@@ -178,7 +197,6 @@ const sanitizeCustomProviderIcons = (value: SettingsDocument[string]) => {
   return result;
 };
 
-// What `provider-logo-routes.js` stores for an uploaded logo; the bytes stay in its folder.
 const customProviderLogosSchema = z.record(
   z.string().trim().min(1).max(128),
   z.object({
@@ -187,11 +205,10 @@ const customProviderLogosSchema = z.record(
   }),
 );
 
-/** Provider id -> `{ mime, updatedAt }`; malformed entries are dropped one by one. */
-const sanitizeCustomProviderLogos = (value) => {
+const sanitizeCustomProviderLogos = (value: SettingsDocument[string]) => {
   const record = z.record(z.string(), z.unknown()).safeParse(value);
   if (!record.success) return undefined;
-  const result = {};
+  const result: z.infer<typeof customProviderLogosSchema> = {};
   for (const [providerID, logo] of Object.entries(record.data).slice(0, CUSTOM_PROVIDER_ICONS_MAX)) {
     const entry = customProviderLogosSchema.safeParse({ [providerID]: logo });
     if (entry.success) Object.assign(result, entry.data);
@@ -199,14 +216,138 @@ const sanitizeCustomProviderLogos = (value) => {
   return result;
 };
 
-/**
- * Message search is on unless the user turned it off. A settings file that
- * never mentions it is a user who never chose, and gets the default; an
- * explicit `false` is a choice and stays.
- */
-export const isMessageSearchEnabled = (settings) => settings?.messageSearchEnabled !== false;
+type BooleanSettingsKey =
+  | 'useSystemTheme' | 'workStatusPanelEnabled' | 'workStatusHiddenSectionsExplicit' | 'workStatusSectionOrderExplicit'
+  | 'desktopLanAccessEnabled' | 'desktopKeepAwakeEnabled' | 'desktopMinimizeToTrayEnabled' | 'desktopMacMenuBarEnabled'
+  | 'desktopLinuxNativeFrame' | 'messageSearchEnabled' | 'messageSearchReasoningEnabled'
+  | 'sidebarKeepWorkInPlace' | 'sidebarKeepPinnedInPlace' | 'sidebarShowChatsSection' | 'sidebarShowWorkSection'
+  | 'sidebarShowPinnedSection' | 'sidebarDetailedZoneRows' | 'sidebarWorktreeNameByBranch'
+  | 'draftStartersVisible' | 'draftStartersCraftGoalAdded' | 'draftStartersScheduleTaskAdded'
+  | 'showReasoningTraces' | 'streamingAutoFollowEnabled' | 'expandReasoningWhileStreaming'
+  | 'codeBlockLineWrap' | 'tableCellWrap' | 'copyMessagesAsPlainText' | 'autoSaveEnabled' | 'fileEditorWrapLines'
+  | 'confirmFileTreeMove' | 'layoutAnimations' | 'openLinksInBrowserPanel' | 'agentBrowserSharesLogins'
+  | 'openTrackerLinksOnBoard' | 'diffWrapLines' | 'diffHideWhitespace' | 'allowPromptingSubagentSessions'
+  | 'savePastedImagesAsFiles' | 'showOpenCodeRestartConfirm' | 'sessionTabsEnabled' | 'sessionTabsPerWorkspace'
+  | 'terminalCloseOnExit' | 'terminalOpenOnProjectAction' | 'sessionRecapEnabled' | 'sessionSuggestionEnabled'
+  | 'sessionWorkEnabled' | 'sessionReviewOfferEnabled' | 'sessionGoalEnabled' | 'sessionGoalDefaultBudgetEnabled'
+  | 'collapsibleThinkingBlocks' | 'showTextJustificationActivity' | 'showDeletionDialog' | 'nativeNotificationsEnabled'
+  | 'notifyOnSubtasks' | 'notifyOnCompletion' | 'notifyOnPullRequests' | 'notifyOnError' | 'notifyOnQuestion'
+  | 'summarizeLastMessage' | 'autoDeleteEnabled' | 'sessionRetentionOnlyArchived' | 'sessionRetentionIncludeInWork'
+  | 'mergedWorktreeCleanupEnabled' | 'worktreeArchiveOnDoneEnabled' | 'smallModelUseDefault' | 'autoCreateWorktree'
+  | 'gitmojiEnabled' | 'defaultFileViewerPreview' | 'inputSpellcheckEnabled' | 'enterToSend' | 'enterToSendConfigured'
+  | 'mobileReturnKeySends' | 'showOpenCodeUpdateNotifications' | 'useGlobalOpenCodeService' | 'agentWebToolEnabled' | 'isolatedSpacesEnabled'
+  | 'showToolFileIcons' | 'showTurnChangedFiles' | 'collapsibleUserMessages' | 'stickyUserHeader'
+  | 'promptNavigatorEnabled' | 'wideChatLayoutEnabled' | 'showSplitAssistantMessageActions' | 'directoryShowHidden'
+  | 'filesViewShowGitignored' | 'reportUsage' | 'responseStyleEnabled' | 'dictationEnabled' | 'dictationAutoSend'
+  | 'sttCorrectTranscript' | (typeof AGENT_TOOL_BOOLEAN_KEYS)[number];
 
-export const createSettingsHelpers = (dependencies) => {
+type StringSettingsKey =
+  | 'themeId' | 'locale' | 'lightThemeId' | 'darkThemeId' | 'splashBgLight' | 'splashFgLight' | 'splashBgDark'
+  | 'splashFgDark' | 'lastDirectory' | 'homeDirectory' | 'opencodeBinary' | 'desktopUiPassword' | 'activeProjectId'
+  | 'uiFont' | 'monoFont' | 'customUiFont' | 'customMonoFont' | 'uiFontWeight' | 'githubClientId' | 'githubScopes'
+  | 'gitlabClientId' | 'fileEditorVimMappings' | 'tunnelProvider' | 'tunnelMode' | 'lastSelectedModel'
+  | 'pwaAppName' | 'pwaOrientation' | 'mobileKeyboardMode' | 'browserProvider' | 'agentMemoryDreamingModel'
+  | 'agentMemoryDreamingVariant' | 'agentImageModel' | 'isolatedSpacesSshHost' | 'openCodeUpdateToastDismissedVersion'
+  | 'terminalShell' | 'openInAppId' | 'globalBehaviorPrompt' | 'responseStylePreset' | 'responseStyleCustomInstructions'
+  | 'sttServerUrl' | 'sttModel' | 'sttEndpointPath' | 'sttLocalModel' | 'sttLanguage' | 'sttPrompt' | 'sidebarProjectDisplayMode'
+  | 'sidebarViewMode' | 'sidebarListSessionGrouping' | 'sidebarGrouping' | 'sidebarProjectSortOrder'
+  | 'selectionApprovalText';
+
+type ClearableStringSettingsKey =
+  | 'managedRemoteTunnelHostname' | 'managedRemoteTunnelSelectedPresetId' | 'defaultModel' | 'defaultVariant'
+  | 'defaultAgent' | 'smallModelOverride' | 'smallModelVariant' | 'walkthroughModelOverride' | 'walkthroughModelVariant'
+  | 'fallbackModel' | 'fallbackVariant' | 'defaultGitIdentityId' | 'zenModel' | 'chatsDefaultModel' | 'chatsDefaultVariant' | 'chatsDefaultAgent';
+
+type NumberSettingsKey =
+  | 'inputHistoryLimit' | 'sidebarSessionBatchSize' | 'liveBrowserTabLimit' | 'sessionGoalMaxAutoTurns'
+  | 'sessionGoalDefaultBudget' | 'summaryThreshold' | 'summaryLength' | 'maxLastMessageLength' | 'autoDeleteAfterDays'
+  | 'tunnelSessionTtlMs' | 'tunnelHttpsPort' | 'fontSize' | 'chatFontSize' | 'terminalFontSize' | 'editorFontSize'
+  | 'padding' | 'cornerRadius' | 'inputBarOffset';
+
+type StringArraySettingsKey =
+  | 'workStatusHiddenSections' | 'workStatusSectionOrder' | 'sidebarHiddenSections' | 'securityScopedBookmarks'
+  | 'pinnedDirectories' | 'providerOrder' | 'usageDropdownProviders' | 'accountSwitchProviders'
+  | 'terminalLoginShells' | 'collapsedModelProviders' | 'recentAgents' | 'favoriteAgents';
+
+export interface UsageModelGroups {
+  customGroups?: { id: string; label: string; models: string[]; order: number }[];
+  modelAssignments?: Record<string, string>;
+  renamedGroups?: Record<string, string>;
+}
+
+interface AppNameFields {
+  pwaAppName?: string;
+}
+
+interface DesktopSettingsFields {
+  desktopLanAccessActive?: boolean;
+  desktopLanAccessBlockedReason?: 'missing-password' | 'enterprise-mode' | null;
+}
+
+export type SanitizedSettings = Partial<Record<BooleanSettingsKey, boolean>>
+  & Partial<Record<StringSettingsKey, string>>
+  & Partial<Record<ClearableStringSettingsKey, string | undefined>>
+  & Partial<Record<NumberSettingsKey, number>>
+  & Partial<Record<StringArraySettingsKey, string[]>>
+  & {
+    themeVariant?: 'light' | 'dark';
+    inputHistoryScope?: 'session' | 'global';
+    desktopUpdateChannel?: 'stable' | 'canary';
+    serverUpdateChannel?: 'stable' | 'canary';
+    desktopWindowControlsPosition?: 'left' | 'right';
+    desktopWindowControlsStyle?: 'classic' | 'traffic-lights';
+    permissionAutoAccept?: { sessions: Record<string, PermissionMode | boolean>; revision: number };
+    permissionDefaultMode?: PermissionMode;
+    projects?: NonNullable<ReturnType<Normalization['sanitizeProjects']>>;
+    sidebarSections?: SidebarSection[];
+    sidebarPinLists?: { id: string; name: string }[];
+    draftStarters?: { type: 'command' | 'skill'; name: string }[];
+    fileTreeSide?: 'left' | 'right';
+    largeTextPasteBehavior?: 'ask' | 'attach' | 'inline' | 'inline-double-paste';
+    documentAttachBehavior?: 'ask' | 'save' | 'convert';
+    fileEditorKeymap?: 'default' | 'vim';
+    sessionGoalChecker?: 'classifier' | 'small-model';
+    notificationMode?: 'always' | 'hidden-only';
+    notificationTemplates?: object;
+    usageDisplayMode?: 'usage' | 'remaining';
+    sessionRetentionAction?: 'archive' | 'delete';
+    tunnelBootstrapTtlMs?: number | null;
+    managedLocalTunnelConfigPath?: string | null | undefined;
+    managedRemoteTunnelToken?: string | null;
+    managedRemoteTunnelPresets?: NonNullable<ReturnType<Normalization['normalizeManagedRemoteTunnelPresets']>>;
+    managedRemoteTunnelPresetTokens?: NonNullable<ReturnType<Normalization['normalizeManagedRemoteTunnelPresetTokens']>>;
+    followUpBehavior?: 'steer' | 'queue';
+    isolatedSpacesIdleStop?: z.infer<typeof idleStopSchema>;
+    timeFormatPreference?: 'auto' | '12h' | '24h';
+    weekStartPreference?: 'auto' | 'sunday' | 'monday';
+    chatRenderMode?: 'sorted' | 'live';
+    messageStreamTransport?: 'auto' | 'ws' | 'sse';
+    activityRenderMode?: 'collapsed' | 'text' | 'summary';
+    mermaidRenderingMode?: 'svg' | 'ascii';
+    userMessageRenderingMode?: 'markdown' | 'plain';
+    chatWidth?: 'default' | 'wider' | 'full';
+    shortcutOverrides?: Record<string, string>;
+    favoriteModels?: NonNullable<ReturnType<Normalization['sanitizeModelRefs']>>;
+    recentModels?: NonNullable<ReturnType<Normalization['sanitizeModelRefs']>>;
+    hiddenModels?: NonNullable<ReturnType<Normalization['sanitizeModelRefs']>>;
+    customProviderIcons?: z.infer<typeof customProviderIconsSchema>;
+    customProviderLogos?: z.infer<typeof customProviderLogosSchema>;
+    recentEfforts?: Record<string, string[]>;
+    lastUsedEfforts?: Record<string, string | null>;
+    diffLayoutPreference?: 'dynamic' | 'inline' | 'side-by-side';
+    gitChangesViewMode?: 'flat' | 'tree';
+    toolJsonViewMode?: 'summary' | 'formatted' | 'raw';
+    skillCatalogs?: NonNullable<ReturnType<Normalization['sanitizeSkillCatalogs']>>;
+    usageSelectedModels?: Record<string, string[]>;
+    usageCollapsedFamilies?: Record<string, string[]>;
+    usageExpandedFamilies?: Record<string, string[]>;
+    usageModelGroups?: Record<string, UsageModelGroups>;
+    sttProvider?: 'local' | 'openai-compatible';
+  };
+
+export const isMessageSearchEnabled = (settings: SettingsDocument | null | undefined) => settings?.messageSearchEnabled !== false;
+
+export const createSettingsHelpers = (dependencies: SettingsHelpersDependencies) => {
   const {
     normalizePathForPersistence,
     normalizeDirectoryPath,
@@ -235,8 +376,6 @@ export const createSettingsHelpers = (dependencies) => {
   const SIDEBAR_PROJECT_DISPLAY_MODE_VALUES = new Set(['all', 'single']);
   const SIDEBAR_VIEW_MODE_VALUES = new Set(['projects', 'timeline']);
   const SIDEBAR_LIST_SESSION_GROUPING_VALUES = new Set(['project', 'time']);
-  // The interface languages (`LOCALES` in packages/ui/src/lib/i18n/runtime.ts);
-  // settings-helpers.test.js fails when the two lists drift apart.
   const UI_LOCALE_VALUES = new Set(['en', 'de', 'fr', 'nl', 'zh-CN', 'zh-TW', 'uk', 'es', 'pt-BR', 'ko', 'pl', 'ja', 'tr', 'ar', 'he', 'ru']);
   const SIDEBAR_PROJECT_SORT_ORDER_VALUES = new Set(['manual', 'a-z', 'z-a', 'date-added', 'recent']);
   const HIDDEN_MODELS_MAX = 1024;
@@ -423,8 +562,8 @@ export const createSettingsHelpers = (dependencies) => {
         ...new Set(candidate.workStatusHiddenSections.filter((entry) => isString(entry) && entry.length > 0)),
       ];
     }
-    for (const key of ['workStatusHiddenSectionsExplicit', 'workStatusSectionOrderExplicit']) {
-      if (typeof candidate[key] === 'boolean') result[key] = candidate[key];
+    for (const key of ['workStatusHiddenSectionsExplicit', 'workStatusSectionOrderExplicit'] as const) {
+      if (isBoolean(candidate[key])) result[key] = candidate[key];
     }
     if (Array.isArray(candidate.workStatusSectionOrder)) {
       result.workStatusSectionOrder = [
@@ -518,10 +657,13 @@ export const createSettingsHelpers = (dependencies) => {
     if (isBoolean(candidate.sidebarKeepWorkInPlace)) {
       result.sidebarKeepWorkInPlace = candidate.sidebarKeepWorkInPlace;
     }
-    if (typeof candidate.sidebarKeepPinnedInPlace === 'boolean') {
+    if (isBoolean(candidate.sidebarKeepPinnedInPlace)) {
       result.sidebarKeepPinnedInPlace = candidate.sidebarKeepPinnedInPlace;
     }
-    if (SIDEBAR_PROJECT_SORT_ORDER_VALUES.has(candidate.sidebarProjectSortOrder)) {
+    if (isFiniteNumber(candidate.sidebarSessionBatchSize)) {
+      result.sidebarSessionBatchSize = Math.max(3, Math.min(50, Math.round(candidate.sidebarSessionBatchSize)));
+    }
+    if (isSetMember(SIDEBAR_PROJECT_SORT_ORDER_VALUES, candidate.sidebarProjectSortOrder)) {
       result.sidebarProjectSortOrder = candidate.sidebarProjectSortOrder;
     }
     if (isBoolean(candidate.sidebarShowChatsSection)) {
@@ -640,7 +782,7 @@ export const createSettingsHelpers = (dependencies) => {
     if (selectionApprovalText.success) {
       result.selectionApprovalText = selectionApprovalText.data;
     }
-    if (typeof candidate.copyMessagesAsPlainText === 'boolean') {
+    if (isBoolean(candidate.copyMessagesAsPlainText)) {
       result.copyMessagesAsPlainText = candidate.copyMessagesAsPlainText;
     }
     if (isBoolean(candidate.autoSaveEnabled)) {
@@ -806,7 +948,7 @@ export const createSettingsHelpers = (dependencies) => {
     if (candidate.sessionRetentionIncludeInWork === true || candidate.sessionRetentionIncludeInWork === false) {
       result.sessionRetentionIncludeInWork = candidate.sessionRetentionIncludeInWork;
     }
-    if (typeof candidate.mergedWorktreeCleanupEnabled === 'boolean') {
+    if (isBoolean(candidate.mergedWorktreeCleanupEnabled)) {
       result.mergedWorktreeCleanupEnabled = candidate.mergedWorktreeCleanupEnabled;
     }
     if (candidate.worktreeArchiveOnDoneEnabled === true || candidate.worktreeArchiveOnDoneEnabled === false) {
@@ -955,47 +1097,15 @@ export const createSettingsHelpers = (dependencies) => {
     for (const key of AGENT_TOOL_BOOLEAN_KEYS) {
       if (isBoolean(candidate[key])) result[key] = candidate[key];
     }
-    if (candidate.agentScheduleToolEnabled === true || candidate.agentScheduleToolEnabled === false) {
-      result.agentScheduleToolEnabled = candidate.agentScheduleToolEnabled;
-    }
-    if (typeof candidate.agentMemoryToolEnabled === 'boolean') {
-      result.agentMemoryToolEnabled = candidate.agentMemoryToolEnabled;
-    }
-    if (candidate.agentMemoryDreamingEnabled === true || candidate.agentMemoryDreamingEnabled === false) {
-      result.agentMemoryDreamingEnabled = candidate.agentMemoryDreamingEnabled;
-    }
-    // Empty is a choice: dreaming then runs on the default model, so it is kept, not dropped.
     const dreamingModel = dreamingModelSchema.safeParse(candidate.agentMemoryDreamingModel);
     if (dreamingModel.success) result.agentMemoryDreamingModel = dreamingModel.data;
     const dreamingVariant = z.string().trim().safeParse(candidate.agentMemoryDreamingVariant);
     if (dreamingVariant.success) result.agentMemoryDreamingVariant = dreamingVariant.data;
-    if (candidate.agentKnowledgeToolEnabled === true || candidate.agentKnowledgeToolEnabled === false) {
-      result.agentKnowledgeToolEnabled = candidate.agentKnowledgeToolEnabled;
-    }
-    if (candidate.agentWorkflowToolEnabled === true || candidate.agentWorkflowToolEnabled === false) {
-      result.agentWorkflowToolEnabled = candidate.agentWorkflowToolEnabled;
-    }
-    if (typeof candidate.agentNotifyToolEnabled === 'boolean') {
-      result.agentNotifyToolEnabled = candidate.agentNotifyToolEnabled;
-    }
-    if (candidate.agentRenderToolEnabled === true || candidate.agentRenderToolEnabled === false) {
-      result.agentRenderToolEnabled = candidate.agentRenderToolEnabled;
-    }
-    if (candidate.agentImageToolEnabled === true || candidate.agentImageToolEnabled === false) {
-      result.agentImageToolEnabled = candidate.agentImageToolEnabled;
-    }
-    // `provider/model`; the model id may hold slashes of its own (OpenRouter's `openai/gpt-image-2`).
     const agentImageModel = asNonEmptyString(candidate.agentImageModel);
     if (agentImageModel && /^[^/\s]+\/\S+$/.test(agentImageModel)) {
       result.agentImageModel = agentImageModel;
     }
-    if (candidate.agentSecretToolEnabled === true || candidate.agentSecretToolEnabled === false) {
-      result.agentSecretToolEnabled = candidate.agentSecretToolEnabled;
-    }
-    if (candidate.agentUsageToolEnabled === true || candidate.agentUsageToolEnabled === false) {
-      result.agentUsageToolEnabled = candidate.agentUsageToolEnabled;
-    }
-    if (typeof candidate.isolatedSpacesEnabled === 'boolean') {
+    if (isBoolean(candidate.isolatedSpacesEnabled)) {
       result.isolatedSpacesEnabled = candidate.isolatedSpacesEnabled;
     }
     if (hasIdleStopSetting(candidate.isolatedSpacesIdleStop)) {
@@ -1076,10 +1186,10 @@ export const createSettingsHelpers = (dependencies) => {
     if (isNumber(candidate.fontSize) && Number.isFinite(candidate.fontSize)) {
       result.fontSize = Math.max(50, Math.min(200, Math.round(candidate.fontSize)));
     }
-    if (Number.isFinite(candidate.chatFontSize)) {
+    if (isFiniteNumber(candidate.chatFontSize)) {
       result.chatFontSize = Math.max(50, Math.min(200, Math.round(candidate.chatFontSize)));
     }
-    if (typeof candidate.terminalFontSize === 'number' && Number.isFinite(candidate.terminalFontSize)) {
+    if (isNumber(candidate.terminalFontSize) && Number.isFinite(candidate.terminalFontSize)) {
       result.terminalFontSize = Math.max(9, Math.min(52, Math.round(candidate.terminalFontSize)));
     }
     if (isNumber(candidate.editorFontSize) && Number.isFinite(candidate.editorFontSize)) {
@@ -1398,7 +1508,6 @@ export const createSettingsHelpers = (dependencies) => {
       mobileKeyboardMode,
       inputHistoryScope,
       inputHistoryLimit,
-      // Always sent, resolved: the client holds its own copy of this switch and must follow the server's.
       messageSearchEnabled: isMessageSearchEnabled(sanitized),
       securityScopedBookmarks: bookmarks,
       pinnedDirectories: normalizeStringArray(settings.pinnedDirectories),

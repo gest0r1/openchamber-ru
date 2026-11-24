@@ -153,11 +153,6 @@ interface SkillsStore {
   selectedSkillName: string | null;
   skills: DiscoveredSkill[];
   skillsByDirectory: Record<string, DiscoveredSkill[]>;
-  /**
-   * The `skill.use` and `mcp.use` statements OpenCode applies per directory, which
-   * decide the skills agents can use (`skillSwitch.ts`). A failed read keeps
-   * the last ones known; a directory never read has no entry.
-   */
   policiesByDirectory: Record<string, IntegrationPolicy[]>;
   isLoading: boolean;
   skillDraft: SkillDraft | null;

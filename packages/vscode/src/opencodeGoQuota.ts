@@ -87,9 +87,6 @@ const consoleMeterSchema = z.object({
 }).catch({});
 const consoleStatusSchema = z.object({
   product: z.string().optional(),
-  // The status sends `access: null` once a Go subscription ends (refunded or
-  // cancelled), so a null there has to reach the branch below as an absent
-  // subscription instead of failing the whole body as unreadable.
   access: z.object({
     meters: z.record(z.string(), consoleMeterSchema).optional(),
   }).nullish(),

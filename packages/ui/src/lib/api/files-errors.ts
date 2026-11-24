@@ -13,7 +13,6 @@ export type FilesystemErrorReason =
 export class FilesystemError extends Error {
   readonly reason: FilesystemErrorReason;
   readonly status?: number;
-  /** The server's size ceiling, set when an upload was rejected for its size. */
   readonly maxBytes?: number;
 
   constructor(message: string, options: { reason?: FilesystemErrorReason; status?: number; maxBytes?: number } = {}) {

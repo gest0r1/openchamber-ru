@@ -556,7 +556,7 @@ export function createProvider(options: GitLabProviderOptions) {
     return false;
   };
 
-  const getGlabCliState = async (origin) => {
+  const getGlabCliState = async (origin: string): Promise<CliState> => {
     const instance = await store.readInstance(origin);
     if (instance.cliDisabled) return { status: 'disabled' };
     const lookup = await getGlabTokenResult(origin, { execFile, timeoutMs: cliTimeoutMs });
@@ -565,26 +565,20 @@ export function createProvider(options: GitLabProviderOptions) {
     try {
       return { status: 'usable', token: lookup.token, user: await verify(origin, lookup.token) };
     } catch (error) {
-      // The instance refusing the token (a definite 401) is a login that is
-      // really gone; anything else leaves the question unsettled.
-      return error?.status === 401 ? { status: 'gone' } : { status: 'unknown' };
+      return hasFailureFields(error) && error.status === 401 ? { status: 'gone' } : { status: 'unknown' };
     }
   };
 
-  const getUsableGlab = async (origin) => {
+  const getUsableGlab = async (origin: string) => {
     const state = await getGlabCliState(origin);
     return state.status === 'usable' ? { token: state.token, user: state.user } : null;
   };
 
-  const buildStatus = async (origin, renewed = false) => {
+  const buildStatus = async (origin: string, renewed = false): Promise<AccountStatus> => {
     const instance = await store.readInstance(origin);
     const activeRecord = instance.cliActive ? null : instance.accounts.find((account) => account.id === instance.activeAccountId) ?? null;
     const active = activeRecord?.status === 'invalid' ? null : activeRecord;
     const cliState = await getGlabCliState(origin);
-    // Like the gh rule: the user's switch to the glab account is undone only
-    // when that account is really gone. glab reporting no login for the host
-    // or the instance refusing its token settle that; a network blip, a
-    // timeout, a missing glab, or an unreachable instance must not.
     if (instance.cliActive && cliState.status === 'gone') {
       await store.setCliActive(origin, false);
       return buildStatus(origin);
@@ -604,8 +598,6 @@ export function createProvider(options: GitLabProviderOptions) {
         };
       }
       if (!cli) {
-        // A switch kept while glab cannot answer is reported, so the user can
-        // turn it off with glab and the instance both down.
         if (instance.cliDisabled || instance.cliActive) {
           return {
             provider: 'gitlab', instance: origin, status: 'disconnected', connected: false,
@@ -827,7 +819,6 @@ export function createProvider(options: GitLabProviderOptions) {
           const cli = await getUsableGlab(origin);
           if (!cli || `${origin}#cli:${cli.user.id}` !== accountId) return { removed: false };
           await events.removed(identityFor(origin, accountId));
-          // `setCliActive` answers the switch's new state, which is off here.
           await store.setCliActive(origin, false);
           return { removed: true };
         }
@@ -900,12 +891,10 @@ export function createProvider(options: GitLabProviderOptions) {
         .readUpload(directory, project, remote, { secret, filename, range, signal, linked: context?.linked }),
       readChangeRequestPatch: ({ session, directory, number, sourceRepo, remote, linked }: PatchRead) => serviceFor(session)
         .changeRequestPatch(directory, number, { project: projectSelector(sourceRepo), remote, linked }),
-      readChangeRequestFile: ({ session, directory, number, sourceRepo, remote, path, previousPath, status, binary, linked }) => serviceFor(session)
+      readChangeRequestFile: ({ session, directory, number, sourceRepo, remote, path, previousPath, status, binary, linked }: PatchRead & Pick<Parameters<Service['changeRequestFileContents']>[2], 'path' | 'previousPath' | 'status' | 'binary'>) => serviceFor(session)
         .changeRequestFileContents(directory, number, { project: projectSelector(sourceRepo), remote, path, previousPath, status, binary, linked }),
-      /** Live state of known merge requests and issues. */
-      liveSummaries: ({ session, refs, issueRefs, details }) => serviceFor(session, { canonicalReads: false }).liveSummaries({ refs, issueRefs, details }),
-      /** A merge request's head on the context's primary project network, by number, for a worktree made from it. */
-      readChangeRequestHead: async ({ session, directory, remote, number }) => {
+      liveSummaries: ({ session, refs, issueRefs, details }: { session: ProviderSession } & Parameters<Service['liveSummaries']>[0]) => serviceFor(session, { canonicalReads: false }).liveSummaries({ refs, issueRefs, details }),
+      readChangeRequestHead: async ({ session, directory, remote, number }: NumberedRead) => {
         const { changeRequest: request } = await serviceFor(session).changeRequestContext(directory, number, {
           remote,
           constrainToPrimary: true,

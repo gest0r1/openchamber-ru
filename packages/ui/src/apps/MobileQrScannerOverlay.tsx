@@ -64,8 +64,6 @@ export const MobileQrScannerOverlay: React.FC<{ onCancel: () => void }> = ({ onC
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, [onCancel]);
 
-  // iOS's scanner slides over the page before its camera starts: a plain
-  // backdrop keeps this screen from showing through its controls.
   if (!qrScanDrawsOwnScreen()) {
     return createPortal(<div ref={overlayRef} className="fixed inset-0 z-[1000] bg-background" aria-hidden />, document.body);
   }

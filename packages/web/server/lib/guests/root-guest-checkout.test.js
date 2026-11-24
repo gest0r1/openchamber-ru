@@ -1,11 +1,11 @@
-import { describe, expect, test } from 'bun:test';
+import { describe, expect, test } from 'vitest';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { prepareGuestGitCheckout, validateGuestGitTree } from './root-guest-checkout.js';
 
-const fixture = async (run: (root: string) => Promise<void>) => {
+const fixture = async (run) => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'oc-git-boundary-'));
   try { await run(root); } finally { await fs.rm(root, { recursive: true, force: true }); }
 };
@@ -106,7 +106,7 @@ describe('P1 root extension checkout safety', () => {
       expect(write.status).not.toBe(0);
       await expect(validateGuestGitTree(dest, true)).resolves.toBeUndefined();
     } finally {
-      for (const [key, name] of [['mode', 'OPENCHAMBER_ROOT_MODE'], ['marker', 'OPENCHAMBER_CHILD_BOUNDARY_ACTIVE'], ['uid', 'OPENCHAMBER_EXECUTION_UID'], ['gid', 'OPENCHAMBER_EXECUTION_GID']] as const) {
+      for (const [key, name] of [['mode', 'OPENCHAMBER_ROOT_MODE'], ['marker', 'OPENCHAMBER_CHILD_BOUNDARY_ACTIVE'], ['uid', 'OPENCHAMBER_EXECUTION_UID'], ['gid', 'OPENCHAMBER_EXECUTION_GID']]) {
         const value = old[key];
         if (value === undefined) delete process.env[name];
         else process.env[name] = value;

@@ -96,7 +96,6 @@ export function publicProviderDescriptor(descriptor: ProviderDescriptor, order: 
     instances: {
       format: descriptor.instance.form,
       defaultInstance: descriptor.instance.defaultInstances[0] ?? null,
-      // All of them: an extension may declare several, and none takes aliases.
       defaultInstances: [...descriptor.instance.defaultInstances],
       multiple: presentation.instances.multiple,
       allowLoopbackHttp: presentation.instances.allowLoopbackHttp,

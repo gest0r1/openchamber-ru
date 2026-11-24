@@ -46,6 +46,7 @@ import {
 } from './referencePickerItems';
 import { joinProjectPath } from '@/lib/source-control/projectPath';
 import { DiffCount } from '@/components/ui/diff-count';
+import { forgetReferenceTextDraft, referenceTextDraft, referenceTextDraftKey, rememberReferenceTextDraft } from './referenceTextDrafts';
 
 export type ReferencePreviewPurpose = 'attach' | 'worktree';
 
@@ -623,8 +624,21 @@ const RepositoryPreview: React.FC<{
                         <span className={cn('truncate typography-meta', REFERENCE_META_TEXT)}>
                             {joinProjectPath(reference.sourceRepo.owner, reference.sourceRepo.repo)} {referenceNumberLabel(reference, descriptor)}
                         </span>
+                        {showEdit ? (
+                            <ButtonTooltip label={t('sourceBoard.edit.action')} side="bottom" className="ms-auto shrink-0">
+                                <button
+                                    ref={editButton}
+                                    type="button"
+                                    className={cn('inline-flex size-6 shrink-0 items-center justify-center rounded-md hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none', REFERENCE_META_TEXT)}
+                                    aria-label={t('sourceBoard.edit.action')}
+                                    onClick={() => setOpenEditor({ key: draftKey, ...(referenceTextDraft(draftKey) ?? { title: reference.title, body: storedBody }) })}
+                                >
+                                    <Icon name="pencil" className="size-3.5" />
+                                </button>
+                            </ButtonTooltip>
+                        ) : null}
                         {refresh ? (
-                            <ButtonTooltip label={t('references.picker.preview.refresh')} side="bottom" className="ms-auto shrink-0">
+                            <ButtonTooltip label={t('references.picker.preview.refresh')} side="bottom" className={cn('shrink-0', showEdit ? undefined : 'ms-auto')}>
                                 <button
                                     type="button"
                                     className={cn('inline-flex size-6 shrink-0 items-center justify-center rounded-md hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none', REFERENCE_META_TEXT)}
@@ -636,7 +650,7 @@ const RepositoryPreview: React.FC<{
                                 </button>
                             </ButtonTooltip>
                         ) : null}
-                        <CopyReferenceLinkButton url={reference.url} className={refresh ? undefined : 'ms-auto'} />
+                        <CopyReferenceLinkButton url={reference.url} className={refresh || showEdit ? undefined : 'ms-auto'} />
                         <Tooltip>
                             <TooltipTrigger asChild>
                                 <a
@@ -652,7 +666,33 @@ const RepositoryPreview: React.FC<{
                             <TooltipContent side="bottom" sideOffset={6}>{t('contextTooltips.tracker.openOnHost', { host: descriptor.label })}</TooltipContent>
                         </Tooltip>
                     </div>
-                    <h3 dir="auto" className="typography-ui-header font-semibold break-words text-foreground">{reference.title}</h3>
+                    {editing ? (
+                        <div className="flex min-w-0 flex-1 items-center gap-2">
+                            <Input
+                                ref={titleInput}
+                                dir="auto"
+                                inputSize="compact"
+                                value={editing.title}
+                                onChange={(event) => {
+                                    if (!editing) return;
+                                    editDraft({ title: event.target.value, body: editing.body });
+                                }}
+                                onKeyDown={onEditorKeyDown}
+                                aria-label={t('sourceBoard.edit.title')}
+                                placeholder={t('sourceBoard.edit.title')}
+                                disabled={saving}
+                            />
+                            <Button size="sm" onClick={() => void saveText()} disabled={!canSave}>
+                                {saving ? <Icon name="loader-4" className="size-3.5 animate-spin" /> : null}
+                                {t('sourceBoard.edit.save')}
+                            </Button>
+                            <Button size="sm" variant="ghost" onClick={cancelEditing} disabled={saving}>
+                                {t('sourceBoard.edit.cancel')}
+                            </Button>
+                        </div>
+                    ) : (
+                        <h3 dir="auto" className="typography-ui-header font-semibold break-words text-foreground">{reference.title}</h3>
+                    )}
                     <ChangeFlags reference={reference} />
                 </>
             }

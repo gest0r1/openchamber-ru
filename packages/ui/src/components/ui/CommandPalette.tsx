@@ -37,7 +37,6 @@ import {
   copyCurrentSessionId,
   openArchive,
   openMultiRun,
-  openNewWorktreeDialog,
   openNotes,
   openOverview,
   openTodos,
@@ -47,11 +46,12 @@ import {
   showContextUsage,
   showDiagnosticTimeline,
 } from '@/lib/paletteCommands';
+import { appearanceCommands } from './commandPaletteAppearance';
 import { useRuntimeAPIs } from '@/hooks/useRuntimeAPIs';
 import { toastContextFileOpenFailure, validateContextFileOpen } from '@/lib/contextFileOpenGuard';
 import { FileTypeIcon } from '@/components/icons/FileTypeIcon';
 import type { Session } from '@/lib/opencode/model';
-import { createWorktreeSession } from '@/lib/worktreeSessionCreator';
+import { createCommands, type CommandEntry } from './commandPaletteCreateCommands';
 import { formatShortcutForDisplay, getEffectiveShortcutCombo, shortcutRegistry, type ShortcutActionId } from '@/lib/shortcuts';
 import { canUseElectronDesktopIPC, getMiniChatRuntimeArgs, invokeDesktop, isDesktopShell, isVSCodeRuntime, isWebRuntime } from '@/lib/desktop';
 import { SETTINGS_PAGE_METADATA, type SettingsRuntimeContext } from '@/lib/settings/metadata';
@@ -95,38 +95,14 @@ import { getRuntimeKey, subscribeRuntimeEndpointChanged } from '@/lib/runtime-sw
 import { rankConversationMetadata } from '@/lib/search/conversationSearch';
 import { Button } from './button';
 
-type CommandEntry = {
-  id: string;
-  title: string;
-  icon: React.ReactNode;
-  shortcutId?: ShortcutActionId;
-  searchText: string;
-  /** Muted text after the title, such as the extension a command comes from. */
-  detail?: string;
-  /**
-   * More words that find the entry (the extension's name, a description),
-   * ranked below entries whose own text matches the query.
-   */
-  keywords?: string;
-  /** Search-only command: reachable by typing, hidden from the initial list
-      so the first screen stays scroll-free. */
-  secondary?: boolean;
-  onSelect: () => void;
-};
 
 type FileHit = { path: string; name: string; relativePath: string };
 const EMPTY_SESSIONS: Session[] = [];
 const NO_RANGES: MatchRange[] = [];
 const MESSAGE_PREVIEW_LIMIT = 3;
 const MESSAGE_PAGE_SIZE = 30;
-// Archived sessions follow the active ones as a short group of their own.
 const ARCHIVED_SESSION_LIMIT = 3;
 
-/**
- * Commands, Settings pages and projects match a query only at word starts, so a short
- * query like "ts" finds "TypeScript" but not the tail of "Agents". The query
- * splits the way the text does, so "/task" finds the extension command `/task`.
- */
 const WORD_SEPARATOR = /[^\p{L}\p{N}]+/u;
 const matchesWordStarts = (text: string, query: string): boolean => {
   const words = text.toLowerCase().split(WORD_SEPARATOR).filter(Boolean);
@@ -216,7 +192,6 @@ export const CommandPalette: React.FC = () => {
   const debouncedQuery = useDebouncedValue(query, 200);
   const trimmedQuery = debouncedQuery.trim();
   const liveTrimmed = query.trim();
-  // "Show all" on the Messages group drills into message hits only, with paging.
   const [view, setView] = React.useState<'all' | 'messages'>('all');
   const leaveMessagesView = React.useCallback(() => {
     setView('all');
@@ -256,35 +231,10 @@ export const CommandPalette: React.FC = () => {
   const overviewAvailable = useUIStore((state) => state.overviewFeatureAvailable);
   const commands = React.useMemo<CommandEntry[]>(() => {
     const list: CommandEntry[] = [
-      {
-        id: 'new-session',
-        title: t('commandPalette.item.newSession'),
-        icon: <Icon name="add" className="me-2 h-4 w-4" />,
-        shortcutId: 'new_chat',
-        searchText: t('commandPalette.item.newSession'),
-        onSelect: run(() => {
-          setSessionSwitcherOpen(false);
-          openNewSessionDraft();
-        }),
-      },
-      {
-        id: 'new-worktree',
-        title: t('commandPalette.item.quickWorktree'),
-        icon: <Icon name="flashlight" className="me-2 h-4 w-4" />,
-        shortcutId: 'new_chat_worktree',
-        searchText: t('commandPalette.item.quickWorktree'),
-        onSelect: run(() => {
-          void createWorktreeSession();
-        }),
-      },
-      {
-        id: 'new-worktree-dialog',
-        title: t('commandPalette.item.newWorktreeDialog'),
-        icon: <Icon name="worktree" className="me-2 h-4 w-4" />,
-        shortcutId: 'open_new_worktree_dialog',
-        searchText: t('commandPalette.item.newWorktreeDialog'),
-        onSelect: run(openNewWorktreeDialog),
-      },
+      ...createCommands({ t, run, startSession: () => {
+        setSessionSwitcherOpen(false);
+        openNewSessionDraft();
+      } }),
       {
         id: 'add-project',
         title: t('commandPalette.item.addProject'),
@@ -329,17 +279,6 @@ export const CommandPalette: React.FC = () => {
         shortcutId: 'show_context_usage',
         searchText: t('commandPalette.item.showContextUsage'),
         onSelect: run(showContextUsage),
-      },
-      {
-        id: 'cycle-theme',
-        secondary: true,
-        title: t('commandPalette.item.cycleTheme'),
-        icon: <Icon name="palette" className="me-2 h-4 w-4" />,
-        shortcutId: 'cycle_theme',
-        searchText: t('commandPalette.item.cycleTheme'),
-        onSelect: run(() => {
-          shortcutRegistry.invoke('cycle_theme');
-        }),
       },
       ...appearanceCommands(t, run),
       {
@@ -400,7 +339,6 @@ export const CommandPalette: React.FC = () => {
         shortcutId: 'collapse_sessions_all',
         searchText: t('sessions.sidebar.header.displayMode.collapseAll'),
         onSelect: run(() => {
-          // The sidebar handler acts on hidden sidebars too; opening it shows the result.
           setSidebarOpen(true);
           shortcutRegistry.invoke('collapse_sessions_all');
         }),
@@ -413,7 +351,6 @@ export const CommandPalette: React.FC = () => {
         shortcutId: 'expand_sessions_all',
         searchText: t('sessions.sidebar.header.displayMode.expandAll'),
         onSelect: run(() => {
-          // The sidebar handler acts on hidden sidebars too; opening it shows the result.
           setSidebarOpen(true);
           shortcutRegistry.invoke('expand_sessions_all');
         }),
@@ -563,23 +500,15 @@ export const CommandPalette: React.FC = () => {
     overviewAvailable,
   ]);
 
-  // ---------------------------------------------------------------------------
-  // Extensions: session actions on the current session, and slash commands.
-  // Search-only. Message, selection, file and diff actions stay in their own
-  // menus: the palette has no message, selection or lines to give them.
-  // ---------------------------------------------------------------------------
   const hasCurrentSession = useSessionUIStore((s) => Boolean(s.currentSessionId));
   const guestActions = useGuestActions();
   const guestGuests = useGuestsStore((s) => s.guests);
-  // The same reserved names as the composer's slash menu, so the palette never
-  // offers a command the composer would hand to OpenCode instead.
   const composerCommandsTarget = useComposerConfigDirectory(effectiveDirectory);
   const composerCommands = useCommandsStore((s) => selectCommandsForComposer(s, composerCommandsTarget));
   const reservedCommandNames = React.useMemo(() => reservedComposerCommandNames(composerCommands), [composerCommands]);
   const guestCommands = useGuestCommands(reservedCommandNames);
   const loadSessionRecords = useSessionMessageRecordsForExport();
 
-  // The current session as the session header menu gives it; read when the action runs.
   const runCurrentSessionGuestAction = React.useCallback((entry: GuestActionEntry) => {
     const { currentSessionId: sessionId, currentSessionDirectory } = useSessionUIStore.getState();
     if (!sessionId) return;
@@ -631,9 +560,6 @@ export const CommandPalette: React.FC = () => {
           icon: <GuestIcon icon={resolveGuestIconName(guestIcon)} iconSrc={guestPackageIconSrc(entry.guestId, guestIcon, authenticatedAsset)} className="me-2 h-4 w-4" />,
           searchText: title,
           keywords: `${entry.guestName} ${entry.command.description ?? ''}`,
-          // Like picking it in the composer's slash menu: the command waits
-          // in the composer for its argument and runs when the user sends.
-          // Settings or a page covering the chat closes, so the composer can be seen.
           onSelect: run(() => {
             const ui = useUIStore.getState();
             ui.setSettingsDialogOpen(false);
@@ -646,9 +572,6 @@ export const CommandPalette: React.FC = () => {
     return list;
   }, [guestActions, guestCommands, guestGuests, hasCurrentSession, run, runCurrentSessionGuestAction]);
 
-  // ---------------------------------------------------------------------------
-  // Settings sub-pages (only show when there's a query)
-  // ---------------------------------------------------------------------------
   const routingAvailable = useUIStore((state) => state.routingFeatureAvailable);
   const enterpriseMode = useEnterpriseMode();
   const jevBlockedByEnterprise = useJevBlockedByEnterprise();
@@ -758,9 +681,6 @@ export const CommandPalette: React.FC = () => {
     [orderedActiveSessions, orderedArchivedSessions],
   );
 
-  // ---------------------------------------------------------------------------
-  // File search
-  // ---------------------------------------------------------------------------
   const [fileResults, setFileResults] = React.useState<FileHit[]>([]);
   const [fileResultsKey, setFileResultsKey] = React.useState('');
 
@@ -782,9 +702,6 @@ export const CommandPalette: React.FC = () => {
   const reasoningIndexed = useUIStore((state) => state.messageSearchReasoningEnabled);
   const showReasoningTraces = useUIStore((state) => state.showReasoningTraces);
   const reasoningSearchable = reasoningIndexed && showReasoningTraces;
-  // Archived conversations are always searched. A hit is listed when its folder
-  // is admitted; the session caches say whether it is archived, and a server
-  // that sends no lifecycle leaves the rest unmarked, shown as active.
   const { state: messageSearch, loadMore: loadMoreMessages } = useMessageSearch({
     query: trimmedQuery,
     enabled: isCommandPaletteOpen && messageSearchSupported,
@@ -792,8 +709,6 @@ export const CommandPalette: React.FC = () => {
     includeReasoning: showReasoningTraces,
     lifecycle: 'all',
   });
-  // Hits come newest first, and archived conversations are usually the oldest:
-  // asked for on their own, they are listed at once instead of pages below.
   const { state: archivedMessageSearch, loadMore: loadMoreArchivedMessages } = useMessageSearch({
     query: trimmedQuery,
     enabled: isCommandPaletteOpen && messageSearchSupported,
@@ -832,15 +747,11 @@ export const CommandPalette: React.FC = () => {
     if (activeSessionIds.has(hit.sessionId)) return [{ ...hit, archived: false }];
     return [hit];
   });
-  // A server that ignores the lifecycle parameter answers the archived request
-  // with everything, unmarked: its answer then says nothing about the archive.
   const archivedAnswer = 'hits' in archivedMessageSearch ? archivedMessageSearch.hits : [];
   const archivedAnswerUsable = archivedAnswer.every((hit) => hit.archived === true);
   const listedMessageKeys = new Set(messageHits.map((hit) => `${hit.role}:${hit.id}`));
-  // Under the hits of every conversation: the archived ones those have not reached yet.
   const archivedMessageHits = archivedAnswerUsable ? archivedAnswer.filter((hit) => (
     !listedMessageKeys.has(`${hit.role}:${hit.id}`)
-    // Restored a moment ago: the active cache already knows.
     && !activeSessionIds.has(hit.sessionId)
     && isSessionDirectoryAdmitted(hit.directory, projects, worktreesByProject)
     && (hit.role !== 'reasoning' || reasoningSearchable)
@@ -899,8 +810,6 @@ export const CommandPalette: React.FC = () => {
     }
     const all = [...commands, ...extensionCommands];
     const candidates = all.filter((item) => matchesWordStarts(item.searchText, liveTrimmed));
-    // "task" means the command `/task` before an action found through its
-    // extension's name, Task Board.
     const byKeywords = all.filter((item) => item.keywords
       && !matchesWordStarts(item.searchText, liveTrimmed)
       && matchesWordStarts(`${item.searchText} ${item.keywords}`, liveTrimmed));
@@ -919,8 +828,6 @@ export const CommandPalette: React.FC = () => {
   const rankSessions = React.useCallback((metadata: Parameters<typeof rankConversationMetadata>[0], options: { limit: number; titlesOnly?: boolean }) => (
     rankConversationMetadata(metadata, liveTrimmed, options).flatMap((match) => {
       const item = sessionsById.get(match.sessionId);
-      // Metadata ranks lower-is-better; the groups compare higher-is-better
-      // scores, and a project or folder hit stays below every name hit.
       return item ? [{ item, score: -match.score, ranges: match.titleRanges }] : [];
     })
   ), [liveTrimmed, sessionsById]);
@@ -930,8 +837,6 @@ export const CommandPalette: React.FC = () => {
     return rankSessions(activeSessionMetadata, { limit: 7 });
   }, [hasQuery, orderedActiveSessions, activeSessionMetadata, rankSessions]);
 
-  // An archived session is found by its title only: its project's name would
-  // otherwise fill the group with every archived session of that project.
   const scoredArchivedSessions = React.useMemo(
     () => (hasQuery ? rankSessions(archivedSessionMetadata, { limit: ARCHIVED_SESSION_LIMIT, titlesOnly: true }) : []),
     [hasQuery, archivedSessionMetadata, rankSessions],
@@ -977,12 +882,10 @@ export const CommandPalette: React.FC = () => {
 
   const groupOrder = React.useMemo<('openFiles' | 'commands' | 'settings' | 'sessions' | 'files' | 'projects' | 'messages')[]>(() => {
     if (!hasQuery) return ['openFiles', 'sessions', 'commands'];
-    // Sessions list newest first among equal matches, so the best score is not always the first.
     const best = (arr: { score: number }[]): number => arr.reduce((top, entry) => Math.max(top, entry.score), Number.NEGATIVE_INFINITY);
     const groups: { key: 'commands' | 'settings' | 'sessions' | 'files' | 'projects'; score: number }[] = [
       { key: 'commands', score: best(scoredCommands) },
       { key: 'settings', score: best(scoredSettings) },
-      // Archived sessions sit under the active ones, wherever those rank.
       { key: 'sessions', score: best(scoredSessions.length > 0 ? scoredSessions : scoredArchivedSessions) },
       { key: 'files', score: best(scoredFiles) },
       { key: 'projects', score: best(scoredProjects) },
@@ -1008,7 +911,6 @@ export const CommandPalette: React.FC = () => {
     [close, setCurrentSession],
   );
 
-  // The same route a link takes: it selects the session and leaves it archived.
   const handleOpenArchivedSession = React.useCallback(
     (session: Session) => {
       close();
@@ -1063,9 +965,6 @@ export const CommandPalette: React.FC = () => {
       </CommandItem>
     );
   };
-  // Message search is on by default and can be turned off. While it is off the
-  // palette says nothing about messages: a line about a feature the user
-  // turned off, on every query, is noise.
   const messageSearchOff = !messageSearchEnabled || (messageSearch.status === 'unavailable' && unavailableStatus === 'off');
   const messageUnavailableStatus = messageSearchOff
     ? null
@@ -1087,7 +986,6 @@ export const CommandPalette: React.FC = () => {
     ? t('commandPalette.messages.indexing', { done: messageSearch.index.backfill.done, total: messageSearch.index.backfill.total })
     : null;
   const noMessageHits = messageSearch.status === 'ready' && messageHits.length === 0 && archivedMessageHits.length === 0;
-  // "No results" would be a claim about messages too, which these states cannot make.
   const messageContentBlocksGlobalEmpty = hasQuery
     && !messageSearchOff
     && (isVSCodeRuntime()
@@ -1097,7 +995,6 @@ export const CommandPalette: React.FC = () => {
       || messageIndexing !== null);
 
   const renderSessionItem = (session: Session, ranges: ReadonlyArray<MatchRange>, onSelect: (session: Session) => void) => {
-    // Untitled sessions never match, so their ranges are empty.
     const title = session.title || t('commandPalette.session.untitled');
     const dir = resolveGlobalSessionDirectory(session);
     const branch = branchForSession(session.id, dir);
@@ -1123,7 +1020,6 @@ export const CommandPalette: React.FC = () => {
     <Dialog
       open={isCommandPaletteOpen}
       onOpenChange={(nextOpen, details) => {
-        // Esc leaves the messages view first; a second Esc closes the palette.
         if (!nextOpen && view === 'messages' && details.reason === 'escape-key') {
           details.cancel();
           leaveMessagesView();
@@ -1167,7 +1063,6 @@ export const CommandPalette: React.FC = () => {
               </Button>
             </div>
           ) : null}
-          {/* The back row takes its height from the list, so the palette keeps its size. */}
           <div className={cn('min-h-0', view === 'messages' ? 'h-[min(403px,calc(60vh-37px))]' : 'h-[min(440px,60vh)]')}>
           <CommandList>
             {view === 'messages' ? (

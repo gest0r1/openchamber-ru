@@ -20,7 +20,7 @@ import {
   type SwitcherItem,
 } from '@/components/session/sidebar/shell/useSwitcherItems';
 import { useUIStore } from '@/stores/useUIStore';
-import { refreshGlobalSessions, resolveGlobalSessionDirectory } from '@/stores/useGlobalSessionsStore';
+import { refreshGlobalSessions, refreshRecentGlobalSessions, resolveGlobalSessionDirectory } from '@/stores/useGlobalSessionsStore';
 import { formatSessionCompactDateLabel } from './sidebar/utils';
 import type { SessionNode } from './sidebar/types';
 import { useI18n } from '@/lib/i18n';
@@ -85,15 +85,11 @@ type SwitcherContentProps = {
 function SwitcherContent({ onSelect, variant, scopeProjectId, recentOnly }: SwitcherContentProps): React.ReactElement {
   const currentSessionId = useSessionUIStore((state) => state.currentSessionId);
   const isNewSessionDraftOpen = useSessionUIStore((state) => state.newSessionDraft.open === true);
-  // Plain recency, same as the mobile switcher: with pins first, a few pinned
-  // sessions (ordered by creation) fill every slot and hide the recent ones.
   const items = useSwitcherItems(true, { scopeProjectId, currentSessionId, maxParents: RECENT_SESSIONS_LIMIT, ignorePins: true });
 
   React.useEffect(() => {
-    // Fresh authoritative snapshot on open: updated stamps re-sort recents
-    // (see raiseSessionOrderingBaselines) while the cached list shows first.
-    void refreshGlobalSessions();
-  }, []);
+    void (recentOnly ? refreshRecentGlobalSessions() : refreshGlobalSessions());
+  }, [recentOnly]);
   const openNewSessionDraft = useSessionUIStore((state) => state.openNewSessionDraft);
   const { t } = useI18n();
 
@@ -353,7 +349,6 @@ function SwitcherRow({ session, depth, variant, secondaryMeta, hasChildren, isEx
           />
         </span>
       ) : null}
-      {/* Compact rows have no meta line; the time sits on the right, as on mobile. */}
       {variant === 'compact' ? (
         <span className="shrink-0 self-center typography-micro text-muted-foreground tabular-nums">{timeLabel}</span>
       ) : null}

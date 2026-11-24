@@ -150,10 +150,6 @@ function RunSidebarRowComponent({
     </>
   );
 
-  // With a mouse the run's menu is its right-click menu (Shift+F10 from the
-  // keyboard); the ⋯ button shows on touch only: always in touch layouts, on
-  // hover for a touch screen elsewhere. Hover reserves count it only where it
-  // always shows.
   const showMenuButton = alwaysShowActions;
   const hoverButtons = (sessionWorkEnabled ? 1 : 0) + (showMenuButton ? 1 : 0);
   const hoverOut = alwaysShowActions || hoverButtons === 0 ? undefined : 'group-hover/run:opacity-0 group-has-[:focus-visible]/run:opacity-0';
@@ -208,8 +204,6 @@ function RunSidebarRowComponent({
       </button>
     </form>
   ) : run.title;
-  // The hover actions hide while renaming, so the rename's own buttons take
-  // the whole line: no room reserved for them and no fade over its end.
   const actionsReserve = renaming ? undefined : [undefined, '[--oc-actions-reserve:1.75rem]', '[--oc-actions-reserve:2.875rem]'][hoverButtons];
   const maskOnHover = alwaysShowActions || renaming || hoverButtons === 0 ? undefined : 'group-hover/run:oc-actions-mask group-has-[:focus-visible]/run:oc-actions-mask';
   const actionButtonClass = cn(

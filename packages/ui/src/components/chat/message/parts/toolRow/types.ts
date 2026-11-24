@@ -17,6 +17,8 @@ export interface ToolPartProps {
 }
 
 export type ToolRowHeader = {
+    title?: string | undefined;
+    titleColor?: string | undefined;
     label?: 'background' | 'stopped';
     durationUnknown?: boolean;
     stop?: { onStop: () => void; ariaLabel: string };

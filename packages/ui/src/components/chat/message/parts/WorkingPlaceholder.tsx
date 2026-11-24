@@ -3,6 +3,7 @@ import { useI18n, type Locale } from '@/lib/i18n';
 import { agentStatusSignature, type AgentStatus } from '@/lib/agentStatus';
 import { useAgentStatusLabel } from '@/hooks/useAgentStatusLabel';
 import { ProviderLogo } from '@/components/ui/ProviderLogo';
+import { formatRetryCountdown, toRetryTargetTimestamp } from '@/lib/retryCountdown';
 
 interface WorkingPlaceholderProps {
   isWorking: boolean;
@@ -159,12 +160,6 @@ export function WorkingPlaceholder({
   }
 
   const providerLogo = providerId ? (
-    // Flex sibling of the label, never an inline rider on the text line: a
-    // tall inline-block drags the line box with it and the label drifts off
-    // the chip's vertical center. As flex children both center independently.
-    // 16px box like the scroll pill's arrow icon. The padding normalizes
-    // the mark to the arrow glyph's geometry (~10.4px wide, ~2.8px inset),
-    // so equal boxes and equal paddings also mean equal visible edges.
     <ProviderLogo providerId={providerId} alt="" fallback={null} className="h-4 w-4 shrink-0 p-[1.3px] me-1.5" />
   ) : null;
 

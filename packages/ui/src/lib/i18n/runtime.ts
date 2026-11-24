@@ -103,7 +103,11 @@ function supportedLocale(value: string | undefined | null): Locale | undefined {
   if (normalized === 'ru' || normalized.startsWith('ru-')) {
     return 'ru';
   }
-  return DEFAULT_LOCALE;
+  return undefined;
+}
+
+export function normalizeLocale(value: string | undefined | null): Locale {
+  return supportedLocale(value) ?? DEFAULT_LOCALE;
 }
 
 function readStoredLocale(): Locale | undefined {

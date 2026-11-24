@@ -694,61 +694,7 @@ export const registerAuthAndAccessRoutes = (app: Application, dependencies: Auth
     res.status(statusCode).json({ error: 'Invalid or expired pairing session' });
   };
 
-  /**
-   * Endpoints that carry their own authority instead of a UI session.
-   *
-   * The repository credential helper runs from Git itself, in a terminal or
-   * the agent's shell, wherever a repository names it in `.git/config`. It
-   * authenticates with the secret the server writes beside its endpoint file,
-   * rotated every start, and the route refuses any peer that is not this
-   * machine. It has no UI session and cannot obtain one, so leaving it behind
-   * the session guard would make a repository's account silently unusable on
-   * every instance that sets a UI password, which Docker requires.
-   */
-  const selfAuthenticatedApiPaths = new Set(['/api/git/repository-credential']);
-
-  // An extension tracker's OAuth callback (`/tracker/ext-<id>/oauth/callback`)
-  // is the same kind of page: the tracker redirects the browser here with no
-  // UI bearer, and the route accepts only a `state` this process issued.
-  const isGuestOauthCallback = (req) => (
-    req.method === 'GET'
-    && /^\/(?:guests\/[a-z][a-z0-9-]*|tracker\/ext-[a-z][a-z0-9-]*)\/oauth\/callback$/.test(req.path || '')
-  );
-
-  // An MCP server's OAuth callback lands on the OpenChamber origin because a
-  // browser on another machine cannot reach OpenCode's loopback listener. The
-  // route forwards it there only for a state bound to a live sign-in.
-  const isMcpOauthCallback = (req) => (
-    req.method === 'GET'
-    && /^\/mcp\/oauth\/[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?\/callback$/.test(req.path || '')
-  );
-
-  // An HTML preview runs in an opaque-origin sandbox and carries no session.
-  // The grant in its path is the capability; the fs route checks it.
-  const isFilePreviewRead = (req) => (
-    req.method === 'GET'
-    && /^\/fs\/preview\/[^/]+\/./.test(req.path || '')
-  );
-
-  // An extension frame is sandboxed the same way and loads its package
-  // through a grant in the path; the guests route checks it.
-  const isGuestFrameFileRead = (req) => (
-    req.method === 'GET'
-    && /^\/guest-files\/[^/]+\/./.test(req.path || '')
-  );
-
-  const requireApiAuth = async (req, res, next) => {
-    const pathname = (req.originalUrl || '').split('?')[0];
-    if (selfAuthenticatedApiPaths.has(pathname)) return next();
-    if (isGuestOauthCallback(req) || isMcpOauthCallback(req) || isFilePreviewRead(req) || isGuestFrameFileRead(req)) {
-      return next();
-    }
-    const requestScope = tunnelAuthController.classifyRequestScope(req);
-    if (requestScope === 'tunnel' || requestScope === 'unknown-public') {
-      return tunnelAuthController.requireTunnelSession(req, res, next);
-    }
-    return uiAuthController.requireAuth(req, res, next);
-  };
+  const requireApiAuth = createApiAuthGate({ tunnelAuthController, uiAuthController });
 
   app.get('/auth/session', async (req, res) => {
     const requestScope = tunnelAuthController.classifyRequestScope(req);

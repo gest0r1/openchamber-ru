@@ -6,11 +6,7 @@ type ShortcutConfig = {
   id: string;
   defaultBinding: ShortcutCombo;
   prefixStyle?: true;
-  /** The handler matches single key presses, so Settings records one chord. */
   singleChord?: true;
-  /** The desktop app menu owns the key as a native accelerator: it works from
-      every focused surface and window, and needs no renderer handler. The key
-      exists only where that menu item does; the recorder takes one chord. */
   nativeMenu?: 'all' | 'non-mac';
 } & (
   | { customizable: false }
@@ -459,6 +455,12 @@ const SHORTCUT_GROUPS = {
       settingsLabelKey: 'settings.openchamber.keyboardShortcuts.action.cycle_theme.label',
     },
     {
+      id: 'toggle_reasoning_traces',
+      defaultBinding: UNASSIGNED_SHORTCUT,
+      customizable: true,
+      settingsLabelKey: 'settings.openchamber.keyboardShortcuts.action.toggle_reasoning_traces.label',
+    },
+    {
       id: 'open_archive',
       defaultBinding: UNASSIGNED_SHORTCUT,
       customizable: true,
@@ -502,8 +504,6 @@ const SHORTCUT_GROUPS = {
     },
     {
       id: 'add_project',
-      // The leader's "open" key, as Open Folder is in code editors; a single
-      // mod+o would take the browser's Open File.
       defaultBinding: 'mod+k o',
       customizable: true,
       settingsLabelKey: 'settings.openchamber.keyboardShortcuts.action.add_project.label',

@@ -1,8 +1,3 @@
-/**
- * VS Code Git API implementation
- * Uses bridge messages to communicate with the extension host
- */
-
 import { BridgeRequestError, sendBridgeMessage, sendBridgeMessageWithOptions } from './bridge';
 import { GIT_REPOSITORY_UNREADABLE, GitRepositoryUnreadableError } from '@openchamber/ui/lib/gitRepositoryUnreadable';
 import { GitNetworkOperationRequestError } from '@openchamber/ui/lib/api/types';
@@ -39,9 +34,6 @@ const requestWorktreeBootstrapStatus = (directory: string): Promise<GitWorktreeB
   return sendBridgeMessage<GitWorktreeBootstrapStatus>('api:git/worktrees/bootstrap-status', { directory });
 };
 
-// No bridge timeout: the extension host runs the teardown commands first and
-// gives them 5 minutes. Giving up in the webview would report a failure, put
-// the sessions back, and then watch the host remove the worktree anyway.
 const removeWorktreeThroughBridge = (directory: string, payload: RemoveGitWorktreePayload): Promise<{ success: boolean }> => (
   sendBridgeMessageWithOptions<{ success: boolean }>('api:git/worktrees', {
     directory,
@@ -54,9 +46,6 @@ const removeWorktreeThroughBridge = (directory: string, payload: RemoveGitWorktr
   }, { timeoutMs: 0 })
 );
 
-// Author profiles live in webview memory for the lifetime of the view, as they
-// always have. Nothing applies them to a repository in this runtime, and the
-// extension host stores nothing.
 let storedProfiles: GitIdentityProfile[] = [];
 
 const readStoredProfiles = (): GitIdentityProfile[] => storedProfiles;
@@ -205,7 +194,6 @@ export const createVSCodeGitAPI = (): GitAPI => ({
     try {
       return await sendBridgeMessage<boolean>('api:git/check', { directory });
     } catch (error) {
-      // The extension's probe names a Git that could not answer with this code.
       if (error instanceof BridgeRequestError && error.code === GIT_REPOSITORY_UNREADABLE) {
         throw new GitRepositoryUnreadableError(error.message);
       }
@@ -306,7 +294,6 @@ export const createVSCodeGitAPI = (): GitAPI => ({
 
   createGitWorktree: async (directory: string, payload: CreateGitWorktreePayload): Promise<GitWorktreeCreateResult> => {
     if (payload.changeRequestSource || payload.ensureRemoteUrl) return unsupportedNetworkOperation();
-    // The host waits for a project's create command, which may run for minutes.
     return sendBridgeMessageWithOptions<GitWorktreeCreateResult>('api:git/worktrees', {
       directory,
       method: 'POST',

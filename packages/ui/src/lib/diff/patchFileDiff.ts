@@ -165,7 +165,6 @@ export interface PatchHunkAnchor {
   index: number;
   side: AnnotationSide;
   lineNumber: number;
-  /** The lines the hunk spans on each side, context included, first and last inclusive. */
   span: Record<AnnotationSide, readonly [number, number]>;
 }
 

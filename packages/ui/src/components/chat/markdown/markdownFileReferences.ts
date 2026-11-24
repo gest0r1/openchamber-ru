@@ -85,12 +85,9 @@ export function useOpenMarkdownFile() {
   }, [directory, editor, isVSCode, mobileActions]);
 }
 
-// The phone runs no automatic probes, so inline code learns it is a file only
-// when tapped (#6056). The answer decides between the viewer and a toast.
 export function useOpenTappedMarkdownFile() {
   const { directory } = useMarkdownPresentation();
   const open = useOpenMarkdownFile();
-  // A slow answer must not open the drawer over the chat the user moved to.
   const mounted = React.useRef(false);
   React.useEffect(() => {
     mounted.current = true;
@@ -105,17 +102,12 @@ export function useOpenTappedMarkdownFile() {
       ? await lookupFilesByName(reference.path, directory)
       : [];
     if (!mounted.current || getRuntimeKey() !== runtimeKey) return;
-    // Several files with the name exist, so "not found" would be untrue.
     if (check === 'failed' || !named || named.length > 1) toastContextFileOpenFailure(reference.resolvedPath, { reason: 'unreadable', message: null });
     else if (check === 'missing' && named.length === 0) toastContextFileOpenFailure(reference.resolvedPath, { reason: 'missing' });
     else await open(raw, named[0] ?? reference.resolvedPath);
   }, [directory, open]);
 }
 
-// A `file:` link the click rules do not take as a file is usually a folder.
-// It opens in the system file manager, as "Reveal in Finder" in the Files
-// tree does, and only where that tree offers it: not in a browser, which
-// hides the item, and not in VS Code, which mounts no Files tree (#5521).
 export function useRevealMarkdownPath(): ((path: string) => void) | null {
   const apis = React.useContext(RuntimeAPIContext);
   const { t } = useI18n();

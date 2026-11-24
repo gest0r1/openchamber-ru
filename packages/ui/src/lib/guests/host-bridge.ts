@@ -94,9 +94,7 @@ type HostBridgeEffects = {
   openCommit: (sha: string) => Promise<GuestOpenCommitResult>;
   openWalkthrough: (base: string) => Promise<GuestOpenWalkthroughResult>;
   resize: (height: number) => void;
-  /** A `block` frame answers the agent; a rejection carries what to tell the frame. */
   answerBlock: (text: string) => Promise<void>;
-  /** The guest answered a host `resolve` with this id. Not a request, so no `result` goes back. */
   resolveResult: (id: string, payload: ResolveResultPayload) => void;
   openPopover?: (request: GuestPopoverRequest) => void;
   closePopover?: (id: string, reason: 'closed' | 'escape' | undefined) => void;

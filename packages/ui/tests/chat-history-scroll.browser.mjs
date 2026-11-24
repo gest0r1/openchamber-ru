@@ -14,52 +14,27 @@ const repo = fileURLToPath(new URL('../../../', import.meta.url));
 // fractional, and whether they are depends on the measured average. One
 // height profile can pass by luck, so the scenarios run over several.
 const heightProfiles = [[5, 137], [7, 137], [3, 101], [6, 53], [4, 211]];
-// The list's average estimate, our per-row estimate, and the touch layout,
-// whose corrections wait until the reader stops scrolling; the app on a phone
-// runs the last two together.
+// Both layouts run the production per-row estimator. Touch corrections wait
+// until the reader stops scrolling.
 const modes = [
-    { touch: false, estimate: false },
-    { touch: false, estimate: true },
-    { touch: true, estimate: false },
-    { touch: true, estimate: true },
+    { touch: false },
+    { touch: true },
 ];
 
 // Exercise the actual list component and its prop wiring without mounting the
 // application or connecting to a user's backend. Only row content and the
 // surrounding chat callbacks are supplied by the fixture.
 const fixture = `
-import React from ${JSON.stringify(join(repo, 'node_modules/react/index.js'))};
-import { createRoot } from ${JSON.stringify(join(repo, 'node_modules/react-dom/client.js'))};
-import { LegendList } from ${JSON.stringify(legendList)};
-${estimatedSize}
-const TimelineRowContext = React.createContext(null);
-const useUIStore = () => true;
-const resolveTimelineIsAtEnd = () => false;
-const timelineKeyExtractor = item => item.key;
-const timelineItemType = item => item.kind;
-function Row({ item }) {
-    const [settled, setSettled] = React.useState(!item.older);
-    React.useEffect(() => {
-        if (settled) return;
-        const timer = setTimeout(() => setSettled(true), 180);
-        return () => clearTimeout(timer);
-    }, [settled]);
-    return <div data-probe-id={item.key} style={{ height: settled ? item.height : 90 }}>
-        Row {item.key}
-    </div>;
-}
-const renderTimelineItem = ({ item }) => <Row item={item} />;
-// What TimelineList reads from the page around it. "touch" turns on the
-// touch layout, which defers corrections while the reader scrolls;
-// "estimate" gives every row a per-row estimate that is off by 40 px, the
-// path getEstimatedItemSize opens, instead of the list's average.
-const fixtureParams = new URLSearchParams(location.search);
-const isTouchLayout = () => fixtureParams.get('touch') === 'true';
-const readColumnWidth = () => 800;
-const readToolLineHeight = () => 32;
-const estimateTimelineRowSize = row => (fixtureParams.get('estimate') === 'true' ? row.height + 40 : undefined);
-const useSelectionRowHold = () => undefined;
-${source.slice(start, end)}
+import React from 'react';
+import { createRoot } from 'react-dom/client';
+import { TimelineList } from '@/components/chat/timeline/TimelineList';
+import { I18nProvider } from '@/lib/i18n';
+import { SyncRuntimeContext } from '@/sync/sync-runtime-context';
+import { ChildStoreManager } from '@/sync/child-store';
+import { RuntimeAPIProvider } from '@/contexts/RuntimeAPIProvider';
+import { createWebAPIs } from ${JSON.stringify(join(repo, 'packages/web/src/api/index.ts'))};
+const childStores = new ChildStoreManager();
+const apis = createWebAPIs();
 const frames = async count => {
     for (let i = 0; i < count; i++) await new Promise(requestAnimationFrame);
 };
@@ -163,7 +138,7 @@ function App() {
         };
     };
     // A steady scroll toward older rows, far from the start, through rows
-    // whose estimate is 40 px too tall. Each one measured above the reader
+    // whose estimate exceeds its painted content. Each one measured above the reader
     // is a size correction. Every frame checks whether the list moved
     // scrollTop on its own; on touch that has to wait until the scroll stops.
     window.runScrollScenario = async () => {
@@ -189,12 +164,12 @@ function App() {
             if (Math.abs(deviation) > 1) corrections.push(Math.round(deviation));
             expected = scroller.scrollTop;
         }
-        const visible = [...scroller.querySelectorAll('[data-probe-id]')].find(
+        const visible = [...scroller.querySelectorAll('[data-turn-row]')].find(
             node => node.getBoundingClientRect().bottom > scroller.getBoundingClientRect().top + 1,
         );
-        const key = visible.dataset.probeId;
+        const key = visible.dataset.turnRow;
         const read = () => {
-            const node = scroller.querySelector('[data-probe-id="' + key + '"]');
+            const node = scroller.querySelector('[data-turn-row="' + key + '"]');
             return node ? node.getBoundingClientRect().top - scroller.getBoundingClientRect().top : null;
         };
         const atStop = read();
@@ -212,7 +187,11 @@ function App() {
         rows={rows} stickyRowIndices={undefined} showReasoningTraces={false} collapsibleThinkingBlocks={false}
         registerList={registerList} endPinningReleased={true}
         composerOverlayHeight={0} onIsAtEndChange={noop} onListMetricsChange={noop}
-        onTimelineDataChange={noop} rowContext={{ sessionIsWorking: false }}
+        onTimelineDataChange={noop} rowContext={{
+            sessionIsWorking: false, turnExpansion: new Map(), onToggleTurnActivity: noop,
+            shouldAnimateUserMessage: () => false, onUserAnimationConsumed: noop,
+            streamingTailKey: null, activeStreamingMessageId: null, activeStreamingPhase: null,
+        }}
         // The chat's fixed 48 px "Load older" slot (ChatContainer.tsx). With
         // nothing above the rows, a reader at scrollTop 0 is at the list's
         // start, and the list shows a prepend from the top in any version.
@@ -262,7 +241,7 @@ try {
     for (const mode of modes) for (const [period, step] of heightProfiles) for (const moveWhileLoading of [false, true]) {
         const loaded = client.once('Page.loadEventFired');
         await client.send('Page.navigate', {
-            url: `http://127.0.0.1:${server.port}/?moving=${moveWhileLoading}&period=${period}&step=${step}&touch=${mode.touch}&estimate=${mode.estimate}`,
+            url: `${origin}?moving=${moveWhileLoading}&period=${period}&step=${step}&touch=${mode.touch}`,
         });
         await loaded;
         let ready = false;
@@ -289,7 +268,7 @@ try {
     const scrolls = {};
     for (const touch of [false, true]) {
         const loaded = client.once('Page.loadEventFired');
-        await client.send('Page.navigate', { url: `http://127.0.0.1:${server.port}/?period=5&step=137&touch=${touch}&estimate=true` });
+        await client.send('Page.navigate', { url: `${origin}?period=5&step=137&touch=${touch}` });
         await loaded;
         for (let attempt = 0; attempt < 100 && !(await evaluateValue(client, 'typeof window.runScrollScenario === "function"')); attempt++) await wait(100);
         scrolls[touch] = await evaluateValue(client, 'window.runScrollScenario()');

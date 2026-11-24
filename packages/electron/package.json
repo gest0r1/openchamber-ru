@@ -7,9 +7,6 @@
   "homepage": "https://openchamber.dev",
   "type": "module",
   "main": "./dist-bundle/entry.mjs",
-  "opencodeCli": {
-    "version": "2.2.7"
-  },
   "dependencies": {
     "@openchamber/web": "workspace:*",
     "electron-context-menu": "^4.1.2",

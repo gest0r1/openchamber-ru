@@ -53,8 +53,6 @@ export const probeElectronHostWithDeadline = async ({
   scheduleTimeout = setTimeout,
   cancelTimeout = clearTimeout,
 }) => {
-  // The menu shows latencyMs as the host's ping, so it is one round trip: the
-  // last request alone, which runs on the connection the earlier ones opened.
   let requestStarted = now();
   const result = (status) => ({ status, latencyMs: now() - requestStarted });
   if (!isReady()) return result('unreachable');
@@ -84,8 +82,6 @@ export const probeElectronHostWithDeadline = async ({
       headers,
       signal: controller.signal,
       redirect: 'manual',
-      // Reachability is a question for the server: a cached answer could
-      // report a host that is down as up.
       cache: 'no-store',
     });
     if (controller.signal.aborted) {

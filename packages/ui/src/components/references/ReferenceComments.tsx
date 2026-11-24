@@ -8,7 +8,6 @@ import { useConfirmDialog } from '@/components/ui/confirm-dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { HoverTooltip } from '@/components/ui/row-tooltip';
 import { Textarea } from '@/components/ui/textarea';
-import { HoverTooltip } from '@/components/ui/row-tooltip';
 import { useAvatarImage } from '@/hooks/useAvatarImage';
 import { useEmojiShortcodes } from '@/lib/emoji/shortcodes';
 import { useI18n } from '@/lib/i18n';
@@ -342,28 +341,13 @@ const ThreadRest: React.FC<{
             {count > 0 ? (
                 <ul className="mt-2 flex flex-col gap-3 border-s border-edge ps-3">
                     {thread.replies.map((reply) => (
-                        <li key={reply.key} className="group/reply min-w-0">
-                            <div className={cn('flex min-w-0 items-center gap-1.5 typography-meta', REFERENCE_META_TEXT)}>
-                                <Avatar comment={reply} className="size-4" />
-                                <span className="font-medium text-muted-foreground">{reply.author ?? '—'}</span>
-                                {relativeLabel(t, reply.createdAt, now) ? <span>{relativeLabel(t, reply.createdAt, now)}</span> : null}
-                                {onAttachComment ? (
-                                    <HoverTooltip label={t('contextTooltips.tracker.attachComment')}>
-                                        <span className="inline-flex ms-auto">
-                                            <button
-                                                type="button"
-                                                onClick={() => onAttachComment(reply)}
-                                                className="inline-flex items-center gap-1 opacity-0 transition-opacity hover:text-foreground focus-visible:opacity-100 group-hover/reply:opacity-100"
-                                            >
-                                                <Icon name="attachment-2" className="size-3.5" />
-                                                {t('gitView.pr.actions.sendToAgent')}
-                                            </button>
-                                        </span>
-                                    </HoverTooltip>
-                                ) : null}
-                            </div>
-                            <CommentBody comment={reply} />
-                        </li>
+                        <ReplyEntry
+                            key={reply.key}
+                            reply={reply}
+                            now={now}
+                            onAttachComment={onAttachComment}
+                            commentActions={commentActions}
+                        />
                     ))}
                 </ul>
             ) : null}
@@ -609,38 +593,16 @@ export const ReferenceComments: React.FC<{
                 return (
                     <div key={entry.key} className="group relative pb-4 ps-9 last:pb-0">
                         {!isLast ? <div className="absolute bottom-1 inset-s-3 top-8 w-px bg-edge" /> : null}
-                        {entry.kind === 'commits' ? <CommitGroup group={entry} now={now} /> : (
-                            <>
-                                <Avatar comment={entry} className="absolute inset-s-0 top-0 size-6" />
-                                <div className={cn('flex min-w-0 flex-wrap items-center gap-x-1.5 typography-meta', REFERENCE_META_TEXT)}>
-                                    <span className="font-medium text-muted-foreground">{entry.author ?? '—'}</span>
-                                    {relativeLabel(t, entry.createdAt, now) ? <span>{relativeLabel(t, entry.createdAt, now)}</span> : null}
-                                    {entry.context ? <span className="min-w-0 truncate font-mono typography-micro">{entry.context}</span> : null}
-                                    {entry.answer?.chosen ? (
-                                        <span className="inline-flex items-center gap-0.5 rounded-full bg-[var(--status-success-background)] px-1.5 typography-micro font-medium text-[var(--status-success-text)]">
-                                            <Icon name="checkbox-circle" className="size-3" />
-                                            {t('references.picker.discussion.answerBadge')}
-                                        </span>
-                                    ) : null}
-                                    {onAttachComment ? (
-                                        <HoverTooltip label={t('contextTooltips.tracker.attachComment')}>
-                                            <span className="inline-flex ms-auto">
-                                                <button
-                                                    type="button"
-                                                    onClick={() => onAttachComment(entry)}
-                                                    className="inline-flex items-center gap-1 opacity-0 transition-opacity hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100"
-                                                >
-                                                    <Icon name="attachment-2" className="size-3.5" />
-                                                    {t('gitView.pr.actions.sendToAgent')}
-                                                </button>
-                                            </span>
-                                        </HoverTooltip>
-                                    ) : null}
-                                </div>
-                                {entry.thread ? (
-                                    <ThreadRest comment={entry} thread={entry.thread} now={now} actions={threadActions} onAttachComment={onAttachComment} />
-                                ) : <CommentBody comment={entry} />}
-                            </>
+                        {entry.kind === 'commits' ? <CommitGroup group={entry} now={now} /> : entry.kind === 'reference' ? (
+                            <ReferenceEntry entry={entry} now={now} />
+                        ) : (
+                            <CommentEntry
+                                comment={entry}
+                                now={now}
+                                onAttachComment={onAttachComment}
+                                threadActions={threadActions}
+                                commentActions={commentActions}
+                            />
                         )}
                     </div>
                 );

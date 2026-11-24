@@ -196,13 +196,8 @@ export const ClassificationProvidersPage: React.FC<ClassificationProvidersPagePr
       ) : (
         <>
         <SettingsSection
-          title={(
-            <span className="flex items-center gap-2">
-              <ProviderLogo providerId="typesafe" className="size-4 shrink-0" />
-              {t('settings.classification.jev.title')}
-            </span>
-          )}
-          info={t('settings.classification.jev.info')}
+          title={t('settings.classification.model.title')}
+          info={t('settings.classification.model.info')}
           settingsItem="providers.classification"
         >
           <div className={SETTINGS_FIELDS_STACK_CLASS}>

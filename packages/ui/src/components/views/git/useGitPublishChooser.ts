@@ -24,13 +24,7 @@ export const obviousPublishTargets = (context: GitPublishContext): GitPublishTar
       ? { push: { remoteName: tracked.name, ref }, fetch: { remoteName: tracked.name, ref } }
       : { push: { remoteName: tracked.name, ref } };
   }
-  // The upstream is on a remote this list leaves out, such as a path on disk:
-  // pushing to another one would publish what was kept there, so ask.
   if (context.action !== 'push' || tracking) return null;
-  // A new branch goes where the repository's identity points: the remote its
-  // account answers for, or the one remote it holds a grant of its own for.
-  // Remotes reached through that identity are fetchable forks, not where a
-  // branch is published unless someone picks them.
   const binding = effectiveRepositoryBinding(context.bindingRead);
   const own = remotes.filter((remote) => !remote.inherited);
   const home = remotes.find((remote) => remote.name === binding.providers[0]?.primaryRemote)

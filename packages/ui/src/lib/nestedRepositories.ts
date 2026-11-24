@@ -1,17 +1,5 @@
 import { isFilePathWithinDirectory } from '@/lib/path-utils';
 
-/**
- * Which discovered nested repository a surface may select on its own.
- *
- * A project root that is not a repository can contain several: a wrapper
- * folder with one checkout, or a home directory with a dozen tool installs.
- * Discovery reports them all so a picker can offer them; picking one without
- * being asked is only defensible when the choice is not arbitrary. A
- * repository under a dot-directory (`~/.oh-my-zsh`, `~/.cache/...`) is tooling
- * that happens to carry a `.git`, never the project the user opened the folder
- * for (#5357), so those are offered in the picker and never picked
- * automatically.
- */
 
 const SEPARATOR = /[\\/]+/;
 
@@ -35,10 +23,6 @@ export const chooseAutoNestedRepo = (
   return visible ?? null;
 };
 
-/**
- * The repository a file belongs to, among those known: the deepest one holding
- * it, since a nested repository's files are not its parent's.
- */
 export const findFileRepository = (file: string, repositories: readonly string[]): string | null => {
   let found: string | null = null;
   for (const repository of repositories) {

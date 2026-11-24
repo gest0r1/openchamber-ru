@@ -19,16 +19,7 @@ interface SettingsPageLayoutProps {
   description?: React.ReactNode;
   headerEnd?: React.ReactNode;
   showSaveStatus?: boolean;
-  /**
-   * A page opened from the settings sidebar, which already names it: the title
-   * stays for screen readers and focus, the description is not shown, and only
-   * the header's actions and save status stay on screen.
-   */
   namedBySidebar?: boolean;
-  /**
-   * Commit-on-blur for autosaving pages: fires for every focus leaving the
-   * page content, so a text field does not need its own handler.
-   */
   onBlurCapture?: React.FocusEventHandler;
   className?: string;
   outerClassName?: string;
@@ -50,8 +41,6 @@ export const SettingsPageLayout: React.FC<SettingsPageLayoutProps> = ({
   fillHeight = false,
 }) => {
   const scrollbarTopClearance = React.useContext(SettingsScrollbarTopClearanceContext);
-  // The phone's header row already names the page. The heading stays for
-  // screen readers and as the focus target of a page that opens.
   const { isMobile } = useDeviceInfo();
   const hasHeader = title != null || description != null || headerEnd != null || showSaveStatus;
   const isPlainTitle = typeof title === 'string' || typeof title === 'number';
@@ -67,8 +56,6 @@ export const SettingsPageLayout: React.FC<SettingsPageLayoutProps> = ({
         className={cn(
           'mx-auto max-w-[840px] space-y-0 px-6 py-6 @3xl:px-12 @3xl:py-8',
           fillHeight && 'flex w-full flex-1 flex-col',
-          // The first visible section takes no gap (or rule) above it, no
-          // matter which platform-conditional sections above it rendered null.
           '[&>section:first-of-type]:border-t-0 [&>section:first-of-type]:pt-0',
           className
         )}
@@ -83,7 +70,6 @@ export const SettingsPageLayout: React.FC<SettingsPageLayoutProps> = ({
                 {showSaveStatus && <SettingsSaveStatus />}
               </div>
             ) : showSaveStatus ? (
-              // Without actions the status floats in the corner, so it never pushes the page down.
               <div className="pointer-events-none sticky top-0 z-10 flex h-0 justify-end">
                 <div className="pointer-events-auto rounded-md bg-background px-1">
                   <SettingsSaveStatus />
@@ -92,15 +78,8 @@ export const SettingsPageLayout: React.FC<SettingsPageLayoutProps> = ({
             ) : null}
           </>
         ) : hasHeader && (
-          // Wraps rather than squeezes. The action cluster never shrinks, so on
-          // a narrow pane it used to starve the title until the name was a
-          // single letter and an ellipsis; giving the title block a basis lets
-          // the actions drop to their own line instead.
           <div className={cn(
             'flex flex-wrap items-start justify-between gap-x-4 gap-y-3',
-            // On the phone a plain title is screen-reader only, so a header with
-            // nothing else shows nothing and takes no room; a visible title row or
-            // actions keep the gap to the first section.
             isMobile && description == null && headerEnd == null && !hasTitleChrome ? 'mb-0' : 'mb-2 pb-6',
           )}>
             <div className="min-w-0 flex-1 basis-64 space-y-1">

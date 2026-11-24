@@ -27,7 +27,6 @@ import { useUIStore } from '@/stores/useUIStore';
 
 const PLAN_LIST_REFRESH_MS = 10_000;
 
-/** Ticked steps of the plan's `## Steps` checklist, or a check once all are. */
 export const PlanProgressLabel: React.FC<{ progress: ProjectPlanProgress }> = ({ progress }) => {
   const { t } = useI18n();
   if (progress.done >= progress.total) {
@@ -57,7 +56,6 @@ export const PlansSection: React.FC<{
   pinnedPlanIds: ReadonlySet<string>;
   onTogglePinned: (planId: string, pinned: boolean) => Promise<boolean>;
   selectedPlanId: string | null;
-  /** A plan moved to or from the team's folder: its project, and its id before and after. */
   onPlanMoved: (projectId: string, previousId: string, movedId: string) => void;
 }> = ({ projectRef, plans, query, onOpenPlan, pinnedPlanIds, onTogglePinned, selectedPlanId, onPlanMoved }) => {
   const { t } = useI18n();
@@ -78,8 +76,6 @@ export const PlansSection: React.FC<{
     return () => window.clearInterval(timer);
   }, [loadContext, projectRef]);
 
-  // Imported files arrive as a whole markdown document; split it the same way
-  // the server would so the stored plan keeps the author's heading.
   const importPlanFromText = React.useCallback(
     async (text: string, fallbackTitle: string) => {
       if (!text.trim()) {
@@ -275,7 +271,6 @@ export const PlansSection: React.FC<{
                     </span>
                   ) : null}
                   {plan.progress ? <PlanProgressLabel progress={plan.progress} /> : null}
-                  {/* The date keeps its place; the actions show over it. */}
                   <span className={cn('ms-auto flex flex-shrink-0 items-center gap-1 typography-micro text-muted-foreground transition-opacity', yieldToActions)}>
                     {pinned && !isMobile ? (
                       <span className="inline-flex" title={t('rightSidebar.contextNotesTodo.pin.attached')}>
@@ -286,8 +281,6 @@ export const PlansSection: React.FC<{
                     {formatKnowledgeDate(plan.createdAt)}
                   </span>
                 </button>
-                {/* Over the date, so it takes clicks only while it shows: an
-                    invisible pin under the date would toggle on a plain click. */}
                 <div
                   className={cn(
                     'flex flex-shrink-0 items-center gap-0.5 pe-1',

@@ -18,7 +18,7 @@ that writes it:
 | Keys | Owner | Reached through |
 |---|---|---|
 | `version`, `scheduledTasks`, `scheduledWorktreeCleanups` | `project-config.js` (scheduled-task runtime) | `/api/projects/:projectId/scheduled-tasks/*` and internal cleanup recovery |
-| `setup-worktree`, `setup-worktree-wait`, `teardownWorktree`, `createWorktreeCommand`, `projectActions`, `projectActionsPrimaryId`, `draftStarters`, `projectPath` | `project-setup.js` via `readProjectSetup` / `updateProjectSetup` on the same runtime | `GET/PUT /api/projects/:projectId/config` (`routes.js`) |
+| `setup-worktree`, `setup-worktree-wait`, `teardownWorktree`, `createWorktreeCommand`, `projectActions`, `projectActionsPrimaryId`, `draftStarters`, `notesTodosInRepository`, `projectPath` | `project-setup.js` via `readProjectSetup` / `updateProjectSetup` on the same runtime | `GET/PUT /api/projects/:projectId/config` (`routes.js`) |
 
 Notes, todos, and plans moved out of this file to `packages/web/server/lib/project-context`.
 `notesTodosInRepository` (personal only, absent when off) tells that module to keep notes and todos in `<repo>/.openchamber/notes-todos.json`; `resolveNotesTodosFile` answers the path, and `updateProjectSetup` calls `onNotesTodosStorageChanged` when the value flips.
@@ -106,7 +106,9 @@ command brings the prompt back. The client records an answer with a PUT of
 UI (`packages/ui/src/lib/sharedTrustConfirmation.ts`). A worktree the server
 makes for an agent has no client to ask, so `worktree-setup.js` gives the
 prompt's "skip" answer when the shared commands are not trusted: it leaves
-them out and returns them for the caller to report.
+them out and returns them for the caller to report. It resolves the same
+commands as the client's New worktree dialog (`resolveWorktreeSetupCommands`
+in `packages/ui/src/lib/sharedTrustConfirmation.ts`).
 
 ## Modules
 

@@ -99,7 +99,6 @@ export const useCollapsedSessionActivityState = ({
     }
     return null;
   }, [enabled, ids.active]));
-  // And one waiting on an image it started.
   const waitingOnImage = useBackgroundImagesStore(React.useCallback((state): CollapsedActivityState => {
     if (!enabled) return null;
     for (const sessionId of ids.active) {
@@ -107,7 +106,6 @@ export const useCollapsedSessionActivityState = ({
     }
     return null;
   }, [enabled, ids.active]));
-  // So is one waiting on its pull request: the server wakes it.
   const waitingOnPullRequest = usePrWatchStore(React.useCallback((state): CollapsedActivityState => {
     if (!enabled) return null;
     for (const sessionId of ids.active) {
@@ -115,7 +113,6 @@ export const useCollapsedSessionActivityState = ({
     }
     return null;
   }, [enabled, ids.active]));
-  // And one waiting on an extension.
   const waitingOnExtension = useExtensionWaitsStore(React.useCallback((state): CollapsedActivityState => {
     if (!enabled) return null;
     for (const sessionId of ids.active) {

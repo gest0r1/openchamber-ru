@@ -97,9 +97,6 @@ const { t } = useI18n();
 const value = valueOf(values, field.key);
 const isMissing = showErrors && missing.includes(field.key);
 const label = field.title?.trim() || field.key;
-// The field runs the way most of its own words do, so a Persian question sets
-// its label, options and radios from the right even when an option opens
-// with a Latin term. Translated controls inside it follow along.
 const dir = dominantTextDirection(
     label,
     field.description,

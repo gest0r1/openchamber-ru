@@ -5,6 +5,7 @@ import { ConsoleBudgetsSection } from './ConsoleBudgetsSection';
 import { useQuotaAutoRefresh, useQuotaProviders, useQuotaStore } from '@/stores/useQuotaStore';
 import { updateDesktopSettings } from '@/lib/persistence';
 import { QuotaProviderLogo } from '@/components/usage/QuotaProviderLogo';
+import { selectVisibleModelNames, toggleVisibleModel } from '@/components/usage/usageModelSelection';
 import {
   Collapsible,
   CollapsibleContent,
@@ -177,9 +178,9 @@ export const UsagePage: React.FC = () => {
             plan: selectedResult.planLabel,
             time: formatTime(lastUpdated, timeFormatPreference),
           })
-        ) : selectedResult?.accountLabel ? (
+        ) : accountLabel && !isOpenCodeGo ? (
           t('settings.usage.page.header.lastUpdatedWithAccount', {
-            account: selectedResult.accountLabel,
+            account: accountLabel,
             time: formatTime(lastUpdated, timeFormatPreference),
           })
         ) : (

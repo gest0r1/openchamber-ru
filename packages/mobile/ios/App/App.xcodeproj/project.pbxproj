@@ -392,6 +392,8 @@
 				D0E2000000000000000000B2 /* ShortcutRequests.swift in Sources */,
 				D0F2000000000000000000B1 /* RuntimeWebSocket.swift in Sources */,
 				D0F2000000000000000000B2 /* RuntimeWebSocketTask.swift in Sources */,
+				D0F2000000000000000000B3 /* MobileDevTunnel.swift in Sources */,
+				D0F2000000000000000000B4 /* KeepAwake.swift in Sources */,
 				D0B2000000000000000000B3 /* PushClearing.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

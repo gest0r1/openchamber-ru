@@ -19,18 +19,17 @@ const MAX_LIMIT = 200;
 const envelopeSchema = z.object({ directory: z.string().nullish() });
 const payloadDirectorySchema = z.object({ properties: z.object({ directory: z.string() }) });
 
-/**
- * Owns the search index for this server's OpenCode. Search is on unless the
- * user turned it off (`messageSearchEnabled`): while it is off nothing runs, no file is opened,
- * no event is looked at. Turning it on opens the index, follows the event
- * stream and walks the session list, which fills in whatever changed while it
- * was off. Turning it off stops all of that and keeps the file, so the next
- * start only catches up. Without a SQLite builtin search is unsupported.
- *
- * Reasoning is a second opt-in (`messageSearchReasoningEnabled`). Turning it
- * on makes the next walk read every session's agent records again; turning it
- * off drops the reasoning rows at once.
- */
+interface MessageSearchRuntimeOptions extends Pick<IndexerOptions, 'getArchivedSessions' | 'applyOwnedArchiveState' | 'logger'> {
+  dataDir: string;
+  buildOpenCodeUrl: (path: string, prefixOverride: string) => string;
+  getOpenCodeAuthHeaders: () => Record<string, string>;
+  globalEventHub: Pick<GlobalMessageStreamHub, 'subscribeEvent' | 'subscribeStatus'> & Partial<Pick<GlobalMessageStreamHub, 'isConnected'>>;
+  readSettings: () => Promise<{ enabled: boolean; reasoning: boolean }>;
+}
+
+const hasMessage = (error: unknown): error is { message: unknown } =>
+  error != null && 'message' in Object(error);
+
 export const createMessageSearchRuntime = ({
   dataDir,
   buildOpenCodeUrl,
@@ -38,7 +37,6 @@ export const createMessageSearchRuntime = ({
   globalEventHub,
   getArchivedSessions = async () => null,
   applyOwnedArchiveState = (session) => session,
-  // () => Promise<{ enabled: boolean, reasoning: boolean }>, from settings.json.
   readSettings,
   logger = console,
 }: MessageSearchRuntimeOptions) => {
@@ -166,12 +164,7 @@ export const createMessageSearchRuntime = ({
       await apply();
     }),
 
-    /**
-     * `null` match means the query has no word long enough to look up. The
-     * answer then says so instead of pretending nothing matched. `null`
-     * overall means no index is running.
-     */
-    search: ({ query, sessionId, directories, role, includeReasoning, lifecycle = 'all', before, limit, order }) => {
+    search: ({ query, sessionId, directories, role, includeReasoning, lifecycle = 'all', before, limit, order }: SearchOptions) => {
       if (!engine) return null;
       const match = toMatchExpression(query);
       if (!match) return { status: 'query-too-short' as const, hits: [] };
@@ -207,10 +200,10 @@ export const createMessageSearchRuntime = ({
       };
     },
 
-    searchSessions: ({ query, directories, role, includeReasoning, lifecycle = 'all', before, limit, exclude = [] }) => {
+    searchSessions: ({ query, directories, role, includeReasoning, lifecycle = 'all', before, limit, exclude = [] }: SessionSearchOptions) => {
       if (!engine) return null;
       const match = toMatchExpression(query);
-      if (!match) return { status: 'query-too-short', hits: [] };
+      if (!match) return { status: 'query-too-short' as const, hits: [] };
       const size = Math.min(Math.max(1, limit), 100);
       const result = engine.store.searchSessions({ match, directories, role, includeReasoning: reasoning && includeReasoning !== false, lifecycle, before, limit: size + 1, exclude, withTotals: !before });
       const terms = toSearchTerms(query);
@@ -235,7 +228,6 @@ export const createMessageSearchRuntime = ({
       };
     },
 
-    /** What the Settings page shows; the counts exist only while the index is open. */
     status: async () => {
       if (!open) return { state: 'unsupported', sizeBytes: 0, index: null };
       await transition;

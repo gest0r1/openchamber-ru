@@ -449,9 +449,6 @@ export const probeRelayDesktopHost = async (
   try {
     const response = await fetchRelayProbeUntilDeadline(tunnel, '/health', deadline);
     if (!response.ok) return { status: 'unreachable', latencyMs: 0 };
-    // The menu shows latencyMs as the host's ping. Opening the tunnel (relay
-    // socket plus E2EE handshake) cost several times one round trip over it,
-    // so only the second request, on the open tunnel, is timed.
     const startedAt = Date.now();
     const headers = new Headers({ Accept: 'application/json' });
     for (const [name, value] of Object.entries(options?.requestHeaders || {})) {

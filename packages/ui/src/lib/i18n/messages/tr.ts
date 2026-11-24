@@ -1,4 +1,3 @@
-import { androidWidgetsI18n } from './android-widgets.i18n';
 import { settingsDict } from './tr.settings';
 import { linearIssuePickerI18n } from './linear-issue-picker.i18n';
 import { referencePickerI18n } from './reference-picker.i18n';
@@ -30,17 +29,23 @@ import { compactionSettingsI18n } from './compaction-settings.i18n';
 import { heapSnapshotI18n } from './heap-snapshot.i18n';
 import { consoleBudgetsI18n } from './console-budgets.i18n';
 import { imageToolI18n } from './image-tool.i18n';
+import { sharePagesI18n } from './share-pages.i18n';
+import { receivedPagesI18n } from './received-pages.i18n';
 import { memoryDreamingI18n } from './memory-dreaming.i18n';
 import { usageToolI18n } from './usage-tool.i18n';
+import { externalOpenCodePluginI18n } from './external-opencode-plugin.i18n';
 import { openchamberToolsLayoutI18n } from './openchamber-tools-layout.i18n';
 import { openchamberToolOutputI18n } from './openchamber-tool-output.i18n';
 import { opencodeToolOutputI18n } from './opencode-tool-output.i18n';
 import { agentStatusI18n } from './agent-status.i18n';
+import { androidWidgetsI18n } from './android-widgets.i18n';
 import { selectionApprovalI18n } from './selection-approval.i18n';
 import { snippetsI18n } from './snippets.i18n';
 import { sidebarWorkI18n } from './sidebar-work.i18n';
 import { sidebarSectionsI18n } from './sidebar-sections.i18n';
 import { worktreeArchiveI18n } from './worktree-archive.i18n';
+import { operatorChildrenI18n } from './operator-children.i18n';
+import { leadI18n } from './lead.i18n';
 import { omniSearchI18n } from './omni-search.i18n';
 import { overviewI18n } from './overview.i18n';
 import { isolatedSpacesI18n } from './isolated-spaces.i18n';
@@ -160,8 +165,11 @@ export const dict = {
   ...heapSnapshotI18n.tr,
   ...consoleBudgetsI18n.tr,
   ...imageToolI18n.tr,
+  ...sharePagesI18n.tr,
+  ...receivedPagesI18n.tr,
   ...memoryDreamingI18n.tr,
   ...usageToolI18n.tr,
+  ...externalOpenCodePluginI18n.tr,
   ...openchamberToolsLayoutI18n.tr,
   ...openchamberToolOutputI18n.tr,
   ...opencodeToolOutputI18n.tr,
@@ -171,6 +179,8 @@ export const dict = {
   ...sidebarWorkI18n.tr,
   ...sidebarSectionsI18n.tr,
   ...worktreeArchiveI18n.tr,
+  ...operatorChildrenI18n.tr,
+  ...leadI18n.tr,
   ...omniSearchI18n.tr,
   ...overviewI18n.tr,
   ...isolatedSpacesI18n.tr,
@@ -776,7 +786,7 @@ export const dict = {
   'sessions.sidebar.session.status.backgroundCommand': 'Komut arka planda çalışıyor',
   'sessions.sidebar.session.status.backgroundImage': 'Görsel arka planda oluşturuluyor',
   'sessions.sidebar.session.status.waitingOnPullRequest': 'Denetimler veya inceleme bekleniyor',
-  'sessions.sidebar.session.status.waitingOnExtension': 'Bir uzantı bekleniyor',
+  'sessions.sidebar.session.status.waitingOnExtension': 'Bir zamanlayıcı veya uzantı bekleniyor',
   'sessions.sidebar.session.status.pinned': 'Sabitlenmiş session',
   'sessions.sidebar.session.status.movingToWorktree': 'Session yeni bir worktree\'ye taşınıyor',
   'sessions.sidebar.session.status.permissionRequired': 'İzin gerekiyor',
@@ -2327,7 +2337,6 @@ export const dict = {
   'session.githubIntegration.validation.branchAlreadyCheckedOut': 'Branch zaten bir worktree\'de checkout edilmiş',
   'session.githubIntegration.validation.failed': 'Doğrulama başarısız',
   'chat.fileAttachment.toast.tooLarge': '{name} eklenemeyecek kadar büyük ({size} üzeri). Projedeyse @ ile anın.',
-  'chat.fileAttachment.toast.heicConversionFailed': '{name} HEIC\'ten JPEG\'e dönüştürülemediği için eklenmedi. Fotoğrafı JPEG olarak kaydedip yeniden ekleyin.',
   'chat.fileAttachment.toast.overSendLimit': '{name} eklenemeyecek kadar büyük ({size} üzeri).',
   'chat.fileAttachment.toast.documentAttachedAsPath': '{name} metne dönüştürülemedi. Ajan dosyanın yolunu alır ve dosyayı kendisi okur.',
   'chat.fileAttachment.activeEditor.addFile': '{name} dosyasını bağlama ekle',
@@ -3395,6 +3404,7 @@ export const dict = {
   'markdownRenderer.code.actions.copyTitle': 'Kodu kopyala',
   'markdownRenderer.code.actions.copiedTitle': 'Kopyalandı',
   'markdownRenderer.code.actions.runTitle': 'Komutu çalıştır. Ajan çıktısından devam eder',
+  'markdownRenderer.code.actions.runInTerminalTitle': 'Terminalde çalıştır',
   'markdownRenderer.code.actions.stopTitle': 'Komutu durdur',
   'markdownRenderer.code.run.startFailed': 'Komut başlatılamadı',
   'markdownRenderer.code.run.running': 'Çalışıyor',
@@ -3564,6 +3574,7 @@ export const dict = {
   'chat.workStatus.breakdown.planCountSingle': '{count} plan',
   'chat.workStatus.breakdown.planCountPlural': '{count} plan',
   'chat.workStatus.linkedPlans.open': '{title} planını aç',
+  'chat.workStatus.loadedSkills.open': '{name} skill\'ini aç',
   'chat.workStatus.sections.open': 'Bölümleri seç',
   'chat.workStatus.sections.dialogTitle': 'Panel bölümleri',
   'chat.workStatus.sections.reorder': '{label} öğesini yeniden sıralamak için sürükleyin',
@@ -4053,5 +4064,4 @@ export const dict = {
   'chat.promptHistorySearch.hint': "↑ ↓ ile gezin · Enter ile yükle · Esc ile kapat",
   'helpDialog.item.searchPromptHistory': "İstem geçmişinde ara (sohbet girişi)",
 
-  "settings.openchamber.keyboardShortcuts.action.new_lead.label": "Yeni lider",
 };

@@ -23,10 +23,8 @@ type Props = {
   directory: string | null;
 };
 
-/** US dollars to three places, trailing zeros dropped. */
 const formatCost = (cost: number): string => `$${cost.toFixed(3).replace(/0+$/, '').replace(/\.$/, '')}`;
 
-/** One hover/focus target covers both the label and its value. */
 const TelemetryRow: React.FC<{ label: string; description: string; value: React.ReactNode }> = ({ label, description, value }) => (
   <Tooltip delayDuration={300}>
     <TooltipTrigger asChild>
@@ -79,10 +77,6 @@ export const WorkStatusTelemetrySection: React.FC<Props> = ({ sessionId, directo
   }, [scope, status, eligibleForStats, computed, retained?.scope, store, sessionId]);
   const stats = eligibleForStats ? computed : status !== 'unknown' && retained?.scope === scope ? retained.stats : null;
   const previousTurn = stats !== null && (stats.previousTurn || !eligibleForStats);
-  // The header line the folded section is read by, in the rows' own formats:
-  // time, plus one more figure so the line fits the card. A turn that cost
-  // something shows its cost; a free one (a subscription, a local model)
-  // shows its speed instead (maintainer, 2026-11-12).
   const hasCost = stats !== null && stats.cost !== null && stats.cost > 0;
   const figures = stats ? [
     !hasCost && stats.responseTokensPerSecond !== null ? formatThroughputRate(stats.responseTokensPerSecond) : null,
@@ -105,8 +99,6 @@ export const WorkStatusTelemetrySection: React.FC<Props> = ({ sessionId, directo
       title={t('chat.workStatus.section.telemetry')}
       icon="bar-chart-2"
       summary={summary}
-      // Folded at rest: its summary carries the figures, and the rows took
-      // more height than the rest of the card. A user's own choice persists.
     >
       {stats ? (
         <>

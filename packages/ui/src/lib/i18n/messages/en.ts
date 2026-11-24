@@ -29,8 +29,11 @@ import { compactionSettingsI18n } from './compaction-settings.i18n';
 import { heapSnapshotI18n } from './heap-snapshot.i18n';
 import { consoleBudgetsI18n } from './console-budgets.i18n';
 import { imageToolI18n } from './image-tool.i18n';
+import { sharePagesI18n } from './share-pages.i18n';
+import { receivedPagesI18n } from './received-pages.i18n';
 import { memoryDreamingI18n } from './memory-dreaming.i18n';
 import { usageToolI18n } from './usage-tool.i18n';
+import { externalOpenCodePluginI18n } from './external-opencode-plugin.i18n';
 import { openchamberToolsLayoutI18n } from './openchamber-tools-layout.i18n';
 import { openchamberToolOutputI18n } from './openchamber-tool-output.i18n';
 import { opencodeToolOutputI18n } from './opencode-tool-output.i18n';
@@ -41,6 +44,8 @@ import { snippetsI18n } from './snippets.i18n';
 import { sidebarWorkI18n } from './sidebar-work.i18n';
 import { sidebarSectionsI18n } from './sidebar-sections.i18n';
 import { worktreeArchiveI18n } from './worktree-archive.i18n';
+import { operatorChildrenI18n } from './operator-children.i18n';
+import { leadI18n } from './lead.i18n';
 import { omniSearchI18n } from './omni-search.i18n';
 import { overviewI18n } from './overview.i18n';
 import { isolatedSpacesI18n } from './isolated-spaces.i18n';
@@ -221,8 +226,11 @@ export const dict = {
   ...heapSnapshotI18n.en,
   ...consoleBudgetsI18n.en,
   ...imageToolI18n.en,
+  ...sharePagesI18n.en,
+  ...receivedPagesI18n.en,
   ...memoryDreamingI18n.en,
   ...usageToolI18n.en,
+  ...externalOpenCodePluginI18n.en,
   ...openchamberToolsLayoutI18n.en,
   ...openchamberToolOutputI18n.en,
   ...opencodeToolOutputI18n.en,
@@ -232,6 +240,8 @@ export const dict = {
   ...sidebarWorkI18n.en,
   ...sidebarSectionsI18n.en,
   ...worktreeArchiveI18n.en,
+  ...operatorChildrenI18n.en,
+  ...leadI18n.en,
   ...omniSearchI18n.en,
   ...overviewI18n.en,
   ...isolatedSpacesI18n.en,
@@ -861,7 +871,7 @@ export const dict = {
   'sessions.sidebar.session.status.backgroundCommand': 'Command running in the background',
   'sessions.sidebar.session.status.backgroundImage': 'Image generating in the background',
   'sessions.sidebar.session.status.waitingOnPullRequest': 'Waiting on checks or a review',
-  'sessions.sidebar.session.status.waitingOnExtension': 'Waiting on an extension',
+  'sessions.sidebar.session.status.waitingOnExtension': 'Waiting on a timer or an extension',
   'sessions.sidebar.session.status.pinned': 'Pinned session',
   'sessions.sidebar.session.status.movingToWorktree': 'Moving session to a new worktree',
   'sessions.sidebar.session.status.permissionRequired': 'Permission required',
@@ -1915,6 +1925,7 @@ export const dict = {
   'contextSidebar.tokens.cacheRead': 'Cache read',
   'contextSidebar.tokens.cacheWrite': 'Cache write',
   'contextSidebar.tokens.cacheHit': 'Cache hit',
+  'chat.workStatus.replyCacheHit': 'Cache hit (reply)',
   'contextSidebar.actions.copyJson': 'Copy JSON',
   'contextSidebar.actions.copy': 'Copy',
   'contextSidebar.actions.copied': 'Copied',
@@ -2466,7 +2477,6 @@ export const dict = {
   'session.githubIntegration.validation.branchAlreadyCheckedOut': 'Branch is already checked out in a worktree',
   'session.githubIntegration.validation.failed': 'Validation failed',
   'chat.fileAttachment.toast.tooLarge': '{name} is too large to attach (over {size}). Mention it with @ if it is in the project.',
-  'chat.fileAttachment.toast.heicConversionFailed': '{name} could not be converted from HEIC to JPEG, so it was not attached. Save the photo as JPEG and attach it again.',
   'chat.fileAttachment.toast.overSendLimit': '{name} is too large to attach (over {size}).',
   'chat.fileAttachment.toast.documentAttachedAsPath': 'Couldn\'t convert {name} to text, so the agent gets its path and reads the file itself.',
   'chat.fileAttachment.activeEditor.addFile': 'Add file:{name} to context',
@@ -3590,6 +3600,7 @@ export const dict = {
   'markdownRenderer.code.actions.copyTitle': 'Copy code',
   'markdownRenderer.code.actions.copiedTitle': 'Copied',
   'markdownRenderer.code.actions.runTitle': 'Run command. The agent continues from its output',
+  'markdownRenderer.code.actions.runInTerminalTitle': 'Run in terminal',
   'markdownRenderer.code.actions.stopTitle': 'Stop command',
   'markdownRenderer.code.run.startFailed': 'Could not start the command',
   'markdownRenderer.code.run.running': 'Running',
@@ -3760,6 +3771,7 @@ export const dict = {
   'chat.workStatus.breakdown.planCountSingle': '{count} plan',
   'chat.workStatus.breakdown.planCountPlural': '{count} plans',
   'chat.workStatus.linkedPlans.open': 'Open plan {title}',
+  'chat.workStatus.loadedSkills.open': 'Open skill {name}',
   'chat.workStatus.sections.open': 'Choose sections',
   'chat.workStatus.sections.dialogTitle': 'Panel sections',
   'chat.workStatus.sections.reorder': 'Drag {label} to reorder',
@@ -4054,8 +4066,6 @@ export const dict = {
   'chat.promptHistorySearch.hint': "↑ ↓ to browse · Enter to load · Esc to close",
   'helpDialog.item.searchPromptHistory': "Search prompt history (chat input)",
 
-  "settings.openchamber.keyboardShortcuts.action.new_lead.label": "New lead",
-  "chat.workStatus.replyCacheHit": "Cache hit (reply)",
 } as const;
 
 export type I18nKey = keyof typeof dict;

@@ -114,7 +114,6 @@ export const CommandAutocomplete = React.forwardRef<CommandAutocompleteHandle, C
       agent: cmd.agent ?? undefined,
       model: cmd.model ?? undefined,
       isBuiltIn: cmd.name === 'init' || cmd.name === 'review',
-      // It reaches OpenCode through our managed config, but it is ours.
       isOpenChamber: cmd.name === 'new-extension',
       scope: cmd.scope,
     }));

@@ -4,7 +4,8 @@ import { useSessionMessages } from '@/sync/sync-context';
 import { opencodeClient } from '@/lib/opencode/client';
 import { toast } from '@/components/ui';
 import { useI18n } from '@/lib/i18n';
-import { subagentDescription } from '@/lib/opencode/tools';
+import { useAgentColors } from '@/hooks/useAgentColors';
+import { subagentAgent, subagentDescription } from '@/lib/opencode/tools';
 import { toBackgroundSubagentPart, toStoppedSubagentPart, type BackgroundSubagentPhase } from '../backgroundSubagentPart';
 import { findSubagentCancellation, findSubagentRun, readBackgroundSubagentChildID } from '@/lib/opencode/subagent-run';
 import { useGlobalSessionStatusStore } from '@/sync/global-session-status';
@@ -44,6 +45,8 @@ export const SubagentToolPartContent: React.FC<ToolPartProps> = (props) => {
 
     const isRunning = backgroundPhase ? backgroundPhase.kind === 'running' : status === 'running';
     const description = subagentDescription(props.part.state.input);
+    const agent = subagentAgent(props.part.state.input);
+    const getAgentColor = useAgentColors();
     const stop = React.useCallback(() => {
         if (!childSessionID) return;
         setStopping(true);
@@ -62,6 +65,8 @@ export const SubagentToolPartContent: React.FC<ToolPartProps> = (props) => {
         ? backgroundPhase.kind === 'finished' && backgroundPhase.run.state === 'cancelled'
         : stoppedByUser;
     const header: ToolRowHeader = {
+        title: agent ? agent.charAt(0).toUpperCase() + agent.slice(1) : undefined,
+        titleColor: agent ? getAgentColor(agent).color : undefined,
         label: stopped ? 'stopped' : backgroundPhase?.kind === 'running' ? 'background' : undefined,
         durationUnknown: backgroundPhase?.kind === 'unknown',
         stop: isRunning && childSessionID && !stopping

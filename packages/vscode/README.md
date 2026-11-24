@@ -60,8 +60,6 @@ Select code in the editor, right-click, and find the **OpenChamber** submenu:
 
 `openchamber.apiUrl` and `openchamber.opencodeBinary` belong to one machine. In a Remote-SSH window the extension ignores the values from your local User settings: set them in the Remote or Workspace tab of the Settings editor. With no value on the server, the extension finds `opencode` there on its own.
 
-Both settings belong to one machine. In a Remote-SSH window the extension ignores the values from your local User settings: set them in the Remote or Workspace tab of the Settings editor. With no value on the server, the extension finds `opencode` there on its own.
-
 npm metadata and OpenCode version checks use the registry from the extension host environment or the user's `.npmrc`, including scoped registries and authentication.
 
 ## Requirements

@@ -24,7 +24,6 @@ interface SettingsSidebarItemProps {
   selected?: boolean;
   onSelect: () => void;
   icon?: React.ReactNode;
-  /** Actions of the row's right-click menu, and of its ⋯ menu on touch screens. If empty/undefined, the row has no menu. */
   actions?: SettingsSidebarItemAction[];
   className?: string;
 }
@@ -81,8 +80,6 @@ export const SettingsSidebarItem: React.FC<SettingsSidebarItemProps> = ({
           )}
         </button>
 
-        {/* Touch screens only: with a mouse the menu is the row's right
-            click (Shift+F10 from the keyboard). */}
         {hasActions && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>

@@ -13,8 +13,8 @@ import {
 } from 'jsonc-parser';
 import * as jsoncParser from 'jsonc-parser';
 import { readSectionEntry, readMcpEntry } from './config-v2.js';
+import { worktreeExecutionHome } from '../git/worktree-execution-boundary.js';
 import { resolveWorktreeDirectory } from './worktree-directory.js';
-import { isSeparatedRootWorktreeRuntime, worktreeExecutionHome } from '../git/worktree-execution-boundary.js';
 import { writeFileAtomic } from './atomic-write.js';
 import type { ParseError, JSONPath, FormattingOptions } from 'jsonc-parser';
 import type { JsonValue } from '../shared/json-values.js';
@@ -328,14 +328,9 @@ function readConfig(workingDirectory?: string | null) {
 
 function readWorktreeDirectorySetting(workingDirectory: string, primaryWorktree = workingDirectory) {
   const { userPaths, customPath } = getConfigPaths(workingDirectory);
-  // Only the worktree setting follows the external OpenCode execution user.
-  // Other OpenChamber settings and owner secrets remain under root.
-  const executionUserPaths = isSeparatedRootWorktreeRuntime()
-    ? ['opencode.json', 'opencode.jsonc'].map((name) => path.join(worktreeExecutionHome(), '.config', 'opencode', name))
-    : userPaths;
-  const sources = [...executionUserPaths, customPath, ...getFolderConfigPaths(workingDirectory)];
+  const sources = [...userPaths, customPath, ...getFolderConfigPaths(workingDirectory)];
   const mergedConfig = sources.reduce((config, filePath) => mergeConfigs(config, readConfigFile(filePath)), {});
-  return resolveWorktreeDirectory(mergedConfig, primaryWorktree, isSeparatedRootWorktreeRuntime() ? worktreeExecutionHome() : undefined);
+  return resolveWorktreeDirectory(mergedConfig, primaryWorktree, worktreeExecutionHome());
 }
 
 function getConfigForPath(layers: OpenCodeConfigLayers, targetPath?: string | null) {

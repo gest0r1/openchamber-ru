@@ -397,9 +397,6 @@ const persistProjects = (projects: ProjectEntry[], activeProjectId: string | nul
   void updateDesktopSettings({ projects, activeProjectId: activeProjectId ?? undefined });
 };
 
-// Discovery looks the project up in the server's list, so it waits for the
-// debounced write that adds these entries. One project at a time, so adding a
-// batch does not walk every folder at once.
 const discoverIconsOnceSaved = async (get: () => ProjectsStore, entries: ProjectEntry[]) => {
   const saved = await updateDesktopSettings({ projects: get().projects });
   if (!saved.ok) return;
@@ -1028,10 +1025,6 @@ export const useProjectsStore = create<ProjectsStore>()(
           return { ok: false, error: payload?.error || 'Failed to discover project icon' };
         }
 
-        // The search can outlast changes made in this window, so the answer's
-        // settings are already old: only this project's icon is taken from it.
-        // A full-list write still queued or in flight lacks the icon and would
-        // erase it on the server, so the list that has it is written after.
         const iconImage = sanitizeProjectIconImage(payload?.project?.iconImage);
         if (iconImage && runtime === getRuntimeKey() && get().projects.some((entry) => entry.id === id)) {
           const projects = get().projects.map((entry) => (entry.id === id ? { ...entry, iconImage } : entry));

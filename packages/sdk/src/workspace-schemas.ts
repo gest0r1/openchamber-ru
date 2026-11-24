@@ -40,7 +40,8 @@ export const guestWorkspaceSnapshotSchema = z.discriminatedUnion('kind', [
       inWork: z.boolean().optional(),
       unread: z.boolean().optional(),
       tool: z.object({ name: z.string(), target: z.string().nullable() }).nullable().optional(),
-      context: z.object({ tokens: z.number().nonnegative(), limit: z.number().positive().nullable() }).nullable().optional(),
+      context: guestSessionContextSchema.nullable().optional(),
+      tokens: guestSessionTokenTotalsSchema.nullable().optional(),
     })),
   }),
 ]);

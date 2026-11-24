@@ -415,23 +415,12 @@ export function DesktopHostSwitcherDialog({
       scheduleDesktopHostCandidateRefresh(host.id);
     };
 
-    // An SSH instance is reachable only through its tunnel. In the desktop app
-    // open it first, then switch with the host entry the connect rewrote
-    // (forward URL and client token); the row's Connect button does the same
-    // without switching.
     if (isElectronShell() && host.id !== LOCAL_HOST_ID && sshHostIds[host.id]) {
       setSwitchingHostId(host.id);
       try {
-        if (sshStatusesById[host.id]?.phase !== 'ready') {
-          await desktopSshConnect(host.id);
-          await waitForSshReady(host.id, SSH_CONNECT_TIMEOUT_MS, (status) => {
-            setSshStatusesById((prev) => ({ ...prev, [status.id]: status }));
-          });
-        }
-        const refreshed = (await desktopHostsGet()).hosts.find((entry) => entry.id === host.id);
+        const connectedHost = await connectSshHost(host);
         if (selectionToken !== selectionTokenRef.current) return;
-        if (!refreshed) throw new Error('SSH host is no longer available');
-        host = refreshed;
+        host = connectedHost;
       } catch (err) {
         if (selectionToken !== selectionTokenRef.current) return;
         const message = err instanceof Error ? err.message : String(err);

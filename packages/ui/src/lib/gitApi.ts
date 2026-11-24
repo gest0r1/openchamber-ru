@@ -754,7 +754,6 @@ async function teardownGitWorktree(
   return gitHttp.teardownGitWorktree(directory, payload);
 }
 
-/** Renames the task of the worktree at `directory`; the user's name stays over the agent's. */
 export async function setGitWorktreeTitle(
   directory: string,
   title: string,
@@ -900,7 +899,6 @@ export async function getGitCommitDiff(directory: string, options: import('./api
   return gitHttp.getGitCommitDiff(directory, options);
 }
 
-/** Goes straight to the server: only OpenChamber's own git routes hand out both versions of a file. */
 export const getGitRangeFileVersions = gitHttp.getGitRangeFileVersions;
 
 export async function getCommitFileDiff(

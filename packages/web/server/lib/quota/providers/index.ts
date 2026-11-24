@@ -200,7 +200,6 @@ const registry: QuotaProviderRegistry = {
   zenmux: {
     providerId: zenmux.providerId,
     providerName: zenmux.providerName,
-    // ZenMux reads its own managed credential; the list's OpenCode auth is not for it.
     isConfigured: () => zenmux.isConfigured(),
     fetchQuota: zenmux.fetchQuota
   },
@@ -220,22 +219,13 @@ const registry: QuotaProviderRegistry = {
 
 export { attachExtensionQuotaProvider, detachExtensionQuotaProvider } from '../extension-registry.js';
 
-// `hasOwn`, so an id such as `constructor` never resolves to the object's own prototype members.
-const providerOf = (providerId) => (Object.hasOwn(registry, providerId) ? registry[providerId] : extensionQuotaProvider(providerId));
-const providerEntries = () => [...Object.entries(registry), ...extensionQuotaProviderEntries()];
+const providerOf = (providerId: string | null) => (Object.hasOwn(registry, String(providerId)) ? registry[String(providerId)] : extensionQuotaProvider(providerId));
+const providerEntries = (): [string | null, QuotaProvider][] => [...Object.entries(registry), ...extensionQuotaProviderEntries()];
 
-const pendingFetches = new Map();
+const pendingFetches = new Map<string | null, Promise<QuotaResult<string | null, string | null>>>();
 
-// The registry entries Settings > Usage never reads. Its built-in list
-// (`QUOTA_PROVIDERS` in packages/ui/src/lib/quota/providers/index.ts) shows
-// GitHub Copilot once; the add-on entry asks GitHub a second time.
-const NOT_ON_USAGE_PAGE = new Set([copilot.providerIdAddon]);
+const NOT_ON_USAGE_PAGE = new Set<string | null>([copilot.providerIdAddon]);
 
-/**
- * The providers Settings > Usage reads, built-ins first, then the attached
- * extensions: what an agent reading usage may ask, so it never makes a
- * request the page does not make.
- */
 export const listUsagePageProviders = () => providerEntries()
   .filter(([id]) => !NOT_ON_USAGE_PAGE.has(id))
   .map(([providerId, provider]) => ({ providerId, providerName: provider.providerName }));
@@ -258,7 +248,7 @@ export const listConfiguredQuotaProviders = async () => {
   return configured;
 };
 
-const fetchQuotaForProviderUncoalesced = async (providerId) => {
+const fetchQuotaForProviderUncoalesced = async (providerId: string | null) => {
   const provider = providerOf(providerId);
 
   if (!provider) {
@@ -274,7 +264,6 @@ const fetchQuotaForProviderUncoalesced = async (providerId) => {
   try {
     return await provider.fetchQuota();
   } catch (error) {
-    // The extension layer's own answer for a service reply OpenChamber cannot use: the route answers its status and code.
     if (error instanceof QuotaRouteError) throw error;
     return buildResult({
       providerId: provider.providerId,

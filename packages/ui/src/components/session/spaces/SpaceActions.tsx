@@ -106,7 +106,6 @@ export const SpaceActionsSheet: React.FC = () => {
   const close = () => useSpacesStore.getState().closeActionsSheet();
   return (
     <MobileOverlayPanel open={spaceId !== null} title={name ?? t('spaces.actions.menu')} onClose={close}>
-      {/* What the row's mark stands for: the phone has no tooltip to say it. */}
       {spaceId ? <SpaceStatusLines spaceId={spaceId} className="px-2 pb-2" onAction={close} /> : null}
       {spaceId && applicable ? (
         <MobileSheetRow

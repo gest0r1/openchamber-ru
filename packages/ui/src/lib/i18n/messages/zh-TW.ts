@@ -1,4 +1,3 @@
-import { androidWidgetsI18n } from './android-widgets.i18n';
 import type { I18nKey } from './en';
 import { settingsDict } from './zh-TW.settings';
 import { linearIssuePickerI18n } from './linear-issue-picker.i18n';
@@ -31,17 +30,23 @@ import { compactionSettingsI18n } from './compaction-settings.i18n';
 import { heapSnapshotI18n } from './heap-snapshot.i18n';
 import { consoleBudgetsI18n } from './console-budgets.i18n';
 import { imageToolI18n } from './image-tool.i18n';
+import { sharePagesI18n } from './share-pages.i18n';
+import { receivedPagesI18n } from './received-pages.i18n';
 import { memoryDreamingI18n } from './memory-dreaming.i18n';
 import { usageToolI18n } from './usage-tool.i18n';
+import { externalOpenCodePluginI18n } from './external-opencode-plugin.i18n';
 import { openchamberToolsLayoutI18n } from './openchamber-tools-layout.i18n';
 import { openchamberToolOutputI18n } from './openchamber-tool-output.i18n';
 import { opencodeToolOutputI18n } from './opencode-tool-output.i18n';
 import { agentStatusI18n } from './agent-status.i18n';
+import { androidWidgetsI18n } from './android-widgets.i18n';
 import { selectionApprovalI18n } from './selection-approval.i18n';
 import { snippetsI18n } from './snippets.i18n';
 import { sidebarWorkI18n } from './sidebar-work.i18n';
 import { sidebarSectionsI18n } from './sidebar-sections.i18n';
 import { worktreeArchiveI18n } from './worktree-archive.i18n';
+import { operatorChildrenI18n } from './operator-children.i18n';
+import { leadI18n } from './lead.i18n';
 import { omniSearchI18n } from './omni-search.i18n';
 import { overviewI18n } from './overview.i18n';
 import { isolatedSpacesI18n } from './isolated-spaces.i18n';
@@ -222,8 +227,11 @@ export const dict: Record<I18nKey, string> = {
   ...heapSnapshotI18n['zh-TW'],
   ...consoleBudgetsI18n['zh-TW'],
   ...imageToolI18n['zh-TW'],
+  ...sharePagesI18n['zh-TW'],
+  ...receivedPagesI18n['zh-TW'],
   ...memoryDreamingI18n['zh-TW'],
   ...usageToolI18n['zh-TW'],
+  ...externalOpenCodePluginI18n['zh-TW'],
   ...openchamberToolsLayoutI18n['zh-TW'],
   ...openchamberToolOutputI18n['zh-TW'],
   ...opencodeToolOutputI18n['zh-TW'],
@@ -233,6 +241,8 @@ export const dict: Record<I18nKey, string> = {
   ...sidebarWorkI18n['zh-TW'],
   ...sidebarSectionsI18n['zh-TW'],
   ...worktreeArchiveI18n['zh-TW'],
+  ...operatorChildrenI18n['zh-TW'],
+  ...leadI18n['zh-TW'],
   ...omniSearchI18n['zh-TW'],
   ...overviewI18n['zh-TW'],
   ...isolatedSpacesI18n['zh-TW'],
@@ -882,7 +892,7 @@ export const dict: Record<I18nKey, string> = {
   'sessions.sidebar.session.status.backgroundCommand': '指令正在背景執行',
   'sessions.sidebar.session.status.backgroundImage': '圖片正在背景產生',
   'sessions.sidebar.session.status.waitingOnPullRequest': '正在等待檢查或審查',
-  'sessions.sidebar.session.status.waitingOnExtension': '正在等待擴充功能',
+  'sessions.sidebar.session.status.waitingOnExtension': '正在等待計時器或擴充功能',
   'sessions.sidebar.session.status.pinned': '已釘選會話',
   'sessions.sidebar.session.status.movingToWorktree': '正在將會話移至新工作樹',
   'sessions.sidebar.session.status.permissionRequired': '需要權限',
@@ -2444,7 +2454,6 @@ export const dict: Record<I18nKey, string> = {
   'session.githubIntegration.validation.branchAlreadyCheckedOut': '該分支已在某個 worktree 中簽出',
   'session.githubIntegration.validation.failed': '驗證失敗',
   'chat.fileAttachment.toast.tooLarge': '{name} 過大，無法附加（超過 {size}）。如果它在專案中，請用 @ 提及。',
-  'chat.fileAttachment.toast.heicConversionFailed': '{name} 無法從 HEIC 轉換為 JPEG，因此未附加。請將照片儲存為 JPEG 後再試一次。',
   'chat.fileAttachment.toast.overSendLimit': '{name} 過大，無法附加（超過 {size}）。',
   'chat.fileAttachment.toast.documentAttachedAsPath': '無法將 {name} 轉換為文字，因此會把檔案路徑交給代理，由代理自行讀取。',
   'chat.fileAttachment.activeEditor.addFile': '將檔案加入上下文:{name}',
@@ -3554,6 +3563,7 @@ export const dict: Record<I18nKey, string> = {
   'markdownRenderer.code.actions.copyTitle': '複製程式碼',
   'markdownRenderer.code.actions.copiedTitle': '已複製',
   'markdownRenderer.code.actions.runTitle': '執行命令。代理會根據其輸出繼續',
+  'markdownRenderer.code.actions.runInTerminalTitle': '在終端機中執行',
   'markdownRenderer.code.actions.stopTitle': '停止命令',
   'markdownRenderer.code.run.startFailed': '無法啟動命令',
   'markdownRenderer.code.run.running': '執行中',
@@ -3761,6 +3771,7 @@ export const dict: Record<I18nKey, string> = {
   'chat.workStatus.breakdown.planCountSingle': '{count} 個計畫',
   'chat.workStatus.breakdown.planCountPlural': '{count} 個計畫',
   'chat.workStatus.linkedPlans.open': '開啟計畫 {title}',
+  'chat.workStatus.loadedSkills.open': '開啟技能 {name}',
   'chat.workStatus.sections.open': '選擇區塊',
   'chat.workStatus.sections.dialogTitle': '面板區塊',
   'chat.workStatus.sections.reorder': '拖曳 {label} 以重新排序',
@@ -4055,5 +4066,4 @@ export const dict: Record<I18nKey, string> = {
   'chat.promptHistorySearch.hint': "↑ ↓ 瀏覽 · Enter 載入 · Esc 關閉",
   'helpDialog.item.searchPromptHistory': "搜尋提示歷史記錄（聊天輸入）",
 
-  "settings.openchamber.keyboardShortcuts.action.new_lead.label": "新增主導工作階段",
 };

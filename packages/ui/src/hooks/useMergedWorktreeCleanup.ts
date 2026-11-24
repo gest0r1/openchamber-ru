@@ -151,7 +151,6 @@ const createDeps = (): MergedWorktreeCleanupDeps => {
     isWorktreeRemoving,
     takeRestored: takeRestoredWorktree,
     archiveWorktree: async (candidate, sessions) => {
-      // A background pass never opens the trust prompt.
       await archiveWorktreeWork({ project: candidate.project, worktree: candidate.worktree, sessions, askForTrust: false });
     },
     report,

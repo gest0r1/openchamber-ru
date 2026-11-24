@@ -4,9 +4,6 @@ import type { FolderChange, FolderChangesResult, FolderTombstones, SessionFolder
 const id = z.string().trim().min(1).max(32_768);
 const ids = z.array(id).max(10_000);
 const name = z.string().trim().min(1).max(10_000);
-// Which folder of the scope each chat was in when the user moved it (null: in
-// none). A chat that has since moved elsewhere stays there, so a move sent late
-// or sent twice cannot undo a newer one from another client.
 const chatPlacement = z.record(z.string(), id.nullable());
 
 const folderSchema = z.object({
@@ -53,21 +50,20 @@ const withoutSessions = (folders: SessionFolder[], sessionIds: Set<string>) => {
   return changed ? next : folders;
 };
 
-const folderHolding = (folders, sessionId) => (
+const folderHolding = (folders: SessionFolder[], sessionId: string) => (
   folders.find((folder) => folder.sessionIds.includes(sessionId))?.id ?? null
 );
 
-const chatsStillInPlace = (folders, sessionIds, from) => (
+const chatsStillInPlace = (folders: SessionFolder[], sessionIds: string[], from: Record<string, string | null> | undefined) => (
   sessionIds.filter((sessionId) => {
     const expected = from?.[sessionId];
     if (expected === undefined) return true;
     const holding = folderHolding(folders, sessionId);
-    // A chat left in no folder because its folder was deleted was not moved by anyone.
     return holding === expected || (holding === null && !folders.some((folder) => folder.id === expected));
   })
 );
 
-const descendantIds = (folders, rootIds) => {
+const descendantIds = (folders: SessionFolder[], rootIds: string[]) => {
   const result = new Set(rootIds);
   let grew = true;
   while (grew) {

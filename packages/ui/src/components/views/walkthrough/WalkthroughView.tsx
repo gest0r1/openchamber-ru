@@ -92,8 +92,6 @@ export const WalkthroughView = ({ directory: rootDirectory, visible = true }: Wa
   const inPanelHeader = useInContextPanelHeader();
   const [panelWidth, setPanelWidth] = useState(0);
 
-  // The walkthrough documents one repository: the one picked from the picker,
-  // or the root when nothing is picked. Everything below keys off `directory`.
   const { rootIsGitRepo, gitDirectory, nestedRepos, repositoryOptions, unreadable } = useNestedGitDirectory(rootDirectory || null, { enabled: visible, recheckOnOpen: true });
   const directory = gitDirectory ?? rootDirectory;
 
@@ -307,9 +305,6 @@ export const WalkthroughView = ({ directory: rootDirectory, visible = true }: Wa
   if (unreadable) {
     return <GitRepositoryUnreadableState directory={unreadable.directory} message={unreadable.message} />;
   }
-  // Non-repo root: surface nested-repository resolution while the operating
-  // directory has not proven to be a repository (discovering, failed,
-  // unsupported, none found, or settling on the auto-selected one).
   if (rootIsGitRepo === false && isGitRepo !== true) {
     return (
       <NestedRepoResolutionStates
@@ -522,9 +517,6 @@ export const WalkthroughView = ({ directory: rootDirectory, visible = true }: Wa
                 </TooltipTrigger>
                 <TooltipContent side="bottom" sideOffset={6}>{t('walkthrough.action.previous')}</TooltipContent>
               </Tooltip>
-              {/* Without the contents column the arrows alone say neither where
-                  the reader is nor what is ahead, so the position opens the
-                  list of steps. */}
               {!showToc && <WalkthroughStepMenu review={review} view={view} />}
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -556,7 +548,6 @@ export const WalkthroughView = ({ directory: rootDirectory, visible = true }: Wa
             />
           )}
           <Popover.Root open={moreOpen} onOpenChange={setMoreOpen}>
-            {/* The popover keeps the page live under it, so a pointer back on the button would reopen the tooltip over it. */}
             <Tooltip disabled={moreOpen}>
               <TooltipTrigger asChild>
                 <Popover.Trigger

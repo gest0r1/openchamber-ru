@@ -73,10 +73,6 @@ const MemoryTidyButton: React.FC<{ projectPath: string | null }> = ({ projectPat
   );
 };
 
-/**
- * The last dreaming pass of the scope on show: one quiet line with an undo,
- * never a review. Dreaming runs on its own, so this is the only place it shows.
- */
 const DreamLine: React.FC<{ dream: AgentMemoryDream; onUndo: () => void; undoing: boolean }> = ({ dream, onUndo, undoing }) => {
   const { t } = useI18n();
   const date = new Intl.DateTimeFormat(getCurrentIntlLocale(), { day: 'numeric', month: 'long' }).format(dream.finishedAt);
@@ -120,11 +116,6 @@ const DreamLine: React.FC<{ dream: AgentMemoryDream; onUndo: () => void; undoing
   );
 };
 
-/**
- * Project entries the last pass found belong in the project's agent docs, and
- * a click that moves them in a session the user watches. Counted against the
- * entries still in memory, so the line goes once they have moved.
- */
 const DocsLine: React.FC<{ projectPath: string; entries: AgentMemoryEntry[] }> = ({ projectPath, entries }) => {
   const { t } = useI18n();
   const [starting, setStarting] = React.useState(false);
@@ -439,7 +430,6 @@ export const MemorySection: React.FC<{
 
   const dream = useAgentMemoryStore((state) => state.dream);
   const undoDream = useAgentMemoryStore((state) => state.undoDream);
-  // A project's line shows only while the store holds that project's entries.
   const dreamOwner = useAgentMemoryStore((state) => state.projectPath);
   const scopeDream = scope === 'global' ? dream.global : dreamOwner === projectPath ? dream.project : null;
   const toDocsEntries = React.useMemo(() => {

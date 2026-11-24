@@ -234,8 +234,6 @@ export function useQueuedMessageAutoSend(enabledOrOptions?: boolean | { enabled?
     const dispatchSessionQueue = async (target: MessageQueueTarget, queueSnapshot: QueuedMessage[]) => {
       const { sessionId } = target;
       const targetKey = getMessageQueueKey(target);
-      // Keyed by session, not directory: a session that moves while its send is
-      // in flight must not start a second send from its new directory.
       const inFlightKey = `${target.runtimeKey}\n${sessionId}`;
       if (queueSnapshot.length === 0) {
         return;
@@ -277,9 +275,6 @@ export function useQueuedMessageAutoSend(enabledOrOptions?: boolean | { enabled?
       }
 
       inFlightSessionsRef.current.add(inFlightKey);
-      // The ref only guards this hook. Publish the dispatch to the store so the
-      // composer cannot merge the same item into a parallel send while this one
-      // is still awaiting the server.
       useMessageQueueStore.getState().markSending(target, payload.queuedMessageId);
 
       try {
@@ -289,7 +284,6 @@ export function useQueuedMessageAutoSend(enabledOrOptions?: boolean | { enabled?
           agent: resolved.agent,
           variant: resolved.variant,
         });
-        // A move during the send rekeys the queue; remove the message where it is now.
         const queue = useMessageQueueStore.getState();
         queue.removeFromQueue(queue.locateQueuedMessage(target, payload.queuedMessageId), payload.queuedMessageId);
         sendFailuresRef.current.delete(targetKey);

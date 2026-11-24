@@ -98,11 +98,6 @@ const STATUS_SIGNATURE_SEPARATOR = '\u0000';
 
 type ToolBucket = 'read' | 'search' | 'edit' | 'command' | 'lookup' | 'delegate' | 'question' | 'skill';
 
-// Several tools share one phrase, so parallel calls of the same kind can be
-// counted together ("reading 3 files"). The timeline names the exact tool.
-// v2 tool names: `shell` replaced `bash`, `subagent` replaced `task`, and
-// `todoread`/`list`/`lsp` are gone. `todowrite` is back behind an experimental
-// flag and has no phrase: updating the list is not work to report.
 const TOOL_BUCKETS = new Map<string, ToolBucket>(Object.entries({
     read: 'read',
     'file-diff': 'read',
@@ -241,6 +236,11 @@ const OPENCODE_NAMESPACE_STATUS = new Map(Object.entries<I18nKey>({
     schedule_pause: 'chat.agentStatus.opencode.schedules',
     schedule_resume: 'chat.agentStatus.opencode.schedules',
     schedule_delete: 'chat.agentStatus.opencode.schedules',
+    automation_create: 'chat.agentStatus.opencode.automations',
+    automation_list: 'chat.agentStatus.opencode.automations',
+    automation_pause: 'chat.agentStatus.opencode.automations',
+    automation_resume: 'chat.agentStatus.opencode.automations',
+    automation_delete: 'chat.agentStatus.opencode.automations',
     artifact_create: 'chat.agentStatus.opencode.artifacts',
     artifact_read: 'chat.agentStatus.opencode.artifacts',
     artifact_update: 'chat.agentStatus.opencode.artifacts',
@@ -275,18 +275,6 @@ const getNamedToolStatus = (
     return server ? usingTool(server) : undefined;
 };
 
-/**
- * A running `execute` (Code Mode) script names the tool it is calling as soon
- * as its metadata lists one, so the pill tracks the script's real work instead
- * of sitting on a generic status for its whole run. Parallel commands are the
- * exception: one call's name cannot speak for several, so they count instead.
- */
-/**
- * A secret call keeps running after the user answered, while its command runs,
- * so it waits on the user only while the server announces its card as waiting
- * (`waitingCalls`, the session's waiting pages). Without that list a running
- * call counts as waiting.
- */
 const getRunningToolStatus = (part: ToolPart, toolName: string, count: number, mcpServers: readonly string[], waitingCalls?: ReadonlySet<string>): AgentStatus => {
     const state = part.state;
     const running = state?.status === 'running'
@@ -324,7 +312,6 @@ export const hasBackgroundableWork = (parts: readonly Part[]): boolean => parts.
     return executeHasBackgroundableWork(part.state.metadata);
 });
 
-/** `mcpServers`: the configured MCP server names, which name the integration an MCP tool comes from. */
 export const createParsedStatus = (parts: Part[], genericKey: string, mcpServers: readonly string[] = [], waitingCalls?: ReadonlySet<string>): ParsedStatusResult => {
     const runningToolCounts = countRunningToolCalls(parts);
     let activePartType: ParsedStatusResult['activePartType'] = undefined;
@@ -548,7 +535,6 @@ export function useAssistantStatus(): AssistantStatusSnapshot {
     }, [currentSessionDirectory, loadMcpConfigs]);
     const mcpServers = React.useMemo(() => mcpServerConfigs.map((server) => server.name), [mcpServerConfigs]);
 
-    // The calls whose page or secret card waits for the user, as one stable string.
     const waitingCallIds = useGlobalBlockingRequestsStore(React.useCallback(
         (state) => (currentSessionId ? state.bySession.get(currentSessionId)?.pages.map((page) => page.id).join('\n') ?? '' : ''),
         [currentSessionId],

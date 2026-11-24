@@ -185,13 +185,13 @@ export function createGiteaClient({
   };
 
   return Object.freeze({
-    get: async (path, query) => (await send('GET', path, { query })).body,
-    text: async (path, query) => (await send('GET', path, { query, responseType: 'text' })).body,
-    bytes: async (path, query) => (await send('GET', path, { query, responseType: 'bytes' })).body,
-    post: async (path, body) => (await send('POST', path, { body })).body,
-    patch: async (path, body) => (await send('PATCH', path, { body })).body,
-    put: async (path, body) => (await send('PUT', path, { body })).body,
-    delete: async (path, body) => (await send('DELETE', path, { body })).body,
+    get: async (path: string, query?: GiteaQuery) => (await send('GET', path, { query })).body,
+    text: async (path: string, query?: GiteaQuery) => (await send('GET', path, { query, responseType: 'text' })).body,
+    bytes: async (path: string, query?: GiteaQuery) => (await send('GET', path, { query, responseType: 'bytes' })).body,
+    post: async (path: string, body?: GiteaBody) => (await send('POST', path, { body })).body,
+    patch: async (path: string, body?: GiteaBody) => (await send('PATCH', path, { body })).body,
+    put: async (path: string, body?: GiteaBody) => (await send('PUT', path, { body })).body,
+    delete: async (path: string, body?: GiteaBody) => (await send('DELETE', path, { body })).body,
     page,
     collection: async (path: string, query?: GiteaQuery, { limit = 50, maxItems = 2000, message = `${label} list is longer than OpenChamber reads` }: CollectionOptions = {}) => {
       const items: JsonValue[] = [];

@@ -1382,11 +1382,11 @@ export function createNetworkOperations({
         requirements.push({
           kind: 'lfs',
           path: '.',
-          rawEndpoint: discovery.endpoint.candidate.endpoint,
+          rawEndpoint: resolvedLfsEndpoint(discovery.endpoint).candidate.endpoint,
           transferReady: discovery.client.status !== 'missing',
           endpoint: {
-            displayUrl: redactRemoteUrl(discovery.endpoint.candidate.endpoint),
-            fingerprint: fingerprintRemoteUrl(discovery.endpoint.candidate.endpoint),
+            displayUrl: redactRemoteUrl(resolvedLfsEndpoint(discovery.endpoint).candidate.endpoint),
+            fingerprint: fingerprintRemoteUrl(resolvedLfsEndpoint(discovery.endpoint).candidate.endpoint),
           },
         });
       }

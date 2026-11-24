@@ -2,14 +2,53 @@ import { readFile, writeFile, mkdir, rename } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import { z } from 'zod';
 import { createSessionActivityProbe } from '../opencode/session-activity.js';
-import { unwrapOpenCodeResponse } from '../opencode/response-envelope.js';
+import { hasErrorCode, hasErrorMessage } from '../guests/input-guards.js';
+import { latestTelegramIdle, readTelegramSessionData, telegramPendingRequests, telegramSessionRecord } from '../guests/session-completion-proof.js';
+import type { DispatchPending, IdleRecord, TelegramGoalActive, TelegramSession, TelegramSource, TelegramSourceFor } from '../guests/session-completion-proof.js';
+import type { createTelegramRuntime } from './telegram-runtime.js';
+
+type WatchOptions = {
+  filePath: string;
+  telegram: ReturnType<typeof createTelegramRuntime>;
+  sourceFor: TelegramSourceFor;
+  dispatchPending?: DispatchPending;
+  isGoalActive?: TelegramGoalActive;
+  isPageWaiting?: (sessionId: string, requestId: string) => boolean;
+  readSettings: () => Promise<{ telegramEnabled?: boolean }>;
+  setTimeoutImpl?: typeof setTimeout;
+  clearTimeoutImpl?: typeof clearTimeout;
+  now?: () => number;
+};
+type Activity = { kind: 'unknown' } | { kind: 'working'; reason: string } | { kind: 'idle'; idle: IdleRecord };
+const persistedEntrySchema = z.object({
+  directory: z.string(), sessionId: z.string(), spaceId: z.string().nullish(),
+  attempt: z.number().optional(), createdAt: z.number().optional(), armed: z.boolean().optional(),
+  baselineIdleId: z.string().nullish(), requireNewIdle: z.string().nullish(), waitForNewIdle: z.boolean().optional(),
+});
+type WatchEntry = z.infer<typeof persistedEntrySchema>;
+const requestIds = z.object({ id: z.string().optional() });
+const eventSchema = z.object({
+  type: z.string(),
+  properties: z.object({
+    sessionID: z.string().optional(), sessionId: z.string().optional(), directory: z.string().nullish(),
+    info: z.object({ sessionID: z.string().optional() }).optional(),
+    status: z.object({ type: z.string().optional() }).optional(), aborted: z.boolean().optional(),
+    form: requestIds.optional(), page: requestIds.optional(), id: z.string().optional(),
+    formID: z.string().optional(), pageID: z.string().optional(), requestID: z.string().optional(),
+  }).optional(),
+});
+type WatchEvent = z.infer<typeof eventSchema>;
+type RequestKind = 'form' | 'page' | 'permission';
+const requestList = async (source: TelegramSource, route: string) =>
+  telegramPendingRequests.safeParse(await readTelegramSessionData(source, route).catch(() => null)).data;
+
 
 const QUIET_MS = 1500;
 const RETRY_MS = [2000, 5000, 10000, 30000, 60000];
 const STABLE_RECONCILE_MS = 5 * 60 * 1000;
-const keyOf = (entry) => JSON.stringify([entry.spaceId ?? null, entry.directory, entry.sessionId]);
-const sessionIdOf = (event) => event?.properties?.sessionID ?? event?.properties?.sessionId ?? event?.properties?.info?.sessionID;
-const delayFor = (attempt) => RETRY_MS[Math.min(attempt, RETRY_MS.length - 1)];
+const keyOf = (entry: TelegramSession) => JSON.stringify([entry.spaceId ?? null, entry.directory, entry.sessionId]);
+const sessionIdOf = (event: WatchEvent) => event?.properties?.sessionID ?? event?.properties?.sessionId ?? event?.properties?.info?.sessionID;
+const delayFor = (attempt: number) => RETRY_MS[Math.min(attempt, RETRY_MS.length - 1)] ?? 60000;
 
 export const createTelegramWatch = ({
   filePath, telegram, sourceFor, dispatchPending = async () => [],
@@ -17,15 +56,12 @@ export const createTelegramWatch = ({
   isPageWaiting = () => false,
   readSettings, setTimeoutImpl = setTimeout, clearTimeoutImpl = clearTimeout,
   now = Date.now,
-}) => {
-  const persistedEntrySchema = z.object({
-    directory: z.string(), sessionId: z.string(), spaceId: z.string().nullish(),
-  }).passthrough();
-  const pending = new Map();
-  const timers = new Map();
-  const decisions = new Map();
-  const eventRevisions = new Map();
-  let loaded = null;
+}: WatchOptions) => {
+  const pending = new Map<string, WatchEntry>();
+  const timers = new Map<string, NodeJS.Timeout>();
+  const decisions = new Map<string, NodeJS.Timeout>();
+  const eventRevisions = new Map<string, number>();
+  let loaded: Promise<void> | null = null;
   let writes = Promise.resolve();
   let stopped = false;
 
@@ -44,14 +80,13 @@ export const createTelegramWatch = ({
       const file = JSON.parse(raw);
       if (file.version !== 1 || !Array.isArray(file.pending)) throw new Error('Invalid Telegram watch data');
       for (const item of file.pending) {
-        if (!persistedEntrySchema.safeParse(item).success) continue;
-        pending.set(keyOf(item), item);
+        const parsed = persistedEntrySchema.safeParse(item);
+        if (parsed.success) pending.set(keyOf(parsed.data), parsed.data);
       }
     }).catch(async (error) => {
-      if (error?.code === 'ENOENT') return;
-      if (error instanceof SyntaxError || error?.message === 'Invalid Telegram watch data') {
+      if (hasErrorCode(error) && error.code === 'ENOENT') return;
+      if (error instanceof SyntaxError || (hasErrorMessage(error) && error.message === 'Invalid Telegram watch data')) {
         const archived = filePath + '.corrupt-' + Date.now() + '-' + process.pid;
-        // Preserve the damaged data for investigation rather than deleting it.
         await rename(filePath, archived);
         console.warn('[Telegram] damaged watch state was quarantined; awaiting reconciliation:', archived);
         return;
@@ -61,98 +96,69 @@ export const createTelegramWatch = ({
     });
     return loaded;
   };
-  const clear = (key) => {
+  const clear = (key: string) => {
     const timer = timers.get(key);
     if (timer) clearTimeoutImpl(timer);
     timers.delete(key);
   };
-  const arm = (key, ms) => {
+  const arm = (key: string, ms: number) => {
     if (stopped || !pending.has(key)) return;
     clear(key);
     const timer = setTimeoutImpl(() => {
       timers.delete(key);
       void check(key).catch((error) => {
-        console.warn('[Telegram] completion verification failed:', error?.message ?? error);
+        console.warn('[Telegram] completion verification failed:', hasErrorMessage(error) ? error.message : error);
         if (pending.has(key)) arm(key, 60000);
       });
     }, ms);
     timer.unref?.();
     timers.set(key, timer);
   };
-  const fetchJson = async (source, path, query = {}) => {
-    const url = source.buildOpenCodeUrl(path, '');
-    const search = new URLSearchParams(query);
-    const response = await source.fetchImpl(search.size ? url + '?' + search : url, {
-      method: 'GET',
-      headers: { accept: 'application/json', ...source.getOpenCodeAuthHeaders() },
-      signal: AbortSignal.timeout(10000),
-    });
-    if (!response.ok) throw new Error('OpenCode status request failed');
-    return unwrapOpenCodeResponse(await response.json());
-  };
-  const latestIdle = async (source, sessionId) => {
-    // Fetch idle records directly. A long tool-heavy turn can have more than
-    // 50 messages after the latest terminal record.
-    const page = await fetchJson(source, '/api/session/' + encodeURIComponent(sessionId) + '/message', { limit: '1', order: 'desc', type: 'idle' });
-    const rows = Array.isArray(page) ? page : page?.data;
-    if (!Array.isArray(rows)) return null;
-    const record = rows.find((item) => item?.type === 'idle');
-    if (!record || !z.string().safeParse(record.id).success ||
-        !['succeeded', 'failed', 'interrupted'].includes(record.outcome)) return null;
-    return record;
-  };
-  const attention = async (record, source) => {
+  const attention = async (record: WatchEntry, source: TelegramSource) => {
     if (!source || !await telegram.hasSubscription(record.directory, record.sessionId)) return;
-    // Poll each subscribed session, not only recently received events. This
-    // reconstructs unanswered forms/permissions after a restart or SSE loss.
     for (const resource of ['form', 'permission']) {
       const url = '/api/session/' + encodeURIComponent(record.sessionId) + '/' + resource;
-      const list = await fetchJson(source, url).catch(() => null);
+      const list = await requestList(source, url);
       if (!Array.isArray(list)) continue;
       for (const item of list) {
         if (!z.string().min(1).safeParse(item?.id).success) continue;
-        // Fetch twice: a request may settle between reading the list and
-        // preparing the notification. Unknown never means unanswered.
-        const refreshed = await fetchJson(source, url).catch(() => null);
+        const refreshed = await requestList(source, url);
         if (!Array.isArray(refreshed) || !refreshed.some((active) => active?.id === item.id)) continue;
         if (pending.get(keyOf(record)) !== record) return;
         await telegram.notify({ directory: record.directory, sessionId: record.sessionId,
           type: 'needs_input', eventKey: resource + ':' + item.id,
           canSend: async () => {
             if (stopped || pending.get(keyOf(record)) !== record) return false;
-            const latest = await fetchJson(source, url).catch(() => null);
+            const latest = await requestList(source, url);
             return Array.isArray(latest) && latest.some((value) => value?.id === item.id);
           },
         });
       }
     }
   };
-  const activity = async (record, source) => {
+  const activity = async (record: WatchEntry, source: TelegramSource): Promise<Activity> => {
     const probe = createSessionActivityProbe({ ...source, timeoutMs: 10000 });
     const statuses = await probe.fetchActiveSessionStatuses();
     if (!statuses) return { kind: 'unknown' };
     if (statuses[record.sessionId]) return { kind: 'working', reason: 'session' };
-    // Session completion requires proof that no descendant remains active.
     const descendants = await probe.hasWorkingDescendants(record.sessionId, statuses, true);
     if (descendants === null) return { kind: 'unknown' };
     if (descendants) return { kind: 'working', reason: 'descendant' };
-    // A location-wide shell lock is conservative. OpenCode's shell list does
-    // not guarantee a session owner, so an unrelated shell delays completion.
     const shells = await probe.hasRunningShells(record.directory);
     if (shells === null) return { kind: 'unknown' };
     if (shells) return { kind: 'working', reason: 'shell' };
     const blocking = await probe.hasBlockingRequests(record.sessionId, record.directory);
     if (blocking === null) return { kind: 'unknown' };
     if (blocking) return { kind: 'working', reason: 'request' };
-    const dispatched = await dispatchPending(record.spaceId, record.sessionId);
+    const dispatched = await dispatchPending(record.spaceId ?? null, record.sessionId);
     if (!Array.isArray(dispatched)) return { kind: 'unknown' };
     if (dispatched.some((entry) => entry.parentSessionId === record.sessionId)) {
       return { kind: 'working', reason: 'dispatch' };
     }
-    const idle = await latestIdle(source, record.sessionId).catch(() => null);
+    const idle = await latestTelegramIdle(source, record.sessionId).catch(() => null);
     return idle ? { kind: 'idle', idle } : { kind: 'unknown' };
   };
-  const check = async (key) => {
+  const check = async (key: string) => {
     await load();
     const record = pending.get(key);
     if (!record || stopped) return;
@@ -165,38 +171,30 @@ export const createTelegramWatch = ({
       arm(key, 60000);
       return;
     }
-    const source = sourceFor(record.spaceId);
+    const source = sourceFor(record.spaceId ?? null);
     if (source) await attention(record, source).catch((error) => {
-      console.warn('[Telegram] input reconciliation failed:', error?.message ?? error);
+      console.warn('[Telegram] input reconciliation failed:', hasErrorMessage(error) ? error.message : error);
     });
     if (pending.get(key) !== record || stopped) return;
     if (!record.armed) {
-      const idle = source ? await latestIdle(source, record.sessionId).catch(() => null) : null;
+      const idle = source ? await latestTelegramIdle(source, record.sessionId).catch(() => null) : null;
       if (idle && record.baselineIdleId === undefined) record.baselineIdleId = idle.id;
       else if (idle && idle.id !== record.baselineIdleId) record.armed = true;
       await persist();
       if (!record.armed) { arm(key, STABLE_RECONCILE_MS); return; }
     }
-    // Goal Mode resumes the agent between idle transitions. Its settled
-    // status, not an intermediate idle, allows the final notification.
-    const goal = await isGoalActive(record.sessionId, record.spaceId).catch(() => null);
+    const goal = await isGoalActive(record.sessionId, record.spaceId ?? null).catch(() => null);
     if (goal !== false) {
       arm(key, 5000);
       return;
     }
-    let state = { kind: 'unknown' };
+    let state: Activity = { kind: 'unknown' };
     if (source) {
-      try { state = await activity(record, source); } catch { /* retry */ }
+      try { state = await activity(record, source); } catch { void 0; }
     }
-    // A parent may idle while a background result is on its way. Require a
-    // subsequent terminal record after any confirmed background activity.
-    if (state.kind === 'working' && state.reason !== 'shell') {
-      // The parent will resume when a descendant, returned result or user
-      // action settles. The current idle record is a temporary boundary.
-      // A detached shell is different: it may finish without resuming the
-      // parent, so a terminal idle is accepted once the shell disappears.
+    if (source && state.kind === 'working' && state.reason !== 'shell') {
       if (!record.waitForNewIdle) {
-        const previous = await latestIdle(source, record.sessionId).catch(() => null);
+        const previous = await latestTelegramIdle(source, record.sessionId).catch(() => null);
         record.requireNewIdle = previous?.id ?? null;
         record.waitForNewIdle = true;
       }
@@ -204,8 +202,6 @@ export const createTelegramWatch = ({
     if (state.kind === 'idle') {
       const idle = state.idle;
       if (idle.outcome === 'interrupted') {
-        // An interrupted turn must not alert as completed. Keep its checkpoint
-        // so a later run can still be found after an event-stream disconnect.
         pending.set(key, { ...record, armed: false, baselineIdleId: idle.id,
           requireNewIdle: null, waitForNewIdle: false, attempt: 0 });
         await persist();
@@ -224,23 +220,18 @@ export const createTelegramWatch = ({
         arm(key, delayFor(record.attempt));
         return;
       }
-      // A second probe reduces false completion alerts if a parent resumes
-      // after the first idle read. This is not an atomic OpenCode completion
-      // barrier; another run can still start between probes and Bot API send.
-      await new Promise((resolve) => { const timer = setTimeoutImpl(resolve, 500); timer.unref?.(); });
+      await new Promise<void>((resolve) => { const timer = setTimeoutImpl(resolve, 500); timer.unref?.(); });
       if (pending.get(key) !== record || stopped) return;
-      const confirmed = source ? await activity(record, source).catch(() => ({ kind: 'unknown' })) : { kind: 'unknown' };
+      const confirmed: Activity = source ? await activity(record, source).catch((): Activity => ({ kind: 'unknown' })) : { kind: 'unknown' };
       if (confirmed.kind !== 'idle' || confirmed.idle.id !== idle.id) {
         record.attempt = (record.attempt || 0) + 1;
         await persist();
         arm(key, delayFor(record.attempt));
         return;
       }
-      // The delivery runtime checks this fence immediately before its HTTP
-      // send as well as the subscription's opt-out state.
       const canSend = async () => {
         if (stopped || pending.get(key) !== record) return false;
-        const current = source ? await activity(record, source).catch(() => ({ kind: 'unknown' })) : { kind: 'unknown' };
+        const current: Activity = source ? await activity(record, source).catch((): Activity => ({ kind: 'unknown' })) : { kind: 'unknown' };
         return current.kind === 'idle' && current.idle.id === idle.id;
       };
       const delivered = await telegram.notify({
@@ -266,36 +257,32 @@ export const createTelegramWatch = ({
     await persist();
     arm(key, delayFor(record.attempt));
   };
-  const queue = async ({ sessionId, directory, spaceId = null }) => {
+  const queue = async ({ sessionId, directory, spaceId = null }: TelegramSession) => {
     await load();
     if (!sessionId || !directory || !await telegram.hasSubscription(directory, sessionId)) return;
     const entry = { sessionId, directory, spaceId, attempt: 0, createdAt: now() };
     const key = keyOf(entry);
     const existing = pending.get(key);
-    // Keep the baseline and the background-work barrier across repeated idle events.
     pending.set(key, existing ? { ...existing, armed: true, attempt: 0 } : { ...entry, armed: true });
     await persist();
     arm(key, QUIET_MS);
   };
-  const track = async ({ sessionId, directory, spaceId = null }) => {
+  const track = async ({ sessionId, directory, spaceId = null }: TelegramSession) => {
     await load();
-    const entry = { sessionId, directory, spaceId, attempt: 0, createdAt: now(), armed: false };
+    const entry: WatchEntry = { sessionId, directory, spaceId, attempt: 0, createdAt: now(), armed: false };
     const source = sourceFor(spaceId);
-    const idle = source ? await latestIdle(source, sessionId).catch(() => null) : null;
+    const idle = source ? await latestTelegramIdle(source, sessionId).catch(() => null) : null;
     if (idle) entry.baselineIdleId = idle.id;
     else if (source) {
-      // Distinguish a readable history with no idle from a failed read.
-      // A subscriber who opts in while the first turn runs can recover
-      // its completion even if the corresponding event gets lost.
-      const page = await fetchJson(source, '/api/session/' + encodeURIComponent(sessionId) + '/message', { limit: '50', order: 'desc' }).catch(() => null);
-      if (Array.isArray(page) || Array.isArray(page?.data)) entry.baselineIdleId = null;
+      const page = await readTelegramSessionData(source, '/api/session/' + encodeURIComponent(sessionId) + '/message', { limit: '50', order: 'desc' }).catch(() => null);
+      if (z.union([z.array(z.json()), z.object({ data: z.array(z.json()) })]).safeParse(page).success) entry.baselineIdleId = null;
     }
     const key = keyOf(entry);
     pending.set(key, entry);
     await persist();
     arm(key, 60000);
   };
-  const cancel = async (sessionId, directory, spaceId = null) => {
+  const cancel = async (sessionId: string, directory: string, spaceId: string | null = null) => {
     await load();
     const key = keyOf({ sessionId, directory, spaceId });
     pending.delete(key);
@@ -308,11 +295,11 @@ export const createTelegramWatch = ({
           decisions.delete(requestKey);
           eventRevisions.set(requestKey, (eventRevisions.get(requestKey) || 0) + 1);
         }
-      } catch { /* invalid ephemeral key */ }
+      } catch { void 0; }
     }
     await persist();
   };
-  const decision = (payload, spaceId, kind, requestId) => {
+  const decision = (payload: WatchEvent, spaceId: string | null, kind: RequestKind, requestId?: string) => {
     const sessionId = sessionIdOf(payload);
     const directory = payload.properties?.directory;
     if (!sessionId || !directory || sessionId === 'global' || !requestId || !pending.has(keyOf({ sessionId, directory, spaceId }))) return;
@@ -326,17 +313,15 @@ export const createTelegramWatch = ({
       try {
         const source = sourceFor(spaceId);
         if (!source) return;
-        const session = await fetchJson(source, '/api/session/' + encodeURIComponent(sessionId)).catch(() => null);
+        const session = telegramSessionRecord.safeParse(await readTelegramSessionData(source, '/api/session/' + encodeURIComponent(sessionId)).catch(() => null)).data;
         if (!session || session.parentID || eventRevisions.get(key) !== revision ||
           !pending.has(keyOf({ sessionId, directory, spaceId }))) return;
         if (kind === 'page' && !isPageWaiting(sessionId, requestId)) return;
         if (kind === 'form' || kind === 'permission') {
           const resource = kind === 'form' ? 'form' : 'permission';
-          const requests = await fetchJson(source, '/api/session/' + encodeURIComponent(sessionId) + '/' + resource).catch(() => null);
+          const requests = await requestList(source, '/api/session/' + encodeURIComponent(sessionId) + '/' + resource);
           if (!Array.isArray(requests) || !requests.some((item) => item?.id === requestId)) return;
         }
-        // A settlement arriving while a network read is in flight invalidates
-        // its revision. Confirm immediately before entering the delivery gate.
         if (eventRevisions.get(key) !== revision ||
           !pending.has(keyOf({ sessionId, directory, spaceId })) ||
           (kind === 'page' && !isPageWaiting(sessionId, requestId))) return;
@@ -346,19 +331,18 @@ export const createTelegramWatch = ({
             if (eventRevisions.get(key) !== revision ||
               !pending.has(keyOf({ sessionId, directory, spaceId }))) return false;
             if (kind === 'page') return isPageWaiting(sessionId, requestId);
-            const active = await fetchJson(source,
-              '/api/session/' + encodeURIComponent(sessionId) + '/' + kind).catch(() => null);
+            const active = await requestList(source, '/api/session/' + encodeURIComponent(sessionId) + '/' + kind);
             return Array.isArray(active) && active.some((item) => item?.id === requestId);
           },
         });
       } catch (error) {
-        console.warn('[Telegram] waiting-for-user notification failed:', error?.message ?? error);
+        console.warn('[Telegram] waiting-for-user notification failed:', hasErrorMessage(error) ? error.message : error);
       }
     }, 800);
     timer.unref?.();
     decisions.set(key, timer);
   };
-  const settle = (payload, spaceId, kind, requestId) => {
+  const settle = (payload: WatchEvent, spaceId: string | null, kind: RequestKind, requestId?: string) => {
     const sessionId = sessionIdOf(payload);
     const directory = payload.properties?.directory;
     if (!sessionId || !directory) return;
@@ -368,42 +352,35 @@ export const createTelegramWatch = ({
     decisions.delete(key);
     eventRevisions.set(key, (eventRevisions.get(key) || 0) + 1);
   };
-  const onEvent = (payload, { spaceId = null } = {}) => {
-    if (!z.object({ type: z.string() }).passthrough().safeParse(payload).success) return;
+  const onEvent = (event: Parameters<typeof eventSchema.safeParse>[0], { spaceId = null }: { spaceId?: string | null } = {}) => {
+    const parsed = eventSchema.safeParse(event);
+    if (!parsed.success) return;
+    let payload = parsed.data;
     const sessionId = sessionIdOf(payload);
     let directory = payload.properties?.directory;
-    // Some execution-status events contain a session id without its location.
-    // The subscription checkpoint holds the verified session location. Use it
-    // only when the session and space identify exactly one tracked record.
     if (!directory && sessionId) {
       const matches = [...pending.values()].filter((entry) =>
         entry.sessionId === sessionId && (entry.spaceId ?? null) === spaceId);
-      if (matches.length === 1) {
-        directory = matches[0].directory;
+      const match = matches[0];
+      if (matches.length === 1 && match) {
+        directory = match.directory;
         payload = { ...payload, properties: { ...payload.properties, directory } };
       }
     }
     if (sessionId && directory && payload.type === 'session.deleted') {
-      // Invalidate in-flight confirmations synchronously, before any await.
       const key = keyOf({ sessionId, directory, spaceId });
       pending.delete(key);
       clear(key);
-      // Return the cleanup promise so a caller that needs a durable deletion
-      // barrier can await it. Event stream callers remain fire-and-forget.
       return (async () => {
-        // Deletion can arrive while the saved checkpoints are still loading.
-        // Finish restoring before removing the session from the disk snapshot.
         await load();
         pending.delete(key);
         clear(key);
         await persist();
         await telegram.unsubscribe(directory, sessionId);
         await cancel(sessionId, directory, spaceId);
-      })().catch((error) => console.warn('[Telegram] session deletion cleanup failed:', error?.message ?? error));
+      })().catch((error) => console.warn('[Telegram] session deletion cleanup failed:', hasErrorMessage(error) ? error.message : error));
     }
     if (sessionId && directory && payload.type === 'session.status' && payload.properties?.status?.type !== 'idle') {
-      // Replace the record object synchronously to invalidate in-flight idle
-      // verification before it reaches the outbound delivery gate.
       const key = keyOf({ sessionId, directory, spaceId });
       const previous = pending.get(key);
       if (previous) {
@@ -414,18 +391,15 @@ export const createTelegramWatch = ({
     if (sessionId && directory && payload.type === 'session.idle') {
       if (payload.properties?.aborted !== true) {
         void queue({ sessionId, directory, spaceId }).catch((error) => {
-          console.warn('[Telegram] could not record idle candidate:', error?.message ?? error);
+          console.warn('[Telegram] could not record idle candidate:', hasErrorMessage(error) ? error.message : error);
         });
       } else {
-        // An interrupted turn ends without a completion notification. Keep
-        // its subscription checkpoint so a later run is still reconciled if
-        // the next idle event is lost while the watcher is disconnected.
         const key = keyOf({ sessionId, directory, spaceId });
         const previous = pending.get(key);
         if (previous) {
           pending.set(key, { ...previous, armed: false, attempt: 0 });
           void persist().then(() => arm(key, 1000)).catch((error) => {
-            console.warn('[Telegram] could not preserve interrupted checkpoint:', error?.message ?? error);
+            console.warn('[Telegram] could not preserve interrupted checkpoint:', hasErrorMessage(error) ? error.message : error);
           });
         }
       }
@@ -445,8 +419,6 @@ export const createTelegramWatch = ({
   };
   const start = async () => {
     await load();
-    // A corrupted watch file or crash between subscription and checkpoint
-    // cannot permanently disable future monitoring.
     for (const item of await telegram.listSubscriptions()) {
       const key = keyOf(item);
       if (!pending.has(key)) await track(item);

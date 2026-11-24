@@ -50,9 +50,6 @@ const readStoredSectionId = (value: unknown): WorkStatusPanelSectionId | null =>
   return parsed.success ? parsed.data : null;
 };
 
-// The default before Context sources moved up. Clients saved the default as
-// their order without the user choosing it, and Turn stats, Workflows and Tasks
-// were appended to those saved lists wherever they stood, so those don't count.
 const DEFAULT_ORDER_WITH_CONTEXT_SOURCES_LAST: readonly WorkStatusPanelSectionId[] = [
   'session', 'repository', 'usage', 'subagents', 'mcp', 'pinned', 'contextSources',
 ];
@@ -63,20 +60,8 @@ const isDefaultOrderWithContextSourcesLast = (order: readonly WorkStatusPanelSec
     && placed.every((id, index) => id === DEFAULT_ORDER_WITH_CONTEXT_SOURCES_LAST[index]);
 };
 
-/**
- * A built-in section added after users had saved orders goes beside the one
- * it follows by default, so it lands where the default puts it rather than
- * at the bottom of every saved list. Sections added before this rule were
- * appended and saved there, so they stay out of it.
- */
 const PLACED_AFTER = new Map<WorkStatusSectionId, WorkStatusSectionId>([['tasks', 'subagents']]);
 
-/**
- * Preserve chosen positions, discard obsolete ids, and add newly added
- * built-in sections: after their default neighbour (`PLACED_AFTER`), else at
- * the end. `arranged` is false for an order the user never set by hand, which
- * follows the default's move of Context sources.
- */
 export const sanitizeWorkStatusSectionOrder = (
   value: readonly string[] | null | undefined,
   arranged = true,

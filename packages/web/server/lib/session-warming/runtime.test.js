@@ -348,6 +348,14 @@ describe('session warming runtime', () => {
       expect(pings(fetchImpl)).toHaveLength(1);
     });
 
+    it.each([42, null, {}, 'constructor', 'invalid'])('keeps the fallback interval for an invalid cache ttl: %j', async (ttl) => {
+      const { fetchImpl } = await warmAfterTurn({ id: 'sonnet', providerID: 'anthropic', cost: [{}], settings: { cache: { ttl } } });
+      await vi.advanceTimersByTimeAsync(WARMING_INTERVAL_MS - 1);
+      expect(pings(fetchImpl)).toHaveLength(0);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(pings(fetchImpl)).toHaveLength(1);
+    });
+
     it('sends the ping a shorter window had no room for once the window grows', async () => {
       const { runtime, fetchImpl } = makeRuntime({ model: { id: 'opus', providerID: 'claude-agent' } });
       runtime.setEnabled(true);

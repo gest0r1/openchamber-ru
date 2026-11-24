@@ -3,11 +3,6 @@ import { useOnDemandComponent, useOnDemandValue } from '@/hooks/useOnDemandCompo
 import { importWithChunkRecovery } from '@/lib/chunkLoadRecovery';
 import { loadProgramCheck, needsProgramCheck } from './taggedBlocks';
 
-/**
- * A component loaded with the first block on screen: null until then or when
- * loading failed. Kept once loaded, so a block that remounts (virtualized
- * rows) draws at once.
- */
 export function onDemand<Props extends object>(load: () => Promise<React.ComponentType<Props>>) {
   let loaded: React.ComponentType<Props> | null = null;
   const loadOnce = () => loaded ? Promise.resolve(loaded) : load().then((component) => {

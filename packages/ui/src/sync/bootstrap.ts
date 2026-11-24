@@ -99,8 +99,6 @@ export function bootstrapDirectory(input: DirectoryBootstrapInput) {
       return "failed"
     }
   })()
-  // Initialization has its own completion and network capacity. A slow config
-  // or directory cannot hold the session-list scheduler's slot.
   const environment = initializeDirectory(input, sessions)
   return { sessions, environment }
 }
@@ -127,9 +125,6 @@ async function initializeDirectory(input: DirectoryBootstrapInput, sessions: Pro
   if (input.isStale?.()) return "stale"
 
   const critical = Promise.allSettled([
-    // The host's active list covers every directory, so it speaks for this one
-    // only once the session list says which of those sessions are here. Without
-    // that list the statuses stay unknown.
     sessions.then(async (listed) => {
       if (listed !== "complete") return
       await read(async () => {

@@ -18,8 +18,6 @@ const SIZE_MESSAGE = `${MESSAGE_PREFIX}size`;
 const OPEN_LINK_MESSAGE = `${MESSAGE_PREFIX}open-link`;
 const KEY_MESSAGE = `${MESSAGE_PREFIX}key`;
 const ANSWER_STATE_MESSAGE = `${MESSAGE_PREFIX}answer-state`;
-// The page's Decline was clicked, and where the answer script put it: beside
-// the page's last button, or nowhere when the page has none.
 const DECLINE_MESSAGE = `${MESSAGE_PREFIX}decline`;
 const DECLINE_PLACED_MESSAGE = `${MESSAGE_PREFIX}decline-placed`;
 const SELECTION_MESSAGE = `${MESSAGE_PREFIX}selection`;
@@ -40,7 +38,6 @@ export interface HtmlRenderTheme {
 
 export interface HtmlRenderMetrics {
     rem: number;
-    /** The chat's body text size in px: the page's root font size, so the page's rem follows the interface and chat sizes. */
     text: number;
     sans: string;
     mono: string;
@@ -125,11 +122,8 @@ const OPTION_CSS = '.oc-options{display:grid;gap:12px;grid-template-columns:repe
     + '.oc-button[data-variant=outline]:hover,.oc-button[data-variant=outline]:focus-visible{background-image:linear-gradient(var(--oc-hover),var(--oc-hover))}'
     + '.oc-button[data-variant=outline]:active{background-image:linear-gradient(var(--oc-active),var(--oc-active));box-shadow:inset 0 0 0 0.5px var(--oc-edge)}'
     + '.oc-button[data-variant=destructive]{--oc-button-bg:var(--oc-destructive-bg);--oc-button-hover:var(--oc-destructive-hover);--oc-button-active:var(--oc-destructive-active);--oc-button-border:var(--oc-destructive-border);--oc-button-text:var(--oc-destructive-text)}'
-    // The chat's own Decline, which the answer script puts beside the page's
-    // last button while it waits: the app's secondary Button, a flat muted fill.
     + '.oc-button[data-oc-decline]{margin-inline-start:calc(var(--oc-rem) * .5);--oc-button-bg:var(--muted);--oc-button-hover:var(--muted);--oc-button-active:var(--muted);--oc-button-border:transparent;--oc-button-text:var(--foreground);--oc-button-shadow:none;--oc-button-sheen:none}'
     + '.oc-button[data-oc-decline]:hover,.oc-button[data-oc-decline]:focus-visible{background-image:linear-gradient(var(--oc-hover),var(--oc-hover))}'
-    // Focus draws no ring in the app: a focused control takes its hover fill.
     + '.oc-option:focus-visible,.oc-button:focus-visible{outline:none}';
 
 const CHEVRON = 'linear-gradient(45deg,transparent 50%,var(--muted-foreground) 50%),linear-gradient(135deg,var(--muted-foreground) 50%,transparent 50%)';
@@ -173,14 +167,6 @@ const SCROLLBAR_CSS = 'html::-webkit-scrollbar{width:0;height:10px;background:tr
     + `@media (pointer:coarse){html::-webkit-scrollbar-thumb{background-color:${SCROLLBAR_THUMB}}}`
     + `@supports not selector(::-webkit-scrollbar){html{scrollbar-width:thin;scrollbar-color:transparent transparent}html[data-oc-pointer]{scrollbar-color:${SCROLLBAR_THUMB} transparent}`
     + `@media (pointer:coarse){html{scrollbar-color:${SCROLLBAR_THUMB} transparent}}}`;
-// Media is border-box: with the default content box the `width:100%` a page
-// usually gives a picture resolves to the column width, and a page's own 1px
-// border then puts the last picture in a row 2px past the frame. That was
-// enough scroll to give a page that otherwise fits a horizontal bar nobody
-// asked for. The border now comes out of the picture's width instead. An
-// embedded frame keeps its user agent border, so the same holds for it, and
-// for an embed or object. A page's own box with padding or a border is still
-// the page's to size; this only keeps media inside the column.
 const BASE_CSS = 'html{background:transparent;color:var(--foreground);font-family:var(--font-sans);font-size:var(--oc-text,14px);line-height:1.5;-webkit-font-smoothing:antialiased;-webkit-text-size-adjust:100%;overflow-x:auto;overscroll-behavior-x:none}'
     + SCROLLBAR_CSS
     + 'body{margin:0}a{color:var(--primary)}code,kbd,pre,samp{font-family:var(--font-mono)}img,svg,video,canvas,iframe,object,embed{max-width:100%;box-sizing:border-box}'
@@ -211,108 +197,6 @@ const ANNOTATION_BRIDGE = `(function(C){window.addEventListener("message",functi
     + 'try{t=(0,eval)(d.code);}catch(x){r(false,m(x));return;}'
     + `Promise.resolve(t).then(function(v){r(true,v===undefined?null:v);},function(x){r(false,m(x));});});})(${JSON.stringify(PREVIEW_BRIDGE_CHANNEL)});`;
 
-// Runs in the page's head, before its own styles and scripts. It rewrites its
-// own <style> element rather than setting inline properties, so the page's
-// own :root rules still win. The height it reports is the document's content
-// height: the root's box when the page is shorter than the frame, its scroll
-// height when the page is taller. Either way it reaches down to where the
-// body's content ends, overflow included (unless the body clips it), and to
-// the lowest absolutely positioned element that is not inside a box that
-// scrolls or clips (from the set the tooltip check below keeps; a fixed one
-// sits in the frame's own viewport and adds no height). The root's scroll
-// height counts content past the root's box only while the frame is shorter
-// than where it ends, so a tooltip parked below the page's last block, or a
-// block taller than the box it sits in, made the frame grow to it, then
-// shrink back to the root's box, on every frame for as long as the page was
-// shown. The body's own scroll height does not depend on the frame's. It is
-// measured before the page's own `zoom`, so it is scaled by the body's drawn
-// height over its layout height to match the box it is added to. A page wider
-// than its frame adds the height of its horizontal scrollbar (the window's
-// height less the root's client height), so the bar sits under the content
-// instead of over its last line. Not when the content ends exactly at the
-// frame's bottom and the bar was already there: that is content sized to the
-// frame (`min-height:100vh`, where vh counts the bar's room too), which grew
-// with every bar's height added under it, up to the height cap. The bar then
-// sits over the bottom of that content. The bar comes and goes with the
-// page's width without resizing the root, so the tooltip check below also
-// sizes the page again when the bar's height changed. While the bar stays, the
-// page keeps the tallest height it saw for it: both heights it is read from
-// are rounded, so at a fractional display scale the 10 px bar read as 9 in a
-// 515 frame and 10 in a 514 frame, the frame swung between the two, and the
-// chat under the page moved with it.
-//
-// A height less than 1 px off the frame's is the frame's own. At a fractional
-// display scale (175%) the browser snaps the frame to device pixels, so
-// content sized to the frame (`min-height:100vh`) measures a fraction above
-// it (387.43 in a 387 frame), and rounding that up grew the frame by 1 px on
-// every frame, with the chat under the page moving along.
-//
-// A page built as an app screen scrolls itself: the body, or a box spanning
-// the whole frame from its top to its bottom (`height:100vh` or `100%` with
-// `overflow:auto`), holds the content and the document never outgrows the
-// frame, so the frame stayed at its minimum height with the page scrolling
-// inside a 48 px strip. Such a box adds what it hides below its own edge.
-// Each box is grown that way once per height: a box of a fixed height that
-// only happened to span the frame does not follow, and growing it again would
-// swing the frame between two heights. Until the page reports anything past
-// the grown height, though, the box adds what it added: the page is measured
-// again before the host resizes the frame (on load, say), and skipping the
-// box there shrank the frame back to its minimum for good.
-//
-// A page that fits its frame cannot scroll at all. A document that can scroll
-// keeps a touch that starts on it: on a phone, a swipe over a page that fit
-// its frame bounced inside it instead of scrolling the chat. Only a page taller
-// than its frame (past the height cap, or in the full-screen view) scrolls.
-//
-// A focused frame keeps every key from the app, so a Cmd/Ctrl chord the page
-// left alone is passed to the host, which replays it through the app's own
-// shortcut handling. The page keeps what it handled itself, typing in its own
-// fields, and the clipboard, select-all and undo chords. The deciding listener
-// is added while the key dispatches, so it runs after every listener the page
-// has and sees whether one of them took the key.
-//
-// The app cannot read a selection inside the frame, so the bootstrap reports
-// it: the selected text and its box in the frame's viewport once it settles (on
-// mouse up, or after a pause for keyboard and touch selections; not while the
-// mouse is down), and an empty text when the selection is gone. The host shows
-// the chat's selection menu from it. The report also carries the selection as
-// a quote anchor (text, 32 characters either side, start offset) measured in
-// the text stream of the page's own body, the same algorithm as
-// lib/chatQuoteAnchor.ts, so the quote can be found again. When the app takes
-// the selection over, the host posts a clear message: the page drops its
-// selection and, having reset its last report first, does not echo that back.
-// Escape the page left alone is passed on only while a reported selection
-// stands, so the host closes the menu as Escape does in the chat; with no
-// selection, Escape stays the page's own.
-//
-// Quotes the user commented on are painted back into the page. The host posts
-// the marks (id, anchor, whether drawn stronger) whenever they change and when
-// the frame loads; the page re-finds each by its text, as the chat does for
-// its own messages, and paints them with the CSS Custom Highlight API (colored
-// by --oc-quote-mark; see BASE_CSS). It repaints when the DOM changes. A click
-// reports the mark under it with its box, or an empty id for a click on no
-// mark, so the host can open or close the mark's popover. A reveal message
-// scrolls one anchor into view and flashes it. In the chat the frame is as
-// tall as the page; the browser carries that scroll on to the chat around the
-// frame, so the quote comes into view there too.
-//
-// A wheel or a swipe over the page scrolls the chat around the frame, but its
-// events stay in the frame, and the chat releases its follow of a running
-// reply only on the gesture events it hears: while a reply streamed, the
-// chat pulled the reader back to the end on every new line. So the page
-// reports the direction of every wheel up and vertical swipe the page's own
-// script and scrolling boxes left alone, and the host passes it to the chat
-// as that gesture.
-//
-// A tooltip or popup the page positions itself can stick out past the frame,
-// where the frame cuts it off (on a phone the column is about 360px). Every
-// absolutely or fixed positioned element that is partly inside and partly out
-// is moved back in with the `translate` property, which the page's own
-// `transform` composes with. An element wholly outside (a hidden off-screen
-// panel), wider than the frame, or inside a box that scrolls or clips (where
-// running past the edge is the point) is left alone. The positioned set is
-// rebuilt when the DOM changes shape and checked on every change, hover, tap
-// and resize; a CSS :hover tooltip changes nothing in the DOM, so hover counts.
 const BOOTSTRAP_SCRIPT = `(function(){var s=document.getElementById("oc-html-render-theme");if(!s||window.parent===window)return;var B=${JSON.stringify(BASE_CSS)};`
     + `window.addEventListener("message",function(e){var d=e.data;if(e.source!==window.parent||!d||d.type!==${JSON.stringify(THEME_MESSAGE)}||!d.variables||typeof d.variables!=="object")return;var c=":root{color-scheme:"+(d.appearance==="light"?"light":"dark")+";";for(var k in d.variables){if(/^--[a-z0-9-]+$/.test(k))c+=k+":"+String(d.variables[k]).replace(/[;{}<>]/g,"")+";";}s.textContent=c+"}"+B;});`
     + `window.addEventListener("message",function(e){var d=e.data;if(e.source!==window.parent||!d||d.type!==${JSON.stringify(POINTER_MESSAGE)})return;if(d.over===true)document.documentElement.setAttribute("data-oc-pointer","");else document.documentElement.removeAttribute("data-oc-pointer");});`
@@ -379,19 +263,6 @@ export interface HtmlRenderAnswerState {
     answer: JsonValue | null;
 }
 
-// `openchamber.submit` checks what it can in the page (the host checks the
-// gesture and the waiting state again, since a page can skip this script) and
-// sends `ui/message` with the summary as the text and the data in `_meta`.
-// The host's reply settles the promise; a state message from the host ends
-// the wait when it ended elsewhere (another device answered, or the user
-// wrote in the chat).
-//
-// While the page waits, the script also puts the chat's Decline beside the
-// page's last `.oc-button`, the class the tool description gives agents for
-// their send button, so it sits with the page's own actions however long the
-// page is, in a row with that button even when the page stacks its content in
-// a column. It reports whether it found one; without one the host draws its
-// Decline under the page. Decline is off while an answer is on its way.
 const ANSWER_SCRIPT = `(function(){if(window.parent===window)return;var S=JSON.parse(document.getElementById("oc-html-render-answer").textContent),I=0,R={},DL=S.declineLabel||"Decline",D=null;`
     + `var DP=function(){var a,b;if(!S.waiting){if(D&&D.parentNode)D.parentNode.removeChild(D);return;}`
     + `a=document.querySelectorAll(".oc-button:not([data-oc-decline])");b=a[a.length-1];`
@@ -399,9 +270,6 @@ const ANSWER_SCRIPT = `(function(){if(window.parent===window)return;var S=JSON.p
     + `if(!D){D=document.createElement("button");D.type="button";D.className="oc-button";D.setAttribute("data-oc-decline","");D.textContent=DL;`
     + `D.addEventListener("click",function(){if(!S.waiting||D.disabled)return;D.disabled=true;window.parent.postMessage({type:${JSON.stringify(DECLINE_MESSAGE)}},"*");});}`
     + `D.disabled=Object.keys(R).length>0;if(b.nextElementSibling!==D){var p=b.parentElement,c=p?getComputedStyle(p):null;`
-    // In a column (a flex column or a grid) a sibling lands under the button
-    // and stretches to the full width, so the pair gets a row of its own
-    // that takes the button's place and alignment.
     + `if(c&&!p.hasAttribute("data-oc-actions")&&((c.display.indexOf("flex")>=0&&c.flexDirection.indexOf("column")===0)||c.display.indexOf("grid")>=0)){var w=document.createElement("div"),bs=getComputedStyle(b);`
     + `w.setAttribute("data-oc-actions","");w.style.cssText="display:flex;align-items:center;flex-wrap:wrap";w.style.alignSelf=bs.alignSelf;w.style.justifySelf=bs.justifySelf;p.insertBefore(w,b);w.appendChild(b);}`
     + `b.insertAdjacentElement("afterend",D);}window.parent.postMessage({type:${JSON.stringify(DECLINE_PLACED_MESSAGE)},placed:true},"*");};`
@@ -417,8 +285,6 @@ const ANSWER_SCRIPT = `(function(){if(window.parent===window)return;var S=JSON.p
     + `if(d.error)r.rej(new Error(String(d.error.message||"The answer was not sent")));else{S={waiting:false,answer:r.data};o.answer=r.data;r.res();}DP();});`
     + `if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",DP);else DP();window.addEventListener("load",DP);})();`;
 
-// JSON inside a script element: "<" is escaped so no "</script>" in the data
-// can close it.
 const scriptJson = (value: HtmlRenderAnswerState & { declineLabel: string }): string => JSON.stringify(value).replace(/</g, '\\u003c');
 
 const blankNonMarkup = (html: string): string => html.replace(
@@ -426,14 +292,6 @@ const blankNonMarkup = (html: string): string => html.replace(
     (match) => ' '.repeat(match.length),
 );
 
-/**
- * The document the frame loads: the agent's page with the bootstrap first in
- * its head. `contained` is for a frame with nothing around it to scroll (the
- * full-screen view): the page's own scrolling stops at its edges without the
- * elastic bounce. `answerState` is where the page stands on its answer when
- * it loads; later changes reach it as messages. `declineLabel` is the chat's
- * word for the Decline the page shows while it waits.
- */
 export function buildHtmlRenderDocument(
     html: string,
     theme: HtmlRenderTheme,
@@ -457,12 +315,7 @@ export function insertHeadMarkup(html: string, markup: string): string {
     const bootstrap = [
         /<meta\s[^>]*charset/i.test(scan.slice(0, 4096)) ? '' : '<meta charset="utf-8">',
         /<meta\s[^>]*name\s*=\s*["']?viewport/i.test(scan) ? '' : '<meta name="viewport" content="width=device-width, initial-scale=1">',
-        `<style id="oc-html-render-theme">${themeCss(theme)}</style>`,
-        // Its own element: a theme switch rewrites the theme style whole.
-        contained ? '<style>html{overscroll-behavior:none}</style>' : '',
-        `<script>${BOOTSTRAP_SCRIPT}</script>`,
-        `<script type="application/json" id="oc-html-render-answer">${scriptJson({ ...answerState, declineLabel })}</script>`,
-        `<script>${ANSWER_SCRIPT}</script>`,
+        markup,
     ].join('');
     const headOpen = /<head(?:\s[^>]*)?>/i.exec(scan);
     if (headOpen) {
@@ -613,8 +466,6 @@ export function readHtmlRenderFrameMessage(event: Pick<MessageEvent, 'data'>): H
     if (message.type === SCROLL_MESSAGE) return { kind: 'scroll', direction: message.direction };
     if (message.type === DECLINE_MESSAGE) return { kind: 'decline' };
     if (message.type === DECLINE_PLACED_MESSAGE) return { kind: 'decline-placed', placed: message.placed };
-    // Only a chord with Cmd or Ctrl: the page never passes plain typing on,
-    // and a page that tried to must not reach the app's single-key handling.
     if (!message.metaKey && !message.ctrlKey) return null;
     return { kind: 'key', chord: keyChordSchema.parse(message) };
 }

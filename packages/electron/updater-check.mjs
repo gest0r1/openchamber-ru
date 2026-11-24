@@ -8,12 +8,6 @@ const isMissingUpdateFeedError = (error) => {
 
 const NETWORK_ERROR_RE = /net::(ERR_[A-Z_]+)|\b(ENOTFOUND|EAI_AGAIN|ECONNREFUSED|ECONNRESET|ETIMEDOUT|ENETUNREACH|EHOSTUNREACH)\b/;
 
-/**
- * The cause of a failed check in a few words: `HTTP 504`, a network code
- * such as `ENOTFOUND`, or the first line of anything else. electron-updater's
- * HttpError carries the response headers and HTML body in its message; the UI
- * turns these words into advice (`lib/updateCheckError.ts`).
- */
 export const describeCheckFailure = (error) => {
   const message = error instanceof Error ? error.message : String(error ?? '');
   const status = Number(error?.statusCode ?? /^(?:HttpError:\s*)?(\d{3})\b/.exec(message)?.[1]);
@@ -35,18 +29,11 @@ export const isDowngrade = (nextVersion, currentVersion) => {
   return false;
 };
 
-/**
- * `missingFeedIsError`: the Stable mirror always carries the manifests, so a
- * 404 there means the mirror is broken and GitHub should be asked instead.
- */
 export const checkForDesktopUpdate = async ({ autoUpdater, currentVersion, pendingUpdate, missingFeedIsError = false }) => {
   let updateResult;
   try {
     updateResult = await autoUpdater.checkForUpdates();
   } catch (error) {
-    // Before the first Linux (or platform) release publishes its feed, electron-updater
-    // returns 404 for latest-*.yml. With no pending package, keep the first-release
-    // "no update" behavior. A failed feed must preserve an existing package.
     if (isMissingUpdateFeedError(error) && !pendingUpdate && !missingFeedIsError) {
       return {
         available: false,

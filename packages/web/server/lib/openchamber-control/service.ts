@@ -69,7 +69,10 @@ export interface ControlOptions {
   secretRunAuthorized?: boolean;
 }
 
+import type { TelegramContent } from '../notifications/telegram-runtime.js';
+
 export interface ControlDependencies {
+  telegramSend?: (input: TelegramContent & { sessionId: string; directory: string }) => Promise<{ delivered: boolean; reason?: string }>;
   readSettingsFromDiskMigrated: () => Promise<ControlSettings | null>;
   sanitizeProjects: (projects: ControlSettings['projects']) => { id: string; path: string; label?: string }[];
   buildOpenCodeUrl: (route: string, query: string) => string | URL;
@@ -411,6 +414,7 @@ export const createOpenChamberControlService = (dependencies: ControlDependencie
     browserUploads = null,
     fileOpen = null,
     notifyUser = null,
+    telegramSend,
     agentMemoryActions = null,
     sessionLinks = null,
     workNaming = null,
@@ -1200,6 +1204,15 @@ export const createOpenChamberControlService = (dependencies: ControlDependencie
         }
         return browserAction(browserControl, action, input, options.signal, contextDirectory, options.contextSessionId);
       }
+      if (action === 'notify.telegram_send') {
+        if (!telegramSend) throw new OpenChamberControlError('Telegram is unavailable', 503);
+        const sessionId = asNonEmptyString(options.contextSessionId);
+        const directory = asNonEmptyString(contextDirectory);
+        if (!sessionId || !directory) throw new OpenChamberControlError('Telegram requires a calling session and checkout', 400);
+        return telegramSend({ sessionId, directory, alias: asNonEmptyString(input.alias) ?? undefined,
+          text: asNonEmptyString(input.text) ?? undefined, file: asNonEmptyString(input.file) ?? undefined,
+          caption: asNonEmptyString(input.caption) ?? undefined, mode: asNonEmptyString(input.mode) ?? undefined });
+      }
       if (action === 'notify.send') {
         if (!notifyUser) {
           throw new OpenChamberControlError('Notifications are not available on this server', 503);
@@ -1436,6 +1449,8 @@ export const createOpenChamberControlService = (dependencies: ControlDependencie
     execute,
     resolveSessionDirectory,
     answerPage,
+    isPageWaiting: pageAnswers.isWaiting,
+    listWaitingPages: pageAnswers.listWaiting,
     answerSecret: secretRequests.answer,
     secretFields: secretRequests.fields,
     forgetSavedSecret: secretRequests.forgetSaved,

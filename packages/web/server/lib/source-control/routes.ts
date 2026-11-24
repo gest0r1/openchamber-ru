@@ -7,7 +7,7 @@ import { createGitIdentityProvisioning } from '../git/identity-provisioning.js';
 import { createProfile, getProfiles, updateProfile } from '../git/identity-storage.js';
 import { resolveRepositoryIdentity } from './repository-identity.js';
 import { redactSensitiveText } from './url-redaction.js';
-import { isPlainObject } from '../shared/guards.js';
+import { isPlainObject, isString } from '../shared/guards.js';
 import { createOAuthFlowRegistry } from './oauth-flow-registry.js';
 import { createMutationStore } from './mutation-storage.js';
 import { createMutationExecutor } from './mutation-executor.js';
@@ -217,12 +217,7 @@ export function registerSourceControlRoutes(app: Router, dependencies: SourceCon
   const instanceAliases = dependencies.instanceAliasStore ?? createInstanceAliasStore({
     filePath: path.join(configRoot, 'source-control-instance-aliases.json'),
   });
-  /**
-   * The instances of one provider the user can work with: its defaults first,
-   * then the ones it knows of. `aliases` is the stored alias map; an instance
-   * the provider no longer knows keeps its aliases on disk but lists none.
-   */
-  const instancesOf = async (descriptor, aliases = {}) => {
+  const instancesOf = async (descriptor: ProviderDescriptor, aliases: Aliases = {}) => {
     const impl = await providers.implementation(descriptor.id);
     const defaults = [...descriptor.instance.defaultInstances];
     const known = (await impl?.auth.listInstances?.()) ?? [];
@@ -238,12 +233,11 @@ export function registerSourceControlRoutes(app: Router, dependencies: SourceCon
         return entry;
       });
   };
-  /** The stored aliases; a file that cannot be read lists none, so instances still list. */
   const readInstanceAliases = async () => {
     try {
       return await instanceAliases.list();
     } catch (error) {
-      console.warn('Failed to read source control instance aliases:', redactSensitiveText(error?.message));
+      console.warn('Failed to read source control instance aliases:', redactSensitiveText(errorFields(error).message));
       return {};
     }
   };
@@ -264,11 +258,6 @@ export function registerSourceControlRoutes(app: Router, dependencies: SourceCon
     }
     return res.json(unavailableProviders.length ? { instances, unavailableProviders } : { instances });
   });
-  /**
-   * Replaces the aliases of one instance the user added (never a provider's
-   * default one). An address that already names another listed instance, or
-   * is an alias of one, is refused: a link there would name two instances.
-   */
   app.post('/api/source-control/instances/aliases', async (req, res) => {
     const body = isPlainObject(req.body) ? req.body : {};
     const descriptor = providers.list().find((candidate) => candidate.id === body.provider);
@@ -284,15 +273,16 @@ export function registerSourceControlRoutes(app: Router, dependencies: SourceCon
     let aliases;
     try {
       aliases = [...new Set(body.aliases.map((alias) => normalizeInstanceAlias(descriptor.instance.form, alias)))];
-    } catch (error) {
+    } catch (cause) {
+      const error = errorFields(cause);
       return res.status(400).json({ error: error.message, code: 'INVALID_INSTANCE_ALIAS', alias: error.alias });
     }
-    const listed = [];
+    const listed: ListedInstance[] = [];
     for (const candidate of providers.list()) {
       try { listed.push(...await instancesOf(candidate)); }
-      catch { /* a provider that cannot list owns no address to collide with */ }
+      catch { continue; }
     }
-    const isTarget = (entry) => entry.provider === descriptor.id && entry.instance === instance;
+    const isTarget = (entry: ListedInstance) => entry.provider === descriptor.id && entry.instance === instance;
     if (descriptor.instance.defaultInstances.includes(instance) || !listed.some(isTarget)) {
       return res.status(404).json({ error: 'Source control instance is unknown', code: 'SOURCE_CONTROL_INSTANCE_UNKNOWN' });
     }
@@ -310,11 +300,12 @@ export function registerSourceControlRoutes(app: Router, dependencies: SourceCon
         }
       });
       return res.json({ aliases: saved });
-    } catch (error) {
+    } catch (cause) {
+      const error = errorFields(cause);
       if (error?.code === 'INSTANCE_ALIAS_TAKEN') {
         return res.status(409).json({ error: error.message, code: error.code, alias: error.alias });
       }
-      if (error?.code?.startsWith('SOURCE_CONTROL_LOCK_')) {
+      if (isLockCode(error.code)) {
         return res.status(error.status).json({ error: error.message, code: error.code });
       }
       console.warn('Failed to save source control instance aliases:', redactSensitiveText(error?.message));

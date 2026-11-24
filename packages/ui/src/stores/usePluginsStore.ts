@@ -27,11 +27,8 @@ export interface PluginEntry {
   kind: 'config';
   parsedKind: PluginParsedKind;
   sourcePath?: string;
-  /** The `plugin:` resource an `integration.use` policy matches; OpenChamber's managed layer denies it. */
   policyResource?: string;
-  /** OpenChamber's switch state; unavailable when it cannot be applied here, unreadable when its store cannot be read, overridden when a rule in the OpenCode config keeps the plugin loading. */
   switchState?: PluginSwitchState;
-  /** Host-resolved local target used only to filter duplicate discovery records. */
   resolvedPath?: string;
 }
 
@@ -41,11 +38,8 @@ export interface PluginFile {
   scope: PluginScope;
   kind: 'file' | 'package';
   absolutePath?: string;
-  /** The `plugin:` resource an `integration.use` policy matches for this local plugin. */
   policyResource?: string;
-  /** OpenChamber's switch state; unavailable when it cannot be applied here, unreadable when its store cannot be read, overridden when a rule in the OpenCode config keeps the plugin loading. */
   switchState?: PluginSwitchState;
-  /** Host-resolved local target used only to filter duplicate discovery records. */
   resolvedPath?: string;
 }
 
@@ -65,7 +59,6 @@ type PluginMutationResult = {
   warning?: string;
   requiresManualRestart?: boolean;
   invalidSpec?: boolean;
-  /** The server refused a switch: a rule in the OpenCode config would beat it. Nothing was written. */
   switchOverridden?: boolean;
 };
 
@@ -102,7 +95,6 @@ interface PluginsStore {
   runtime: PluginRuntimeSnapshot;
   isCheckingUpdates: boolean;
   packageUpdates: Record<string, PluginPackageUpdate>;
-  /** Bumped after a switch writes a policy and on config events, so every policy reader re-reads. */
   policyRevision: number;
 
   setSelected: (id: string | null) => void;

@@ -36,20 +36,12 @@ const parseTarget = (sessionId: string | null | undefined, messageId: string | n
     return isLinkIdentifier(messageId) ? { sessionId, messageId } : null;
 };
 
-/** The session id when that is all the text holds, apart from whitespace around it. */
 export const bareSessionId = (text: string): string | null => {
     const trimmed = text.trim();
     const sessionId = BARE_SESSION_ID_RE.exec(trimmed)?.[1];
     return sessionId === trimmed && parseTarget(sessionId, null) ? sessionId : null;
 };
 
-/**
- * Reads a session or message link, as found in chat content. `ownOrigins` are
- * the addresses that serve this instance (the page, and the instance the app
- * is connected to): web links count only when they point at one of them.
- * A link that is just a session id counts too. Anything else, including other
- * native deep links, is not a session link.
- */
 export const parseSessionLink = (href: string, ownOrigins: readonly string[]): SessionLinkTarget | null => {
     const bareSessionId = BARE_SESSION_ID_RE.exec(href.trim())?.[1];
     if (bareSessionId) return parseTarget(bareSessionId, null);
@@ -89,11 +81,6 @@ interface SessionLinkRange {
 
 export const sessionLinkKey = (target: SessionLinkTarget): string => `${target.sessionId}:${target.messageId ?? ''}`;
 
-/**
- * Every session and message link in text, where it sits. Punctuation that
- * ends the sentence is not part of the link. A bare session id is not one
- * here: inside text the user wrote, it is more likely meant as text.
- */
 export const findSessionLinks = (text: string, ownOrigins: readonly string[]): SessionLinkRange[] => {
     if (!text.includes('session')) return [];
     const found: SessionLinkRange[] = [];

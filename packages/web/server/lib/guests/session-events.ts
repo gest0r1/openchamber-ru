@@ -269,13 +269,13 @@ export const createExtensionSessionEvents = ({
   };
 
   const hasWorkingChildren = async (sessionId: string) => {
-    if (stopped) return false;
+    if (stopped) return true;
     try {
       const statuses = await activityProbe.fetchActiveSessionStatuses();
-      if (stopped || !statuses) return false;
-      return (await activityProbe.hasWorkingChildren(sessionId, statuses)) === true;
+      if (stopped || !statuses) return true;
+      return (await activityProbe.hasWorkingChildren(sessionId, statuses)) !== false;
     } catch {
-      return false;
+      return true;
     }
   };
 

@@ -32,10 +32,10 @@ type SessionDisplayStore = {
   setSidebarGrouping: (grouping: ListSessionGrouping) => void;
   keepWorkInPlace: boolean;
   setKeepWorkInPlace: (keep: boolean) => void;
-  /** A work in the Pinned block also stays in its project or folder, and in In work; on by default. */
   keepPinnedInPlace: boolean;
   setKeepPinnedInPlace: (keep: boolean) => void;
-  /** Local display preference; motion remains opt-in. */
+  sessionBatchSize: number | null;
+  setSessionBatchSize: (size: number) => void;
   animatedActivityIndicators: boolean;
   setAnimatedActivityIndicators: (enabled: boolean) => void;
   showChatsSection: boolean;
@@ -125,6 +125,8 @@ export const useSessionDisplayStore = create<SessionDisplayStore>()(
       setKeepWorkInPlace: (keep) => set({ keepWorkInPlace: keep }),
       keepPinnedInPlace: true,
       setKeepPinnedInPlace: (keep) => set({ keepPinnedInPlace: keep }),
+      sessionBatchSize: null,
+      setSessionBatchSize: (size) => set({ sessionBatchSize: clampSessionBatchSize(size) }),
       showChatsSection: true,
       showWorkSection: true,
       showPinnedSection: true,

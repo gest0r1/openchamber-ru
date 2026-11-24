@@ -44,10 +44,11 @@ import { isSpaceDirectory } from '@/lib/spaces/space-route';
 import { normalizePath } from '../attachments/filePaths';
 import { getProjectDisplayLabel, type DraftTargetProject } from '../state/useDraftTarget';
 import { useProjectsInSidebarOrder } from '@/components/session/sidebar/list/useProjectsInSidebarOrder';
-import { DraftsHerePicker, MobileDraftsHerePicker } from './DraftsHerePicker';
+import { DraftsHerePicker } from './DraftsHerePicker';
 import { sessionEvents } from '@/lib/sessionEvents';
+import { DraftFolderTarget } from './DraftFolderTarget';
+import { DraftKindToggle } from './DraftKindToggle';
 
-// The project popup's last row; no project id takes this form.
 const ADD_PROJECT_ITEM = '__add_project__';
 
 interface BranchOption {
@@ -379,7 +380,6 @@ function DraftTargetSelectorsView(props: DraftTargetProps) {
                                             </CommandItem>
                                         ))
                                     )}
-                                    {/* The project the user wants may not be added yet. */}
                                     <CommandItem
                                         value={ADD_PROJECT_ITEM}
                                         onSelect={() => {
@@ -514,7 +514,6 @@ interface ProjectPickerSheetProps {
     theme: Theme;
     title: string;
     searchPlaceholder: string;
-    /** Ends the list with Add project… (the composer's picker); other pickers leave it out. */
     addProjectLabel?: string;
 }
 
@@ -555,7 +554,6 @@ export function ProjectPickerSheet({
                         <ProjectLabel project={project} theme={theme} />
                     </MobileSheetRow>
                 ))}
-            {/* The project the user wants may not be added yet. */}
             {addProjectLabel ? (
                 <MobileSheetRow
                     icon="folder-add"
@@ -669,7 +667,7 @@ export function MobileDraftTargetSheets(
                                     {rankByQuery(spaceBranchOptions, branchQuery, (option) => [option.label])
                                         .map((option) => renderRow(option.value, option.label, undefined, 'instance'))}
                                     {onCreateSpace ? (
-                                        <MobileSheetRow
+                                        <MobileSheetRow icon="add"
                                             onClick={() => {
                                                 onOpenPickerChange(null);
                                                 onCreateSpace();

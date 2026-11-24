@@ -44,11 +44,19 @@ const SAFE_ERROR_MESSAGES: Readonly<Record<PropertyKey, string>> = Object.freeze
   BRANCH_NAME_CONFLICT: 'Git could not create the worktree branch: its name clashes with an existing branch (the same name, or one nested inside the other). Rename the branch and create the worktree again.',
 });
 
-// The message a known failure code is shown with. The store keeps only these
-// fixed sentences: a raw Git message can carry paths and endpoints.
-export const worktreeBootstrapFailureMessage = (code) => SAFE_ERROR_MESSAGES[code] ?? null;
+function errorMessageFor<Code>(code: Code): BootstrapFailureMessage | undefined;
+function errorMessageFor(code: PropertyKey) { return SAFE_ERROR_MESSAGES[code]; }
 
-const exactKeys = (value, required, optional = []) => {
+export const worktreeBootstrapFailureMessage = <Code>(code: Code) => errorMessageFor(code) ?? null;
+
+function hasOwnMessage<Code>(code: Code): boolean;
+function hasOwnMessage(code: PropertyKey) { return Object.hasOwn(SAFE_ERROR_MESSAGES, code); }
+
+const hasCode = (value: unknown): value is { code?: unknown } => value !== null && value !== undefined;
+const errorCode = <Failure>(error: Failure) => hasCode(error) ? error.code : undefined;
+const memberOf = (values: ReadonlySet<string>, value: unknown): value is string => isString(value) && values.has(value);
+
+const exactKeys = <Value extends object>(value: Value, required: string[], optional: string[] = []) => {
   const keys = Object.keys(value);
   return required.every((key) => keys.includes(key))
     && keys.every((key) => required.includes(key) || optional.includes(key));
@@ -282,7 +290,7 @@ export function createWorktreeBootstrapStore({
     await writeState(state);
     return cloneRecord(record);
   });
-  const remove = (directory, { ifMissingFailed = false } = {}) => enqueue(async () => {
+  const remove = (directory: string, { ifMissingFailed = false } = {}) => enqueue(async () => {
     const state = await readState();
     const fingerprint = await directoryFingerprint(directory, fsImpl);
     if (ifMissingFailed) {
@@ -292,10 +300,9 @@ export function createWorktreeBootstrapStore({
         await fsImpl.lstat(directory);
         return false;
       } catch (error) {
-        if (error?.code !== 'ENOENT') throw error;
+        if (errorCode(error) !== 'ENOENT' && errorCode(error) !== 'ENOTDIR') throw error;
       }
     }
-    // Another reader may already have pruned the same missing checkout.
     if (!Object.hasOwn(state.records, fingerprint)) return ifMissingFailed;
     delete state.records[fingerprint];
     await writeState(state);

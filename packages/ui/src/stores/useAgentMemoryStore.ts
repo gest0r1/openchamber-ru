@@ -22,7 +22,6 @@ interface AgentMemoryState {
   disabled: boolean;
   globalFailed: boolean;
   projectFailed: boolean;
-  /** The last dreaming pass of each scope, as the last load found it. */
   dream: AgentMemoryDreams;
   error: string | null;
 
@@ -34,10 +33,6 @@ interface AgentMemoryState {
     patch: { title?: string; body?: string },
   ) => Promise<boolean>;
   deleteEntry: (scope: AgentMemoryScope, memoryId: string, projectPath?: string | null) => Promise<boolean>;
-  /**
-   * Undoes the last dreaming pass of a scope, then re-reads the store.
-   * `projectPath` pins a project-scope undo to the project it was asked in.
-   */
   undoDream: (scope: AgentMemoryScope, projectPath: string | null) => Promise<boolean>;
   reset: () => void;
 }

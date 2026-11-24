@@ -30,7 +30,6 @@ type UploadConflicts = {
 type UploadOutcome = 'uploaded' | 'conflict' | 'failed';
 
 const MAX_PARALLEL_UPLOADS = 3;
-/** Failures named in one toast before the rest collapse into a count. */
 const MAX_REPORTED_FAILURES = 3;
 
 const joinPath = (directory: string, name: string): string => (

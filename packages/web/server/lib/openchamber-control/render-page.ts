@@ -256,7 +256,12 @@ export const createPageAnswers = ({ onWaitChange = () => {} }: PageAnswersOption
     }
   };
 
-  return { wait, answer, release };
+  const listWaiting = (sessionId: string) => {
+    const prefix = pageKey(sessionId, '');
+    return [...waiting.keys()].filter((key) => key.startsWith(prefix)).map((key) => key.slice(prefix.length));
+  };
+  const isWaiting = (sessionId: string, callId: string) => waiting.has(pageKey(sessionId, callId));
+  return { wait, answer, release, isWaiting, listWaiting };
 };
 
 const OPERATOR_CHILD_REFUSAL = 'Nobody answers pages in this session: the user does not interact with it, and your final answer goes to the agent that started it. Show the page without awaitAnswer or answerLater, and write your question in plain text in your answer';

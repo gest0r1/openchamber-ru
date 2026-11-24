@@ -9,12 +9,6 @@ import { applyHostTurnStarts, needsHostTurnStarts } from './session-activity-tim
 import { seedSessionContextFromHost, sessionContextRevision } from './session-live-work';
 
 
-// The host settles its own sessions against OpenCode's running list when its
-// stream reconnects, but a space's sessions are not in that list, so a missed
-// idle there can leave `busy` for the host's 24-hour retention. A running turn
-// refreshes its entry at every agent-loop step; an entry older than this is
-// not trusted as current activity. A genuinely long tool call
-// past this age simply waits for its next event instead of being seeded.
 export const HOST_STATUS_SEED_MAX_AGE_MS = 30 * 60_000;
 
 type SeedDependencies = {

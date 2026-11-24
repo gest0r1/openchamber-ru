@@ -1,15 +1,4 @@
 
-/**
- * `turn-finished`: the session went idle with nothing waiting (no running
- * subagent, no open permission, question or page, no goal or auto-review
- * step still driving it). `turn-failed`: the turn ended in an error.
- * `permission-asked`: the agent asked for a permission the user has to
- * answer. `question-asked`: the agent asked the user a question through a
- * form or a page. A turn the user stopped emits nothing. `turn-started`: the
- * session began a turn. `session-created`, `session-archived` and
- * `session-deleted` name what they say; subagents' sessions are included, with
- * `session.parentId` set.
- */
 export const GUEST_SESSION_EVENT_TYPES = [
   'turn-finished', 'turn-failed', 'permission-asked', 'question-asked',
   'turn-started', 'session-created', 'session-archived', 'session-deleted',
@@ -25,7 +14,6 @@ export const SESSION_EVENT_PENDING_MAX = 200;
 export const SESSION_EVENT_ERROR_MAX = 2_000;
 
 export type SessionEventsContribution = {
-  /** 1 to 8 distinct types. */
   events: GuestSessionEventType[];
   content?: true;
 };
@@ -65,16 +53,6 @@ export type GuestPermissionAskedContent = {
   message: string | null;
 };
 
-/**
- * One field of a form, enough to ask it elsewhere and answer it with
- * `sessions.answerForm`: the value goes under `key`. `options` are the
- * choices of a `string` or `multiselect` field (send their `value`);
- * `custom` says a multiselect also takes values of its own. `when` lists
- * conditions on earlier fields' answers; a field whose conditions do not all
- * hold is not asked, and a value sent for it is dropped. Fields left out of
- * the answer take their default. `external` is a link the user has to open
- * and cannot be answered from a service.
- */
 export type GuestFormField = {
   key: string;
   type: 'string' | 'number' | 'integer' | 'boolean' | 'multiselect' | 'external';
@@ -86,11 +64,6 @@ export type GuestFormField = {
   when?: Array<{ key: string; op: 'eq' | 'neq'; value: string | number | boolean }>;
 };
 
-/**
- * A `page` is the agent's own page waiting for a click; it cannot be answered
- * from a service. Sending to the session with `sessions.send` closes it as
- * if the user wrote in the chat, and so does it for an open form.
- */
 export type GuestQuestionAskedContent = {
   type: 'question-asked';
   sessionTitle: string | null;
@@ -111,16 +84,6 @@ export type GuestSessionEventContent =
   | GuestQuestionAskedContent
   | GuestSessionTitleContent;
 
-/**
- * One event, as OpenChamber posts it. `event` is what every subscriber gets;
- * `content` comes only with the `transcript` grant, and only on the types
- * that have content. `project.directory` is the session's directory, `null`
- * when OpenChamber does not know it. `session.parentId` is set for a
- * subagent's session. `permission.requestId` names the request on a
- * `permission-asked` event, and `question` what a `question-asked` event
- * waits on; both are what `sessions.answerPermission` and
- * `sessions.answerForm` take.
- */
 export type GuestSessionEventRequest = {
   v: typeof SESSION_EVENTS_WIRE_VERSION;
   requestId: string;

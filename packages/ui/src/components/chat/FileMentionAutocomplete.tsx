@@ -32,6 +32,8 @@ import type { Session } from '@/lib/opencode/model';
 import { ensureGlobalSessionsLoaded, resolveGlobalSessionDirectory, useGlobalSessionsStore } from '@/stores/useGlobalSessionsStore';
 import { useAutocompleteSelectionScroll } from './composer/ui/useAutocompleteSelectionScroll';
 import { useHeightMorph } from '@/lib/motion/useSizeMorph';
+import { keepGuestItemsInScope } from '@/lib/guests/folders';
+import { useGuestScopeOf } from '@/hooks/useGuestScopeSync';
 import { guestsOfferMentions, searchGuestMentions, type GuestMention } from '@/lib/guests/mentions';
 import { useGuestsStore } from '@/lib/guests/store';
 import { guestPackageIconSrc, resolveGuestIconName } from '@/lib/guests/icon';
@@ -55,10 +57,9 @@ type MentionRows = {
   recentFiles: FileInfo[];
   results: FileMentionHit[];
   sessions: Session[];
-  extensions: GuestMention[];
+  extensions: readonly GuestMention[];
 };
 
-/** The extension's own mark, so a row says whose it is before it is read. */
 const ExtensionMentionIcon = ({ guestId }: { guestId: string }) => {
   const icon = useGuestsStore((state) => state.guests.find((guest) => guest.id === guestId)?.icon) ?? '';
   const iconSrc = React.useMemo(
@@ -85,9 +86,7 @@ interface FileMentionAutocompleteProps {
   onFileSelect: (file: FileInfo) => void;
   onAgentSelect?: (agentName: string) => void;
   onSessionSelect?: (session: Session) => void;
-  /** Lists rows from extensions that answer `@`; without it, none. */
   onExtensionMentionSelect?: (mention: GuestMention) => void;
-  /** The session being written in, which the session list leaves out. */
   currentSessionId?: string | null;
   onClose: () => void;
   style?: React.CSSProperties;
@@ -292,9 +291,9 @@ export const FileMentionAutocomplete = React.forwardRef<FileMentionHandle, FileM
     return rankFileMentionResults(files, settledSearch.directories, normalizedSearchQuery, 20);
   }, [settledSearch, visibleRecentFiles, normalizedSearchQuery]);
   const settledSearchKey = settledSearch?.key ?? null;
-  // Extensions answer on their own time: their rows join the list when they
-  // arrive and never hold the files back.
-  const asksExtensions = useGuestsStore((state) => onExtensionMentionSelect !== undefined && guestsOfferMentions(state.guests));
+  const guests = useGuestsStore((state) => state.guests);
+  const mentionScope = useGuestScopeOf(currentDirectory || null);
+  const asksExtensions = onExtensionMentionSelect !== undefined && guestsOfferMentions(guests, mentionScope);
   const [extensionRows, setExtensionRows] = React.useState<GuestMention[]>([]);
   React.useEffect(() => {
     if (!asksExtensions) {
@@ -316,14 +315,15 @@ export const FileMentionAutocomplete = React.forwardRef<FileMentionHandle, FileM
     sessions: visibleSessions,
     extensions: extensionRows,
   }), [agents.length, extensionRows, settledSearchKey, visibleAgents, visibleRecentFiles, visibleResults, visibleSessions]);
-  // While a query searches, the popup keeps the last settled rows, so it does
-  // not collapse and regrow on every keystroke: its height changes once per
-  // answer, by what the answer changed.
   const [heldView, setHeldView] = React.useState(liveView);
   if (!searchPending && heldView !== liveView) {
     setHeldView(liveView);
   }
-  const view = searchPending ? heldView : liveView;
+  const shownView = searchPending ? heldView : liveView;
+  const view = React.useMemo(() => {
+    const extensions = keepGuestItemsInScope(shownView.extensions, guests, mentionScope);
+    return extensions === shownView.extensions ? shownView : { ...shownView, extensions };
+  }, [guests, mentionScope, shownView]);
   const rowCount = view.agents.length + view.recentFiles.length + view.results.length + view.sessions.length + view.extensions.length;
   const listState = mentionListState(rowCount, searchPending);
 
@@ -363,7 +363,6 @@ export const FileMentionAutocomplete = React.forwardRef<FileMentionHandle, FileM
         setSearch({ key: debouncedSearchKey, files, directories });
       }
     });
-    // A new query or a closed list stops that walk; nobody is left to read it.
     const walk = new AbortController();
     void Promise.all([
       searchFiles(currentDirectory, serverQuery, 80, { ...options, type: 'file', signal: walk.signal }).catch((): FileInfo[] => []),

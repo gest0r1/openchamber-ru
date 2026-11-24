@@ -219,7 +219,6 @@ export function GoToLineDialog({ open, onOpenChange, viewRef, variant = 'overlay
         />
         <Tooltip>
           <TooltipTrigger asChild>
-            {/* The span keeps the tooltip on a disabled button, which takes no pointer events. */}
             <span className="inline-flex">
               <Button
                 variant="outline"

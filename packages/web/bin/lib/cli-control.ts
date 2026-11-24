@@ -8,13 +8,6 @@ import type { JsonRequestOptions } from './cli-http.js';
 const DEFAULT_WAIT_TIMEOUT_SECONDS = 600;
 const WAIT_HTTP_TIMEOUT_BUFFER_MS = 30_000;
 
-// Provisioning a worktree is not one of the instant control calls the short
-// default is sized for: it runs git against the repository and prepares a new
-// directory, which on a cold path takes longer than the default allows. The
-// server finishes the work regardless of the client giving up, so a client-side
-// timeout here reported a failure for a worktree that was in fact created.
-// The server waits up to a minute for git and three more for the project's
-// setup commands (`openchamber-sessions/routes.js`); this covers both.
 const WORKTREE_PROVISION_TIMEOUT_MS = 6 * 60_000;
 
 export const resolveControlTimeoutMs = (input: ControlInput | null | undefined, options: JsonRequestOptions | undefined, action?: string) => {

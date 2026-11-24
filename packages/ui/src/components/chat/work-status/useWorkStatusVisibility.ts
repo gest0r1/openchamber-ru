@@ -22,11 +22,6 @@ export const WORK_STATUS_REQUIRED_ROW_WIDTH = WORK_STATUS_COLUMN_WIDTH + WORK_ST
 
 type Options = {
   isMobile: boolean;
-  /**
-   * VS Code mounts no context panel, yet a skill citation still opens one in
-   * the store. Its state is ignored there, so a panel nobody sees can neither
-   * hide the card nor be closed from anywhere.
-   */
   isVSCode: boolean;
 };
 
@@ -118,8 +113,6 @@ export const useWorkStatusVisibility = ({ isMobile, isVSCode }: Options): Result
 
   const roomy = !isMobile && wideEnough === true;
   const roomyBesidePanel = roomy && wideEnoughBesidePanel && !contextPanelExpanded;
-  // Split from the switch: a narrow chat is a layout fact, and the header needs
-  // it to offer the panel as an overlay instead of pretending it is off.
   const fits = contextPanelOpen && !isVSCode ? roomyBesidePanel : roomy;
   const visible = panelEnabled && fits;
 

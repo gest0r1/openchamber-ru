@@ -508,9 +508,6 @@ function SessionGroupSectionBase(props: SessionGroupSectionProps): React.ReactNo
   const remainingCount = totalSessions - visibleSessions.length;
   const canShowLess = !group.isArchivedBucket && totalSessions > maxVisible && remainingCount === 0;
 
-  // Virtualize archived buckets, which can grow into the thousands. Active
-  // groups retain normal flow because their incremental Show more control and
-  // the shared ancestor scroller cannot expose an unmounted virtual tail.
 
   const collectGroupSessions = React.useCallback((nodes: SessionNode[]): Session[] => {
     const collected: Session[] = [];
@@ -729,8 +726,6 @@ function SessionGroupSectionBase(props: SessionGroupSectionProps): React.ReactNo
       </>}
     </span>
   );
-  // A folder the user declined to trust lists its sessions but runs no agent;
-  // that says more than whatever its load failed with.
   const bootstrapFailureNotice = trustPausedDirectory ? (
     <span className="inline-flex flex-wrap items-center gap-1.5">
       {t('sessions.sidebar.group.empty.trustPaused')}

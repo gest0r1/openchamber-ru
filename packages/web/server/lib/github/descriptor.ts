@@ -45,7 +45,7 @@ export const githubDescriptor = Object.freeze({
     changeRequests: true,
     draftChangeRequests: true,
     draftConversion: true,
-    merge: Object.freeze({ methods: Object.freeze(['merge', 'squash', 'rebase']) }),
+    merge: Object.freeze({ methods: Object.freeze(['merge', 'squash', 'rebase'] as const) }),
     ci: true,
     comments: true,
     commentEdit: true,

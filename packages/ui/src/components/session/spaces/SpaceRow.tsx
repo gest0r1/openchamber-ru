@@ -101,8 +101,6 @@ export const SpaceRow: React.FC<{
     </div>
   );
   if (actions !== 'menu') return row;
-  // On the desktop the row's right click opens every action, the ones it
-  // shows as buttons included, as the space's work row in the sidebar does.
   return (
     <ContextMenu>
       <ContextMenuTrigger render={row} />

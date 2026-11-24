@@ -12,11 +12,11 @@ import { cn } from '@/lib/utils';
 import { useUIStore } from '@/stores/useUIStore';
 import type { ToolPart } from '@/lib/opencode/model';
 import { renderedPage, type RenderedPageAsk } from '@/lib/opencode/tools';
+import { useSessionDirectory } from '@/sync/sync-context';
 import { answerRenderedPage } from '@/lib/renderPageAnswer';
 import { openExternalUrl } from '@/lib/url';
 import type { ChatQuoteAnchor } from '@/lib/chatQuoteAnchor';
 import { useConfigStore } from '@/stores/useConfigStore';
-import { useSessionDirectory } from '@/sync/sync-context';
 import { dispatchFrameScroll, dispatchPageWaiting } from '@/components/chat/lib/scroll/timelineScrollIntent';
 import { useChatSurfaceMode } from '@/components/chat/useChatSurfaceMode';
 import { dispatchFrameSelection, frameRectInApp } from '../frameSelection';
@@ -51,7 +51,7 @@ import { saveFile } from './saveFile';
 import { useHtmlRenderTheme } from './useHtmlRenderTheme';
 import { DeclinePageButton } from './DeclinePageButton';
 import { usePageDecline } from './usePageDecline';
-import { usePageAsk } from './usePageAsk';
+import { pageBlocksTurn, usePageAsk } from './usePageAsk';
 import { PageAskStatus } from './PageAskStatus';
 import { UiPageFrame } from './UiPageFrame';
 import { SharedPageCard } from '../../sharePages/SharedPageCard';
@@ -85,21 +85,12 @@ interface HtmlRenderDocumentProps {
     contained?: boolean;
     answerState?: HtmlRenderAnswerState;
     onSubmit?: (submission: HtmlRenderSubmission) => Promise<void>;
-    /** The user clicked the Decline the page shows beside its last button. */
     onDecline?: () => void;
-    /** Whether the page found a button to put its Decline beside. */
     onDeclinePlaced?: (placed: boolean) => void;
     onContentHeight?: (height: number) => void;
     frameRef?: React.RefObject<HTMLIFrameElement | null>;
 }
 
-/**
- * The page in a sandboxed frame. No `allow-same-origin`: the page runs in an
- * opaque origin and cannot reach the app's storage, credentials or DOM. A
- * theme switch is posted to the page instead of rebuilding it, so whatever
- * state its script holds survives. The page's selections, quote marks and
- * reveals pass through here to the chat (see pageQuoteBridge.ts).
- */
 function HtmlRenderDocument({
     partId, html, title, className, style, contained = false, answerState = NO_ANSWER, onSubmit, onDecline, onDeclinePlaced, onContentHeight, frameRef: outerFrameRef,
 }: HtmlRenderDocumentProps) {
@@ -206,8 +197,6 @@ function HtmlRenderDocument({
             }
             if (message?.kind === 'decline') {
                 const { answerState: current, onDecline: decline } = submitRef.current;
-                // Like an answer, only a click while the page waits declines it.
-                // Refused, the page gets its state back, which turns its Decline on again.
                 if (!decline || !current.waiting || (navigator.userActivation && !navigator.userActivation.isActive)) {
                     frame.contentWindow?.postMessage(htmlRenderAnswerStateMessage(current), '*');
                 } else {
@@ -257,11 +246,6 @@ function HtmlRenderDocument({
     );
 }
 
-/**
- * The page in the full-screen dialog: inset from the dialog's edges, and as
- * tall as it needs. The dialog grows with it up to the window and the page
- * scrolls inside past that, so a short page leaves no empty half-screen.
- */
 function FullscreenPage({ partId, messageId, html, title, initialHeight, answerState, onSubmit, onDecline, decline }: {
     partId: string;
     messageId: string;
@@ -271,7 +255,6 @@ function FullscreenPage({ partId, messageId, html, title, initialHeight, answerS
     answerState: HtmlRenderAnswerState;
     onSubmit: (submission: HtmlRenderSubmission) => Promise<void>;
     onDecline: () => void;
-    /** The host's Decline for a page without a button of its own, so the dialog need not be closed to decline. */
     decline: React.ReactNode;
 }) {
     const [height, setHeight] = React.useState(initialHeight);
@@ -329,8 +312,11 @@ export function ShownPage({ part }: { part: ToolPart }) {
     const page = React.useMemo(() => renderedPage(part.tool, part.state), [part.tool, part.state]);
     const ask = usePageAsk(part, page?.ask);
     if (!page || !ask) return null;
-    if (page.ui) return <UiPageFrame part={part} source={page.ui} ask={ask} />;
-    return <HtmlRenderFrame part={part} html={page.html} title={page.title || t('chat.htmlRender.untitled')} ask={ask} />;
+    const plainPage = page.ui
+        ? <UiPageFrame part={part} source={page.ui} ask={ask} />
+        : <HtmlRenderFrame part={part} html={page.html} title={page.title || t('chat.htmlRender.untitled')} ask={ask} />;
+    if (page.share) return <SharedPageCard part={part} page={{ ...page, share: page.share }} plainPage={plainPage} />;
+    return plainPage;
 }
 
 interface HtmlRenderFrameProps {
@@ -343,11 +329,9 @@ interface HtmlRenderFrameProps {
 function HtmlRenderFrame({ part, html, title, ask }: HtmlRenderFrameProps) {
     const { t } = useI18n();
     const partId = part.id;
+    const sessionDirectory = useSessionDirectory(part.sessionID);
     const messageId = part.messageID;
     const theme = useHtmlRenderTheme();
-    const sessionDirectory = useSessionDirectory(part.sessionID);
-    // The page with its local images in place; null while they load, and the
-    // frame keeps the page's space meanwhile.
     const loadedHtml = useRenderPageHtml(part, html);
     const pageHtml = loadedHtml ?? html;
     const [height, setHeight] = React.useState(() => rememberedHeights.get(partId) ?? HTML_RENDER_MIN_HEIGHT);
@@ -391,7 +375,6 @@ function HtmlRenderFrame({ part, html, title, ask }: HtmlRenderFrameProps) {
     const answerState = React.useMemo<HtmlRenderAnswerState>(() => {
         if (ask.kind === 'answered') return { waiting: false, answer: ask.data };
         if (sent) return { waiting: false, answer: sent.data };
-        // A decline on its way takes the page out of waiting, so its own button cannot answer too.
         return { waiting: ask.kind === 'waiting' && decline === 'idle', answer: null };
     }, [ask, sent, decline]);
     const handleSubmit = React.useCallback(async (submission: HtmlRenderSubmission) => {
@@ -409,15 +392,11 @@ function HtmlRenderFrame({ part, html, title, ask }: HtmlRenderFrameProps) {
     }, [part.callID, part.sessionID, sessionDirectory, t]);
     const answeredSummary = ask.kind === 'answered' ? ask.summary : sent?.summary;
     const waiting = ask.kind === 'waiting' && answeredSummary === undefined && decline !== 'declined';
-    // The page puts Decline beside its own last button; only a page without
-    // one gets it under the page. Unknown until the page has loaded.
+    const blocking = waiting && pageBlocksTurn(ask);
     const [declineInPage, setDeclineInPage] = React.useState<boolean | null>(null);
     const declineButton = waiting && declineInPage === false
         ? <DeclinePageButton onDecline={sendDecline} disabled={submitting || decline === 'sending'} />
         : null;
-    // The chat brings a page that waits for an answer into view, and again
-    // as its height arrives: an off-screen frame reports its size only once
-    // it is scrolled into view.
     const blockRef = React.useRef<HTMLDivElement>(null);
     React.useEffect(() => {
         if (blocking) dispatchPageWaiting(blockRef.current);

@@ -1,5 +1,14 @@
 import fs from 'fs';
 import path from 'path';
+import { z } from 'zod';
+import { isRecord, isString } from '../shared/object-guards.js';
+import type { Application, Response as HttpResponse } from '../shared/http-contracts.js';
+import type { GlobalMessageStreamHub, GlobalStreamEvent } from '../event-stream/global-hub.js';
+import type { createSessionKnowledgeRuntime } from '../session-knowledge/runtime.js';
+import type { createRoutingRuntime } from '../routing/runtime.js';
+import type { ScheduledTaskProvenance, createExistingSessionTasks } from '../scheduled-tasks/existing-session.js';
+import type { ScheduledTaskInput, ScheduledTaskStatus } from '../projects/contracts.js';
+import type { RoutingModelRef } from '../routing/contracts.js';
 import { createMessageId } from '../dispatch-results/runtime.js';
 import { assertPromptResponse } from '../opencode/prompt-response.js';
 import { unwrapOpenCodeResponse } from '../opencode/response-envelope.js';
@@ -234,10 +243,9 @@ const storedItemSchema = z.unknown().transform((value): QueuedItem | null => {
   const id = raw ? asNonEmptyString(raw.id) : '';
   if (!raw || !id) return null;
   try {
-    const item = { id, createdAt: asCount(raw.createdAt) ?? Date.now(), ...parseQueuedItemInput(raw) };
-    // Only the file carries these: a delivery mints them, a client never does.
+    const item: QueuedItem = { id, createdAt: asCount(raw.createdAt) ?? Date.now(), ...parseQueuedItemInput(raw) };
     const syntheticIds = asList(raw.syntheticIds) ?? [];
-    if (syntheticIds.length > 0 && syntheticIds.every((entry) => MESSAGE_ID_PATTERN.test(asText(entry)))) item.syntheticIds = syntheticIds;
+    if (syntheticIds.length > 0 && syntheticIds.every((entry): entry is string => MESSAGE_ID_PATTERN.test(asText(entry)))) item.syntheticIds = syntheticIds;
     return item;
   } catch {
     return null;
@@ -300,13 +308,7 @@ const extractDeletedSessionId = (payload: QueueRecord) => {
   return asNonEmptyString(asRecord(properties.info)?.id) || asNonEmptyString(properties.sessionID) || null;
 };
 
-/**
- * The directory a session reports after a move. The wire translator tags a
- * move with `info.projectID`; usage, title and other session updates also
- * carry a directory but can still be in flight from the old location, so they
- * must not drag a queue with them.
- */
-const extractSessionDirectoryUpdate = (payload) => {
+const extractSessionDirectoryUpdate = (payload: QueueRecord) => {
   if (payload.type !== 'session.updated') return null;
   const properties = asRecord(payload.properties) ?? {};
   const info = asRecord(properties.info) ?? {};
@@ -411,7 +413,6 @@ export function createMessageQueueRuntime({
     const write = writePromise.then(async () => {
       await fs.promises.mkdir(dataDir, { recursive: true });
       const tmpPath = `${filePath}.${process.pid}.tmp`;
-      // Queued prompts are conversation content: readable by the owner only.
       await fs.promises.writeFile(tmpPath, payload, { encoding: 'utf8', mode: 0o600 });
       await fs.promises.rename(tmpPath, filePath);
     });
@@ -541,33 +542,24 @@ export function createMessageQueueRuntime({
       : [withMetadata];
   };
 
-  /**
-   * Gives what an item admits ahead of its message stable ids, saved before the
-   * first attempt: a retry, also after a restart, reuses them and OpenCode keeps
-   * the first admission. They end one millisecond apart at the mint time, so
-   * they sort in admission order and ahead of the message, whose id OpenCode
-   * assigns later.
-   */
-  const ensureSyntheticIds = async (item, count) => {
+  const ensureSyntheticIds = async (item: QueuedItem, count: number) => {
     if (item.syntheticIds?.length === count) return;
     const firstAt = now() - count + 1;
     item.syntheticIds = Array.from({ length: count }, (_, index) => createMessageId(firstAt + index));
     try {
       await persist();
     } catch (error) {
-      // Unsaved, a crash would mint them again and admit everything twice.
       delete item.syntheticIds;
       throw error;
     }
   };
 
-  const sendItem = async (sessionId, directory, item) => {
+  const sendItem = async (sessionId: string, directory: string, item: QueuedItem) => {
     const { providerID, modelID, variant } = item.sendConfig;
     let agent = item.sendConfig.agent;
     let model: QueueModel = { id: modelID, providerID };
     if (variant) model.variant = variant;
     const promptFiles = item.attachments.map(toPromptFile);
-    // The goal briefing goes last, right before the message the goal is about.
     const synthetics = [
       ...item.context.flatMap(toContextMessages),
       ...(item.goal ? [{ text: buildGoalIntroText(item.goal.tokenBudget), resume: false }] : []),
@@ -598,16 +590,10 @@ export function createMessageQueueRuntime({
       });
     }
 
-    // Resolved before anything is admitted: a failed command lookup fails the
-    // whole send with nothing in the session.
     const command = await resolveSlashCommand(item.text, directory);
 
     if (sessionKnowledgeRuntime) await sessionKnowledgeRuntime.sync(sessionId, directory);
 
-    // OpenCode's commit of a staged revert deletes everything admitted past the
-    // revert's boundary, so a staged revert is committed before the first
-    // synthetic message, and before the goal save so a failure here leaves no
-    // goal behind. A plain prompt leaves the commit to OpenCode, as a UI send does.
     if (synthetics.length > 0) {
       await ensureSyntheticIds(item, synthetics.length);
       const session = asRecord(await openCodeFetch(`/api/session/${encodeURIComponent(sessionId)}`, { directory }));
@@ -617,9 +603,6 @@ export function createMessageQueueRuntime({
       }
     }
 
-    // A message queued as a goal starts it now, as a direct send would. The
-    // goal is saved before anything is admitted, so a failed save leaves
-    // nothing in the session for the retry to duplicate.
     if (item.goal) {
       await createSessionGoal({
         persistSessionGoal,
@@ -633,12 +616,8 @@ export function createMessageQueueRuntime({
       });
     }
 
-    // Same order as a UI send: everything attached to the message is admitted
-    // before the message itself, so the model reads it as background. This
-    // holds for a command too: its route takes file attachments only, and
-    // sending "/name args" as a prompt instead would skip the template
-    // OpenCode 2.x expands only on the command route.
     for (const [index, synthetic] of synthetics.entries()) {
+      if (!item.syntheticIds) throw new Error('Queued synthetic IDs are missing');
       await openCodeFetch(`/api/session/${encodeURIComponent(sessionId)}/synthetic`, {
         directory,
         method: 'POST',
@@ -916,8 +895,6 @@ export function createMessageQueueRuntime({
     if (moved) {
       const queue = queues.get(moved.sessionId);
       if (queue && queue.directory !== moved.directory) {
-        // The session now reads and sends from its new directory; keep its
-        // queued messages there instead of delivering them to the old one.
         setQueueItems(moved.sessionId, moved.directory, queue.items);
         commit(moved.sessionId);
       }

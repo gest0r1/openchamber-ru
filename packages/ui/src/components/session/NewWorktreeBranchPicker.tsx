@@ -151,12 +151,12 @@ export function NewWorktreeBranchPicker({
           open={open}
           title={title}
           onClose={() => changeOpen(false)}
-          subheader={<MobileSheetSearch value={query} onChange={setQuery} placeholder={t('session.newWorktree.searchBranches')} />}
+          subheader={<MobileSheetSearch value={query} onChange={changeQuery} placeholder={t('session.newWorktree.searchBranches')} />}
         >
           <div ref={mobileListRef}>
             {status ? (
               <div className="px-2 py-8 text-center typography-meta text-muted-foreground">{status}</div>
-            ) : sections.map((section) => (
+            ) : visibleSections.map((section) => (
               <MobileSheetSection key={section.heading} title={section.heading}>
                 {section.branches.map((branch) => (
                   <MobileSheetRow key={branch.value} selected={value === branch.value} onClick={() => choose(branch)}>

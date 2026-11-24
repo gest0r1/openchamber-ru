@@ -383,7 +383,7 @@ describe('session assist runtime', () => {
     // hosted vendor, so the endpoint looks local to `isLocalModelEndpoint`.
     const describeSmallModel = vi.fn(async () => ({ inputCharBudget: 20_000, providerID: 'cpa', modelID: 'm', source: 'session-model', localEndpoint: true }));
     const generateSmallModelText = vi.fn(async () => ({ text: '{"recap":"Did the thing.","suggestion":""}' }));
-    const { runtime } = makeRuntime({
+    const { runtime, finished } = makeRuntime({
       persistSessionAssist,
       buildOpenCodeUrl: (fetchPath) => `http://opencode.test${fetchPath}`,
       getSmallModelService: async () => ({ describeSmallModel, generateSmallModelText }),
@@ -391,10 +391,8 @@ describe('session assist runtime', () => {
 
     runtime.processPayload(idle('ses_1'));
     runtime.processPayload(idle('ses_2'));
-    for (let i = 0; i < 30 && describeSmallModel.mock.calls.length < 2; i += 1) {
-      await new Promise((resolve) => setTimeout(resolve, 10));
-    }
-    await new Promise((resolve) => setTimeout(resolve, 20));
+    await vi.advanceTimersByTimeAsync(QUIET_MS);
+    await Promise.all([finished('ses_1'), finished('ses_2')]);
 
     expect(describeSmallModel).toHaveBeenCalledTimes(2);
     expect(generateSmallModelText).not.toHaveBeenCalled();

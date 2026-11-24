@@ -631,25 +631,51 @@ scope a running turn is not read, and its count shows as unknown until the
 turn ends. A failed read keeps its own error and retry, and another session's
 turn never shows while this one's loads.
 
-A changed-file chip under a reply opens Last turn, but the chip comes from the
-turn's tool calls and the scope from its snapshots, so they can disagree:
-snapshots are off, the project folder is no git repository (a repository nested
-in it still gets the edits), or a step took no snapshot. Each click therefore
-asks once (`pendingTurnDiffFile`, dropped when another session is on screen)
-whether the file is in the turn's diff. Until the list answers the session's
-current state the view shows loading; a failed read keeps its error and retry.
-A file that is there is expanded and scrolled to, on every click, since the
-chip's absolute path only matches the relative list through this request.
-A file that is not there opens Changed instead, in the repository holding the
-file, read afresh, expanded. A repository the picker drops again ends the
-attempt on the repository left on screen. Picking Last turn by hand asks
-nothing and stays there, empty or not. The phone's Changes surface
-(`apps/MobileChangesSurface.tsx`) answers the same way and opens the file's own
-diff screen, since it has no expanded list to scroll. VS Code has no Diff view
-panel: the chip reads the turn's diff once and opens the file's patch in the
-editor's own diff (`editor.openDiff` with `patch`; a file the turn deleted shows
-its old content against an empty side). A file the list does not hold opens as
-it is, and a failed read shows an error toast.
+A changed-file chip under a completed reply opens that reply's turn diff,
+scoped to its session and directory. Under the newest reply that is Last turn
+itself; an older reply's chip opens a selection of its own, labelled with the
+chip row's title (Changed files) and its own count, while Last turn in the
+picker keeps the latest turn's count. The chip comes from the turn's tool calls
+and the diff from its snapshots, so they can disagree: snapshots are off, the
+project folder is no git repository (a nested repository still gets the edits),
+or a step took no snapshot. Each click asks once (`pendingTurnDiffFile`)
+whether the file is in the selected turn's diff. The request carries the
+originating session even when another session is on screen (a pinned chat), and
+the selection persists after the request is consumed. The originating session
+only reads the turn; the panel's own session at the click owns the request and
+the selection it leaves, so a panel that moves to another session drops both,
+and the fallback to Changed below keeps going after the scope leaves the turn.
+Picking a scope drops a pending chip request as well as the selection, on
+desktop and mobile; so does picking a repository in mobile Changes. OpenCode
+reads a turn's range only from a user message, so an older reply whose display
+group a notice opened (a compaction, a wake) keeps static chips. Until the list answers the
+selected turn's state the view shows loading; a failed read keeps its error
+and retry. A listed file is expanded and scrolled to on every click, since
+the chip's absolute path only matches the relative list through this request.
+
+A file missing from the turn diff opens Changed in the repository holding it,
+read afresh and expanded. Only a file inside a project that is not a repository,
+once discovery finds no repository in the project holding it, opens in the
+editor instead (`files/openChangedFileWithoutRepository.ts`): there is no
+working-tree diff for it. Unknown or failed discovery, a file outside the
+project and a repository-owned file the list misses (a staged-only entry) keep
+the Changed path. The open checks the file with a stat first, since the
+optional read answers a deleted file with an empty success: a deleted file
+shows the not-found toast, an empty one opens. The read belongs to the click
+that started it, from the click through discovery to the read: a newer chip
+click, leaving the session or the runtime (even to return) drops it without
+a tab, focus change or toast. A repository the picker drops again ends the
+attempt on the repository left on screen.
+
+Picking Last turn by hand clears the historical selection and shows the newest
+turn, empty or not. The phone's Changes surface (`apps/MobileChangesSurface.tsx`)
+opens the selected turn's file diff when a repository holds it; when no
+repository holds the file, the phone stays on the Changes list. VS Code has no
+Diff view panel: the chip reads its turn's diff once with full context and
+opens the file in the editor's own diff (`editor.openDiff` with `patch` and
+`snapshot`), both sides built from that patch, so later edits or a later
+deletion on disk never change what an older chip shows. A file the list does
+not hold opens as it is, and a failed read shows an error toast.
 
 ### Why the click is a one-shot request and not derived from the tab
 
@@ -955,3 +981,52 @@ reads them from `GET /api/git/range-file-versions` or from the change request
 route with `binary=true`. A provider that ignores the flag, as an extension
 provider may, answers text that is no data URL, and the diff keeps the binary
 placeholder.
+
+## What a surface does while its zone animates
+
+A context zone opens, closes, expands and is dragged over an animation
+(`lib/layoutAnimation.ts`). Work a surface does inside it shows as dropped
+frames, so the heavy part waits for the end or is spread over frames.
+
+### Why the stacked diff list mounts a batch of entries per frame
+
+`DiffView` mounts the first `STACKED_ENTRIES_FIRST` file entries and then
+`STACKED_ENTRIES_PER_FRAME` more on each frame until the list is complete. All
+at once, the first open of an 88-file change was one 100 to 120 ms frame. A
+request to scroll to a file mounts every entry in that commit, because its
+entry may be past the limit and the alignment waits only 20 frames for it.
+Virtualizing the list was the alternative; it changes the scroller, the
+sticky headers and find, for a cost paid once per list.
+
+### Why a file that arrives mid-animation renders after it
+
+`FilesView` waits for the layout to settle (`whenLayoutSettled`) before it
+applies a file it has just read, and checks again that the load is still the
+current one. A long Markdown file's first render takes 50 to 60 ms; applied
+when the read returned, about 70 ms into the opening animation, it stopped the
+panel halfway. The cost is the same after the animation, where nothing moves.
+
+### Why a file surface leaves `inert` on open only with an editor showing
+
+Taking a zone's card out of `inert` restyles everything in it. A CodeMirror
+editor is re-attached as the zone opens, so its exit from `inert` is cheap in
+that commit and expensive later (`zoneInteractiveContext.ts`). A file shown
+rendered re-attaches nothing: leaving `inert` at once restyled the whole card
+in the frame of the click (25 ms for a long Markdown file), so it follows the
+other surfaces and leaves `inert` when the animation ends. `FilesView` says
+which case it is by rendering `DetachableEditorMarker` beside its editor.
+
+### Why the browser page keeps its width while its stage moves
+
+A `<webview>` page is drawn by another process, and the app's frame waits for
+it at every new size. `useSteadyStage` pins the page's width for as long as a
+side column animates or is dragged and lets the stage clip it: unchanged while
+the stage shrinks, one step (`GROW_STEP`) wider when the stage outgrows it,
+and the stage's width again once the layout settles. Following the stage on
+every frame, an expand with a site open drew 3 to 5 of the animation's 15
+frames in the desktop app. A zone that grows to a size it already knows (an
+expand) publishes it as `data-zone-size`, and the page takes its final width
+before the animation starts, so nothing snaps at the end. A drag has no final
+size: there the page takes the stage's width whenever the stage rests for
+`DRAG_REST_MS`, since a page held wider than its panel until the release read
+as broken.

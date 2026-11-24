@@ -239,9 +239,8 @@ export const createServerUtilsRuntime = (dependencies: ServerUtilsDependencies) 
       getArchivedSessions,
       getUnreadBaseline,
       getStoredSessionMetadata,
-      // Read when the proxy is set up, after `main` decided whether the spaces host exists.
-      mergeSpaceSessionList: typeof getMergeSpaceSessionList === 'function' ? getMergeSpaceSessionList() : null,
-      spaceEventHub: typeof getSpaceEventHub === 'function' ? getSpaceEventHub() : null,
+      mergeSpaceSessionList: isCallback(getMergeSpaceSessionList) ? getMergeSpaceSessionList() : null,
+      spaceEventHub: isCallback(getSpaceEventHub) ? getSpaceEventHub() : null,
       hiddenSessions,
       openCodeTrust,
       mcpOAuthSignIn,

@@ -84,7 +84,6 @@ export const DroppableFolderWrapper: React.FC<{
     disabled: disabled || isArchivedFolderScope(scopeKey),
     data: { type: 'folder', folderId, scopeKey, ownerKey },
   });
-  // A session of another owner cannot land here, so the folder does not offer to take it.
   return <>{children(setNodeRef, isOver && active?.data.current?.ownerKey === ownerKey)}</>;
 };
 

@@ -83,7 +83,6 @@ export function PullRequestComparisonSelector({ comparison, mobile = false }: {
     <HoverTooltip label={selected?.sourceRepo ? `${joinProjectPath(selected.sourceRepo.owner, selected.sourceRepo.repo)} ${selectedLabel}` : label} side="bottom">
       <DropdownMenuTrigger asChild>{trigger}</DropdownMenuTrigger>
     </HoverTooltip>
-    {/* Kept to the room the popup has: the list scrolls inside it instead of running past its edge. */}
     <DropdownMenuContent align="start" className="flex max-h-[min(var(--available-height),32rem)] w-[32rem] max-w-[calc(100vw-2rem)] flex-col overflow-hidden p-0">{picker}</DropdownMenuContent>
   </DropdownMenu>;
 }

@@ -78,12 +78,7 @@ interface SessionSidebarProps {
   allowReselect?: boolean;
   hideDirectoryControls?: boolean;
   showOnlyMainWorkspace?: boolean;
-  /** Where the header puts its list controls instead of its search row (the desktop sidebar's top strip). */
   listControlsSlot?: HTMLElement | null;
-  /**
-   * The phone's list: its sheet has the header with the search field, the
-   * footer and the dialogs, and draws the rows itself over the same model.
-   */
   phone?: {
     searchQuery: string;
     searchScope: SearchScope;
@@ -110,10 +105,8 @@ const SessionSidebarComponent: React.FC<SessionSidebarProps> = ({
   streamPerfCount(`ui.session_sidebar.render.${mobileVariant ? 'mobile' : 'desktop'}`);
   streamPerfCount(`ui.session_sidebar.render.${isVisible ? 'visible' : 'hidden'}`);
   const { t } = useI18n();
-  // The field is always in the header, so its text never filters the list unseen.
   const [sessionSearchText, setSessionSearchText] = React.useState('');
   const [sessionSearchScope, setSessionSearchScope] = React.useState<SearchScope>('everything');
-  // Reported by the session list below: the header cannot see what matched.
   const [searchMatchCount, setSearchMatchCount] = React.useState<number | null>(0);
   const [searchStatus, setSearchStatus] = React.useState<ContentSearchStatus>(IDLE_SEARCH_STATUS);
   const sessionSearchInputRef = React.useRef<HTMLInputElement | null>(null);
@@ -157,7 +150,6 @@ const SessionSidebarComponent: React.FC<SessionSidebarProps> = ({
   const updateProjectMeta = useProjectsStore((state) => state.updateProjectMeta);
   const reorderProjects = useProjectsStore((state) => state.reorderProjects);
 
-  // Clearing a search clears its scope too: the next one starts wide.
   const clearPhoneSearch = phone?.clearSearch;
   const resetSessionSearch = React.useCallback(() => {
     setSessionSearchText('');
@@ -351,8 +343,6 @@ const SessionSidebarComponent: React.FC<SessionSidebarProps> = ({
   const alwaysShowSidebarActions = mobileVariant || isTablet;
 
 
-  // With no project yet, the first step is adding one, so the empty state
-  // says so and offers it as a button under its text.
   const hasNoProjects = projects.length === 0;
   const emptyState = React.useMemo(() => (hasNoProjects ? (
     <div className="flex flex-col items-center py-6 text-center text-muted-foreground">
@@ -541,9 +531,6 @@ const SessionSidebarComponent: React.FC<SessionSidebarProps> = ({
       projectView.actions.expandAll();
       return true;
     },
-    // Sessions-pane display controls. Each mirrors its display-menu item and
-    // declines where that item is hidden, letting another registration take
-    // the chord.
     toggle_chats_section: () => {
       if (isVSCode || !isVisible) return false;
       const store = useSessionDisplayStore.getState();
@@ -769,8 +756,6 @@ const SessionSidebarComponent: React.FC<SessionSidebarProps> = ({
         hideDirectoryControls={hideDirectoryControls}
         showProjectDisplayControls={!isVSCode}
         showSectionControls={!isVSCode}
-        // The app's pages are a desktop section: phones have their own shell,
-        // VS Code none of these pages.
         showPagesSection={!mobileVariant && !isVSCode}
         headerActionIconClass={headerActionIconClass}
         headerActionButtonClass={headerActionButtonClass}

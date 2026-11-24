@@ -41,11 +41,6 @@ export const sessionSidebarRowVirtualKey = (row: SessionSidebarRow, nextRow: Ses
   `${row.key}|${sectionSpacingAfter(row, nextRow) ?? ''}|${sessionSidebarRowSizeKey(row)}`
 );
 
-// What the user set on a row: a header open or closed, subsessions shown, how
-// many sessions Show more asked for.
-// Undefined where the row offers nothing to set: a session without
-// subsessions, an empty group or folder (always open). Sessions coming and
-// going change that, not the user.
 const rowUserState = (row: SessionSidebarRow): string | undefined => {
   switch (row.kind) {
     case 'group-header':
@@ -213,7 +208,6 @@ export const estimateSessionSidebarRowSize = (
 
 const PROJECT_DIVIDER_CLASS = "after:pointer-events-none after:absolute after:start-1.5 after:end-1.5 after:bottom-[5.5px] after:h-px after:bg-[color-mix(in_srgb,var(--foreground)_8%,transparent)] after:content-['']";
 
-/** The classes of a row's wrapper: its trailing gap, and the line between open projects. */
 export const sectionWrapperClass = (row: SessionSidebarRow, nextRow: SessionSidebarRow | undefined, projectDivider = true): string => {
   const spacing = sectionSpacingAfter(row, nextRow);
   if (projectDivider && spacing === 'pb-3' && nextRow?.kind === 'project-header') return `${spacing} ${PROJECT_DIVIDER_CLASS}`;

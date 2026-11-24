@@ -66,9 +66,6 @@ const setRootDeviceAttributes = (
   }
 
   const root = document.documentElement;
-  // Runs on every resize, including each soft-keyboard show and hide. Removing
-  // and re-adding a root class restyles the whole page even when the class
-  // list ends up the same, so only classes whose state changes are written.
   const setClass = (name: string, on: boolean) => {
     if (root.classList.contains(name) !== on) root.classList.toggle(name, on);
   };
@@ -350,30 +347,13 @@ export function useOrientation(): Orientation {
   return orientation;
 }
 
-/**
- * Width from which both side panels fit at once: the sessions sidebar (~320)
- * plus the workspace panel (~380) plus a chat column that is still worth
- * reading.
- */
 const WORKSPACE_PANEL_MIN_WIDTH_PX = 1000;
 
-/**
- * Width from which ONE side panel fits beside a readable chat: an unfolded
- * iPhone Duo (951), a 13-inch iPad in portrait (1032), a wide book foldable.
- * Narrower tablets (an iPad mini, Air or 11-inch Pro in portrait, 744 to 834)
- * would leave the chat under ~510 with a panel open, so they keep the sidebar
- * as a guest and the workspace as a full-cover drawer.
- */
 const ONE_PANEL_MIN_WIDTH_PX = 900;
 
 export interface TabletLayout {
   enabled: boolean;
   roomyForPanels: boolean;
-  /**
-   * There is room for one side panel at a time: the sessions sidebar stays
-   * and the workspace is a side panel too, but opening one puts the other away.
-   * False where `roomyForPanels` is true.
-   */
   roomyForOnePanel: boolean;
 }
 
@@ -388,15 +368,8 @@ const keyboardIsUp = (): boolean => {
   const active = doc.activeElement as HTMLElement | null;
   const editing = active !== null
     && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.isContentEditable);
-  // No focused field, no keyboard. The class can outlive the keyboard when it
-  // goes away without the hide event (seen when a foldable switched screens),
-  // and trusting it alone held a tablet layout on the folded phone.
   if (!editing) return false;
   if (doc.documentElement.classList.contains('oc-keyboard-open')) return true;
-  // The bridge event that adds that class and the native resize race each
-  // other, so a focused field whose viewport just shrank in the shell is the
-  // same keyboard. Outside the shell the layout viewport never shrinks for a
-  // keyboard, so this cannot mistake a browser window resize for one.
   if (!isCapacitorApp()) return false;
   return keyboardFreeHeight !== null && window.innerHeight < keyboardFreeHeight;
 };

@@ -115,6 +115,18 @@ user did ("move these chats into this folder"), so a client that is behind
 cannot undo anything it did not touch, and the server needs no merge rules
 for ordinary edits.
 
+### Why an older client's whole copy merges into the stored folders
+
+An older client sends its whole device map, and that map can predate the server's
+state: it may have been built before the client ever read the server, the tab has
+been open a long time, or its clock is wrong. A scope or folder missing from the
+copy is not a deletion, so the merge keeps the scopes the writer did not send,
+lets the incoming folder win per id, and keeps `updatedAt` monotonic. Two devices
+that auto-created the archive folder of one scope produce two ids with the same
+name, and their chats are unioned so they do not split across duplicates. A
+deletion travels as a tombstone, which removes that id from every scope even when
+a stale copy sends the folder again.
+
 ### Why a move carries where the chat was instead of an id the server remembers
 
 A client that timed out cannot tell whether the server stored its move, so it

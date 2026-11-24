@@ -145,26 +145,20 @@ const extractSessionStatusUpdate = (input: JsonValue | undefined) => {
 
 const readRequestId = <Value>(value: Value) => (isString(value) && value.trim() ? value.trim() : '');
 
-/** Sessions whose latest context reading the host keeps; the oldest goes first. */
 const CONTEXT_READINGS_MAX = 2000;
 
-const finiteCount = (value) => (typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : 0);
+const finiteCount = <Value>(value: Value) => (isNumber(value) && Number.isFinite(value) && value > 0 ? value : 0);
 
-/**
- * Tokens the context window held after a step: the step's reported total of
- * its final round-trip, else the sum of its breakdown. Mirrors
- * `contextTokensFromBreakdown` in the shared UI.
- */
-const contextTokensOf = (tokens) => {
-  if (!tokens || typeof tokens !== 'object') return 0;
+const contextTokensOf = <Value>(tokens: Value) => {
+  if (!isEventObject(tokens)) return 0;
   const total = finiteCount(tokens.total);
   if (total > 0) return total;
-  const cache = tokens.cache && typeof tokens.cache === 'object' ? tokens.cache : {};
+  const cache = isEventObject(tokens.cache) ? tokens.cache : {};
   return finiteCount(tokens.input) + finiteCount(tokens.output) + finiteCount(tokens.reasoning)
     + finiteCount(cache.read) + finiteCount(cache.write);
 };
 
-export const createSessionRuntime = ({
+export const createSessionRuntime = <Client>({
   writeSseEvent,
   getNotificationClients,
   broadcastEvent,
@@ -172,46 +166,30 @@ export const createSessionRuntime = ({
   buildOpenCodeUrl,
   getOpenCodeAuthHeaders,
   fetchImpl = fetch,
-}) => {
-  const sessionActivityPhases = new Map();
-  const sessionActivityCooldowns = new Map();
-  const sessionStates = new Map();
-  // When each session's latest turn began (OpenCode's clock), so every client
-  // counts "Active for" from the same moment instead of from when it first
-  // looked. Set from `session.execution.started`; a turn this server joined
-  // already running is read back from the session's history (`readTurnStart`).
-  // The start outlives its turn with `running: false`: a parent idling while a
-  // background subagent works is still in that turn for display, and clients
-  // ask for it then. A start that is not running is never reported as the
-  // start of a busy session.
-  const turnStarts = new Map();
-  // One history read per session per turn; the token tells a read that
-  // outlived its turn from the current one.
-  const turnStartReads = new Map();
-  const restartResumeTimers = new Map();
-  // Survives managed OpenCode restarts. Only a new user message renews the budget.
-  const restartResumes = new Map();
-  const latestUserMessages = new Map();
-  // What each session's context window held after its latest step, or that
-  // it was compacted since, for clients that start after it.
-  const contextReadings = new Map();
-  const recordContext = (sessionId, reading) => {
+}: SessionRuntimeDependencies<Client>) => {
+  const sessionActivityPhases = new Map<string, { phase: ActivityPhase; updatedAt: number }>();
+  const sessionActivityCooldowns = new Map<string, ReturnType<typeof setTimeout>>();
+  const sessionStates = new Map<string, SessionState>();
+  const turnStarts = new Map<string, { startedAt: number; running: boolean }>();
+  const turnStartReads = new Map<string, object>();
+  const restartResumeTimers = new Map<string, ResumeCheck>();
+  const restartResumes = new Map<string, Resume>();
+  const latestUserMessages = new Map<string, string>();
+  const contextReadings = new Map<string, SessionContextReading>();
+  const recordContext = (sessionId: string, reading: SessionContextReading) => {
     contextReadings.delete(sessionId);
     contextReadings.set(sessionId, reading);
-    if (contextReadings.size > CONTEXT_READINGS_MAX) contextReadings.delete(contextReadings.keys().next().value);
+    if (contextReadings.size > CONTEXT_READINGS_MAX) {
+      const oldest = contextReadings.keys().next().value;
+      if (oldest !== undefined) contextReadings.delete(oldest);
+    }
   };
-  const isolatedSessionIds = new Set();
-  // Pending permission requests and forms per session, kept from the same
-  // upstream stream. Clients that do not initialize a directory cannot read
-  // its pending list from OpenCode (that read creates a location), so this map
-  // is their seed. Entries live until the matching reply, the session's
-  // deletion, or an OpenCode restart, which drops every pending request. A
-  // permission also ends with its turn: OpenCode drops the request of a stopped
-  // turn without announcing it.
-  // Pages an agent shows that wait for the user's answer sit beside them; they
-  // come from this server's own render.page calls, not from OpenCode, and
-  // leave when the call stops waiting or the turn ends (`trackWaitingPage`).
-  const pendingRequestsBySession = new Map();
+  const isolatedSessionIds = new Set<string>();
+  const pendingRequestsBySession = new Map<string, {
+    permissions: Map<string, EventFields>;
+    forms: Map<string, EventFields>;
+    pages: Map<string, { id: string; sessionID: string; title: string }>;
+  }>();
   let activeSessionCount = 0;
 
   const getOrCreatePendingRequests = (sessionId: string) => {
@@ -406,7 +384,6 @@ export const createSessionRuntime = ({
     const existing = sessionStates.get(sessionId);
     const isRestartInterruption = metadata.reason === 'opencode-restart';
     if (existing && existing.lastUpdateAt > now - 5000 && status === existing.status && !isRestartInterruption) {
-      // A repeat the dedupe swallows still proves the status is current now.
       existing.lastEventAt = now;
       return;
     }
@@ -624,13 +601,15 @@ export const createSessionRuntime = ({
 
   const cleanupInterval = setInterval(cleanupOldSessionStates, SESSION_STATE_CLEANUP_INTERVAL_MS);
 
-  const processOpenCodeSsePayload = (payload, { spaceId = null } = {}) => {
-    processBlockingRequestPayload(payload);
+  const processOpenCodeSsePayload = (input: JsonValue | undefined, { spaceId = null }: { spaceId?: string | null } = {}) => {
+    const payload = eventFields(input);
+    const properties = eventFields(payload?.properties);
+    processBlockingRequestPayload(input);
     if (payload?.type === 'session.compacted') {
-      const sessionId = readRequestId(payload.properties?.sessionID);
+      const sessionId = readRequestId(properties?.sessionID);
       if (sessionId) recordContext(sessionId, { state: 'compacted' });
     } else if (payload?.type === 'session.deleted') {
-      const sessionId = readRequestId(payload.properties?.sessionID);
+      const sessionId = readRequestId(properties?.sessionID);
       if (sessionId) contextReadings.delete(sessionId);
     }
     if (payload?.type === 'message.updated') {
@@ -672,22 +651,10 @@ export const createSessionRuntime = ({
     }
   };
 
-  /**
-   * Sessions OpenCode reports running when this server connects to its event
-   * stream, as read from `readAt` on. Turns that started before then sent no
-   * event this server saw, so they are marked busy here and their starts are
-   * read back from history. A host session this map holds busy that the list
-   * leaves out ended its turn while the stream was down, and settles idle:
-   * clients seed rows from this map, so a missed idle would show the session
-   * running on every client that starts within the seed's age limit. A
-   * session that reported a status while the list was read is left to that
-   * newer status, and sessions of isolated spaces, which the host's list
-   * never names, are left alone.
-   */
-  const adoptRunningSessions = (sessionIds, readAt) => {
-    const running = new Set();
+  const adoptRunningSessions = (sessionIds: string[], readAt: number) => {
+    const running = new Set<string>();
     for (const sessionId of sessionIds) {
-      if (!sessionId || typeof sessionId !== 'string') continue;
+      if (!sessionId) continue;
       running.add(sessionId);
       if ((sessionStates.get(sessionId)?.lastEventAt ?? 0) >= readAt) continue;
       const status = sessionStates.get(sessionId)?.status;

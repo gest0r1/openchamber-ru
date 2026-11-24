@@ -135,8 +135,8 @@ export const createFsSearchRuntime = ({ fsPromises, path, spawn, resolveGitBinar
     ? fsPromises.readdir(directory, { withFileTypes: true })
     : listDirectoryEntries(directory, fsPromises);
 
-  const readIgnoredPaths = async (directory, names, signal) => {
-    if ((!workspaceSearch && names.length === 0) || signal?.aborted) return new Set();
+  const readIgnoredPaths = async (directory: string, names: string[], signal: AbortSignal | undefined) => {
+    if ((!workspaceSearch && names.length === 0) || signal?.aborted) return new Set<string>();
     try {
       const result = await new Promise<string>((resolve) => {
         const args = workspaceSearch
@@ -162,6 +162,7 @@ export const createFsSearchRuntime = ({ fsPromises, path, spawn, resolveGitBinar
           try {
             child.kill('SIGKILL');
           } catch {
+            void 0;
           }
           finish('');
         };
@@ -188,7 +189,7 @@ export const createFsSearchRuntime = ({ fsPromises, path, spawn, resolveGitBinar
     }
   };
 
-  const searchFilesystemFiles = async (rootPath, options) => {
+  const searchFilesystemFiles = async (rootPath: string, options: FileSearchOptions): Promise<FilesystemFile[]> => {
     const { limit, query, includeHidden, respectGitignore, signal } = options;
     const includeHiddenEntries = Boolean(includeHidden);
     const normalizedQuery = query.trim().toLowerCase();
@@ -220,6 +221,7 @@ export const createFsSearchRuntime = ({ fsPromises, path, spawn, resolveGitBinar
         const ignoredPaths = !shouldRespectGitignore ? new Set<string>() : workspaceSearch
           ? await ignoredByRoot.get(gitRoot)
           : await readIgnoredPaths(dir, dirents.map((entry) => entry.name).filter(Boolean), signal);
+        if (!ignoredPaths) throw new Error('Git ignore read is missing');
         return { dir, gitRoot, dirents, ignoredPaths };
       }));
 
@@ -290,7 +292,6 @@ export const createFsSearchRuntime = ({ fsPromises, path, spawn, resolveGitBinar
       }
     }
 
-    // A stopped Git read filtered nothing, so this answer must not reach anyone.
     signal?.throwIfAborted();
     if (deadline && Date.now() > deadline) {
       throw new Error('File search exceeded its time limit');

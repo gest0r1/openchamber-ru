@@ -81,7 +81,6 @@ const gitFileVersionsSchema = z.object({ original: z.string(), modified: z.strin
 const gitRangeDiffSchema = z.object({ diff: z.string() });
 const gitRangeFilesSchema = z.object({ files: z.array(z.object({ path: z.string(), status: z.string(), previousPath: z.string().optional(), revision: z.string().optional() })) });
 const gitRangeErrorSchema = z.object({ error: z.string() });
-// `/api/git/status` when Git could not tell whether the directory is a repository.
 const gitRepositoryUnreadableBodySchema = z.object({ error: z.string(), code: z.literal(GIT_REPOSITORY_UNREADABLE) });
 const gitCommitFilesSchema = z.object({ files: z.array(z.object({
   path: z.string(), previousPath: z.string().optional(), changeType: z.string(),
@@ -826,7 +825,6 @@ type ProjectOverviewResponse = {
   worktrees?: GitWorktreeInfo[] | null;
   errors?: string[];
   error?: string;
-  /** `GIT_REPOSITORY_UNREADABLE` when Git could not answer for the directory. */
   code?: string;
 };
 
@@ -1043,17 +1041,17 @@ export async function getGitStatus(directory: string, options?: { mode?: 'light'
 
   const task = (async () => {
     const cacheVersion = getStatusCacheVersion(runtimeKey, directory);
-    // Status keeps its own route: light reads pass `mode`, forced reads bypass
-    // the cache, and one directory never waits on another's status. A project
-    // list warms this cache through `prefetchProjectStatuses` instead.
-    const response = await runtimeFetch(buildUrl(`${API_BASE}/status`, directory, mode ? { mode } : undefined));
-    if (!response.ok) {
-      const unreadable = gitRepositoryUnreadableBodySchema.safeParse(await response.json().catch(() => null));
-      if (unreadable.success) throw new GitRepositoryUnreadableError(unreadable.data.error);
-      throw new Error(`Failed to get git status: ${response.statusText}`);
-    }
-    // SAFETY: `/api/git/status` is this app's own route; its body is a GitStatus.
-    const payload = await response.json() as GitStatus;
+    const result = await readGitStatus(directory, mode, async (signal) => {
+      const response = await runtimeFetch(buildUrl(`${API_BASE}/status`, directory, mode ? { mode } : undefined), { signal });
+      if (!response.ok) {
+        const unreadable = gitRepositoryUnreadableBodySchema.safeParse(await response.json().catch(() => null));
+        if (unreadable.success) throw new GitRepositoryUnreadableError(unreadable.data.error);
+        throw new Error(`Failed to get git status: ${response.statusText}`);
+      }
+      // SAFETY: `/api/git/status` is this app's own route; its body is a GitStatus.
+      return await response.json() as GitStatus;
+    });
+    const payload = result.status;
     if (getStatusCacheVersion(runtimeKey, directory) === cacheVersion) {
       if (result.isGitRepository !== undefined) gitRepoCache.set(getDirectoryCacheKey(runtimeKey, directory), {
         value: result.isGitRepository,
@@ -1643,7 +1641,6 @@ export async function deleteGitWorktree(directory: string, payload: RemoveGitWor
   return response.json();
 }
 
-/** Runs the worktree's teardown commands and keeps it. */
 export async function teardownGitWorktree(directory: string, payload: TeardownGitWorktreePayload): Promise<{ success: boolean }> {
   const response = await runtimeFetch(buildUrl(`${API_BASE}/worktrees/teardown`, directory), {
     method: 'POST',
@@ -1654,7 +1651,6 @@ export async function teardownGitWorktree(directory: string, payload: TeardownGi
   return response.json();
 }
 
-// A failed teardown carries its code, so the delete can offer to go on without it.
 const throwWorktreeTeardownAwareError = async (response: Response, fallback: string): Promise<never> => {
   const body = z.object({ error: z.string().optional(), code: z.string().optional() }).catch({})
     .parse(await response.json().catch(() => null));

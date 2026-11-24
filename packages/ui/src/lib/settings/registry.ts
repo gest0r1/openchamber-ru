@@ -243,12 +243,12 @@ export const SETTINGS_REGISTRY = {
   agentNotifyToolEnabled: field({ scope: 'instance', parse: parseBoolean, ui: uiStore('agentNotifyToolEnabled', (v) => useUIStore.getState().setAgentNotifyToolEnabled(v)) }),
   agentRenderToolEnabled: field({ scope: 'instance', parse: parseBoolean, ui: uiStore('agentRenderToolEnabled', (v) => useUIStore.getState().setAgentRenderToolEnabled(v)) }),
   agentUsageToolEnabled: field({ scope: 'instance', parse: parseBoolean, ui: uiStore('agentUsageToolEnabled', (v) => useUIStore.getState().setAgentUsageToolEnabled(v)) }),
+  agentTerminalToolEnabled: field({ scope: 'instance', parse: parseBoolean, ui: uiStore('agentTerminalToolEnabled', (v) => useUIStore.getState().setAgentTerminalToolEnabled(v)) }),
   agentImageToolEnabled: field({ scope: 'instance', parse: parseBoolean, ui: uiStore('agentImageToolEnabled', (v) => useUIStore.getState().setAgentImageToolEnabled(v)) }),
   agentImageModel: field({ scope: 'instance', parse: parseNonEmptyString, ui: uiStore('agentImageModel', (v) => useUIStore.getState().setAgentImageModel(v)) }),
   agentSecretToolEnabled: field({ scope: 'instance', parse: parseBoolean, ui: uiStore('agentSecretToolEnabled', (v) => useUIStore.getState().setAgentSecretToolEnabled(v)) }),
   agentMemoryToolEnabled: field({ scope: 'instance', parse: parseBoolean, ui: uiStore('agentMemoryToolEnabled', (v) => useUIStore.getState().setAgentMemoryToolEnabled(v)) }),
   agentMemoryDreamingEnabled: field({ scope: 'instance', parse: parseBoolean, ui: uiStore('agentMemoryDreamingEnabled', (v) => useUIStore.getState().setAgentMemoryDreamingEnabled(v)) }),
-  // `provider/model` dreaming runs on; empty means the default model, so empty is a value here.
   agentMemoryDreamingModel: field({ scope: 'instance', parse: fromSchema(z.string()), ui: uiStore('agentMemoryDreamingModel', (v) => useUIStore.getState().setAgentMemoryDreamingModel(v)) }),
   agentMemoryDreamingVariant: field({ scope: 'instance', parse: fromSchema(z.string()), ui: uiStore('agentMemoryDreamingVariant', (v) => useUIStore.getState().setAgentMemoryDreamingVariant(v)) }),
   agentKnowledgeToolEnabled: field({ scope: 'instance', parse: parseBoolean, ui: uiStore('agentKnowledgeToolEnabled', (v) => useUIStore.getState().setAgentKnowledgeToolEnabled(v)) }),
@@ -326,6 +326,7 @@ export const SETTINGS_REGISTRY = {
   sidebarGrouping: field({ scope: 'profile', perSurface: true, parse: parseOneOf(['project', 'time']), ui: sessionDisplayField('sidebarGrouping') }),
   sidebarKeepWorkInPlace: field({ scope: 'profile', perSurface: true, parse: parseBoolean, ui: sessionDisplayField('keepWorkInPlace') }),
   sidebarKeepPinnedInPlace: field({ scope: 'profile', perSurface: true, parse: parseBoolean, ui: sessionDisplayField('keepPinnedInPlace') }),
+  sidebarSessionBatchSize: field({ scope: 'profile', parse: parseIntegerInRange(SIDEBAR_SESSION_BATCH_MIN, SIDEBAR_SESSION_BATCH_MAX), ui: sessionDisplayField('sessionBatchSize') }),
   sidebarProjectSortOrder: field({ scope: 'profile', parse: parseOneOf(['manual', 'a-z', 'z-a', 'date-added', 'recent']), ui: sessionDisplayField('projectSortOrder') }),
   sidebarShowChatsSection: field({ scope: 'profile', perSurface: true, parse: parseBoolean, ui: sessionDisplayField('showChatsSection') }),
   sidebarShowWorkSection: field({ scope: 'profile', perSurface: true, parse: parseBoolean, ui: sessionDisplayField('showWorkSection') }),
@@ -339,7 +340,6 @@ export const SETTINGS_REGISTRY = {
   workStatusSectionOrder: field({
     scope: 'profile',
     parse: mapParser(parseStringList, sanitizeWorkStatusSectionOrder),
-    // The explicit marker tells an order the user arranged from a saved default.
     ui: uiStore('workStatusSectionOrder', (value, snapshot) => {
       const explicit = snapshot.workStatusSectionOrderExplicit === true;
       useUIStore.setState({
@@ -351,7 +351,6 @@ export const SETTINGS_REGISTRY = {
   workStatusSectionOrderExplicit: field({
     scope: 'profile',
     parse: parseBoolean,
-    // Applied here too: the order above is skipped when it equals the local one.
     ui: uiStore('workStatusSectionOrderExplicit', (value) => useUIStore.setState({ workStatusSectionOrderExplicit: value })),
   }),
   workStatusPanelEnabled: field({ scope: 'profile', parse: parseBoolean, ui: uiStore('workStatusPanelEnabled', (v) => useUIStore.getState().setWorkStatusPanelEnabled(v)) }),
@@ -511,7 +510,6 @@ export const SETTINGS_REGISTRY = {
   hiddenModels: field<ModelRef[]>({ scope: 'profile', parse: parseModelRefs(1024), ui: uiStore('hiddenModels', setUi('hiddenModels'), { autoSave: false }) }),
   collapsedModelProviders: field({ scope: 'profile', parse: parseStringSet, ui: uiStore('collapsedModelProviders', setUi('collapsedModelProviders'), { autoSave: false }) }),
   customProviderIcons: field({ scope: 'profile', parse: parseCustomProviderIcons, ui: uiStore('customProviderIcons', setUi('customProviderIcons'), { autoSave: false }) }),
-  // Written by the server's provider logo routes along with the image file.
   customProviderLogos: field({ scope: 'profile', parse: parseCustomProviderLogos, ui: uiStore('customProviderLogos', setUi('customProviderLogos'), { autoSave: false }) }),
   recentModels: field<ModelRef[]>({ scope: 'profile', parse: parseModelRefs(16), ui: uiStore('recentModels', setUi('recentModels'), { autoSave: false }) }),
   lastSelectedModel: field({ scope: 'profile', parse: parseNonEmptyString, ui: uiStore('lastSelectedModel', setUi('lastSelectedModel')) }),

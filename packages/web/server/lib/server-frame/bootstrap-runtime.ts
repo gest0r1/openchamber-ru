@@ -1,6 +1,21 @@
+import { registerOwnerCheckpointRoutes } from '../owner-checkpoint-routes.js';
 import { registerNotificationEmitRoutes } from '../notifications/emit-route.js';
 import { registerHttpResponseDiagnostics } from './core-routes.js';
-import { registerOwnerCheckpointRoutes } from '../owner-checkpoint-routes.js';
+import type {
+  AuthAndAccessDependencies,
+  CommonRequestDependencies,
+  ServerStatusDependencies,
+  registerAuthAndAccessRoutes,
+  registerCommonRequestMiddleware,
+  registerServerStatusRoutes,
+} from './core-routes.js';
+import type { Application, ExpressFactory } from '../shared/http-contracts.js';
+import type { createAgentToolRuntime } from '../agent-tool/runtime.js';
+import type { createLimitFailoverRuntime } from '../limit-failover/runtime.js';
+import type { registerNotificationRoutes } from '../notifications/routes.js';
+import type { OpenChamberRouteDependencies, registerOpenChamberRoutes } from '../self-update/openchamber-routes.js';
+import type { SayTtsCapability } from '../tts/capability-runtime.js';
+import type { createUiAuth } from '../ui-auth/ui-auth.js';
 
 type AgentTool = Pick<ReturnType<typeof createAgentToolRuntime>, 'authorizeRequest' | 'registerRoutes'>;
 type Notifications = Parameters<typeof registerNotificationRoutes>[1];
@@ -170,10 +185,8 @@ export const createBootstrapRuntime = (dependencies: BootstrapDependencies) => {
       normalizeTunnelSessionTtlMs,
     });
 
-    // Only the root UI with an authenticated human session can decide owner checkpoints.
-    registerOwnerCheckpointRoutes(app, { express, uiAuthController, processObject: process });
-
-    notificationEmitRoutes.registerApiRoute();
+    registerOwnerCheckpointRoutes(app, { express, uiAuthController });
+    notificationEmitRoutes.registerApiRoute(requireApiAuth);
 
     registerTtsRoutes(app, { sayTTSCapability });
 

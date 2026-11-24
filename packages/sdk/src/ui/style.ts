@@ -93,19 +93,8 @@ const tone = (name: 'success' | 'warning' | 'error' | 'info'): string => {
 .oc-sdk[data-tone="${name}"], .oc-sdk [data-tone="${name}"] { --oc-sdk-tone: ${color}; --oc-sdk-tone-text: ${v(`${name}-text`, 'inherit')}; }`;
 };
 
-/**
- * A kit length that is `px` pixels at the app's default interface size. The
- * frame's `1rem` is the app's body text (`applyHostTheme`), 14px by default,
- * so the length grows with the user's interface font size like the app's
- * own. Borders and hairlines stay in pixels, like the app's.
- */
 export const len = (px: number): string => `calc(${px}rem / 14)`;
 
-/**
- * Geometry: display, sizes, spacing, type scale, positioning. It ships inside
- * each extension's bundle and changes only when the author rebuilds, so a
- * layout built around these sizes never shifts under an installed extension.
- */
 const UI_SIZE_CSS = `
 .oc-sdk { box-sizing: border-box; font-size: 0.875rem; line-height: 1.45; }
 .oc-sdk *, .oc-sdk *::before, .oc-sdk *::after { box-sizing: border-box; }

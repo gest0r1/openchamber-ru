@@ -215,17 +215,7 @@ const parseAuxiliaryGrants = (value: JsonValue | undefined) => {
   if (new Set(keys).size !== keys.length) throw planError('auxiliary grants must be unique');
   return grants;
 };
-/**
- * Whether Git may receive this endpoint: HTTPS, `ssh://`, or strict SCP.
- * An SSH URL may name its login user, as SCP does. An HTTP(S) URL may name one
- * only with `httpsName`, set where the person's own Git authenticates (System
- * transport): there the name picks the stored credential, as the organization
- * in an Azure DevOps URL does. A password never passes. Clone and every
- * existing-remote transfer share this rule. With `providers`, plain HTTP
- * passes for a loopback host when a provider allows loopback HTTP instances
- * (`loopback-http.js`); never for any other host.
- */
-const isSafeTransferEndpoint = (value, providers = null, { httpsName = false } = {}) => {
+const isSafeTransferEndpoint = (value: string, providers: typeof sourceControlProviderDescriptors | null = null, { httpsName = false } = {}) => {
   if (value.length > 4096) return false;
   if (!value.includes('://')) {
     const match = value.match(/^(?:[A-Za-z0-9._-]+@)?[A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?:([^\s:\\]+)$/);
@@ -248,27 +238,8 @@ const isSafeTransferEndpoint = (value, providers = null, { httpsName = false } =
     && !/[\0-\x20\x7f\\]/.test(pathname)
     && pathname.split('/').slice(1).every((part) => part && part !== '.' && part !== '..');
 };
-const assertSafeExistingEndpoint = (endpoint, providers = null, options = undefined) => {
+const assertSafeExistingEndpoint = (endpoint: JsonValue | undefined, providers: typeof sourceControlProviderDescriptors | null = null, options: { httpsName: boolean } | undefined = undefined) => {
   if (!isSafeTransferEndpoint(requiredString(endpoint, 'Git endpoint'), providers, options)) throw planError('Git endpoint is invalid');
-};
-// A repository remote refused only for its userinfo gets its own code, so the
-// client can say what to remove. The message never repeats the userinfo: it may be a token.
-// `transportMode` is the repository's authoritative one, not the request's.
-const assertSafeRemoteEndpoint = (endpoint, providers, transportMode) => {
-  try {
-    assertSafeExistingEndpoint(endpoint, providers, { httpsName: transportMode === 'system' });
-  } catch (error) {
-    let parsed = null;
-    try { parsed = new URL(endpoint); } catch { /* not a URL form */ }
-    if (parsed && parsed.protocol !== 'ssh:' && (parsed.username || parsed.password)) {
-      parsed.username = '';
-      parsed.password = '';
-      if (isSafeTransferEndpoint(parsed.href, providers)) {
-        throw planError('Git remote URL has a name before @', 400, 'INVALID_GIT_REMOTE_USERINFO');
-      }
-    }
-    throw error;
-  }
 };
 const assertSafeRemoteEndpoint = (endpoint: string, providers: typeof sourceControlProviderDescriptors, transportMode: TransportMode) => {
   try {
@@ -362,7 +333,7 @@ const parseRemoteFetchMapping = (remoteName: string, output: string) => {
   }
   return { refspec: output.slice(0, -1), force: output.startsWith('+') };
 };
-const parseCloneEndpoint = (value, providers, transportMode) => {
+const parseCloneEndpoint = (value: JsonValue | undefined, providers: typeof sourceControlProviderDescriptors, transportMode: TransportMode) => {
   const endpoint = requiredString(value, 'remoteUrl');
   if (!isSafeTransferEndpoint(endpoint, providers, { httpsName: transportMode === 'system' })) throw planError('remoteUrl is invalid');
   return endpoint;
@@ -817,8 +788,8 @@ export function createNetworkOperationPlanner({
     )) throw planError('Git clone input is invalid');
     const transportMode = parseTransportMode(input.transportMode);
     const endpoint = parseCloneEndpoint(input.remoteUrl, sourceControlProviders, transportMode);
-    const dotGitOrigins = [];
-    const noteDotGitInstance = (provider, instance) => {
+    const dotGitOrigins: URL[] = [];
+    const noteDotGitInstance = (provider: string, instance: string) => {
       const descriptor = sourceControlProviders.get(provider);
       if (descriptor?.transport.appendDotGitToHttpsClone) dotGitOrigins.push(descriptor.instance.origin(instance));
     };
@@ -886,7 +857,6 @@ export function createNetworkOperationPlanner({
     );
     if (await pathExists(destination, fsImpl)) throw planError('Clone destination already exists');
     if (await pathExists(temporaryDirectory, fsImpl)) throw planError('Clone temporary directory already exists');
-    // The provider account is matched by host; the name a System clone URL may carry is no part of that.
     const providerAccount = parseCloneProviderAccount(input.providerAccount, normalizeGitRemoteEndpoint(redactRemoteUrl(endpoint)), sourceControlProviders);
     if (providerAccount) noteDotGitInstance(providerAccount.provider, providerAccount.instance);
     const transferEndpoint = dotGitCloneEndpoint(endpoint, dotGitOrigins);

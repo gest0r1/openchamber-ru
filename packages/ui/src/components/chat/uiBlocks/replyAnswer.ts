@@ -26,17 +26,12 @@ const inputIdFor = (runtimeKey: string, target: ReplyBlock): string => stableRep
   () => ascendingId('msg'),
 );
 
-/**
- * Hands the agent the choices made in a block of its reply. They travel as
- * synthetic input that starts the agent's next turn, so the chat shows no
- * user message for them; the input's metadata records the answer for the block.
- */
 export async function sendUiBlockReplyAnswer(target: ReplyBlock, answer: UiBlockReplyAnswerData, text: string): Promise<void> {
   const runtimeKey = getRuntimeKey();
   await commitStagedRevert(target.sessionId, target.directory);
   await opencodeClient.resumeWithSyntheticInput({
     runtimeKey,
-    id: inputIdFor(target),
+    id: inputIdFor(runtimeKey, target),
     sessionId: target.sessionId,
     directory: target.directory,
     text,

@@ -33,14 +33,7 @@ const serviceModules = async (root: string, folder: string, fs: typeof import('n
   return found;
 };
 
-/**
- * What the host loads from a package: the manifest, the panel icon, the
- * provider logos, each page with the scripts, links, and images it loads, and
- * the service's scripts. Read from the manifest itself, so a package that does not load yet
- * still names the files its build will write. Anything else a service writes
- * beside them does not count.
- */
-const loadedFiles = async (root, fs) => {
+const loadedFiles = async (root: string, fs: typeof import('node:fs/promises')) => {
   const files = ['package.json'];
   const raw = await fs.readFile(path.join(root, 'package.json'), 'utf8').catch(() => null);
   const parsed = raw === null ? null : parseManifestJson(raw);

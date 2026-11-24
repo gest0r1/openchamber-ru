@@ -18,6 +18,7 @@ export interface StartupDependencies {
 
 type StartupResult = ReturnType<typeof getStartupStatus> & {
   action: string;
+  startDeferred?: boolean;
   messages?: { level: string; code: string; message: string }[];
 };
 
@@ -53,7 +54,7 @@ async function startupCommand(options: Partial<CliOptions>, action: string | nul
       EXIT_CODE.USAGE_ERROR
     );
   }
-  if (normalized === 'enable' && result.activeState === 'failed') {
+  if (normalized === 'enable' && !result.startDeferred && result.activeState === 'failed') {
     throw new TunnelCliError(
       'Startup service was installed but failed to start. Run `journalctl --user -u openchamber.service -n 80 --no-pager` for details.',
       EXIT_CODE.GENERAL_ERROR

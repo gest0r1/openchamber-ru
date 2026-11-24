@@ -27,9 +27,6 @@ export const hostSessionStatusSnapshotSchema = z.object({
     forms: z.array(hostFormRequestSchema),
     pages: z.array(hostPageRequestSchema).optional().default([]),
   })).optional(),
-  // What each session's context window held after its latest step, or that it
-  // was compacted since (the size is unknown then). Hosts predating the field,
-  // and the VS Code shim, omit it.
   context: z.record(z.string().min(1), z.discriminatedUnion("state", [
     z.object({ state: z.literal("measured"), tokens: z.number().positive() }),
     z.object({ state: z.literal("compacted") }),

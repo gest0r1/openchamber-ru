@@ -281,6 +281,78 @@ session proposed. `workflow.save` writes a script to
 
 ## Decisions
 
+### Why stored values retain their schema-inferred types
+
+`WorkflowRun` and `WorkflowAgent` come from the store's Zod schemas. Their
+`args`, `schema` and `result` fields remain unchecked values. Reading a run
+does not establish a JSON Schema contract for its result, and saving preserves
+the existing mutable-reference and snapshot behavior without adding validation.
+`WorkflowRunStore.version` retains the literal file version accepted by that
+schema.
+
+### Why runtime contracts keep unchecked fields
+
+`contracts.ts` names the runtime's injected services and execution state.
+Its schema view exposes only an unchecked `type` field; accepting a plain
+object does not validate JSON Schema keywords or the eventual answer.
+Agent options, submitted answers, arguments and stored results retain their
+producer's checked types until the existing checks narrow them.
+
+String arguments keep native string coercion before the JSON-looking test and
+JSON parsing, including boxed strings. Refunding an agent uses numeric
+conversion, preserving subtraction's behavior if the optional count is absent.
+Rollback removes newly added own fields from the store's mutable plain objects.
+
+### Why script text uses a structural contract
+
+The shared `isString` check accepts boxed strings as well as primitive strings.
+`WorkflowText` describes the text operations the parser uses, so typing the
+parser preserves that acceptance rule. Metadata still crosses the vm boundary
+through JSON and keeps its existing plain-object, field and phase checks.
+
+### Why the worker message types follow the embedded producer
+
+The worker source stays JavaScript inside its evaluated string. `WorkerMessage`
+describes only messages that source emits to its private parent port. Agent
+options and results remain unchecked, while prompts, phase titles and log lines
+follow the worker's existing checks and string conversions. Checks inside the
+embedded source remain necessary because workflow scripts are untyped.
+
+### Why the workflow client accepts an explicitly undefined variant
+
+`agent-session.ts` passes the schema-inferred parent model directly to
+`@opencode/client`. The schema permits `variant: undefined`. The SDK's
+`SessionCreateInput.model.variant` declaration excludes explicit undefined,
+but its implementation passes the model into `JSON.stringify`, which omits
+that property without validating or transforming the model first.
+`opencode-client.d.ts` declares that dependency boundary locally and keeps the
+SDK's remaining request fields and response types. A mutable mapped type
+permits the existing incremental request construction without changing the
+SDK's readonly contract elsewhere. The parent model is never rewritten to
+satisfy the declaration.
+
+### Why schema keys still use native coercion
+
+Entries in `type` and `required` are unchecked. `Object.fromEntries` supplies
+native property-key coercion for entries that are not already keys. Type
+lookups still see inherited members and bind the dictionary as the receiver.
+A missing entry does not match; a non-callable entry such as `__proto__`
+still throws a `TypeError`.
+
+`../opencode/session-activity.d.ts` supplies the activity probe's optional
+signal and leaves active-status values unchecked. `agent-session.ts` keeps its
+existing omitted-signal call.
+
+### Why route inputs retain their parsed optional fields
+
+`routes.ts` uses the application contract from `../shared/http-contracts.js`
+and the runtime's inferred methods. Required path parameters follow the matched
+Express paths; body and query fields pass through the existing Zod schemas.
+The action guard keeps the existing set-membership check before indexing the
+runtime. `startSaved` accepts explicit undefined for `scriptDirectory` and
+`sessionId`, because its route schema permits those values and passes them
+through unchanged.
+
 ### Why working references and call-time snapshots have separate contracts
 
 Execution closures, replay and report cancellation share run and report object

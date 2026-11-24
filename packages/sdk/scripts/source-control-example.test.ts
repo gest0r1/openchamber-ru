@@ -7,7 +7,9 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { startExampleService } from './fixtures/example-service';
-import { FAKE_FORGE_FORK, FAKE_FORGE_STRANGER, startFakeForge, type FakeForge } from '../examples/source-control-provider/fake-forge';
+import { FAKE_FORGE_FORK, FAKE_FORGE_OWNER, FAKE_FORGE_REPO, FAKE_FORGE_STRANGER, startFakeForge, type FakeForge } from '../examples/source-control-provider/fake-forge';
+import { readReferences } from '../examples/source-control-provider/service/references';
+import { readReviews } from '../examples/source-control-provider/service/reviewer-states';
 import { sourceControlProviderSchemasV1 as schemas } from '../src/service-provider-schemas';
 import {
   OPENCHAMBER_HOST_CALLBACK_URL,

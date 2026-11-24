@@ -187,11 +187,6 @@ export const runBoundRemoteBranchDelete = async ({
   runtimeKey = getRuntimeKey,
   sourceControl,
 }: {
-  /**
-   * Runs once the remote is known ready and before anything is planned; a
-   * throw stops the delete. A plan left unexecuted would block the
-   * repository's next network operation, so nothing is planned before it.
-   */
   beforePlan?: () => Promise<void>;
   branch: string;
   directory: string;

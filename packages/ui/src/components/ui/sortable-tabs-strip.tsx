@@ -27,6 +27,7 @@ import { Icon } from "@/components/icon/Icon";
 import { TooltipLabelWithShortcut } from '@/components/ui/action-toolbar';
 import { ContextMenu, ContextMenuContent, ContextMenuTrigger } from '@/components/ui/context-menu';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { scrollTabsWithWheel } from './tab-strip-wheel';
 
 export type SortableTabsStripItem = {
   id: string;
@@ -35,12 +36,9 @@ export type SortableTabsStripItem = {
   title?: string;
   closable?: boolean;
   closeLabel?: string;
-  /** The close action's shortcut as the shortcuts dialog writes it, shown in the close button's tooltip. */
   closeShortcut?: string;
-  /** A replaceable preview tab; its label is italic, as in VS Code. */
   preview?: boolean;
   labelFolder?: string;
-  /** A small mark after the label, such as a Settings "new" badge. */
   accessory?: React.ReactNode;
 };
 
@@ -88,7 +86,6 @@ const DRAG_OUT_SLACK_PX = 16;
 
 const PILL_SWITCH_ANIMATION_MS = 280;
 const PILL_NUDGE_PX = 4;
-/** The scrolling strip's edge fades: `w-8` on a pill track, `w-6` otherwise. */
 const EDGE_FADE_PILL_PX = 32;
 const EDGE_FADE_PX = 24;
 
@@ -366,16 +363,9 @@ export const SortableTabsStrip: React.FC<SortableTabsStripProps> = ({
         return;
       }
 
-      // Clear the edge fades too: scrolled only into view, a tab at the edge
-      // sits under a fade and reads as hidden. Both fades are as wide, so the
-      // physical rects work in either direction, and scrolling clamps at the
-      // strip's ends, where the fade is gone.
       const fade = usesActivePillIndicator ? EDGE_FADE_PILL_PX : EDGE_FADE_PX;
       const strip = element.getBoundingClientRect();
       const tab = target.getBoundingClientRect();
-      // A tab wider than the space between the fades (an uncapped file tab
-      // with its folder) cannot clear both; keep the plain nearest scroll,
-      // which leaves a partly visible one where it is.
       if (tab.width > strip.width - 2 * fade) {
         target.scrollIntoView({ block: 'nearest', inline: 'nearest' });
         updateOverflow();
@@ -384,7 +374,6 @@ export const SortableTabsStrip: React.FC<SortableTabsStripProps> = ({
       const overStart = tab.left - (strip.left + fade);
       const overEnd = tab.right - (strip.right - fade);
       const delta = overStart < 0 ? overStart : overEnd > 0 ? overEnd : 0;
-      // The first or last tab goes all the way, so no fade is left over the track's padding.
       const tabs = element.querySelectorAll('[data-sortable-tab-id]');
       const outermost = target === tabs[0] || target === tabs[tabs.length - 1];
       if (delta !== 0) element.scrollBy({ left: outermost ? Math.sign(delta) * element.scrollWidth : delta });
@@ -498,7 +487,6 @@ export const SortableTabsStrip: React.FC<SortableTabsStripProps> = ({
         {useUnderlineIndicator && pillRect ? (
           <div
             className={cn(
-              // The active tab is a selection, so its mark is neutral text colour; the accent stays with primary actions.
               // oxlint-disable-next-line openchamber/no-physical-sides -- positioned from offsetLeft, which is physical in either direction
               'pointer-events-none absolute left-0 -bottom-px z-10 h-[3px] rounded-t-[2px] bg-foreground',
               pillTransitionEnabled && 'underline-tabs__indicator--is-animated'
@@ -525,8 +513,6 @@ export const SortableTabsStrip: React.FC<SortableTabsStripProps> = ({
               <TooltipContent side="bottom" sideOffset={6}><TooltipLabelWithShortcut label={closeLabel} shortcut={item.closeShortcut} /></TooltipContent>
             </Tooltip>
           );
-          // Inside the tab button: the empty title keeps the tab's own native
-          // title from showing beside the tooltip.
           const closeInsideTab = withCloseTooltip(
             <span
               role="button"
@@ -545,8 +531,6 @@ export const SortableTabsStrip: React.FC<SortableTabsStripProps> = ({
               <Icon name="close" className="h-3.5 w-3.5" />
             </span>,
           );
-          // A scrolling pill row scrolls instead of squeezing its pills: a
-          // shrinking wrapper took the active pill's label down to nothing.
           const wrapperClassName = (isScrollable || useIntrinsicPillSizing)
             ? (useIntrinsicPillSizing ? 'shrink-0' : undefined)
             : usesActivePillIndicator

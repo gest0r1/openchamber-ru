@@ -140,13 +140,17 @@ A pushed notification is removed from the phones and browsers once its cause is 
 
 | Tag | Cleared when |
 |---|---|
-| `ready-<sessionId>`, `error-<sessionId>`, `goal-<sessionId>`, `review-<sessionId>` | the session's next turn starts (`session.status` busy with `turnStartedAt`, which only `session.execution.started` carries), or the session is viewed or sent a message from any OpenChamber client (`POST /api/sessions/:id/view`, `/message-sent`) |
+| `ready-<sessionId>`, `error-<sessionId>`, `goal-<sessionId>`, `review-<sessionId>`, `share-<sessionId>` | the session's next turn starts (`session.status` busy with `turnStartedAt`, which only `session.execution.started` carries), or the session is viewed or sent a message from any OpenChamber client (`POST /api/sessions/:id/view`, `/message-sent`) |
 | `question-<sessionId>` | the form it shows settles (`form.settled`) or the page it shows stops waiting (`openchamber:page-settled`), or as above |
 | `permission-<sessionId>` | the request it shows is replied to (`permission.replied`), or as above |
 
-Pull request notifications have no cause the server can see handled, and stay until dismissed.
+A `share-` tag survives the turn its own answer woke (`skipTurnStart`, see `notifyShareAnswer`). Pull request notifications have no cause the server can see handled, and stay until dismissed.
 
-The trigger runtime keeps the open tags (`openPushTags`: the session, the request a tag shows, whether it went to the phone apps, the id of its latest push) and the 20 most recently cleared ones, and saves both to `push-open-tags.json` in the data directory on every change, one write at a time, so a notification pushed before a restart is still cleared after it. One tag can show several requests in turn (two permissions of one session), so a reply clears the tag only when it answers the request the tag shows now. Clearing a tag also takes it out of the badge count, and the clearing push carries the new count.
+Opening a parent also clears the open tags of its descendants, including nested OpenCode subagents, workflow agents and operator children. Sending a message or starting a turn still clears only that session.
+
+`push-tags.ts` owns the open tags and the 20 most recently cleared ones. It serializes writes to `push-open-tags.json` so a notification can still be cleared after a restart. One tag can show several requests in turn, so a reply clears the tag only when it answers the request the tag shows now. A web-only replacement keeps the prior phone delivery ID until that banner is cleared or replaced. Clearing a phone banner also updates the badge count. The APNs runtime sends batches of at most 20 clearing entries.
+
+A parent view clears the delivery IDs it captured even if the open-tag limit evicts them while the server checks ancestry. A cleared ID can coexist with an open tag when that tag has a newer delivery. Later pushes for other tags repeat the cleared ID so a phone that missed the background clear can still dismiss the old banner.
 
 - **Nothing stale is sent.** A notification claims its tag before its text is prepared (`claimPushTag`), and a cause handled meanwhile takes the claim away, so the push is dropped: a form or page that settles inside the 500 ms debounce or while the session name is read, a permission replied to during the auto-accept lookup or later. A notification is also dropped when the session's notifications were cleared (`sessionClearedAt`) after its turn ended or its ask arrived.
 - **A late clearing never removes a newer notification.** Every push carries `nid` (in `data` for web push), a time-based id that rises with each push. A clearing names `tag@nid`, the newest push it covers, and the phone or browser keeps a notification under that tag whose `nid` is higher. A clearing push and a later visible push with the same tag can arrive in either order: background pushes and normal-priority FCM messages are delayed on their own schedule.
@@ -169,6 +173,10 @@ A push that shows no notification costs the subscription: Safari revokes it afte
 #### Why viewing a session clears its question and permission too
 
 The desktop already removes all of a session's notifications when it is viewed (`clearDesktopSessionNotifications`). The user has the request in front of them on that device, so the copy on the phone only duplicates it.
+
+#### Why a parent view starts from the open tags
+
+The server only needs the lineage of sessions with an open tag. It reads their parent links from the same OpenCode source, with a shared deadline, and leaves a tag alone if it cannot confirm the link. A space view needs ownership in the host's space session index. The view snapshots delivery IDs before reading lineage so it can dismiss the old banner without removing a newer push or a claim still preparing it.
 
 ### Extension notification channels (extension-channels.js, channel-accounts.js, channel-routes.js)
 
@@ -247,7 +255,7 @@ The relay has no route for it, and sends only ever start from this server's list
   - `removeApnsTokenFromAllSessions(deviceToken)`
   - `removeApnsDevicesOfSessions(sessionKeys, keep)`
   - `clearApnsNotifications({ tags, badge })` — removes the notifications with these tags from every registered device with a push that shows nothing; see *Clearing handled notifications*.
-  - `sendApnsToAllUiSessions(payload)` — `payload.sealed` (`{ title, body }`, optional) is what a phone with a push key opens; it is never sent in the clear. Signs + sends to all registered tokens (no UI-visibility gate; iOS suppresses the foreground banner). No-ops with a single warning when APNs is unconfigured. Drops tokens on `410` / `BadDeviceToken` / `Unregistered`. Relay sends run in parallel, each limited to 15 s and sent once more only when the request never left this machine, since the relay does not deduplicate (`APNS.md`, *When the relay cannot be reached*).
+  - `sendApnsToAllUiSessions(payload)` — `payload.sealed` (`{ title, body }`, optional) is what a phone with a push key opens; it is never sent in the clear. Adds `data.serverId` to the forwarded payload, the derived identity a tap uses to pick the instance that sent it. Signs + sends to all registered tokens (no UI-visibility gate; iOS suppresses the foreground banner). No-ops with a single warning when APNs is unconfigured. Drops tokens on `410` / `BadDeviceToken` / `Unregistered`. Relay sends run in parallel, each limited to 15 s and sent once more only when the request never left this machine, since the relay does not deduplicate (`APNS.md`, *When the relay cannot be reached*).
   - `resolveApnsConfig()`
 - Configuration (env first, then `settings.apnsConfig`): `OPENCHAMBER_APNS_KEY_ID`, `OPENCHAMBER_APNS_TEAM_ID`, `OPENCHAMBER_APNS_P8` (PEM contents; literal `\n` accepted) or `OPENCHAMBER_APNS_P8_PATH`, `OPENCHAMBER_APNS_BUNDLE_ID` (default `com.openchamber.app`), `OPENCHAMBER_APNS_ENVIRONMENT` (optional override forcing every send to `sandbox` or `production`; when unset, each token is delivered to the environment it registered with, defaulting to `production` for tokens without one).
 
@@ -510,3 +518,11 @@ The control stream retains its browser-control capability declaration, runtime
 switch cleanup, stale-source rejection, heartbeat, and reconnect-ready events.
 Electron uses its native notification path; VS Code does not subscribe to this
 server-only stream. Mobile shells retain their existing push behavior.
+
+### Telegram sender and completion checks
+
+The host reads the active sender from its private Telegram configuration. The legacy watcher and the installed Telegram SDK notifier share the delivery ledger. Cutover pauses delivery, waits for in-flight requests, verifies a settled checkpoint for every subscription, and then changes the sender. After an interrupted cutover the host restores legacy ownership. Ambiguous delivery records need an explicit retry from the UI.
+
+Completion needs authoritative OpenCode records for the session, descendants, shell activity, blocking input, goal state and pending dispatch. Missing reads keep completion pending. Approval for a Markdown attachment binds to its content hash and the calling session's checkout. The packaged host parses the five fork service methods itself because the published OpenChamber SDK delivers the upstream methods.
+
+The isolated-space dispatcher exposes the shell and pending-dispatch reads to this host verifier. The regular space session reader accepts session routes only.

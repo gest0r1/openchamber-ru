@@ -11,10 +11,6 @@ import { formatShortcutForDisplay, getEffectiveShortcutCombo } from '@/lib/short
 import { sessionEvents } from '@/lib/sessionEvents';
 import { useUIStore } from '@/stores/useUIStore';
 
-/**
- * Add project at the end of the caption over the projects. Always shown: it is
- * the way to the sidebar's first step, which a hover would hide.
- */
 const AddProjectButton: React.FC = () => {
   const { t } = useI18n();
   const shortcutOverrides = useUIStore((state) => state.shortcutOverrides);
@@ -48,7 +44,6 @@ export const SessionSidebarActivityHeader: React.FC<{
   activityKey: SessionSidebarActivityKey;
   label?: string;
   preview?: boolean;
-  /** The zone's list is still loading and has nothing to show yet. */
   loading?: boolean;
   collapsed: boolean;
   alwaysShowActions: boolean;
@@ -57,14 +52,11 @@ export const SessionSidebarActivityHeader: React.FC<{
 }> = ({ activityKey, label, preview = false, loading = false, collapsed, alwaysShowActions, onToggle, onNewChat }) => {
   const { t } = useI18n();
   const chats = activityKey === 'chats';
-  // The list by time is the Projects section, so it adds projects as its caption does.
   const timeline = activityKey === 'timeline';
-  // One header for every zone, so zones line up with the project headers.
   return <div className="relative group/chats -ms-2.5 -me-2">
     <button
       type="button"
       onClick={onToggle}
-      // The caption's own toggle: pressing it can lift the section (`rowDrag`).
       data-row-drag=""
       className={cn('group flex w-full items-center gap-1 py-1 ps-4 text-start focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50', chats || timeline ? 'pe-10' : 'pe-3.5')}
       aria-expanded={!collapsed}
@@ -80,7 +72,6 @@ export const SessionSidebarActivityHeader: React.FC<{
           collapsed || alwaysShowActions ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100',
         )}
       />
-      {/* Inside the caption's own line, so the rows below never move. */}
       {loading ? <Spinner className="size-3 text-muted-foreground" aria-label={t('sessions.sidebar.group.empty.loadingSessions')} /> : null}
     </button>
     {chats ? <button
@@ -100,7 +91,6 @@ export const SessionSidebarCaption: React.FC<{
   preview?: boolean;
   collapsed: boolean;
   alwaysShowActions: boolean;
-  /** The caption of Projects, which ends in Add project; a group of projects has none. */
   addsProjects: boolean;
   onToggle: () => void;
 }> = ({ label, preview = false, collapsed, alwaysShowActions, addsProjects, onToggle }) => {
@@ -109,7 +99,6 @@ export const SessionSidebarCaption: React.FC<{
     <button
       type="button"
       onClick={onToggle}
-      // The caption's own toggle: pressing it can lift the section (`rowDrag`).
       data-row-drag=""
       className={cn('group flex w-full items-center gap-1 py-1 ps-4 text-start focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50', addsProjects ? 'pe-10' : 'pe-3.5')}
       aria-expanded={!collapsed}

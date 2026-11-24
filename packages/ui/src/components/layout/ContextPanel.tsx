@@ -16,7 +16,7 @@ import { type RepositoryUrlMatcher, useRepositoryUrlMatcher } from '@/lib/source
 import { type TrackerUrlMatcher, useTrackerUrlMatcher } from '@/lib/trackers/matchTrackerUrl';
 import { trackerPresentation } from '@/lib/trackers/presentation';
 import { lazyWithChunkRecovery } from '@/lib/chunkLoadRecovery';
-import { isDesktopShell } from '@/lib/desktop';
+import { isBrowserClientRuntime, isDesktopShell } from '@/lib/desktop';
 import { getDisambiguatingFolders } from '@/lib/path-utils';
 import { getRelativePathLabel } from './contextPanelPaths';
 import { copyTextToClipboard } from '@/lib/clipboard';
@@ -196,8 +196,6 @@ const ChatTabIcon: React.FC<{ sessionId: string }> = ({ sessionId }) => {
 
 const NO_TRACKED: TrackedItem[] = [];
 
-// The item a Tracker tab's link names, as the server follows it: a link, read
-// with the host's current account, like the links the sidebar shows.
 const trackedItemOfLink = (url: string, urls: RepositoryUrlMatcher, trackerUrls: TrackerUrlMatcher): TrackedItem | null => {
   const tracker = trackerUrls(url);
   if (tracker) return workItem(tracker.provider, tracker.identifier);
@@ -205,7 +203,6 @@ const trackedItemOfLink = (url: string, urls: RepositoryUrlMatcher, trackerUrls:
   return thread ? repositoryThread(thread.kind, thread) : null;
 };
 
-// The glyph the item's state pill draws, from the state the server follows.
 const trackedStateLook = (record: TrackedItemState | null): { icon: IconName; color: string } | null => {
   switch (record?.type) {
     case 'pull':
@@ -221,10 +218,6 @@ const trackedStateLook = (record: TrackedItemState | null): { icon: IconName; co
   }
 };
 
-// The branch's own tab, then what each item is. An item's tab follows its
-// item live and shows its state glyph, coloured while another tab is active,
-// so a PR merged or an issue closed in the background reads from the strip;
-// the active tab stays in the strip's text colour beside the state pill.
 const TrackerTabIcon: React.FC<{ url: string | null; active: boolean; visible: boolean }> = ({ url, active, visible }) => {
   const urls = useRepositoryUrlMatcher();
   const trackerUrls = useTrackerUrlMatcher();
@@ -264,18 +257,6 @@ const getTabIcon = (
 
   if (tab.mode === 'notes') {
     return <Icon name="sticky-note" className="h-3.5 w-3.5" />;
-  }
-
-  if (tab.mode === 'terminal') {
-    return <Icon name="terminal-box" className="h-3.5 w-3.5" />;
-  }
-
-  if (tab.mode === 'context') {
-    return <Icon name="pie-chart" className="h-3.5 w-3.5" />;
-  }
-
-  if (tab.mode === 'workflows') {
-    return <Icon name="flow-chart" className="h-3.5 w-3.5" />;
   }
 
   if (tab.mode === 'chat') {
@@ -1047,12 +1028,12 @@ export const ContextPanel: React.FC<{ zone?: ContextZone }> = ({ zone = 'right' 
           size="sm"
           onClick={handleClose}
           className="h-7 w-7 p-0"
-          aria-label={t('contextPanel.actions.closePanel')}
+          aria-label={closeButtonLabel}
         >
           <Icon name="close" className="h-3.5 w-3.5" />
         </Button>
         </TooltipTrigger>
-        <TooltipContent side="bottom" sideOffset={6}>{t('contextPanel.actions.closePanel')}</TooltipContent>
+        <TooltipContent side="bottom" sideOffset={6}>{closeButtonLabel}</TooltipContent>
         </Tooltip>
       </div>
     </header>
@@ -1145,9 +1126,6 @@ export const ContextPanel: React.FC<{ zone?: ContextZone }> = ({ zone = 'right' 
           zone === 'bottom' && (leftZoneShown ? 'ms-0' : 'ms-2'),
           zone === 'bottom' && (rightSlotFilled ? 'me-0' : 'me-1.5'),
           isVertical ? null : 'h-[calc(100%-0.5rem)]',
-          // A framed card, inset from the chat: its own colour, hairline ring
-          // and radius rather than a divider running the length of the window
-          // (`oc-panel-edge`, shared with the work-status card).
           'oc-panel-edge overflow-hidden rounded-[10px] bg-background',
           isVertical ? 'transition-[height,opacity]' : 'transition-[width,opacity,margin-inline-start]',
           !isOpen && 'opacity-0',

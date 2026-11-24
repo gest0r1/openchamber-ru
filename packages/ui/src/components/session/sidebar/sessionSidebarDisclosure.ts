@@ -1,7 +1,6 @@
 import type { SessionSidebarRow } from './sessionSidebarRowModel';
 
 
-/** Whether a header row is open; null for rows that show or hide nothing. */
 const disclosureOpen = (row: SessionSidebarRow): boolean | null => {
   switch (row.kind) {
     case 'activity-header':

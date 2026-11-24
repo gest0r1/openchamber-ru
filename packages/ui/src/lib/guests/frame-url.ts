@@ -25,13 +25,6 @@ const mintGuestFrameGrant = async (guestId: string, signal?: AbortSignal): Promi
 
 const packagePath = (entry: string): string => entry.split('/').map((segment) => encodeURIComponent(segment)).join('/');
 
-/**
- * Documents read over the relay, by what the frame's key names (runtime,
- * package revision, grants). A panel loads once, but a chat with several
- * blocks of one extension would read the whole package through the tunnel for
- * each, again on every scroll back. A document can be tens of megabytes, so
- * the bound that matters on a phone is their size, not their number.
- */
 const relayDocuments = new Map<string, string>();
 const RELAY_DOCUMENTS_MAX = 16;
 const RELAY_DOCUMENTS_MAX_CHARS = 32_000_000;
@@ -51,10 +44,8 @@ const keepRelayDocument = (key: string, html: string): void => {
 
 type RelayDocumentRead = { promise: Promise<string>; abort: AbortController; waiting: number };
 
-/** Reads under way, so frames that appear together share one trip through the tunnel. */
 const relayReads = new Map<string, RelayDocumentRead>();
 
-/** One frame going away never cancels a read another frame waits for; the last one does. */
 const joinRelayRead = (key: string, start: (signal: AbortSignal) => Promise<string>, signal?: AbortSignal): Promise<string> => {
   let read = relayReads.get(key);
   if (!read) {
@@ -95,7 +86,6 @@ const joinRelayRead = (key: string, start: (signal: AbortSignal) => Promise<stri
   });
 };
 
-/** Past this a load counts as failed and the pane offers another try; a read over the relay can be slow. */
 export const FRAME_LOAD_TIMEOUT_MS = 60_000;
 
 export const resolveGuestFrameUrl = async (
@@ -120,8 +110,6 @@ export const resolveGuestFrameUrl = async (
         assertOwner();
         return runtimeFetch(path, { signal: readSignal });
       }, origins);
-      // A tunnel that reconnects mid-read loses its streams. Every request here
-      // is a GET, and the next one waits for the channel, so one more read is safe.
       let html: string;
       try {
         html = await load();

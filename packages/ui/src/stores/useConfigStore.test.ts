@@ -2825,9 +2825,9 @@ describe('useConfigStore provider persistence', () => {
 
   test('the last chat pick survives a provider that has not registered yet', () => {
     useConfigStore.setState({ providers: [provider('opencode', 'big-pickle')], agents: [testAgent('build')] });
-    useUIStore.getState().setLastSelectedModel('claude-code', 'opus');
+    useUIStore.getState().setLastSelectedModel('missing-provider', 'opus');
     useConfigStore.getState().applyDefaultModelAgentSelection();
-    expect(useConfigStore.getState()).toMatchObject({ currentProviderId: 'claude-code', currentModelId: 'opus' });
+    expect(useConfigStore.getState()).toMatchObject({ currentProviderId: 'missing-provider', currentModelId: 'opus' });
   });
 
   test('anything configured outranks the last chat pick, and a hidden pick is skipped', () => {

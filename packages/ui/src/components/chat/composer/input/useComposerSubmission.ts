@@ -22,6 +22,9 @@ import type { useComposerColumn } from './useComposerColumn';
 import type { useComposerAttachmentWork } from './useComposerAttachmentWork';
 import type { useComposerLargePasteState } from './useComposerLargePasteState';
 import type { ComposerSendHandlers } from './composerSendHandlers';
+import { buildLinkedGitHubIssueRefsContext } from '@/lib/linkedIssues';
+import { useRepositoryUrlMatcher } from '@/lib/source-control/repositoryUrlMatcher';
+import { getAllSyncSessionMap } from '@/sync/sync-refs';
 import { useConfigStore } from '@/stores/useConfigStore';
 import { isServerOwnedMessageQueue, type QueuedMessage } from '@/stores/messageQueueStore';
 import { readEffortRevision } from '@/lib/modelEfforts';
@@ -40,7 +43,7 @@ import { parseAgentMentions } from '@/lib/messages/agentMentions';
 import { toast } from '@/components/ui';
 import { isVSCodeRuntime } from '@/lib/desktop';
 import { collectRunningActions, planRunningActionsNote } from '../../lib/runningActionsNote';
-import { composerReferenceKey, toContextReference } from '../../composer/composerReferences';
+import { composerReferenceKey, toContextReference, toLinkedIssue } from '../../composer/composerReferences';
 import { referencesLinkedIn, withoutSharedPageLinks, withReferencesFromText } from '../../composer/referenceLinks';
 import { type FormRequest } from '@/lib/opencode/model';
 import { postTrackerSessionStarted } from '@/lib/trackers/sessionStatus';
@@ -102,6 +105,7 @@ export function useComposerSubmission({
     mentionAttachments, referenceDrafts,
 }: Dependencies) {
     const { t } = i18n;
+    const repositoryUrls = useRepositoryUrlMatcher();
     const { waitForPendingAttachments } = attachmentWork;
     const { largeTextPasteOffer } = largePasteState;
     const { confirmedMentionsRef, setMessage, currentChatDraftIdentityRef, composerText } = draftText;
@@ -441,6 +445,11 @@ export function useComposerSubmission({
         const sentComposerText = !queuedOnly && inputSnapshot.hasContent ? inputSnapshot.message : '';
         const linkedReferencesToSend = await withRegisteredSharedPages(withReferencesFromText(referencesLinkedIn(sentComposerText, linkedReferences), referenceLinksIn(sentComposerText)));
 
+        const linkedGitHubIssueRefsContext = isBtwActive ? null : buildLinkedGitHubIssueRefsContext(
+            currentSessionId ? getAllSyncSessionMap().get(currentSessionId) : undefined,
+            repositoryUrls,
+            linkedReferencesToSend.flatMap((reference) => toLinkedIssue(reference, 0) ?? []),
+        );
         const outgoing = buildOutgoingMessage({
             queued: queuedMessagesToSend,
             composerText: !queuedOnly && inputSnapshot.hasContent ? withoutSharedPageLinks(inputSnapshot.message, linkedReferencesToSend) : null,
@@ -448,6 +457,7 @@ export function useComposerSubmission({
             inlineComments: expandedDrafts,
             syntheticTexts: [
                 ...buildBtwSyntheticTexts({ isBtwActive, isPromotedBtwSession }),
+                ...(linkedGitHubIssueRefsContext ? [linkedGitHubIssueRefsContext] : []),
                 ...(syntheticParts?.map((part) => part.text) ?? []),
             ],
             references: isBtwActive ? [] : linkedReferencesToSend.map(toContextReference).concat(

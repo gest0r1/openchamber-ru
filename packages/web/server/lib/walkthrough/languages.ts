@@ -4,6 +4,7 @@ export const DEFAULT_LANGUAGE = 'en';
 
 const LANGUAGE_NAMES = {
   en: 'English',
+  ru: 'Russian',
   de: 'German',
   fr: 'French',
   nl: 'Dutch',

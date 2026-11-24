@@ -60,8 +60,6 @@ const UNKNOWN_PERCENT = '\u2014';
 export const WorkStatusPrimaryGroup: React.FC<Props> = ({ sessionId, directory, goalRow, showSession, showRepository, children }) => {
   const { t } = useI18n();
   const mobile = useMobileAppActions();
-  // VS Code has no context panel, so its rows are readouts; a PR still opens
-  // in the browser, the only place VS Code can show one.
   const isVSCode = isVSCodeRuntime();
   const leaveWorkStatus = useLeaveWorkStatus();
   const openTrackerItem = useOpenTrackerItem();
@@ -161,7 +159,6 @@ export const WorkStatusPrimaryGroup: React.FC<Props> = ({ sessionId, directory, 
     [sessionMessages, contextLimit],
   );
 
-  // What the provider caches right now, from the reply the context reading comes from.
   const lastReplyCacheHit = React.useMemo(() => computeLastReplyCacheHit(sessionMessages), [sessionMessages]);
 
   const openContextSurface = useUIStore((state) => state.openContextSurface);
@@ -190,9 +187,6 @@ export const WorkStatusPrimaryGroup: React.FC<Props> = ({ sessionId, directory, 
   const openPr = resolvePrRowTarget({ directory, prUrl, mobile: Boolean(mobile), vscode: isVSCode })
     ? () => openSurface('pr')
     : undefined;
-  // Working-tree diff without a target path: the panel opens on the whole
-  // change set rather than picking a file on the user's behalf.
-  // Same destination as the header's context readout.
   const openContext = React.useCallback(() => {
     if (directory) openContextOverview(directory);
   }, [directory, openContextOverview]);
@@ -231,8 +225,6 @@ export const WorkStatusPrimaryGroup: React.FC<Props> = ({ sessionId, directory, 
 
   const usagePercent = contextUsage?.state === 'measured' ? contextUsage.percent : null;
   const usageTone = usagePercent === null ? null : resolveUsageTone(Math.round(usagePercent));
-  // Same tone ramp as the header's context icon. Below the warning threshold
-  // the fill is neutral: green means finished, and a context in use is not.
   const meterColor = usageTone === 'critical' ? 'var(--status-error)'
     : usageTone === 'warn' ? 'var(--status-warning)'
       : 'var(--muted-foreground)';
@@ -252,17 +244,12 @@ export const WorkStatusPrimaryGroup: React.FC<Props> = ({ sessionId, directory, 
             <>
               <WorkStatusRow
                 icon="donut-chart"
-                // The context overview is a desktop panel; the phone and VS Code have none.
                 onClick={directory && !mobile && !isVSCode ? openContext : undefined}
                 ariaLabel={t('chat.workStatus.action.openContext')}
                 label={t('chat.workStatus.context.label')}
                 value={(
                   <>
                     <WorkStatusWarmingToggle sessionId={sessionId} directory={directory} />
-                    {/* One value, "0.1% · $0.0112", spaced as Turn stats writes
-                        "1m 35s · $0.003"; as two values the row's gap widened the
-                        space before the dot. Spend has no icon of its own: the
-                        sprite has no currency glyph, and the `$` labels it. */}
                     <WorkStatusValue>
                       {`${usagePercent !== null ? formatPercent(usagePercent) : UNKNOWN_PERCENT}${cost !== null ? ` · ${formatCost(cost)}` : ''}`}
                     </WorkStatusValue>
@@ -271,8 +258,6 @@ export const WorkStatusPrimaryGroup: React.FC<Props> = ({ sessionId, directory, 
               />
               <WorkStatusMeter percent={usagePercent ?? 0} color={meterColor} />
               {contextUsage.state === 'compacted' ? (
-                // The row above already says Context: the short note fits one
-                // line, the full sentence waits in its tooltip.
                 <WorkStatusNote tooltip={t('contextUsage.compacted.description')}>{t('contextUsage.compacted.short')}</WorkStatusNote>
               ) : null}
               {showCostBreakdown ? (
@@ -285,16 +270,13 @@ export const WorkStatusPrimaryGroup: React.FC<Props> = ({ sessionId, directory, 
               ) : null}
             </>
           ) : null}
-          {/* Under the meter, from the same reply, so it reads as the cache right now. */}
           {lastReplyCacheHit !== null ? (
             <WorkStatusRow
               icon="database-2"
-              label={t('contextSidebar.tokens.cacheHit')}
+              label={t('chat.workStatus.replyCacheHit')}
               value={<WorkStatusValue>{`${lastReplyCacheHit.toFixed(1)}%`}</WorkStatusValue>}
             />
           ) : null}
-          {/* Below the context readout: the goal is a standing instruction,
-              while context is the live number the reader came for. */}
           {goalRow}
         </WorkStatusSection>
       ) : null,

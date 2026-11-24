@@ -189,7 +189,7 @@ export const BrowserEmptyState: React.FC<{
                         type="button"
                         variant="ghost"
                         size="icon"
-                        className="size-7 shrink-0 text-muted-foreground opacity-0 group-hover/server:opacity-100 focus-visible:opacity-100"
+                        className="size-7 shrink-0 text-muted-foreground opacity-0 group-hover/server:opacity-100 focus-visible:opacity-100 pointer-coarse:size-11 pointer-coarse:opacity-100"
                         onClick={() => hideDevServerPort(candidate.port)}
                         aria-label={t('contextPanel.browser.devServers.hide', { port: candidate.port })}
                       >

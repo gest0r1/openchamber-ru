@@ -4,24 +4,28 @@ import type { AttachIssueRequest } from '@openchamber/sdk'
 import type { ContextPartMetadata } from '@/lib/messages/contextParts'
 import type { AttachedFile } from "@/stores/types/sessionTypes"
 import type { InlineCommentDraftTarget } from "@/stores/useInlineCommentDraftStore"
-import { HeicConversionError, prepareAttachmentFiles } from "./attachment-files"
+import {
+  fileReferenceNoteText,
+  HeicConversionError,
+  isDocumentAttachmentFilename,
+  PATH_NOTE_MEDIA_TYPE,
+  prepareAttachmentFiles,
+  savedFileNoteText,
+  withRestoredPathNoteMarker,
+} from "./attachment-files"
 import { getChatDraftIdentityKey, subscribeChatDraftDeletion, type ChatDraftIdentity } from "@/lib/chatDraftPersistence"
 import { pathForDroppedFile } from "@/lib/desktop"
 import { assignFileAttachmentFilenames, attachmentBasename } from "@/lib/attachmentIdentity"
 import { formatFileSize } from "@/lib/fileSize"
 import { formatMessage, useI18nStore } from "@/lib/i18n/store"
+import type { RejectedSharedFile } from "@/lib/nativeSharedFiles"
 import { opencodeClient } from "@/lib/opencode/client"
+import { captureRuntimeInstance } from "@/lib/runtime-switch"
 
 const FILE_URI_PREFIX = "file://"
-// Past this a file is not read into the prompt: base64 makes it a third
-// larger, and OpenCode hands the model every byte of an attachment.
-const MAX_INLINE_ATTACHMENT_BYTES = 10 * 1024 * 1024
-// OpenCode refuses any attachment past this, by `file://` URL or by @-mention,
-// so a larger file would fail every send it rides along with.
-const MAX_ATTACHMENT_BYTES = 20 * 1024 * 1024
+export const MAX_INLINE_ATTACHMENT_BYTES = 10 * 1024 * 1024
+export const MAX_ATTACHMENT_BYTES = 20 * 1024 * 1024
 const MAX_ATTACHMENT_PREPARATION_ATTEMPTS = 3
-// Their intake removes content the original still holds: credentials from HAR,
-// outputs from notebooks.
 const INTAKE_REDACTED_FILENAME = /\.(har|ipynb)$/i
 const pendingVSCodeSelectionKeys = new Set<string>()
 let attachmentReadGeneration = 0
@@ -112,8 +116,6 @@ export const prepareLocalAttachments = async (
       source: "local",
       sourceDocumentId,
     }
-    // HAR and notebooks must not point back to content omitted at intake.
-    // Only the first entry represents the original; the rest are extracted images.
     if (agentPath && attachedFiles.length === 0 && !INTAKE_REDACTED_FILENAME.test(file.name)) {
       attached.agentPath = agentPath
       attached.filename = file.name
@@ -123,48 +125,102 @@ export const prepareLocalAttachments = async (
   return attachedFiles
 }
 
-/**
- * A desktop file the prompt cannot carry, as a short note that names it on
- * disk. OpenCode shares that disk, so the agent reads what it needs with its
- * own tools. The note is an ordinary text attachment, so the chip, the queue,
- * the draft and a later restore treat the file like any other.
- */
+const prepareBinaryAttachment = async (file: File): Promise<AttachedFile> => {
+  const mimeType = file.type.split(";", 1)[0]?.trim() || "application/octet-stream"
+  return {
+    id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+    file,
+    dataUrl: await readFileAsDataUrl(file, mimeType),
+    mimeType,
+    filename: file.name,
+    size: file.size,
+    source: "local",
+  }
+}
+
 const prepareFileReference = async (file: File, path: string): Promise<AttachedFile> => {
-  const note = new File(
-    [`File on disk: ${path} (${formatFileSize(file.size)}). Its content is not in this message. Read what you need from it with your tools.\n`],
-    file.name,
-    { type: "text/plain" },
-  )
+  const note = new File([fileReferenceNoteText(path, formatFileSize(file.size))], file.name, { type: "text/plain" })
   return {
     id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
     file: note,
-    dataUrl: await readFileAsDataUrl(note, "text/plain"),
+    dataUrl: await readFileAsDataUrl(note, PATH_NOTE_MEDIA_TYPE),
     mimeType: "text/plain",
     filename: file.name,
     size: file.size,
     source: "local",
     agentPath: path,
-    // An @-mention of the same path must not bring the whole file back.
     serverPath: path,
   }
 }
 
-/**
- * Writes the file into OpenCode's temp folder, on the machine OpenCode runs
- * on, and answers its path there, or null when the write failed.
- */
-const saveWhereOpenCodeRuns = async (file: File, directory: string | undefined): Promise<string | null> => {
+const prepareSavedCopyNote = async (attached: AttachedFile, path: string): Promise<AttachedFile> => {
+  const note = new File(
+    [savedFileNoteText(attached.filename, path, "The same file is attached to this message.")],
+    attached.filename,
+    { type: "text/plain" },
+  )
+  return {
+    id: `${attached.id}-saved-copy`,
+    file: note,
+    dataUrl: await readFileAsDataUrl(note, PATH_NOTE_MEDIA_TYPE),
+    mimeType: "text/plain",
+    filename: attached.filename,
+    size: note.size,
+    source: "local",
+    agentPath: path,
+    serverPath: path,
+  }
+}
+
+const saveWhereOpenCodeRuns = async (
+  file: File,
+  directory: string | undefined,
+  isCurrentRuntime: () => boolean,
+): Promise<string | null> => {
   try {
     const [result] = await opencodeClient.writeOpenCodeTempFiles(directory, [
       { filename: file.name, bytes: new Uint8Array(await file.arrayBuffer()) },
-    ])
+    ], { isCurrentRuntime })
     if (result && "path" in result) return result.path
     if (result) console.warn("[chat] Saving an attachment failed", result.error.name)
   } catch (error) {
-    // The error text can carry the path; the name says what failed.
     console.warn("[chat] Saving an attachment failed", error instanceof Error ? error.name : "unknown")
   }
   return null
+}
+
+const saveHeldFiles = async (
+  get: () => InputState,
+  target: ChatDraftIdentity | null,
+  directory: string | undefined,
+  sentIds: ReadonlySet<string>,
+): Promise<string[]> => {
+  const isCurrentRuntime = captureRuntimeInstance()
+  const held = attachedFilesFor(get(), target).filter((file) => sentIds.has(file.id) && (file.saveOnSend || file.saveCopyOnSend))
+  const failed: string[] = []
+  for (const file of held) {
+    const path = await saveWhereOpenCodeRuns(file.file, directory, isCurrentRuntime)
+    if (!path) {
+      failed.push(file.filename)
+      continue
+    }
+    let replacement: AttachedFile[]
+    if (file.saveCopyOnSend) {
+      const { saveCopyOnSend: _held, ...sent } = file
+      replacement = [sent, await prepareSavedCopyNote(file, path)]
+    } else {
+      replacement = [{
+        ...await prepareFileReference(file.file, path),
+        id: file.id,
+        filename: file.filename,
+        original: { mimeType: file.mimeType, dataUrl: file.dataUrl, saveOnSend: true },
+      }]
+    }
+    const files = attachedFilesFor(get(), target)
+    if (!files.some((entry) => entry.id === file.id)) continue
+    get().setAttachedFiles(files.flatMap((entry) => (entry.id === file.id ? replacement : [entry])), target ?? undefined)
+  }
+  return failed
 }
 
 const getDataUrlByteSize = (url: string): number => {
@@ -220,10 +276,19 @@ export type ComposerAddress = {
   attachments: ChatDraftIdentity | null
 }
 
-/**
- * How pending text meets the draft. `slash-command` text is a command name:
- * the draft starts with `/name` and the rest of it becomes the argument.
- */
+export type PendingDraftContent = {
+  draftId: number
+  files: File[]
+  text: string | null
+  rejected: RejectedSharedFile[]
+  accept?: () => void
+}
+
+export type AddAttachedFileOptions = {
+  shared?: boolean
+  saveOnSend?: "reference" | "copy"
+}
+
 export type PendingInputMode = "replace" | "append" | "append-inline" | "slash-command"
 
 export type InputState = {
@@ -235,12 +300,6 @@ export type InputState = {
   consumePendingComposerRestore: (target: ChatDraftIdentity | null) => InputState["pendingComposerRestore"]
   pendingInputText: string | null
   pendingInputMode: PendingInputMode
-  /**
-   * Who the pending text is for. Null is the main chat's composer, which
-   * app-wide sources (plugins, git dialogs, file selections) write to; a
-   * session id is the composer of a chat pinned in the side panel on that
-   * session, which text quoted inside that chat is written to.
-   */
   pendingInputTarget: string | null
   pendingSessionRestores: Map<string, string>
   setPendingSessionRestore: (sessionId: string, text: string | null) => void
@@ -458,18 +517,35 @@ export const useInputStore = create<InputState>()((set, get) => ({
     target === null ? get().pendingSyntheticParts : get().pinnedSyntheticParts.get(target) ?? null
   ),
 
-  addAttachedFile: async (file: File, target?: ChatDraftIdentity | null) => {
+  addAttachedFile: async (file, target, onAttached, options) => {
     const generation = attachmentReadGeneration
+    const isStale = () => !(options?.shared && target) && generation !== attachmentReadGeneration
     const referencePath = INTAKE_REDACTED_FILENAME.test(file.name) ? null : pathForDroppedFile(file)
-    const attachReference = async (path: string): Promise<boolean> => {
-      const reference = await prepareFileReference(file, path)
-      if (generation !== attachmentReadGeneration) return false
-      set((state) => appendAttachedFiles(state, [reference], target))
+    const land = (files: AttachedFile[]): boolean => {
+      set((state) => appendAttachedFiles(state, files, target))
+      onAttached?.(files)
       return true
     }
+    const attachReference = async (path: string): Promise<boolean> => {
+      const reference = await prepareFileReference(file, path)
+      return isStale() ? false : land([reference])
+    }
+    const holdUntilSend = async (): Promise<boolean> => {
+      if (file.size > MAX_ATTACHMENT_BYTES) {
+        throw new Error(formatMessage(useI18nStore.getState().dictionary, 'chat.fileAttachment.toast.overSendLimit', {
+          name: file.name,
+          size: formatFileSize(MAX_ATTACHMENT_BYTES),
+        }))
+      }
+      const held = await prepareBinaryAttachment(file)
+      return isStale() ? false : land([{ ...held, saveOnSend: true }])
+    }
+
+    if (options?.saveOnSend === "reference") return holdUntilSend()
 
     if (file.size > MAX_INLINE_ATTACHMENT_BYTES) {
       if (referencePath) return attachReference(referencePath)
+      if (options?.saveOnSend === "copy") return holdUntilSend()
       const limit = file.size > MAX_ATTACHMENT_BYTES
         ? { key: 'chat.fileAttachment.toast.overSendLimit', bytes: MAX_ATTACHMENT_BYTES } as const
         : { key: 'chat.fileAttachment.toast.tooLarge', bytes: MAX_INLINE_ATTACHMENT_BYTES } as const
@@ -485,22 +561,16 @@ export const useInputStore = create<InputState>()((set, get) => ({
       try {
         attachedFiles = await prepareLocalAttachments(file, reservedFilenames)
       } catch (error) {
-        if (!(error instanceof HeicConversionError) || generation !== attachmentReadGeneration) return false
-        // A HEIC the decoder cannot read goes as a note naming the original
-        // where OpenCode runs, and the agent converts it with its own tools.
-        // It never goes as an image part: providers refuse HEIC, and the
-        // whole send would fail. On desktop the file is already on the shared
-        // disk; elsewhere it is written into OpenCode's temp folder first.
-        const path = referencePath ?? await saveWhereOpenCodeRuns(file, target?.directory)
-        if (path) return attachReference(path)
-        throw new Error(formatMessage(useI18nStore.getState().dictionary, 'chat.fileAttachment.toast.heicConversionFailed', {
-          name: file.name,
-        }))
+        if (!(error instanceof HeicConversionError) || isStale()) return false
+        return referencePath ? attachReference(referencePath) : holdUntilSend()
       }
-      if (generation !== attachmentReadGeneration) return false
-      // OpenCode drops a binary type it has no use for without a word, so a
-      // file we cannot prepare never goes as bytes.
-      if (!attachedFiles) return referencePath ? attachReference(referencePath) : false
+      if (isStale()) return false
+      if (!attachedFiles) {
+        if (referencePath) return attachReference(referencePath)
+        if (INTAKE_REDACTED_FILENAME.test(file.name) || isDocumentAttachmentFilename(file.name)) return false
+        attachedFiles = [await prepareBinaryAttachment(file)]
+        if (isStale()) return false
+      }
 
       const generatedFilenames = attachedFiles.slice(1).map((attachment) => attachment.filename)
       if (hasGeneratedFilenameCollision(generatedFilenames, attachedFilesFor(get(), target))) continue

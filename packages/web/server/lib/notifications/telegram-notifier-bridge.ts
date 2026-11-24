@@ -1,15 +1,22 @@
-/**
- * One SDK notifier owns deciding when to alert. The host retains only the
- * existing outbound Bot API transport, credentials and durable dedupe ledger.
- */
-import { unwrapOpenCodeResponse } from '../opencode/response-envelope.js';
+import { readTelegramSessionData, telegramPendingRequests, telegramSessionRecord } from '../guests/session-completion-proof.js';
+import type { createSessionCompletionProof, IdleRecord, TelegramSession, TelegramSourceFor } from '../guests/session-completion-proof.js';
+import type { createTelegramRuntime } from './telegram-runtime.js';
+import type { createTelegramConfig } from './telegram-config.js';
 
-export const createTelegramNotifierBridge = ({ telegram, config, sourceFor = () => null, listWaitingPages = () => [] }) => {
+type AttentionInput = TelegramSession & { kind: 'form' | 'permission' | 'page'; id: string };
+type DeliveryRequest = TelegramSession & { idleId: string; outcome: IdleRecord['outcome'] };
+type BridgeOptions = {
+  telegram: ReturnType<typeof createTelegramRuntime>;
+  config: ReturnType<typeof createTelegramConfig>;
+  sourceFor?: TelegramSourceFor;
+  listWaitingPages?: (sessionId: string, spaceId?: string | null) => string[] | null;
+};
+
+export const createTelegramNotifierBridge = ({ telegram, config, sourceFor = () => null, listWaitingPages = () => [] }: BridgeOptions) => {
   const active = async () => {
     const settings = await config.read();
     return settings.enabled === true && settings.sender === 'sdk';
   };
-  const scopeMatches = (sub, spaceId) => sub && (sub.spaceId ?? null) === (spaceId ?? null);
   const subscriptions = async () => {
     if (!await active()) return { active: false, subscriptions: [] };
     const rows = await telegram.listSubscriptions();
@@ -20,11 +27,11 @@ export const createTelegramNotifierBridge = ({ telegram, config, sourceFor = () 
     })) };
   };
 
-  const deliver = async (input, proof) => {
+  const deliver = async (input: DeliveryRequest, proof: ReturnType<typeof createSessionCompletionProof>) => {
     if (!await active()) return { delivered: false };
     const { sessionId, directory, spaceId = null, idleId, outcome } = input;
     const sub = await telegram.getSubscription(directory, sessionId);
-    if (!scopeMatches(sub, spaceId) || sub.baselineIdleId === idleId) return { delivered: false };
+    if (!sub || (sub.spaceId ?? null) !== spaceId || sub.baselineIdleId === idleId) return { delivered: false };
     const matches = async () => {
       if (!await active() || !await telegram.hasSubscription(directory, sessionId)) return false;
       const result = await proof({ sessionId, directory, spaceId });
@@ -40,42 +47,35 @@ export const createTelegramNotifierBridge = ({ telegram, config, sourceFor = () 
     return { delivered: delivered === true };
   };
 
-  const readPending = async (item) => {
+  const readPending = async (item: TelegramSession) => {
     if (!await active()) return { known: false, items: [] };
     const sub = await telegram.getSubscription(item.directory, item.sessionId);
-    if (!scopeMatches(sub, item.spaceId)) return { known: false, items: [] };
+    if (!sub || (sub.spaceId ?? null) !== (item.spaceId ?? null)) return { known: false, items: [] };
     const source = sourceFor(item.spaceId ?? null);
     if (!source) return { known: false, items: [] };
-    const get = async (route) => {
-      const response = await source.fetchImpl(source.buildOpenCodeUrl(route, ''), {
-        method: 'GET', headers: { accept: 'application/json', ...source.getOpenCodeAuthHeaders() },
-        signal: AbortSignal.timeout(10000),
-      });
-      if (!response.ok) throw new Error('OpenCode read failed');
-      return unwrapOpenCodeResponse(await response.json());
-    };
+    const path = '/api/session/' + encodeURIComponent(item.sessionId);
+    const get = (route: string) => readTelegramSessionData(source, route);
     try {
-      const record = await get('/api/session/' + encodeURIComponent(item.sessionId));
+      const record = telegramSessionRecord.safeParse(await get(path)).data;
       if (record?.id !== item.sessionId || record?.parentID || record?.location?.directory !== item.directory) {
         return { known: false, items: [] };
       }
-      const [forms, permissions] = await Promise.all([
-        get('/api/session/' + encodeURIComponent(item.sessionId) + '/form'),
-        get('/api/session/' + encodeURIComponent(item.sessionId) + '/permission'),
-      ]);
-      if (!Array.isArray(forms) || !Array.isArray(permissions)) return { known: false, items: [] };
-      const items = [];
-      for (const [kind, entries] of [['form', forms], ['permission', permissions]]) {
-        for (const entry of entries) if (typeof entry?.id === 'string' && entry.id) items.push({ kind, id: entry.id });
-      }
+      const [formData, permissionData] = await Promise.all([get(path + '/form'), get(path + '/permission')]);
+      const forms = telegramPendingRequests.safeParse(formData);
+      const permissions = telegramPendingRequests.safeParse(permissionData);
+      if (!forms.success || !permissions.success) return { known: false, items: [] };
+      const items: Pick<AttentionInput, 'kind' | 'id'>[] = [
+        ...forms.data.map(({ id }) => ({ kind: 'form' as const, id })),
+        ...permissions.data.map(({ id }) => ({ kind: 'permission' as const, id })),
+      ];
       const pageIds = listWaitingPages(item.sessionId, item.spaceId);
       if (!Array.isArray(pageIds)) return { known: false, items: [] };
-      for (const id of pageIds) if (typeof id === 'string' && id) items.push({ kind: 'page', id });
+      for (const id of pageIds) if (id) items.push({ kind: 'page', id });
       return { known: true, items };
     } catch { return { known: false, items: [] }; }
   };
 
-  const deliverAttention = async (input) => {
+  const deliverAttention = async (input: AttentionInput) => {
     if (!await active()) return { delivered: false };
     const current = await readPending(input);
     if (!current.known || !current.items.some((row) => row.kind === input.kind && row.id === input.id)) {

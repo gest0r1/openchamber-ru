@@ -2,7 +2,6 @@ import { z } from 'zod';
 import { matchesRankQuery, SIDEBAR_SEARCH } from '@/lib/search/fuzzySearch';
 
 
-// Pages (the app's own screens) leads by default, above the sections of works.
 const BUILTIN_SIDEBAR_SECTION_IDS = ['pages', 'chats', 'pinned', 'work', 'projects'] as const;
 export type BuiltinSidebarSectionId = typeof BUILTIN_SIDEBAR_SECTION_IDS[number];
 
@@ -26,7 +25,6 @@ export type SidebarSectionFilter = {
   kinds: readonly SidebarSectionKind[];
   links: readonly SidebarSectionLink[];
   projectIds: readonly string[];
-  /** Folders of a project's root, by id; a filed worktree counts as a work in its folder. */
   folders: readonly string[];
   activity: SidebarSectionActivity;
   text: readonly string[];
@@ -202,9 +200,7 @@ export type SidebarWorkFacts = {
   kind: Exclude<SidebarSectionKind, 'scheduled'>;
   scheduled: boolean;
   projectId: string | null;
-  /** The folder of the project's root the work is filed in, or null. */
   folderId: string | null;
-  /** The pin list the work is filed in (`DEFAULT_PIN_LIST` for Pinned), or null. */
   pin: string | null;
   inWork: boolean;
   done: boolean;

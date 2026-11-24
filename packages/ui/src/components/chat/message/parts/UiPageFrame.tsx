@@ -1,8 +1,8 @@
 import React from 'react';
 import { toast } from '@/components/ui';
 import { dispatchPageWaiting } from '@/components/chat/lib/scroll/timelineScrollIntent';
-import { useI18n } from '@/lib/i18n';
 import { useSessionDirectory } from '@/sync/sync-context';
+import { useI18n } from '@/lib/i18n';
 import type { ToolPart } from '@/lib/opencode/model';
 import type { RenderedPageAsk } from '@/lib/opencode/tools';
 import { useGuestsStore } from '@/lib/guests/store';
@@ -21,9 +21,11 @@ export function UiPageFrame({ part, source, ask }: { part: ToolPart; source: str
     const [sentSummary, setSentSummary] = React.useState<string | null>(null);
     const { sessionID, callID } = part;
     const directory = useSessionDirectory(sessionID);
-    // Shown until the call completes with the decline OpenCode stores.
     const [decline, sendDecline] = usePageDecline(sessionID, callID, directory);
     const waiting = ask.kind === 'waiting' && sentSummary === null && decline !== 'declined';
+    const blocking = waiting && pageBlocksTurn(ask);
+    const catalogReady = useGuestsStore((state) => state.status === 'ready');
+    const mayReportNotDrawn = waiting && (blocking || catalogReady);
 
     const submit = React.useCallback(async (answer: UiBlockAnswer) => {
         const summary = pageAnswerSummary(answer.summary);
@@ -50,9 +52,8 @@ export function UiPageFrame({ part, source, ask }: { part: ToolPart; source: str
     const reportNotDrawn = React.useCallback((errors: string[]) => {
         if (!mayReportNotDrawn || reported.current) return;
         reported.current = true;
-        // Another client may have reported it first; the page then no longer waits.
         void answerRenderedPage({ sessionId: sessionID, callId: callID, notDrawn: errors }, directory).catch(() => {});
-    }, [waiting, sessionID, callID, directory]);
+    }, [mayReportNotDrawn, sessionID, callID, directory]);
 
     const blockRef = React.useRef<HTMLDivElement>(null);
     React.useEffect(() => {
@@ -60,7 +61,7 @@ export function UiPageFrame({ part, source, ask }: { part: ToolPart; source: str
     }, [blocking]);
 
     return (
-        <div ref={blockRef} className="my-2" data-ui-render-part={part.id} data-ui-render-message={part.messageID} data-waiting-page={waiting ? part.id : undefined}>
+        <div ref={blockRef} className="my-2" data-ui-render-part={part.id} data-ui-render-message={part.messageID} data-waiting-page={blocking ? part.id : undefined}>
             {UiBlock
                 ? (
                     <UiBlock

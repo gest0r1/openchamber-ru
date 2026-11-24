@@ -1,7 +1,7 @@
 import type { Part } from '@/lib/opencode/model';
 import { isShownInPlace } from '@/lib/opencode/tools';
 import { filterVisibleParts, isEmptyTextPart } from '../../message/partUtils';
-import { getShownPages, isSettledAsk, type ShownPart } from './liveActivity';
+import { getShownPages, hasUiBlock, isSettledAsk, type ShownPart } from './liveActivity';
 import type { TimelineRow } from './timelineRows';
 import type { ChatMessageEntry } from './types';
 
@@ -95,11 +95,10 @@ const hoistedPages = (row: TurnRowOf<'turn-fold' | 'turn-message' | 'turn-pages'
     return getShownPages(row.entry.turn.assistantMessages, finalMessage, row.keepText);
 };
 
-// A settled form stays hoisted as one line.
-const hoistedHeight = (pages: ShownPart[], metrics: RowSizeMetrics): number => pages.reduce(
-    (height, page) => height + (page.type === 'tool' && isSettledAsk(page) ? metrics.lineHeight : SHOWN_PAGE_PX),
-    0,
-);
+const hoistedHeight = (pages: ShownPart[], metrics: RowSizeMetrics): number => pages.reduce((height, page) => {
+    if (page.type === 'text' && !hasUiBlock(page.text)) return height + markdownHeight(page.text, metrics.columnWidth);
+    return height + (page.type === 'tool' && isSettledAsk(page) ? metrics.lineHeight : SHOWN_PAGE_PX);
+}, 0);
 
 const messageRowHeight = (row: TurnRowOf<'turn-message'>, metrics: RowSizeMetrics): number | undefined => {
     const message = row.entry.turn.assistantMessages.find((candidate) => candidate.info.id === row.messageId);
@@ -147,7 +146,7 @@ export const estimateTimelineRowSize = (row: TimelineRow, metrics: RowSizeMetric
     switch (row.kind) {
         case 'ungrouped': return UNGROUPED_PX;
         case 'turn-head': height = promptHeight(row.entry.turn.userMessage, metrics); break;
-        case 'turn-fold': height = FOLD_HEADER_PX; break;
+        case 'turn-fold': height = FOLD_HEADER_PX + (row.keepText && !row.finalMessageId ? hoistedHeight(hoistedPages(row), metrics) : 0); break;
         case 'turn-pages': height = hoistedHeight(hoistedPages(row), metrics); break;
         case 'turn-message': {
             const message = messageRowHeight(row, metrics);

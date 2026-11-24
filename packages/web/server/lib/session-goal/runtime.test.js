@@ -77,7 +77,7 @@ afterEach(() => {
  * `/api/session/active` for busy state, and the three continuation calls.
  */
 // Without `jobs` it is an OpenCode before 2.2.6, which has no job list.
-const v2OpenCode = ({ messages, active = {}, childPages = [[]], childrenStatus = 200, shells = [], shellStatus = 200, jobs, sessionRead = async () => {} }) => {
+const v2OpenCode = ({ messages, active = {}, childPages = [[]], childrenStatus = 200, shells = [], shellStatus = 200, jobs, sessionRead = async () => {}, messageRead = async () => {}, sessionRecord = {} }) => {
   const calls = [];
   const json = (data, status = 200) => new Response(JSON.stringify({ location: { directory: '/repo' }, data }), {
     status,
@@ -102,7 +102,10 @@ const v2OpenCode = ({ messages, active = {}, childPages = [[]], childrenStatus =
       if (jobs === undefined) return new Response(null, { status: 404 });
       return Response.json({ data: typeof jobs === 'function' ? jobs() : jobs });
     }
-    if (url.pathname.endsWith('/message')) return json({ data: [...messages].reverse(), cursor: null });
+    if (url.pathname.endsWith('/message')) {
+      await messageRead();
+      return json({ data: [...messages].reverse(), cursor: null });
+    }
     if (url.pathname === `/api/session/${SESSION_ID}`) {
       await sessionRead();
       return json({ id: SESSION_ID, location: { directory: '/repo' }, ...sessionRecord });
@@ -1214,14 +1217,21 @@ describe('session goal and the job list of OpenCode 2.2.6+', () => {
   });
 
   it('does not wait for a command from an earlier round', async () => {
-    quiet();
-    v2OpenCode({ messages: [userRecord, assistantRecord()], jobs: [job('shell', 2)] });
-    const seam = wired({ openchamber: { goal: activeGoal() } });
-    const generate = vi.fn(async () => ({ text: smallModelSays({ all_done: true }) }));
-    const { runtime } = makeRuntime({ ...seam, getSmallModelService: async () => ({ generateSmallModelText: generate }) });
+    vi.useFakeTimers();
+    vi.setSystemTime(1_000);
+    try {
+      quiet();
+      v2OpenCode({ messages: [userRecord, assistantRecord()], jobs: [job('shell', 2)] });
+      const seam = wired({ openchamber: { goal: activeGoal() } });
+      const generate = vi.fn(async () => ({ text: smallModelSays({ all_done: true }) }));
+      const { runtime } = makeRuntime({ ...seam, getSmallModelService: async () => ({ generateSmallModelText: generate }) });
 
-    await runTick(runtime);
-    expect(generate).toHaveBeenCalledTimes(1);
+      await runtime.notifyGoalChanged(SESSION_ID, '/repo', { openchamber: { goal: activeGoal() } });
+      await vi.advanceTimersByTimeAsync(1);
+      expect(generate).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

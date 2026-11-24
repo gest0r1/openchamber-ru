@@ -83,7 +83,6 @@ import { MOBILE_HEADER_BUTTON_CLASS, MOBILE_HEADER_CLASS, MOBILE_HEADER_TITLE_CL
 const SETTINGS_SPLIT_SIDEBAR_WIDTH = 280;
 const SETTINGS_CLOSE_BUTTON_CLEARANCE = 32;
 const SETTINGS_DETAIL_HISTORY_KEY = '__openchamberSettingsDetail';
-/** Pages that show one tab at a time (Chat, the Appearance theme list): open the one that holds the item. */
 const openSettingsTabFor = (itemId: string): void => {
   const chatTab = chatSettingsTabForSearchTarget(itemId);
   if (chatTab) useChatSettingsTabStore.getState().setTab(chatTab);
@@ -113,9 +112,6 @@ interface SettingsViewProps {
   forceMobile?: boolean;
   isWindowed?: boolean;
   visiblePageSlugs?: SettingsPageSlug[];
-  /** Lets the mobile shell hand its back button to the mobile stages: the
-      handler steps one level up and reports whether it consumed the press. The
-      shell then owns Back, so the stages write no history of their own. */
   registerBackHandler?: (handler: (() => boolean) | null) => void;
   initialMobileStage?: MobileStage;
 }
@@ -205,10 +201,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose, forceMobile
 
   const [, refreshNewSettings] = React.useReducer((revision: number) => revision + 1, 0);
   const [mobileStage, setMobileStage] = React.useState<MobileStage>(initialMobileStage);
-  // Seed with the mount-time slug: the slug persists across opens, and the
-  // deep-link auto-jump below must react only to slug CHANGES after mount, not
-  // re-enter the previously visited page when settings reopen or when back
-  // reaches the nav stage from a page settings opened on.
   const autoNavSlugRef = React.useRef<string>(settingsSlug);
 
   React.useEffect(() => {
@@ -846,8 +838,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose, forceMobile
         <div className={isMobile ? 'px-2 pt-1' : 'px-4 pt-3'}>
           <div className={isMobile
             ? 'flex h-9 items-center gap-2 border-b border-edge-muted px-2.5 text-muted-foreground'
-            // The same field as every other search field (Input compact): its
-            // height, fill and edge, a 14px magnifier.
             : 'oc-surface-elevated oc-raised oc-field flex h-7 items-center gap-1.5 rounded-md bg-[var(--surface-elevated)] ps-2 pe-1 text-muted-foreground'}
           >
             <Icon name="search" className="size-3.5 shrink-0" />
@@ -939,8 +929,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose, forceMobile
               return visibleGroups.map(({ group, pages }, groupIndex) => (
                 <div key={group} className="space-y-0.5">
                   <div
-                    // Desktop captions read like the sessions sidebar's: a muted
-                    // word at the row's size. The phone keeps its uppercase captions.
                     className={cn(
                       'px-3 pb-1 text-muted-foreground sm:px-2 sm:pb-0.5',
                       isMobile ? 'typography-micro font-semibold uppercase tracking-wide' : 'typography-ui-label font-medium',
@@ -1068,9 +1056,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose, forceMobile
         <div
           className={cn(
             MOBILE_HEADER_CLASS,
-            // The root nav list reads as a single quiet page — no divider and
-            // no back arrow (the X on the right is the only way out); subpages
-            // keep both.
             mobileStage !== 'nav' && 'border-b border-edge',
             'bg-background'
           )}
@@ -1131,7 +1116,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose, forceMobile
             onClick={onClose}
             aria-label={t('settings.view.actions.closeSettings')}
             title={closeSettingsTitle}
-            // The dialogs' close button: 28px, a 16px cross in the muted colour.
             className="inline-flex size-7 items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-interactive-hover/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             <Icon name="close" className="size-4" />

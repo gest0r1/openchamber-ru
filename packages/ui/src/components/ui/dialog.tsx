@@ -122,11 +122,6 @@ function DialogContent({
   return (
     <DialogPortal>
       <DialogOverlay className="rounded-none" {...backdropProps} />
-      {/* In the iOS app the layer takes the keyboard into its layout and
-          a centred window rides half its travel (mobileNativeChrome), so a
-          field in it stays above the keyboard; a phone's bottom sheet (mobile.css)
-          rides all of it; a window held to the top (the command palette) does
-          not move. Elsewhere all of them do nothing. */}
       <div data-slot="dialog-layer" data-sheet={bottomSheet ? '' : undefined} data-keyboard-rider={heldToTop ? undefined : bottomSheet ? '1' : '0.5'} className={cn("oc-keyboard-inset-surface fixed inset-0 z-50 flex items-center justify-center pointer-events-none p-4", layerClassName)}>
         <BaseDialog.Popup
           ref={setPopupRef}

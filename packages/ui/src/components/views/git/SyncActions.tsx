@@ -143,7 +143,6 @@ export const SyncActions: React.FC<SyncActionsProps> = ({
             </button>
           </DropdownMenuTrigger>
         </ButtonTooltip>
-        {/* Anchored to the trailing edge so the menu stays inside the pane instead of running past it. */}
         <DropdownMenuContent align="end" className="w-[min(360px,calc(100vw-2rem))] max-h-[320px] overflow-y-auto">
           <DropdownMenuItem disabled={isPushDisabled} onSelect={onPublish}>
             <Icon name="arrow-up" className="size-4 text-muted-foreground" />
@@ -177,8 +176,7 @@ export const SyncActions: React.FC<SyncActionsProps> = ({
                   </div>
                 </div>
                 {onRemoveRemote && remote.name !== trackingRemoteName ? (
-                  // A disabled button takes no pointer events, so the press lands here and
-                  // must stop before the item, which would fetch from this remote.
+                  // external: https://developer.mozilla.org/en-US/docs/Web/CSS/pointer-events#none The disabled button passes pointer events to this wrapper; stop them before the fetch item.
                   <span className="inline-flex" onClick={(event) => event.stopPropagation()} onMouseUp={(event) => event.stopPropagation()}>
                     <ButtonTooltip sideOffset={8} label={t('gitView.header.removeRemoteTitle', { name: remote.name })}>
                       <Button

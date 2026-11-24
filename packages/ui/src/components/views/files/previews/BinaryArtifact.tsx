@@ -12,7 +12,6 @@ export const BinaryArtifact: React.FC<{
   path: string;
   sizeBytes: number | null;
   download?: React.ReactNode;
-  /** Replaces the sentence for a file that has a preview but could not get it here. */
   description?: string;
 }> = ({ name, path, sizeBytes, download, description }) => {
   const { t } = useI18n();

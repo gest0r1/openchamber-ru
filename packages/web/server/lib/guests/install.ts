@@ -159,8 +159,6 @@ const installCopiedGuest = async ({ source, prepare, persistPath, openchamberVer
       await removeDir(staging);
       return { ok: false, code: 'already-installed', id: inspected.guest.id };
     }
-    // Do not delete the currently installed package before the replacement has
-    // passed inspection. A failed rename or store write must keep it available.
     const occupied = await fs.lstat(dest).then(() => true, (error: NodeJS.ErrnoException) => {
       if (error.code === 'ENOENT') return false;
       throw error;
@@ -188,8 +186,6 @@ const installCopiedGuest = async ({ source, prepare, persistPath, openchamberVer
         throw new Error('Extension metadata persistence failed');
       }
       if (registered) {
-        // Retain previous storage IDs, grants and disabled state while advancing
-        // source/ref metadata for this exact installation.
         await updateExtensionStore(persistPath, (current) => ({
           ...current,
           sources: { ...current.sources, [root]: source },
@@ -448,7 +444,6 @@ export const uninstallGuest = async (id: string, persistPath: string, { preserve
   await stopGuestService(id);
   forgetServiceFailure(id);
   await removeGuestStorage(persistPath, id);
-  // A replace is a new version of the same extension: its service keeps its files.
   if (!preserveStorageId) await removeGuestData(persistPath, id);
   if (removedRoot && isCopiedGuestRoot(removedRoot, persistPath)) {
     await fs.rm(removedRoot, { recursive: true, force: true });

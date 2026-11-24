@@ -31,10 +31,8 @@ import { matchesRankQuery } from '@/lib/search/fuzzySearch';
 import { useSessionKnowledgePins } from './useSessionKnowledgePins';
 import { ScrollableOverlay } from '@/components/ui/ScrollableOverlay';
 
-/** Opens at once, the way a tooltip with no trigger of its own has to. */
 const ROW_TOOLTIP_CLASS = 'transition-none data-[starting-style]:opacity-100 data-[starting-style]:scale-100 data-[ending-style]:opacity-100 data-[ending-style]:scale-100';
 
-/** Lazy: the plan editor is a large view, and most panel visits never open it. */
 const PlanView = React.lazy(() => import('@/components/views/PlanView').then((module) => ({ default: module.PlanView })));
 
 interface ProjectNotesTodoPanelProps {
@@ -51,28 +49,8 @@ type ProjectContextTab = 'notes' | 'todos' | 'plans' | 'memory';
 
 const TAB_ORDER: ProjectContextTab[] = ['notes', 'todos', 'plans', 'memory'];
 
-/**
- * Panel width from which entries open beside the list instead of over it: the
- * 380px list column plus about 640px for the entry. At 900 the entry got some
- * 500px, narrower than the list it sat beside.
- */
 const SPLIT_MIN_WIDTH = 1040;
 
-/**
- * Notes, todos, plans and agent memory for the active project.
- *
- * The lists are tabs rather than one stacked column: stacking gave each
- * list its own scroller inside the panel's scroller, which only got worse as
- * lists grew and forced the todo list to carry a manual resize handle just to
- * stay usable.
- *
- * Search sits above the tabs and stays panel-wide. Tabs divide, and search is
- * the one thing that division would hurt — you do not always remember whether
- * something was written as a note or lives in a plan — so the section strip
- * doubles as the result summary by showing per-section match counts.
- *
- * Storage is server-owned and reached through `useProjectContextStore`.
- */
 export const ProjectNotesTodoPanel: React.FC<ProjectNotesTodoPanelProps> = ({
   projectRef,
   visible = true,
@@ -92,8 +70,6 @@ export const ProjectNotesTodoPanel: React.FC<ProjectNotesTodoPanelProps> = ({
   const saveTodos = useProjectContextStore((state) => state.saveTodos);
   const { pinnedNoteIds, pinnedPlanIds, togglePin: toggleSessionPin } = useSessionKnowledgePins();
 
-  // The whole feature is one switch: with memory off there is nothing for the
-  // agent to manage, so showing the user what is stored would be pointless.
   const memoryEnabled = useUIStore((state) => (
     state.agentMemoryFeatureAvailable && state.agentMemoryToolEnabled
   ));
@@ -186,8 +162,6 @@ export const ProjectNotesTodoPanel: React.FC<ProjectNotesTodoPanelProps> = ({
   const openNote = React.useCallback((id: string | null) => openEntryIn('notes', id), [openEntryIn]);
   const openMemory = React.useCallback((id: string | null) => openEntryIn('memory', id), [openEntryIn]);
   const openPlan = React.useCallback((plan: { id: string }) => openEntryIn('plans', plan.id), [openEntryIn]);
-  // A todo an agent filed under a plan opens that plan: in the host's own
-  // viewer where it has one (mobile), else in the Plans tab.
   const openPlanFromTodo = React.useCallback((planId: string) => {
     const plan = contextEntry.plans.find((entry) => entry.id === planId);
     if (!plan || !projectRef) return;
@@ -198,14 +172,7 @@ export const ProjectNotesTodoPanel: React.FC<ProjectNotesTodoPanelProps> = ({
     setStoredTab('plans');
     openEntryIn('plans', plan.id);
   }, [contextEntry.plans, onOpenPlan, openEntryIn, projectRef, setStoredTab]);
-  /**
-   * A plan moved while open beside the list. Its file moved and its id may
-   * have changed, so the view opens again on the plan as it is now; the view
-   * wrote its typing before the move (`openPlanViews`).
-   */
   const [planViewGeneration, setPlanViewGeneration] = React.useState(0);
-  // Read when the move ends, which can be after the user opened something else
-  // or another project, where the same plan id may name another plan.
   const openEntryRef = React.useRef({ entry: openEntry, projectContextId });
   openEntryRef.current = { entry: openEntry, projectContextId };
   const handlePlanMoved = React.useCallback((projectId: string, previousId: string, movedId: string) => {
@@ -398,7 +365,6 @@ export const ProjectNotesTodoPanel: React.FC<ProjectNotesTodoPanelProps> = ({
         ) : null}
       </button>
     );
-    // The strip measured for fit is never shown, so it needs no tooltips.
     if (!interactive) return tab;
     return (
       <Tooltip key={section.id}>
@@ -462,8 +428,6 @@ export const ProjectNotesTodoPanel: React.FC<ProjectNotesTodoPanelProps> = ({
       onTogglePinned={(planId, pinned) => toggleSessionPin('plan', planId, pinned)}
       selectedPlanId={split ? openPlanId : null}
       onPlanMoved={handlePlanMoved}
-      // Hosts that own a fullscreen plan surface (mobile) keep it; on the
-      // desktop panel the plan opens here, in place of the list or beside it.
       onOpenPlan={onOpenPlan ?? openPlan}
     />
   );

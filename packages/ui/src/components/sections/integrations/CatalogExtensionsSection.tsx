@@ -37,12 +37,6 @@ type PendingAction = 'install' | 'update' | 'enable' | 'remove';
 
 type CardStatus = { status: string; tone: IntegrationCatalogStatusTone };
 
-/**
- * OpenChamber extensions the team publishes (Excalidraw, Resource Monitor), offered with a
- * one-click Git install. The installed extension is an ordinary entry in
- * Settings → Extensions; these cards read the same catalog. Hidden where the
- * runtime loads no extensions (VS Code) and on the phone, which shows neither.
- */
 export const CatalogExtensionsSection: React.FC = () => {
   const { t } = useI18n();
   const guests = useGuestsStore((state) => state.guests);
@@ -204,7 +198,6 @@ export const CatalogExtensionsSection: React.FC = () => {
     );
   };
 
-  // These extensions are desktop panels and editors, which the phone does not show.
   if (catalogStatus === 'unsupported' || isMobileSurfaceRuntime()) return null;
 
   return (

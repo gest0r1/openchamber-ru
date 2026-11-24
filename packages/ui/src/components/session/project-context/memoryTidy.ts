@@ -33,10 +33,6 @@ type MemoryTidyOutcome =
   | { ok: true; sessionId: string }
   | { ok: false; reason: 'no-model' | 'create-failed' | 'send-failed' };
 
-/**
- * Starts a session in the project that tidies the memory on its own, with the
- * default model and agent, and makes it the current session.
- */
 export const startMemoryTidy = (input: {
   projectPath: string;
   title: string;
@@ -48,11 +44,6 @@ export const startMemoryTidy = (input: {
   entries: formatMemoryForTidy(input.memory),
 });
 
-/**
- * Starts a session that moves the project entries the last dreaming pass
- * found belong in the project's agent docs, in a session the user watches:
- * the edits stay in the working tree for them to review.
- */
 export const startMemoryToDocs = (input: {
   projectPath: string;
   title: string;

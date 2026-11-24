@@ -32,7 +32,6 @@ export const useAnnotationAttach = (directory: string, intro?: string) => {
     }
     const screenshotAttached = screenshot !== undefined;
 
-    // The overlay is gone by now, so a refusal would lose the comment and marks.
     addInlineCommentDraft(target, {
       source: 'preview-annotation',
       fileLabel: result.payload.pageUrl || result.payload.pageTitle || 'browser',
@@ -44,7 +43,8 @@ export const useAnnotationAttach = (directory: string, intro?: string) => {
         intro: intro ?? t('contextPanel.browser.annotate.intro'),
       }),
       language: 'markdown',
-      text: '',
+      text: result.payload.comment.trim(),
+      screenshot,
     }, { written: true });
 
     toast.success(t('contextPanel.browser.annotate.attached'));

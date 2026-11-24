@@ -5,6 +5,94 @@ import { randomUUID } from 'node:crypto';
 import { withSourceControlFileLock } from './file-lock.js';
 import { SOURCE_CONTROL_MUTATION_KINDS } from './mutation-storage.js';
 
+export interface AuditRuntime {
+  id: string;
+  platform: string;
+  label?: string;
+}
+
+type SingleTransportReference = { kind: 'anonymous' } | { kind: 'managed'; credentialId: string }
+  | { kind: 'system'; marker: 'system-credentials' | 'local-checkout-actions' };
+interface AuxiliaryTransportEntry {
+  kind: 'submodule' | 'lfs';
+  endpointFingerprint: string;
+  transport: SingleTransportReference;
+}
+type AuditTransportReference = SingleTransportReference | null
+  | { kind: 'auxiliary'; entries: AuxiliaryTransportEntry[] }
+  | { kind: 'sync'; fetch: SingleTransportReference; push: SingleTransportReference };
+interface RemoteTarget {
+  role: 'operation' | 'fetch' | 'push';
+  name: string;
+  endpointFingerprint: string;
+  sourceRef?: string;
+  destinationRef?: string;
+}
+interface AuxiliaryTarget {
+  kind: 'submodule' | 'lfs';
+  endpointFingerprint: string;
+}
+interface GitTarget {
+  kind: 'git-network';
+  operation: string;
+  remotes: RemoteTarget[];
+  destination?: { displayName: string; fingerprint: string };
+  fetchScope?: 'remote';
+  force?: boolean;
+  auxiliaries?: AuxiliaryTarget[];
+}
+interface ProviderTarget {
+  kind: 'issue' | 'discussion' | 'change-request';
+  operation: string;
+  projectId: string;
+  number?: number;
+  head?: string;
+  base?: string;
+  headSha?: string;
+}
+type AuditTarget = GitTarget | ProviderTarget;
+type AuditState = 'planned' | 'running' | 'succeeded' | 'partial' | 'conflicted' | 'failed' | 'cancelled' | 'outcome-unknown';
+export interface AuditResult {
+  state: Exclude<AuditState, 'planned' | 'running'>;
+  errorCode: string | null;
+  steps: string[];
+}
+export type AuditResultInput = Omit<AuditResult, 'state'> & { state: string };
+export interface AuditRecord {
+  id: string;
+  initiator: 'user';
+  executorKind: 'openchamber-server-git' | 'provider-api';
+  runtime: AuditRuntime;
+  repositoryId: string | null;
+  providerAccountId: string | null;
+  transportReference: AuditTransportReference;
+  target: AuditTarget;
+  state: AuditState;
+  plannedAt: number;
+  startedAt: number | null;
+  finishedAt: number | null;
+  result: AuditResult | null;
+  expiresAt: number | null;
+}
+export type AuditPlan = Omit<AuditRecord, 'state' | 'plannedAt' | 'startedAt' | 'finishedAt' | 'result' | 'expiresAt'> & {
+  plannedAt?: number;
+};
+interface AuditSnapshot {
+  version: number;
+  records: Record<string, AuditRecord>;
+}
+interface AuditStoreOptions {
+  filePath?: string;
+  fsImpl?: typeof fs;
+  lockWaitMs?: number;
+  now?: () => number;
+  maxRecords?: number;
+  terminalTtlMs?: number;
+}
+type AuditValue = AuditRecord | AuditPlan | AuditResultInput | AuditSnapshot | AuditRuntime | SingleTransportReference
+  | Exclude<AuditTransportReference, null> | RemoteTarget | AuxiliaryTarget | AuxiliaryTransportEntry | AuditTarget
+  | NonNullable<GitTarget['destination']>;
+
 const VERSION = 1;
 const DEFAULT_MAX_RECORDS = 1_000;
 const DEFAULT_TERMINAL_TTL_MS = 30 * 24 * 60 * 60 * 1000;
@@ -17,8 +105,7 @@ const GIT_OPERATIONS = new Set([
   'contributor-fetch', 'checkout-hydration', 'checkout-actions',
 ]);
 const PROVIDER_OPERATIONS = new Set(SOURCE_CONTROL_MUTATION_KINDS);
-// What a provider write acts on: `issue-*` names an issue, `discussion-*` a discussion, everything else a change request.
-export const providerTargetKind = (operation) => {
+export const providerTargetKind = (operation: string) => {
   if (operation.startsWith('issue-')) return 'issue';
   return operation.startsWith('discussion-') ? 'discussion' : 'change-request';
 };

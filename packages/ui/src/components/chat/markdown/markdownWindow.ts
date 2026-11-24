@@ -236,18 +236,8 @@ const windowOf = (element: Element): MarkdownWindow | undefined => {
   return container ? windows.get(container) : undefined;
 };
 
-/**
- * Whether the document in or around `element` is windowed yet. The renderer
- * loads lazily, so a caller that opened before it did holds once this is true;
- * `holdMarkdownBlocks` before then holds nothing.
- */
 export const hasMarkdownWindow = (element: Element): boolean => windowOf(element) !== undefined;
 
-/**
- * Keeps every block of the windowed document holding `element` mounted, or
- * only `block` (one of its blocks), until the returned release. `sync` mounts
- * them before returning; only from an event handler.
- */
 export const holdMarkdownBlocks = (element: Element, options: { block?: Element; sync?: boolean } = {}): (() => void) => {
   const owner = windowOf(element);
   if (!owner) return () => {};

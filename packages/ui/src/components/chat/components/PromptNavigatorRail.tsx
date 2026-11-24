@@ -280,9 +280,6 @@ export function PromptNavigatorRail({
     return (
         <nav
             aria-label={t('chat.promptNavigator.aria')}
-            // Spans the chat so the panel can take the room it needs; only the
-            // indicator and the panel take the pointer.
-            // The end edge follows the message column (`oc-prompt-navigator`, typography.css).
             className="oc-prompt-navigator pointer-events-none absolute inset-y-3 inset-s-3 z-20 flex flex-col items-end"
             onMouseEnter={handleNavEnter}
             onMouseLeave={handleNavLeave}
@@ -373,9 +370,6 @@ export function PromptNavigatorRail({
                     aria-label={t('chat.promptNavigator.aria')}
                     aria-haspopup="listbox"
                     aria-expanded={false}
-                    // A backing in the chat's colour keeps text scrolling under
-                    // the corner from running through the ticks. Opaque enough,
-                    // no blur: a blur here is redrawn every streamed frame.
                     className="pointer-events-auto flex flex-col items-end gap-[3px] rounded-md bg-background/85 p-1"
                     onMouseEnter={handleIndicatorEnter}
                     onClick={() => {
@@ -388,8 +382,6 @@ export function PromptNavigatorRail({
                             key={tick}
                             aria-hidden="true"
                             className={cn(
-                                // An icon's stroke in the secondary tone: it marks
-                                // where the reader is, it is not content.
                                 'block h-[1.5px] w-3 rounded-full',
                                 tick === currentTick
                                     ? 'bg-muted-foreground'

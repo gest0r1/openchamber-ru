@@ -73,7 +73,6 @@ const selectionLabel = (selection: ReferencePickerSelection): string => (
 
 type RepositoryProject = { owner: string; name: string };
 
-/** A tracker item by its id or its identifier: a tracker's get takes either. */
 async function readTrackerItem(deps: ReferenceResolveDeps, provider: string, itemId: string): Promise<ComposerReference> {
     const item = await deps.readTrackerDetail(provider, itemId);
     const login = item.assignee?.name;
@@ -170,23 +169,21 @@ async function resolveOne(selection: ReferencePickerSelection, deps: ReferenceRe
     return readChangeRequest(deps, context, project, reference.number, selection.includeDiff, author);
 }
 
-/** An issue, change request or tracker item a link in the text names. */
 export type ReferenceLinkTarget =
     | { source: 'repository'; provider: string; instance: string; owner: string; repo: string; kind: 'issue' | 'pull'; number: number }
+    | ({ source: 'repository-url' } & RepositoryUrlResolver)
     | { source: 'tracker'; provider: string; identifier: string };
 
-/**
- * What a pasted link names, read as the picker reads a chosen item. A change
- * request comes without its diff, as the picker's default. The project's own
- * reads stop at its fork network, so a link past it is read again with the
- * project's account, as the Tracker does, where that account's host is the
- * link's.
- */
-export async function resolveReferenceLink(target: ReferenceLinkTarget, deps: ReferenceResolveDeps): Promise<ComposerReference> {
+export async function resolveReferenceLink(target: ReferenceLinkTarget, deps: ReferenceResolveDeps): Promise<ComposerReference | null> {
     if (target.source === 'tracker') return readTrackerItem(deps, target.provider, target.identifier);
     const { context } = deps;
     if (!context || context.provider !== target.provider || context.instance !== target.instance) {
         throw new Error('The repository is not available here');
+    }
+    if (target.source === 'repository-url') {
+        const item = await target.resolve();
+        if (!item || item.kind !== 'pull') return null;
+        return resolveReferenceLink({ source: 'repository', ...item, kind: item.kind }, deps);
     }
     const project = { owner: target.owner, name: target.repo };
     const read = (through: SourceControlReadContext) => (target.kind === 'issue'

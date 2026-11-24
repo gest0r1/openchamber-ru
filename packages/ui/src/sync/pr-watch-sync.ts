@@ -32,11 +32,6 @@ export const subscribePrWatchSync = (runtimeKey: string): (() => void) => {
   });
 };
 
-/**
- * The user's "stop watching" for the pull request at `url`, or for every one
- * without it: what it stops does not wake the session. A refused request puts
- * the rows back.
- */
 export const stopPrWatch = async (sessionID: string, url?: string): Promise<void> => {
   const previous = takePrWatches(sessionID, url);
   const response = await runtimeFetch(`/api/pr-watch/sessions/${encodeURIComponent(sessionID)}`, {

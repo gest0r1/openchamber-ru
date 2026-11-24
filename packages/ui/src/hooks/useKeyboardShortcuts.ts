@@ -84,9 +84,6 @@ export const useKeyboardShortcuts = () => {
   const activeProject = useProjectsStore((s) => s.getActiveProject());
   const { themeMode, setThemeMode } = useThemeSystem();
   const { phase: sessionPhase } = useCurrentSessionActivity();
-  // Double Escape from a composer (useComposerAbortEscape). The composer of a
-  // chat pinned in the side panel stops that chat's session, which the column
-  // names on its root; the main composer stops the main chat's.
   const { handleKeyDown: handleAbortEscapeKeyDown, reset: resetAbortPriming } = useComposerAbortEscape({
     isBlocked: () => hasOverlayOpen() || hasOpenDropdown(),
     resolveTarget: (target) => {
@@ -130,7 +127,6 @@ export const useKeyboardShortcuts = () => {
   const selectionToolbarDispatcher = selectionToolbarDispatcherRef.current;
 
   React.useEffect(() => { themeModeRef.current = themeMode; }, [themeMode]);
-
 
   const toggleTerminalSurface = () => {
     if (!currentDirectory) return;

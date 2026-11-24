@@ -4,7 +4,7 @@ import { unwrapOpenCodeResponse } from '../opencode/response-envelope.js';
 import { fitRenderPageImages, renderPageImageSources } from '../openchamber-control/render-page.js';
 import { generatedImagePaths } from '../openchamber-control/generate-image.js';
 import { capturedScreenshotPaths } from '../openchamber-control/screenshots.js';
-import { isRecord, isString } from '../shared/guards.js';
+import { asNonEmptyString, isRecord, isString } from '../shared/guards.js';
 import { inspectLocalImage } from './inspect-image.js';
 import type { PageImageInspection } from '../openchamber-control/render-page.js';
 import type { DirectoryValidation } from '../projects/contracts.js';
@@ -186,43 +186,29 @@ const markdownImageSources = (message: JsonObject) => {
   return sources;
 };
 
-/**
- * The HTML of a call a harness spilled into `action` as JSON text. The plugin
- * revives such a call and draws its page (`singleActionSchema` in
- * `../agent-tool/runtime.js`), and OpenCode stores the input as the model sent
- * it, so the page is read back the same way: the spilled object's own
- * `parameters` over its siblings, and a `parameters` that is not an object
- * ignored. The call's own fields win, so this is read last.
- */
-const spilledPageHtml = (input) => {
+const spilledPageHtml = (input: JsonObject | undefined) => {
   if (!isString(input?.action) || !input.action.trim().startsWith('{')) return undefined;
-  let revived;
+  let revived: JsonValue;
   try {
     revived = JSON.parse(input.action);
   } catch {
     return undefined;
   }
-  if (!isRecord(revived)) return undefined;
-  return isRecord(revived.parameters) && Object.hasOwn(revived.parameters, 'html')
+  if (!isJsonRecord(revived)) return undefined;
+  return isJsonRecord(revived.parameters) && Object.hasOwn(revived.parameters, 'html')
     ? revived.parameters.html
     : revived.html;
 };
 
-/**
- * The message's openchamber_render pages, by tool call id. The page's HTML is
- * the call's input, which OpenCode stores with the message, so it authorizes
- * its paths the way assistant text does. The input is either the page itself
- * or, for a call made through the action form, its `parameters`.
- */
-const renderPages = (message) => {
-  const pages = new Map();
+const renderPages = (message: JsonObject) => {
+  const pages = new Map<JsonValue | undefined, string>();
   for (const part of messageContent(message)) {
-    if (part?.type !== 'tool' || part.name !== 'openchamber_render') continue;
-    const input = part.state?.input;
-    const html = [input?.parameters?.html, input?.html, spilledPageHtml(input)].find(isString);
-    // A stored tool item's `id` is its call id: the chat's `callID` is this
-    // field (projectToolPart in packages/ui/src/lib/opencode/projection.ts).
-    if (isString(html)) pages.set(part.id, html);
+    if (!isJsonRecord(part) || part.type !== 'tool' || part.name !== 'openchamber_render') continue;
+    const state = isJsonRecord(part.state) ? part.state : undefined;
+    const input = isJsonRecord(state?.input) ? state.input : undefined;
+    const parameters = isJsonRecord(input?.parameters) ? input.parameters : undefined;
+    const html = [parameters?.html, input?.html, spilledPageHtml(input)].find(isString);
+    if (html !== undefined) pages.set(part.id, html);
   }
   return pages;
 };
@@ -256,27 +242,20 @@ const comparablePath = (value: string) => {
   return /^\/[A-Za-z]:\//.test(text) ? text.slice(1) : text;
 };
 
-// The tools whose stored result names image files the chat draws in their row,
-// with the reader of those names. `browser.capture` runs behind Code Mode, so
-// its result is usually an `execute` call's.
 const TOOL_RESULT_IMAGE_PATHS = new Map([
   ['openchamber_image', generatedImagePaths],
   ['openchamber_web', capturedScreenshotPaths],
   ['execute', capturedScreenshotPaths],
 ]);
 
-/**
- * The files the message's openchamber_image calls saved and its page
- * screenshots, named by the result each call stored, as `comparablePath`
- * spells them. The chat draws them in the call's row.
- */
-const toolResultImageSources = (message) => {
-  const sources = new Set();
+const toolResultImageSources = (message: JsonObject) => {
+  const sources = new Set<string>();
   for (const part of messageContent(message)) {
-    const readPaths = part?.type === 'tool' ? TOOL_RESULT_IMAGE_PATHS.get(part.name) : undefined;
-    if (!readPaths || part.state?.status !== 'completed') continue;
+    if (!isJsonRecord(part)) continue;
+    const readPaths = part.type === 'tool' && isString(part.name) ? TOOL_RESULT_IMAGE_PATHS.get(part.name) : undefined;
+    if (!readPaths || !isJsonRecord(part.state) || part.state.status !== 'completed') continue;
     for (const item of Array.isArray(part.state.content) ? part.state.content : []) {
-      if (item?.type !== 'text' || !isString(item.text)) continue;
+      if (!isJsonRecord(item) || item.type !== 'text' || !isString(item.text)) continue;
       for (const source of readPaths(item.text)) sources.add(comparablePath(source));
     }
   }

@@ -106,8 +106,8 @@ An installed extension with `provides: ["quota"]` and `contributes.quota` (the S
 
 - The catalog is the authority, never an event: a guest reports usage while it is enabled, fully approved with an effective `service` grant, provides `quota` and has a parsed `contributes.quota`. Pause, removal, withdrawn approval and a grant whose scope changed (the provider list is part of it, `guests/grant-scope.js`) detach it. `extension-quotas.js` reconciles at start, on `onGuestActivated` and on `onGuestDeactivated`, one run at a time, and announces a change as `openchamber:quota-providers-changed`, which the UI answers by reading `GET /api/quota/extensions` again. The quota module stays unloaded on a host with no such extension.
 - `isConfigured(auth)` is true when OpenCode holds at least one listed credential, and always when the list is empty, so `listConfiguredQuotaProviders` and the UI's configured state work unchanged.
-- `fetchQuota` reads the credentials through `../opencode/auth.js` like every built-in, picks the listed entries (`pickCredentials`, own keys only) and answers `Not configured` without a call when none is present; it re-reads the guest's catalog row (enterprise policy applies on each read) and refuses a guest no longer eligible; then it posts one `usage.read` to the service with those entries and nothing else of the map, under the SDK's deadline, response cap and idle stop. A service not reached is a failed result with `configured: true`, as a built-in's API outage reads; an answer that does not parse (`quotaProviderSchemasV1`) is `502 MALFORMED_PROVIDER_RESPONSE` (`QuotaRouteError`, the only error `GET /api/quota/:providerId` answers with its own status), never an empty result. The host sets `providerId`, `providerName` and `fetchedAt` and runs `toUsageWindow`, so the result matches a built-in's field for field.
-- `GET /api/quota/extensions` answers `extensions: [{ id, name, icon, guestId }]` from memory (`extension-registry.js`), with no provider module loaded and no call to OpenCode, because every client reads it on each stream connect and an unreachable OpenCode must not hide the cards. `GET /api/quota/providers` lists configured ids and stays the route that reads credentials. The UI draws the card with the extension's name and icon and merges the list after its built-in one.
+- `fetchQuota` reads the credentials through `../opencode/auth.js` like every built-in, picks the listed entries (`pickCredentials`, own keys only) and answers `Not configured` without a call when none is present; it re-reads the guest's catalog row (enterprise policy applies on each read) and refuses a guest no longer eligible; then it posts one `usage.read` to the service with those entries and nothing else of the map — without the row's `label`, whose account naming is OpenChamber-internal — under the SDK's deadline, response cap and idle stop. A service not reached is a failed result with `configured: true`, as a built-in's API outage reads; an answer that does not parse (`quotaProviderSchemasV1`) is `502 MALFORMED_PROVIDER_RESPONSE` (`QuotaRouteError`, the only error `GET /api/quota/:providerId` answers with its own status), never an empty result. The host sets `providerId`, `providerName` and `fetchedAt` and runs `toUsageWindow`, so the result matches a built-in's field for field.
+- `GET /api/quota/extensions` answers `extensions: [{ id, name, icon, guestId, providers }]` from memory (`extension-registry.ts`), with no provider module loaded and no call to OpenCode, because every client reads it on each stream connect and an unreachable OpenCode must not hide the cards. `providers` is the guest's declared `contributes.quota.providers` (`[]` when a registered provider carries none) and is how the UI's headline picker resolves a composer model provider to an `ext-<guestId>` entry, which no id match can reach; only a single-provider list counts there, because the reply does not say which credential its windows cover. `GET /api/quota/providers` lists configured ids and stays the route that reads credentials. The UI draws the card with the extension's name and icon and merges the list after its built-in one.
 - No host cache, as no built-in has one; concurrent refreshes coalesce per id in `fetchQuotaForProvider` as they do for a built-in.
 - The role keeps nothing on the server: a pause and a removal both only detach. The user's Usage settings for the card (shown in Work Status, selected models) are instance settings keyed by provider id and are kept like a built-in's; the UI narrows its saved list to the providers known now.
 - Runtimes: web and desktop serve the role; hosted mobile draws the card and sets nothing up; VS Code keeps its own provider copy and loads no extensions, so it shows none; a session inside an isolated space has `/api/quota` forwarded to the space's own server (`spaces/dispatcher.js` does not list it as host-only), so it sees that server's built-ins and no extension layer.
@@ -129,6 +129,7 @@ OpenCode Go has two credential shapes and they are not interchangeable. An API k
 - **API key meters**: an API key reads the Console Go status first and uses its meters exactly like a sign-in does. The usage API reports each window as a floored integer `percent`, so with it the rows sat up to a point below the Console page, which rounds `used / limit` (#5278); rounding on our side cannot recover the lost fraction. The Console read is best-effort for a key: any failure (HTTP error, a `product` other than Go, no usable meter, network) falls through to the usage API, which owns every API-key error message below. A key that fails both ways costs two requests per refresh. Verified live on 2026-10-22 with an `oc_sk_` key: the status answers 200 with the same meters as the sign-in, and an expired `sk-` key gets 401 `api_key_expired` there too. The billing status answers a key with 403, so the key path never shows a credits row.
 - **API key on `opencode`**: an API key on the shared `opencode` integration is read the same way as an `opencode-go` key, and ahead of it. OpenCode loads the Console workspace's providers with that key and binds OpenCode Go to the `opencode` integration when the workspace has Go (the Console config lists `opencode-go`, and `ConfigProviderPlugin.integrate` gives it the document's integration ID), so requests to Go models carry that key and an `opencode-go` key beside it is never used. When the Console refuses the key, its config carries no `opencode-go` and OpenCode keeps Go on its own integration, which the fallback to the `opencode-go` key mirrors; after that fallback the `opencode-go` key's own error is shown, since that is the key OpenCode uses. Verified live with OpenCode 2.3.2 on 2026-11-21 (#6679): a working `opencode` key with an invalid `opencode-go` key answers Go prompts, and the swap does too. The usage API accepts any key of a Console workspace and answers 403 when the workspace has no Go subscription; for this key a 403 is reported as the absent subscription, the same message as the Console sign-in path. That 403 meaning comes from the Console's own handler for legacy `sk-` keys; new `oc_sk_` keys and keys of migrated workspaces are proxied to a separate inference service, so re-check its answer there when the endpoint changes. An API key and a Console sign-in never coexist on `opencode`, since OpenCode keeps one active credential per integration.
 - **Read-only and per-call**: the access token is read through `../opencode/auth.js` on every fetch, so switching accounts drops the previous account instead of showing stale numbers. OpenChamber never refreshes the token itself: OpenCode owns that, and an expired access token (local `expires`, or a 401/403) is surfaced as "sign in again" rather than a competing refresh.
+- **Account name**: a successful Go usage read carries `accountLabel` when the credential has a display label in OpenCode. The label comes from the sign-in or key that supplied the meters, including a fallback key. A failed Go read or an unnamed credential has no account label. The shared response parser (`packages/ui/src/lib/quota/fetchQuota.ts`) keeps the field for all surfaces.
 - **Meters**: the response's `product` must be `go`, `go-plus` or `go-teams`, the plan ids OpenCode's Go page and docs use; anything else is an absent subscription. The same holds for a Go product with no `access` object: a subscription that ended, was refunded, or was never active keeps `product: "go"` and sends `access: null`, which is the absent subscription and not a body we failed to read (#6779). Only an `access` that is present and carries no usable meter is the malformed response. `access.meters.fiveHour` / `week` / `month` map to the existing `5h` / `weekly` / `monthly` windows. `limitMicroCents` and `usedMicroCents` are decimal strings; the percentage is `used / limit`, never a hardcoded plan limit. A missing meter, a non-positive or unparseable limit, or an invalid reset timestamp skips that window alone; no usable window is a failed refresh, not zero usage.
 - **Credits balance**: the Go status response carries no credit balance. Alongside the Console read (never with a locally expired sign-in), the provider also reads the billing status, so a slow billing endpoint adds no time beyond the slower of the two requests. When the Go read succeeds, it surfaces its `availableMicroCents` (integer micro-cents as a decimal string; the Console counts `1_000_000` micro-cents per cent, so `100_000_000` is one USD) as a `credits_balance` window with a money `valueLabel` and no percent or reset. This read is best-effort: any failure (network, HTTP, malformed, or an absent amount) drops the row rather than failing the refresh or reporting a `$0.00` balance, and it never runs on the API-key path.
 - **Trusted origin**: Console requests, with a sign-in token or an API key, go only to the fixed Console URLs with `redirect: 'error'`, so the bearer token is never forwarded to another origin.
@@ -139,6 +140,10 @@ OpenCode Go has two credential shapes and they are not interchangeable. An API k
 ### Why an ended subscription is the absent-subscription message and not its own
 
 A refunded or cancelled Go subscription keeps `product: "go"` and sends `access: null` (#6779). A dedicated message would name the state more precisely, but the card already answers "no active subscription" every other way a workspace can lack Go — an unexpected `product`, a 403 on the shared key — and "it ended" is that same fact with a date on it. One message keeps the advice, and the tests asserting it, in one place; the ended-at date lives in the status response, not in a quota window we would have to render.
+
+### Why the `opencode` credential comes before the `opencode-go` key
+
+The card has to show the quota of the account OpenCode bills, and OpenCode puts OpenCode Go on whatever credential is active on `opencode` whenever that workspace has Go (#6679). Reading the `opencode-go` key first looked natural, since it is the card named after the product, but it showed one account's meters while requests went out on another. Asking OpenCode for the provider's integration ID on every refresh would be exact, but it costs a request and a second path for VS Code. Falling back to the `opencode-go` key only when the Console refuses the `opencode` key covers the case where OpenCode does the same: a key or workspace the Console config does not answer for. A temporary failure does not move OpenCode off the Console key, so it does not move the card either.
 
 ### OpenCode Console budgets
 
@@ -154,6 +159,72 @@ The OpenCode Go result also carries the active Console sign-in's monthly spend b
 - A malformed budget is dropped independently, so it cannot hide other valid budgets.
 
 On the first OpenCode Go usage refresh after upgrading, OpenChamber deletes the obsolete `quota/opencode-go.json` credential file without reading its cookie value.
+
+### Why the budget decorator infers its return type
+
+Attaching budgets can replace null usage with an empty window map and turn a failed result into a configured success. Its return type includes those replacements; promising the input's exact generic type would preserve literal false flags or null usage that the returned object no longer has. The budget types live in the implementation, while Zod still parses each external budget independently.
+
+## TypeScript conversion boundaries
+
+The extension adapter is TypeScript. `extensionProviderId` returns a nullable ID
+that the adapter passes unchanged to `buildResult`. The formatter copies that ID
+without validation, so its result and input contracts carry the caller's ID type;
+their default remains string for built-in providers. Registration still validates
+the adapter's ID before storing it. Wire windows use the SDK schema's inferred
+type, and the adapter retains their optional structured `value` beside the
+formatter's derived fields.
+
+The registry and catalog reconciler are TypeScript. The registry validates an
+adapter's nullable ID before storing the original provider object. Catalog rows
+use `GuestRecord` from the catalog's owning module; the eligibility predicate
+establishes the service, quota contribution and capability grants using the
+existing adapter check. The registry stays independent of the adapter at runtime,
+so listing extensions does not load credentials or provider modules.
+
+The credential routes accept a provider only when it is an own key of the
+fixed-key `normalizers` object exported by `credentials/providers.ts`. Any other
+path segment, including names every object inherits such as `constructor` and
+`__proto__`, answers 404 before a normalizer, validator or the credential store
+is reached.
+
+### Why routes retain unchecked-input guards
+
+Express bodies stay unknown until checked. The credential JSON predicate checks
+the parsed body without cloning or changing its values, including numeric
+overflow accepted by JSON parsing. The gift-reset field predicate permits
+property reads on every non-nullish value, preserving JavaScript's primitive
+property access. Reset types still require membership in the provider's list.
+
+Thrown messages remain unchecked values, including inherited or non-string
+messages. Nullish thrown values still cause a TypeError when their message is
+read. Credential and gift-reset errors retain their existing Error-instance
+checks and fallback messages.
+
+### Why the adapter keeps catalog and thrown-value checks
+
+The catalog reader is injectable, so its capability-grant array check remains.
+Credential selection retains its own-key and truthiness tests to exclude
+prototype members and absent credentials. Thrown values may be primitives or
+objects with inherited `message` and `code` properties. The error-field predicate
+excludes only null and undefined, preserving optional property access and nullish
+fallbacks without promising string fields.
+
+`persistPath` names the extension store whose enabled flag the service proxy
+reads. `reconcile` refreshes the registered set when a call finds an ineligible
+guest.
+
+### Why reconciliation keeps the catalog and error checks
+
+The catalog array check remains unchanged at the injected reader boundary.
+Thrown values are unchecked. The optional-message predicate establishes only that
+property access is legal by excluding null and undefined. JavaScript also allows
+property access on primitives, including inherited messages, so an object-only
+guard would change that behavior. The optional message remains unknown, and a
+nullish message still falls back to the thrown value.
+
+Node tests that load the provider registry directly must preload
+`packages/web/scripts/register-server-sources.mjs`, since the registry imports
+converted helpers through `.js` specifiers without the server entrypoint.
 
 ## Mistral quota semantics
 
@@ -192,6 +263,8 @@ Both runtimes read the same Console contract. Sharing the reader keeps provider 
 
 Codex `credits.balance` is an OpenAI credit count, not a dollar amount. Web/Electron and VS Code expose it as a `credits_balance.valueLabel` under the UI's localized Credits Balance title, rendered the way Copilot credits are: at most one decimal, thousands separated, no currency symbol. The endpoint's float tail is rounded away instead of printed. Numeric strings are accepted; zero, unlimited, and unavailable balances retain their existing handling. Keep `providers/codex.js` and `packages/vscode/src/quotaProviders.ts` in sync.
 
+For `spend_control.individual_limit`, an explicit `unit: "usd"` produces a `usage` window with dollar signs and cents, using the existing localized Usage label. Other or missing units keep the `credits` window and its integer formatting. The unit comes from the response; no plan, organization or credit conversion is inferred.
+
 A Codex usage 401 whose body has `error.type: "rejected_by_access_enforcement"` is OpenCode's `chatgpt-token-sharing` sign-in ("Sign in with ChatGPT"). Its token is minted for `https://api.openai.com/v1` with the `chatgpt.tokens.use.direct` scope, which OpenAI admits only on the Responses route, and OpenAI publishes no usage endpoint for that sign-in. The numbers then come from the Codex CLI's own sign-in on the same machine (`providers/codex-cli.js`): `$CODEX_HOME/auth.json` (`~/.codex` by default), `tokens.access_token` and `tokens.account_id`, which the usage endpoint accepts because the CLI signs in with OpenAI's app client. Without that file, with an API-key CLI sign-in, or when the endpoint refuses the CLI token as well, both runtimes say that OpenAI shows usage for this sign-in only at `chatgpt.com/settings/usage` and name the legacy Codex sign-ins as the ones that show it in the app. Any other 401 reads as an expired session. The CLI read is tried only after that exact refusal: a legacy sign-in never consults the CLI, and `isConfigured` still answers from OpenCode alone. Web and VS Code keep this branch identical.
 
 - **The CLI file is read-only and read fresh per request.** OpenChamber never refreshes or writes the CLI's tokens; the CLI renews them on its own runs, and an expired CLI token is just a refused retry.
@@ -214,7 +287,8 @@ The Claude provider already reads Claude Code's credentials the same way: a tool
 
 Claude quota reports the subscription limits Claude Code itself is bound by, read from `GET https://api.anthropic.com/api/oauth/usage`.
 
-- **Credential sources**, in priority order: the macOS Keychain entry `Claude Code-credentials`, then `${CLAUDE_CONFIG_DIR:-~/.claude}/.credentials.json` (the Linux/WSL location), then the OpenCode `auth.json` entry, then `CLAUDE_CODE_OAUTH_TOKEN`. The Keychain wins on macOS because the credentials file there is a leftover Claude Code no longer updates.
+- **Credential sources**: without `CLAUDE_CONFIG_DIR`, the macOS Keychain entry `Claude Code-credentials`, then `~/.claude/.credentials.json`, then the OpenCode `auth.json` entry, then `CLAUDE_CODE_OAUTH_TOKEN`. With an explicit home, only that home's Keychain service and `.credentials.json` are read. The service suffix is the first eight hex characters of SHA-256 of the literal override, including a trailing slash. Verified against Claude Code 2.1.325 on macOS. The Keychain wins over the credentials file because the macOS file can be stale.
+- **Environment source**: server composition injects a live reader from the existing environment runtime. Settings user variables override OpenCode service variables, then the inherited environment; project variables never apply. Enterprise mode suppresses the Settings/service overlay before reading either source. An unreadable Settings store or an explicit home without usable credentials keeps the Claude card visible with a failed result, never another account's quota. VS Code retains its separate OpenCode-only credential reader.
 - **All sources are read-only.** OpenChamber never writes to Claude Code's credential store and never refreshes the OAuth token, because Anthropic does not support two live refresh tokens for one `client_id` — refreshing here would sign the user out of Claude Code. Credentials are read fresh per request so a Claude Code refresh is picked up immediately; an expired token yields an explicit "open Claude Code to sign in again" error rather than a bare 401. A 403 is not an expired token: Anthropic answers it for a valid token without the `user:profile` scope, which every `claude setup-token` token (the usual `CLAUDE_CODE_OAUTH_TOKEN`) lacks, so it reads as "this token cannot read usage" and names the Claude Code sign-in that can. Both runtimes keep the two apart.
 - **Limits come from the `limits` array**, keyed by `kind`: `session` maps to the `5h` window, `weekly_all` to `7d`, and `weekly_scoped` to a per-model `7d` window named by `scope.model.display_name`. The legacy `five_hour`/`seven_day` fields are only a fallback; `seven_day_sonnet`/`seven_day_opus` are no longer populated by Anthropic. Unrecognized limit kinds and Anthropic's rotating internal code names (`nimbus_quill`, `tangelo`, ...) are ignored rather than guessed at.
 - **Extra usage** is reported as the `extra_usage` window from `spend`, only while `spend.enabled` is true, with a money `valueLabel`.

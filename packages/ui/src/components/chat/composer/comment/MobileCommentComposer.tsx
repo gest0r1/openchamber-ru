@@ -89,19 +89,13 @@ export function MobileCommentComposer({ draft, theme: currentTheme, handlers }: 
         return false;
     };
 
-    // The opening tap flushes the controller update through React before it
-    // returns, so this focus still runs inside the gesture's call stack — the
-    // only focus iOS raises the soft keyboard for.
-    // An edit opens with the comment's text; the caret goes after it.
     React.useLayoutEffect(() => {
         editorRef.current?.focus();
         if (draft.text) editorRef.current?.setSelection(draft.text.length);
-        // Mount only: the shell is keyed per open.
         // oxlint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     const quotePreview = mobileCommentQuotePreview(draft.quote.plainText);
-    // Editing an attached comment: the primary action saves it, Close cancels.
     const editing = Boolean(draft.draftId);
     const closeLabel = editing ? t('chat.chatInput.contextPreview.cancelEdit') : t('mobile.surface.closeAria');
     const primaryLabel = editing ? t('chat.textSelection.comment.save') : t('chat.textSelection.comment.attach');

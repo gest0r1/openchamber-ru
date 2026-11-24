@@ -40,13 +40,6 @@ const formatSize = (bytes: number): string => {
   }).format(megabytes);
 };
 
-/**
- * Settings → Chat → Message search. One switch, on unless the user turned it
- * off (the server decides and tells the client): off, the server keeps
- * no index running and the palette and chat offer no message search. The
- * index row stays visible either way, with rebuild while on and delete while
- * off. Not offered in VS Code, which has no OpenChamber server.
- */
 export const MessageSearchSettings: React.FC = () => {
   const { t } = useI18n();
   const enabled = useUIStore((state) => state.messageSearchEnabled);

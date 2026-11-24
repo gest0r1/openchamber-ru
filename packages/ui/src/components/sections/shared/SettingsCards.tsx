@@ -60,7 +60,6 @@ interface SettingsCardProps {
   onOpen?: () => void;
   actions?: readonly SettingsCardAction[];
   actionsLabel?: string;
-  /** A control that belongs to the item itself, such as an on/off switch. Rendered beside the card as a sibling so it is never nested in the card button. */
   control?: React.ReactNode;
 }
 
@@ -91,8 +90,6 @@ export const SettingsCard: React.FC<SettingsCardProps> = ({ icon, title, subtitl
           <div className="mt-1 line-clamp-2 typography-micro text-muted-foreground">{description}</div>
         ) : null}
       </div>
-      {/* The ⋯ button shows on touch screens only; with a mouse the card's
-          menu is its right click, so the footer keeps no room for it there. */}
       <div className={cn('mt-auto flex min-w-0 items-center gap-2 pt-3 typography-micro text-muted-foreground', hasControl ? 'pe-24' : hasActions && 'pe-8 pointer-fine:pe-0')}>
         {footer}
         {onOpen ? (
@@ -127,8 +124,6 @@ export const SettingsCard: React.FC<SettingsCardProps> = ({ icon, title, subtitl
 
   if (!hasActions && !hasControl) return card;
 
-  // The ⋯ button and the item's own control sit over the card as siblings of
-  // the card button, never inside it, so they stay separate controls.
   return (
     <ContextMenu>
       <ContextMenuTrigger render={<div className="group relative" />}>
@@ -204,7 +199,6 @@ export const SettingsCardSearch: React.FC<{
   onChange: (value: string) => void;
   placeholder: string;
   className?: string;
-  /** 28px, to match the dropdowns and buttons of a toolbar row. */
   compact?: boolean;
 }> = ({ value, onChange, placeholder, className, compact = false }) => (
   <div className={cn('relative mb-4 max-w-[24rem]', className)}>
@@ -224,11 +218,6 @@ export const SettingsCardSearch: React.FC<{
   </div>
 );
 
-/**
- * The row above a card grid: the search on the start side, the page's actions
- * (project picker, refresh) on the end side. Without cards there is nothing
- * to search, and the actions keep their place.
- */
 export const SettingsCardToolbar: React.FC<{
   search: { value: string; onChange: (value: string) => void; placeholder: string } | null;
   actions: React.ReactNode;
@@ -239,7 +228,6 @@ export const SettingsCardToolbar: React.FC<{
   </div>
 );
 
-/** Back arrow placed before a detail screen's title. */
 export const SettingsBackButton: React.FC<{ label: string; onClick: () => void }> = ({ label, onClick }) => (
   <Button
     variant="ghost"

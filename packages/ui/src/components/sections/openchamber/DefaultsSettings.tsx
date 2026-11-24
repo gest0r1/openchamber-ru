@@ -15,7 +15,8 @@ import { SessionWarmingModeField } from './SessionWarmingModeField';
 import { PermissionDefaultModeField } from './PermissionDefaultModeField';
 import { isVSCodeRuntime } from '@/lib/desktop';
 import { loadDesktopSettings, updateDesktopSettings } from '@/lib/persistence';
-import { selectIsModelMissingFromCatalog, useConfigStore } from '@/stores/useConfigStore';
+import { selectConfigAgentsForDirectory, selectIsModelMissingFromCatalog, selectProvidersForDirectory, useConfigStore } from '@/stores/useConfigStore';
+import { useChatsRoot } from '@/hooks/useChatsRoot';
 import { useUIStore } from '@/stores/useUIStore';
 import { useSelectionStore } from '@/sync/selection-store';
 import { useSessionUIStore } from '@/sync/session-ui-store';
@@ -24,7 +25,7 @@ import { parseModelIdentifier } from '@/lib/modelIdentifier';
 import { isAutoModel } from '@/lib/routing/autoModel';
 import { useCallableModelProviders } from '@/hooks/useCallableModelProviders';
 import { isPrimaryMode } from '@/components/chat/mobileControlsUtils';
-import { listModelVariantIds, type ModelVariantSource } from '@/lib/modelVariants';
+import { listModelVariantIds, modelVariantNames, type ModelVariantSource } from '@/lib/modelVariants';
 import { ModelVariantSelect } from './ModelVariantSelect';
 
 const getDisplayModel = (
@@ -105,10 +106,25 @@ export const DefaultsSettings: React.FC = () => {
   const [isLoading, setIsLoading] = React.useState(true);
 
   const parsedModel = React.useMemo(() => getDisplayModel(defaultModel), [defaultModel]);
-  // New sessions skip a model the live catalog no longer lists.
   const defaultModelMissing = useConfigStore((state) => (
     selectIsModelMissingFromCatalog(state, undefined, parsedModel.providerId, parsedModel.modelId)
   ));
+  const parsedChatsModel = React.useMemo(() => getDisplayModel(chatsModel), [chatsModel]);
+  const chatsModelNote = useConfigStore((state) => {
+    if (!chatsRoot || !selectIsModelMissingFromCatalog(state, chatsRoot, parsedChatsModel.providerId, parsedChatsModel.modelId)) return null;
+    const global = parseModelIdentifier(state.settingsDefaultModel);
+    return global && !selectIsModelMissingFromCatalog(state, chatsRoot, global.providerId, global.modelId)
+      ? 'settings.openchamber.defaults.field.chatsModelUnavailableUsesGlobal' as const
+      : 'settings.openchamber.defaults.field.chatsModelUnavailable' as const;
+  });
+  const chatsVariants = React.useMemo(() => {
+    const { providerId, modelId } = parsedChatsModel;
+    if (!providerId || !modelId) return [];
+    const model = chatsProviders
+      .find((provider) => provider.id === providerId)
+      ?.models.find((entry) => entry.id === modelId);
+    return modelVariantNames(model);
+  }, [chatsProviders, parsedChatsModel]);
 
   React.useEffect(() => {
     const loadSettings = async () => {
@@ -581,7 +597,6 @@ export const DefaultsSettings: React.FC = () => {
   );
 };
 
-/** What happens to a session's context: compaction, then the prompt cache. */
 export const SessionContextSettings: React.FC = () => {
   const { t } = useI18n();
   const isVSCode = isVSCodeRuntime();

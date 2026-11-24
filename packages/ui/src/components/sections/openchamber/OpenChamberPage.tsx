@@ -18,6 +18,7 @@ import { DesktopNetworkSettings } from './DesktopNetworkSettings';
 import { DesktopAppSettings, DesktopQuickAccessSettings } from './DesktopAppSettings';
 import { ChatSettings } from './ChatSettings';
 import { GeneralConnectionAndPrivacySettings, GeneralFilesAndTerminalSettings, GeneralInterfaceSettings } from './GeneralWorkspaceSettings';
+import { MobileAppSettings } from './MobileAppSettings';
 import { KeyboardShortcutsSettings } from './KeyboardShortcutsSettings';
 import { SettingsPageLayout } from '@/components/sections/shared/SettingsPageLayout';
 import { isDesktopLocalOriginActive, isDesktopShell, isVSCodeRuntime, isWebRuntime } from '@/lib/desktop';
@@ -101,11 +102,6 @@ const ShortcutsSectionContent: React.FC = () => {
     return <KeyboardShortcutsSettings />;
 };
 
-// General, by what people come here for: the desktop app itself, the agent's
-// tools, how other devices reach this app, the window, global shortcuts, the
-// OpenCode CLI and its environment, files and the terminal, then trusted
-// links, message transport and privacy. The layout drops the divider above
-// whichever section renders first.
 const GeneralSectionContent: React.FC = () => {
     const isVSCode = isVSCodeRuntime();
     const runtimeEndpointEpoch = useRuntimeEndpointEpoch();
@@ -113,8 +109,8 @@ const GeneralSectionContent: React.FC = () => {
     const showPasskeySettings = isWebRuntime() && !isDesktopShell() && !isVSCode && !isCapacitorApp();
     return (
         <>
-            {/* Remote hosts too: the Dock badge works there. */}
             {isDesktopShell() && <DesktopAppSettings />}
+            <MobileAppSettings />
             {!isVSCode && <OpenChamberToolsSettings />}
             {isLocalDesktop && <DesktopNetworkSettings />}
             {showPasskeySettings && <PasskeySettings />}
@@ -151,8 +147,6 @@ const VisualSectionContent: React.FC = () => {
 
 const ChatSectionContent: React.FC = () => <ChatSettings />;
 
-// Sessions: the models sessions run on, then what the sidebar shows and what
-// gets cleaned out of it, then the context mechanics (compaction, prompt cache).
 const SessionsSectionContent: React.FC<{ runtimeEndpointEpoch: number }> = ({ runtimeEndpointEpoch }) => {
     return (
         <>

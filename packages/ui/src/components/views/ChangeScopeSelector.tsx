@@ -80,6 +80,14 @@ export const ChangeScopeSelector = React.memo<ChangeScopeSelectorProps>(({
                         }
                     }}
                 >
+                    {showsHistoricalTurn && (
+                        <DropdownMenuRadioItem value="historical-turn">
+                            <span className="flex min-w-0 flex-1 items-center justify-between gap-3">
+                                <span>{t('diffView.scope.earlierTurn')}</span>
+                                <span className="typography-meta text-muted-foreground">{historicalTurn?.count ?? '…'}</span>
+                            </span>
+                        </DropdownMenuRadioItem>
+                    )}
                     <DropdownMenuRadioItem value="turn">
                         <span className="flex min-w-0 flex-1 items-center justify-between gap-3">
                             <span>{t('diffView.scope.lastTurn')}</span>

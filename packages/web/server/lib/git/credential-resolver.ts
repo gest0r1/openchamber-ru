@@ -44,14 +44,14 @@ const requiredString = <Value>(value: Value, name: string) => {
   return value;
 };
 
-const requiredProviderUserId = (value, provider, instance) => {
+const requiredProviderUserId = <Value>(value: Value, provider: string, instance: string) => {
   if (!isExtensionProviderId(provider)) return requiredString(value, 'reference value');
   if (!isProviderUserId(provider, instance, value)) throw new Error('Invalid Git credential provider user');
   return value;
 };
 
-const encodePart = (value, validate = requiredString) => Buffer.from(validate(value, 'reference value'), 'utf8').toString('base64url');
-const decodePart = (value, validate = requiredString) => {
+const encodePart = <Value>(value: Value, validate: (value: Value, name: string) => string = requiredString) => Buffer.from(validate(value, 'reference value'), 'utf8').toString('base64url');
+const decodePart = (value: string | undefined, validate: (value: string, name: string) => string = requiredString) => {
   if (!isString(value) || !/^[A-Za-z0-9_-]+$/.test(value)) throw new Error('Invalid Git credential reference');
   const decoded = Buffer.from(value, 'base64url').toString('utf8');
   if (!decoded || encodePart(decoded, validate) !== value) throw new Error('Invalid Git credential reference');
@@ -96,7 +96,7 @@ export function parseGitCredentialReference<Reference>(reference: Reference) {
       instance,
       credentialId: decodePart(parts[5]),
       credentialRevision,
-      providerUserId: decodePart(parts[7], (value) => requiredProviderUserId(value, parts[3], instance)),
+      providerUserId: decodePart(parts[7], (value) => requiredProviderUserId(value, occupied(parts[3]), instance)),
     });
   }
   if (parts.length === 4 && parts[1] === 'v1' && parts[2] === 'ssh') {

@@ -106,14 +106,12 @@ export const setSharedActionHidden = (
   return write.hiddenSharedActionIds(hidden ? [...rest, id] : rest);
 };
 
-/** Setup commands run after a worktree is created, teardown commands before it is removed. */
 export type WorktreeCommandKind = 'setup' | 'teardown';
 
 type SetupCommandEntry = {
   command: string;
   source: ProjectSetupSource;
   kind: WorktreeCommandKind;
-  /** Position in its own file's list. */
   index: number;
   skipped: boolean;
 };
@@ -132,9 +130,7 @@ const writeCommands = (write: ProjectSetupWriters, source: ProjectSetupSource, k
   write[COMMAND_WRITERS[kind][source]](commands)
 );
 
-/** The commands in the order a worktree runs them: the team's, then the user's. */
 export const listSetupCommands = (setup: ProjectSetup, kind: WorktreeCommandKind): SetupCommandEntry[] => {
-  // "Only my setup commands" leaves the team's teardown commands in.
   const skipped = kind === 'setup' && setup.personal.setupWorktreeMode === 'replace';
   return [
     ...commandsOf(setup, 'shared', kind).map((command, index) => ({ command, source: 'shared' as const, kind, index, skipped })),
@@ -142,7 +138,6 @@ export const listSetupCommands = (setup: ProjectSetup, kind: WorktreeCommandKind
   ];
 };
 
-/** Replace a command's text; empty text removes it. */
 export const editSetupCommand = (
   setup: ProjectSetup,
   write: ProjectSetupWriters,

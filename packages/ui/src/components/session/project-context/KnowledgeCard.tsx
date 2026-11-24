@@ -11,7 +11,6 @@ export const KnowledgeCard: React.FC<{
   header?: React.ReactNode;
   children?: React.ReactNode;
   actions?: React.ReactNode;
-  /** The card's right-click menu: the items of its ⋯ menu. */
   menuItems?: KnowledgeMenuItem[];
   footer?: React.ReactNode;
 }> = ({ entryId, selected = false, onOpen, label, header, children, actions, menuItems, footer }) => {
@@ -19,7 +18,6 @@ export const KnowledgeCard: React.FC<{
     <li
       data-knowledge-entry-id={entryId}
       className={cn(
-        // A flat tile, set off by tone: layout carries no border.
         'group/knowledge flex cursor-pointer flex-col gap-1 rounded-lg px-2.5 py-2 transition-colors focus-visible:outline-none',
         selected ? 'bg-interactive-selection/40' : 'oc-tile oc-tile-hover focus-visible:bg-interactive-hover',
       )}
@@ -42,8 +40,6 @@ export const KnowledgeCard: React.FC<{
       <div className="flex min-h-6 min-w-0 items-start gap-2">
         <div className="flex min-h-6 min-w-0 flex-1 items-center gap-1.5">{header}</div>
 
-        {/* Stopped here rather than on each control: every action is a click on
-            the card too, and without this each one would also open it. */}
         {actions ? (
           <div
             className="-me-1 flex flex-shrink-0 items-center gap-0.5"

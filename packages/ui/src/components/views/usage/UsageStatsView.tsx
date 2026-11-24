@@ -60,18 +60,11 @@ const RANGE_LABEL_KEYS = {
   all: 'usageStats.range.all',
 } as const satisfies Record<UsageRange, I18nKey>;
 
-/**
- * The cached report for the chosen range and project (by directory). A key
- * with nothing cached loads on first view; a cached key never refetches on
- * its own, except Today once the local day changes. See `usageStatsStore.ts`.
- */
 function useUsageStats(range: UsageRange, projectDirectory: string | null) {
   const request = React.useMemo(() => ({ range, projectDirectory }), [range, projectDirectory]);
   const entry = useUsageStatsStore((store) => selectUsageStatsEntry(store, request));
   const load = useUsageStatsStore((store) => store.load);
 
-  // `entry` in the deps re-runs this after a runtime reset empties the cache.
-  // A layout effect, so an expired Today report is gone before the first paint.
   React.useLayoutEffect(() => {
     void load(request);
   }, [load, request, entry]);
@@ -227,8 +220,6 @@ type ToolsState = { entry: UsageToolsEntry | undefined; load: () => void };
 function UsageReport({ stats, range, formats, tools }: { stats: UsageStats; range: UsageRange; formats: Formats; tools: ToolsState }): React.ReactNode {
   const { t } = useI18n();
   const cache = stats.tokens.cacheRead + stats.tokens.cacheWrite;
-  // A one-day report makes the daily chart a single bar and leaves active days
-  // and the streak at 0 or 1, so today shows the totals without them.
   const today = range === '1d';
   return (
     <>

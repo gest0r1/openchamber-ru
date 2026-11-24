@@ -32,6 +32,7 @@ import {
 } from '../composer/comment/MobileCommentComposerContext';
 import { appendWithLineBreaks } from '../composer/text';
 import { SelectionApprovalButton } from './SelectionApprovalButton';
+import { SelectionCommentInput } from './SelectionCommentInput';
 import { GUEST_ITEM_MESSAGE_TEXT_MAX } from '@openchamber/sdk';
 import { GuestIcon } from '@/components/layout/GuestRailIcon';
 import { useGuestActions } from '@/hooks/useGuestSurfaces';
@@ -44,6 +45,7 @@ import { TooltipLabelWithShortcut } from '@/components/ui/action-toolbar';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { formatShortcutForDisplay, getEffectiveShortcutCombo } from '@/lib/shortcuts';
 import { frameRectInApp, onFrameSelection } from './frameSelection';
+import { ownsSelection } from './selectionOwner';
 import { captureChatQuoteAnchor, findChatQuoteRoots, findUiRenderQuoteRoot, resolveChatQuoteAnchor, type ChatQuoteAnchor } from '@/lib/chatQuoteAnchor';
 import {
   DESKTOP_MENU_FALLBACK_HEIGHT_PX,
@@ -58,11 +60,6 @@ interface TextSelectionMenuProps {
   readingKey: string;
   canReadAloud: boolean;
   uiRenderSelection?: boolean;
-  // This menu answers to the selections made in the page frames inside its
-  // container (`openchamber_render`), not to the container's own text. Each
-  // page has its own such menu (HtmlRenderFrame), so a page works wherever it
-  // is drawn: in a message, in the live turn's hoisted pages, or full screen.
-  // `readingKey` is then the id of the message the page belongs to.
   frameSelections?: boolean;
 }
 
@@ -87,22 +84,6 @@ interface SelectionPayload {
 const normalizeDistilledInsight = (insight: string): string => (
   insight.trim().replace(/^[-*+]\s+/, '').slice(0, PROJECT_NOTE_BODY_MAX_LENGTH)
 );
-
-const messageIdOf = (node: Node): string | null => (
-  (node instanceof Element ? node : node.parentElement)?.closest('[data-message-id]')?.getAttribute('data-message-id') ?? null
-);
-
-/**
- * Whether this menu answers the selection: it lies inside the menu's
- * container, or starts there and ends in a later row of the same long answer
- * (each row has its own menu; the row it starts in shows it).
- */
-const ownsSelection = (container: HTMLElement, range: Range): boolean => {
-  if (container.contains(range.commonAncestorContainer)) return true;
-  if (!container.contains(range.startContainer)) return false;
-  const messageId = messageIdOf(container);
-  return messageId !== null && messageId === messageIdOf(range.endContainer);
-};
 
 const TextSelectionMenuImpl: React.FC<TextSelectionMenuProps> = ({ containerRef, readingKey, canReadAloud, frameSelections = false, uiRenderSelection = false }) => {
   const guestActions = useGuestActions();
@@ -227,7 +208,6 @@ const TextSelectionMenuImpl: React.FC<TextSelectionMenuProps> = ({ containerRef,
     };
   }, [containerRef]);
 
-  // A hoisted page can be remounted in the final answer while a comment is open.
   React.useEffect(() => {
     const scope = containerRef.current;
     const partId = selectedAnchor?.page?.kind === 'ui' ? selectedAnchor.page.partId : null;
@@ -608,7 +588,6 @@ const TextSelectionMenuImpl: React.FC<TextSelectionMenuProps> = ({ containerRef,
       const anchor = captureChatQuoteAnchor(page, pending.range);
       return anchor ? { ...anchor, page: { partId, kind: 'ui' } } : null;
     }
-    // A long answer's rows are one text: the anchor counts in all of its rows.
     const scope = container.closest('[data-scrollbar="chat"]');
     const roots = scope && pending.messageId ? findChatQuoteRoots(scope, pending.messageId) : [];
     return captureChatQuoteAnchor(roots.includes(container) ? roots : [container], pending.range);
@@ -805,42 +784,14 @@ const TextSelectionMenuImpl: React.FC<TextSelectionMenuProps> = ({ containerRef,
     : null;
 
   const commentInput = (
-    <div
-      className={cn(
-        'oc-glass-popover oc-glass-floating relative flex items-end gap-2 rounded-3xl',
-        'ps-4',
-        'py-1 pe-1',
-        'transition-[opacity,transform] duration-200 ease-out',
-        isOpening ? 'opacity-0 translate-y-[4px]' : 'opacity-100 translate-y-0'
-      )}
-    >
-      {/* Desktop: Enter attaches, Shift+Enter breaks the line. (Mobile has no
-          floating input anymore; its comment editor keeps Enter as a line
-          break and attaches through the button.) */}
-      <CommentTextEditor
-        value={commentText}
-        onChange={setCommentText}
-        onSubmit={handleAttachComment}
-        onCancel={hideMenu}
-        enterSubmits
-        imagePaste={commentImagePaste}
-        placeholder={t('chat.textSelection.comment.placeholder')}
-        className="w-64 max-w-[70vw] py-1.5 text-sm leading-5 text-foreground"
-      />
-      <HoverTooltip label={t('chat.textSelection.comment.attach')}>
-        <button
-          type="button"
-          onClick={handleAttachComment}
-          className={cn(
-            'mb-0.5 flex shrink-0 items-center justify-center rounded-full bg-[var(--primary-base)] text-[var(--primary-foreground)] hover:opacity-90 transition-opacity duration-150',
-            'h-8 w-8'
-          )}
-          aria-label={t('chat.textSelection.comment.attach')}
-        >
-          <Icon name="attachment-2" className="h-4 w-4" />
-        </button>
-      </HoverTooltip>
-    </div>
+    <SelectionCommentInput
+      value={commentText}
+      onChange={setCommentText}
+      onSubmit={handleAttachComment}
+      onCancel={hideMenu}
+      imagePaste={commentImagePaste}
+      opening={isOpening}
+    />
   );
 
   if (isMobile) {
@@ -1075,7 +1026,6 @@ const TextSelectionMenuImpl: React.FC<TextSelectionMenuProps> = ({ containerRef,
 
           {selectionActions.length > 0 ? <div className="mx-0.5 h-5 w-px shrink-0 bg-[var(--interactive-border)]" /> : null}
           {selectionActions.map((entry) => (
-            // Each action says how it shows; the label stays its tooltip when only the icon does.
             <HoverTooltip key={`${entry.guest.id}:${entry.action.id}`} label={entry.action.label}>
               <button
                 onClick={() => runSelectionAction(entry)}

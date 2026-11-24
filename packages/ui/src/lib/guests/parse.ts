@@ -40,7 +40,6 @@ import { z } from 'zod';
 import type { GuestCatalog, InstalledGuest } from './types.ts';
 
 const PANEL_ID = /^[a-z][a-z0-9-]*$/;
-/** Characters in one stored setting value, as the server's auth store caps it. */
 const GUEST_TOOL_LINK_SETTING_MAX = 2000;
 const STORAGE_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -123,9 +122,6 @@ const publicTrackerSchema = z.object({
   oauth: z.object({ scopes: z.array(z.string().trim().min(1).max(64)).max(32) }).optional(),
 });
 
-// The usage provider a `quota` service provides, as the approval dialog shows
-// it: the OpenCode providers whose credentials the service receives. A
-// malformed slice drops the field, never the row.
 const publicQuotaSchema = z.object({
   providers: z.array(z.string().trim().min(1).max(64)).max(16),
 });
@@ -164,7 +160,6 @@ const guestToolSchema = z.object({
   output: z.enum(GUEST_TOOL_OUTPUTS).optional(),
   language: z.string().trim().min(1).optional(),
   columns: z.array(z.string().trim().min(1)).optional(),
-  // The SDK's own schema: a card is drawn from these templates, one of them an `href`.
   card: guestToolCardSchema.optional(),
 });
 
@@ -180,8 +175,6 @@ export const guestUpdateSchema = z.object({
   version: z.string().trim().min(1).max(64),
 });
 
-// `contributes.links` as the server compiled it (`guests/links.js`): literal
-// keys, and link patterns the UI only runs, never a template it compiles.
 const publicLinksSchema = z.object({
   action: z.enum(GUEST_LINK_ACTIONS),
   keys: z.array(z.string().regex(GUEST_LINK_KEY)).max(GUEST_LINK_KEYS_MAX),
@@ -228,7 +221,6 @@ const installedGuestSchema = z.object({
   service: publicServiceSchema.optional(),
   sourceControl: publicSourceControlSchema.optional().catch(undefined),
   sessionEvents: publicSessionEventsSchema.optional().catch(undefined),
-  // Only what the approval dialog names; a malformed slice drops the field, never the row.
   waits: z.array(z.object({
     id: z.string().regex(GUEST_WAIT_ID),
     title: z.string().trim().min(1).max(GUEST_WAIT_TITLE_MAX),
@@ -248,9 +240,7 @@ const installedGuestSchema = z.object({
   actions: z.array(guestActionSchema).max(GUEST_ACTIONS_MAX).optional(),
   commands: z.array(guestCommandSchema).max(GUEST_COMMANDS_MAX).optional(),
   tools: z.array(guestToolSchema).max(GUEST_TOOLS_MAX).optional(),
-  // Values a card link reads; a malformed slice costs those links, never the row.
   toolLinkSettings: z.record(z.string().regex(PANEL_ID), z.string().min(1).max(GUEST_TOOL_LINK_SETTING_MAX)).optional().catch(undefined),
-  // A row with logos this build cannot read keeps the rest of the extension.
   providerLogos: z.record(z.string().refine(isOpenCodeProviderId), z.string().refine(isGuestProviderLogoPath)).optional().catch(undefined),
   fileEditors: z.array(guestFileEditorSchema).max(GUEST_FILE_EDITORS_MAX).optional(),
   capabilities: z.object({
@@ -269,7 +259,6 @@ const installedGuestSchema = z.object({
   update: guestUpdateSchema.optional(),
 });
 
-// A delivery state this build does not know draws nothing: the card would otherwise offer a button for a case it cannot describe.
 const openCodePluginsSchema = z.object({
   delivery: z.enum(['file', 'restart', 'none', 'remote']),
   globalConfigPath: z.string().nullable(),

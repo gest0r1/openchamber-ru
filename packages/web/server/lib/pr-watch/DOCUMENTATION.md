@@ -89,9 +89,9 @@ with its sessions, and a woken turn would run in a session on its way out.
 ## Wake
 
 A wake ends its watch: the item leaves the interest, and the agent calls
-`pr.watch` again when it needs to wait once more. The message waits until the
-session is not running and none of its subagents runs (a user may be talking
-to the agent), checked against OpenCode (`../opencode/session-activity.js`);
+`wait.start` with source `pr` again when it needs to wait once more. The message waits until the
+session's own turn is over (a user may be talking to the agent), checked
+against OpenCode (`/api/session/active`, `../opencode/session-activity.js`);
 the session's next idle event re-arms it. An archived session is not woken,
 its watches end.
 
@@ -148,6 +148,43 @@ isolated space refuses `pr.watch`: it has no source-control accounts to read
 with.
 
 ## Decisions
+
+### Why failure fields stay opaque
+
+Thrown failures can be errors, plain objects, functions or primitives. The
+failure guards preserve arbitrary non-null messages and the existing
+`Number.isInteger` status rule, without requiring positive or safe integers.
+The object/function checks protect reads of unknown thrown values.
+
+### Why the route contract names only the methods it uses
+
+The server has no installed Express declarations. The local route contract
+describes registration, request fields and JSON responses without adding a
+dependency. Tracked-item readers retain their inferred JavaScript contract;
+their summaries still pass through the existing snapshot and details schemas.
+The activity probe receives an explicit undefined signal because its inferred
+JavaScript options require the property even though its implementation accepts
+an absent signal.
+
+### Why only the session's own turn holds a wake, and not its subagents
+
+Delivery once also waited for the session's subagents and workflow agents.
+Agents often wait on a timer or a pull request precisely to check on work
+that runs under them, and that work can run for an hour: a 20-minute timer
+arrived when the workflow ended, with the row saying "waking the agent" all
+along. A wake into an idle session whose subagents still run starts a turn;
+a subagent's result arriving meanwhile is queued by OpenCode the way a
+user's message is, so nothing is lost. `../extension-waits` follows the same
+rule.
+
+### Why a source of `wait.*` and not a store merged into extension waits
+
+The agent sees one way to wait (`../openchamber-control/DOCUMENTATION.md`),
+so `waitSource` and `listWaits` describe watches the way `wait.list` names a
+wait. The watches stay here: they ride the tracked-items refresh, a second
+watch of the same pull request starts it over where a second timer is
+another wait, and the composer row reads their check status. Merging the
+stores would move all of that for no change the agent or the user sees.
 
 ### Why each pull request is its own watch
 

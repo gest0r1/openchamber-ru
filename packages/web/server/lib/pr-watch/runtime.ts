@@ -234,13 +234,9 @@ const numberOf = (watch: Watch) => z.object({ number: z.number().int().positive(
 
 const MAX_NAMES = 8;
 
-/**
- * Names for the message: check names come from whoever wrote the workflow,
- * so nothing in them may close the message's tag or break its line.
- */
-const cleanNames = (names) => Array.from(new Set(names.map((name) => name.replace(/[<>\s]+/g, ' ').trim().slice(0, 80)).filter(Boolean)));
+const cleanNames = (names: string[]) => Array.from(new Set(names.map((name) => name.replace(/[<>\s]+/g, ' ').trim().slice(0, 80)).filter(Boolean)));
 
-const nameList = (names) => {
+const nameList = (names: string[]) => {
   const clean = cleanNames(names);
   if (clean.length === 0) return '';
   const shown = clean.slice(0, MAX_NAMES).join(', ');
@@ -291,8 +287,29 @@ const toPublicWatch = (watch: Watch): PublicPrWatch => ({
   startedAt: watch.startedAt,
 });
 
-/** A session waits on each pull request once; session ids have no spaces. */
-const keyOf = (watch) => `${watch.sessionID} ${trackedItemKey(watch.item)}`;
+const PR_WAIT_SOURCE = 'pr';
+const PR_WAIT = {
+  source: PR_WAIT_SOURCE,
+  extension: 'OpenChamber',
+  title: 'Pull request',
+  description: 'Wakes the session when a check fails or every check passes, someone comments or reviews, the branch conflicts or falls behind, or it is merged or closed. Each pull request is its own wait; starting one again starts it over',
+  params: { url: { type: 'string', description: 'Address of a GitHub pull request or GitLab merge request', required: true } },
+};
+
+const toPublicWait = (watch: Watch): PublicPrWait => ({
+  waitId: watch.url,
+  sessionID: watch.sessionID,
+  directory: watch.directory,
+  source: PR_WAIT_SOURCE,
+  extension: PR_WAIT.extension,
+  title: [`#${numberOf(watch)}`, watch.last?.title].filter(Boolean).join(' '),
+  label: statusOf(watch),
+  args: { url: watch.url },
+  startedAt: watch.startedAt,
+  status: watch.wake ? 'waking' : 'waiting',
+});
+
+const keyOf = (watch: Watch) => `${watch.sessionID} ${trackedItemKey(watch.item)}`;
 
 export function createPrWatchRuntime({
   buildOpenCodeUrl,
@@ -308,27 +325,19 @@ export function createPrWatchRuntime({
   retryDelayMs = retryDelay,
 }: PrWatchOptions) {
   const filePath = path.join(dataDir, FILE_NAME);
-  /** `keyOf(watch)` → watch */
-  const watches = new Map();
+  const watches = new Map<string, Watch>();
   let revision = 0;
   let loadPromise: Promise<void> | null = null;
   let writePromise = Promise.resolve();
   let stopped = false;
-  let trackedItems = null;
-  let readers = null;
-  let unsubscribeTracked = null;
-  // Per session: one wake is delivered at a time.
-  const timers = new Map();
-  const delivering = new Set();
-  // An attempt asked for while another one for the session was in flight.
-  const deferred = new Set();
-  // Per watch.
-  const failures = new Map();
-  // Watches whose wake is still reading its details; each is armed once they are in.
-  const enriching = new Set();
-
-  const watchesOf = (sessionID) => Array.from(watches.values()).filter((watch) => watch.sessionID === sessionID);
-  const hasWake = (sessionID) => watchesOf(sessionID).some((watch) => watch.wake);
+  let trackedItems: PrWatchTrackedItems | null = null;
+  let readers: Readers;
+  let unsubscribeTracked: (() => void) | null = null;
+  const timers = new Map<string, ReturnType<typeof setTimeout>>();
+  const delivering = new Set<string>();
+  const deferred = new Set<string>();
+  const failures = new Map<string, number>();
+  const enriching = new Set<Watch>();
 
   const watchesOf = (sessionID: string) => Array.from(watches.values()).filter((watch) => watch.sessionID === sessionID);
   const hasWake = (sessionID: string) => watchesOf(sessionID).some((watch) => watch.wake);
@@ -396,7 +405,6 @@ export function createPrWatchRuntime({
     const current = watchesOf(sessionID).map(toPublicWatch);
     broadcastUiEvent?.({
       type: 'openchamber:pr-watch.updated',
-      // `watch`, the newest, is for clients from before a session could wait on several.
       properties: { revision, sessionID, watches: current, watch: current.at(-1) ?? null },
     });
     return persist();
@@ -437,7 +445,7 @@ export function createPrWatchRuntime({
     timers.delete(sessionID);
   };
 
-  const arm = (sessionID, delayMs = quietMs) => {
+  const arm = (sessionID: string, delayMs = quietMs) => {
     if (stopped || !hasWake(sessionID)) return;
     clearTimer(sessionID);
     const timer = setTimeout(() => {
@@ -448,21 +456,18 @@ export function createPrWatchRuntime({
     timers.set(sessionID, timer);
   };
 
-  /** Whether `watch` is still current: a stop or a new watch of its pull request replaces it mid-await. */
-  const isCurrent = (watch) => !stopped && watches.get(keyOf(watch)) === watch;
+  const isCurrent = (watch: Watch) => !stopped && watches.get(keyOf(watch)) === watch;
 
-  /** Ends these watches of one session, and only them: newer ones stay. */
-  const drop = async (...ending) => {
+  const drop = async (...ending: Watch[]) => {
     const current = ending.filter(isCurrent);
-    if (current.length === 0) return;
-    const { sessionID } = current[0];
+    const first = current[0];
+    if (!first) return;
+    const { sessionID } = first;
     for (const watch of current) {
       watches.delete(keyOf(watch));
       failures.delete(keyOf(watch));
     }
     if (!hasWake(sessionID)) clearTimer(sessionID);
-    // Another pull request's wake goes next, unless an attempt is already
-    // scheduled; it waits for the turn a delivered one started.
     else if (!timers.has(sessionID)) arm(sessionID);
     syncInterest();
     await commit(sessionID);
@@ -485,14 +490,13 @@ export function createPrWatchRuntime({
       deferred.add(sessionID);
       return;
     }
-    const watch = watchesOf(sessionID).find((entry) => entry.wake && !enriching.has(entry));
+    const watch = watchesOf(sessionID).find((entry): entry is WakingWatch => Boolean(entry.wake && !enriching.has(entry)));
     if (stopped || !watch) return;
     delivering.add(sessionID);
     try {
       await attemptWake(watch);
     } finally {
       delivering.delete(sessionID);
-      // After the quiet delay: a wake just delivered must first show as a running turn.
       if (deferred.delete(sessionID)) arm(sessionID);
     }
   }
@@ -582,15 +586,7 @@ export function createPrWatchRuntime({
     })().catch((error) => console.warn('[pr-watch] could not apply a change:', failureMessage(error) ?? error));
   };
 
-  // --- public --------------------------------------------------------------
-
-  /**
-   * Starts waiting on the pull request at `url` for `sessionID`, beside the
-   * session's other watches; watching the same one again starts it over.
-   * Reads it first, so an address the server cannot follow fails now instead
-   * of never waking.
-   */
-  const watch = async ({ sessionID: rawSessionID, directory, url }) => {
+  const watch = async ({ sessionID: rawSessionID, directory, url }: PrWatchInput): Promise<PrWatchStartResult> => {
     if (insideSpace) throw httpError('Watching a pull request is not available inside an isolated space', 400);
     const parsedSessionID = sessionIdSchema.safeParse(rawSessionID);
     const sessionID = parsedSessionID.success ? parsedSessionID.data : null;
@@ -626,8 +622,7 @@ export function createPrWatchRuntime({
       throw httpError(`The pull request is already ${last.state}: there is nothing to wait for`, 409);
     }
 
-    const record = { sessionID, directory, url: String(url).trim(), item, startedAt: now(), baselineAt, last, wake: null };
-    // Deleted first, so the list keeps the order the session started its watches in.
+    const record: Watch = { sessionID, directory, url: String(url).trim(), item, startedAt: now(), baselineAt, last, wake: null };
     watches.delete(keyOf(record));
     failures.delete(keyOf(record));
     watches.set(keyOf(record), record);
@@ -644,20 +639,15 @@ export function createPrWatchRuntime({
     };
   };
 
-  /**
-   * Stops waiting on the pull request at `url`, or on every one when `url` is
-   * omitted; a supplied `url` that names no pull request (empty, null, not a
-   * string) is refused, never read as "all". Nothing it stopped wakes the
-   * session. Answers what the session still waits on.
-   */
-  const unwatch = async (rawSessionID, url) => {
-    const sessionID = parse(sessionIdSchema, rawSessionID);
+  const unwatch = async (rawSessionID: PrWatchInput['sessionID'], url?: PrWatchInput['url']): Promise<PrWatchStopResult> => {
+    const parsedSessionID = sessionIdSchema.safeParse(rawSessionID);
+    const sessionID = parsedSessionID.success ? parsedSessionID.data : null;
     if (!sessionID) throw httpError('sessionID is invalid', 400);
     const every = url === undefined;
     const item = every ? null : parsePullRequestUrl(url);
     if (!every && !item) throw httpError('url must be the address of a GitHub pull request or a GitLab merge request', 400);
     await load();
-    const ending = watchesOf(sessionID).filter((watch) => every || trackedItemKey(watch.item) === trackedItemKey(item));
+    const ending = watchesOf(sessionID).filter((watch) => every || (item !== null && trackedItemKey(watch.item) === trackedItemKey(item)));
     await drop(...ending);
     return { watching: watchesOf(sessionID).map(toPublicWatch), stopped: ending.length > 0 };
   };

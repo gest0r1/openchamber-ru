@@ -37,7 +37,6 @@ function removedSessionID(event: SyncEvent): string | undefined {
   if (event.type === "session.patched" && event.properties.patch.time?.archived) return event.properties.sessionID
 }
 
-/** OpenCode's active list covers the whole host; this keeps the sessions a directory's store holds. */
 export function selectHeldSessionStatuses(
   statuses: State["session_status"],
   sessions: State["session"],

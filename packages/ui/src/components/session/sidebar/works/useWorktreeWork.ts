@@ -24,7 +24,6 @@ import { collectWorkSessions, finishSpaceWork, finishWorktreeWork, isWorkInWork,
 
 const CURRENT_SESSION = '\u0000session';
 
-/** What a work's Done tells the user, from its row or from bulk Mark done. */
 export const toastFinishWorkOutcome = (
   outcome: FinishWorktreeWorkOutcome,
   label: string,
@@ -32,6 +31,7 @@ export const toastFinishWorkOutcome = (
 ): void => {
   switch (outcome.kind) {
     case 'done':
+    case 'cancelled':
       break;
     case 'archived':
       toast.success(t('sessions.sidebar.work.archive.done'), { description: label });
@@ -72,15 +72,8 @@ export function useWorktreeWork({ group, projectId, collapsed, onNavigate }: Arg
   const projectLabel = project ? formatProjectLabel(project.label?.trim() || project.path) : null;
   const refs = useGroupRefs(group, sessions, true);
   const sessionWorkEnabled = useUIStore((state) => state.sessionWorkEnabled);
-  // The pin lives in the branch's config, so a detached worktree has none.
-  // The row moves once the server's topology event lists the change.
   const pinned = worktree?.pinnedAt !== undefined;
-  // A pinned work is never in work.
   const inWork = sessionWorkEnabled && !pinned && isWorkInWork(sessions);
-  // Where the user is: the open session (`CURRENT_SESSION`) or the open
-  // draft (its id, '' before it has one) in this worktree; null elsewhere.
-  // A space's draft waits on the project root while the space is made, and
-  // names it by its creation request.
   const current = useSessionUIStore((state): string | null => {
     if (state.currentSessionId) return sessions.some((session) => session.id === state.currentSessionId) ? CURRENT_SESSION : null;
     if (!state.newSessionDraft.open) return null;
@@ -117,7 +110,6 @@ export function useWorktreeWork({ group, projectId, collapsed, onNavigate }: Arg
     prepare();
     useSessionUIStore.getState().openNewSessionDraft({ selectedProjectId: projectId, directoryOverride: group.directory });
   };
-  // The folder `open` lands in: its session's own, else the work's, where a new chat starts.
   const openDirectory = sessionToOpen?.directory ?? directory;
   const open = (): void => {
     const session = sessionToOpen;
@@ -128,13 +120,8 @@ export function useWorktreeWork({ group, projectId, collapsed, onNavigate }: Arg
     prepare();
     useSessionUIStore.getState().setCurrentSession(session.id, openDirectory);
   };
-  // The pin list it is filed in (Pin to), Pinned when none.
   const pinList = pinned ? worktree?.pinList ?? DEFAULT_PIN_LIST : null;
   const canPin = Boolean(group.directory && worktree?.branch?.trim()) && !worktreeRemoving;
-  /**
-   * `list` null is Pinned; `pin` false unpins. The sidebar closes the work of
-   * a pinned worktree's sessions once the pin arrives (`useClosePinnedWork`).
-   */
   const setPin = async (pin: boolean, list: string | null = null): Promise<void> => {
     if (!group.directory || !canPin) return;
     try {
@@ -177,7 +164,6 @@ export function useWorktreeWork({ group, projectId, collapsed, onNavigate }: Arg
       setFinishing(false);
     }
   };
-  /** Done or Track: present while the feature is on, the work is not pinned and there is a session to track. */
   const workAction = sessionWorkEnabled && !pinned && (inWork || sessions.length > 0);
   const toggleWork = (): void => {
     if (inWork) {
@@ -196,10 +182,6 @@ export function useWorktreeWork({ group, projectId, collapsed, onNavigate }: Arg
     workSessionIds.find((id) => isSessionUnread(state.entityById.get(id))) ?? null
   ), [workSessionIds]));
 
-  /**
-   * Mark as read clears every unread session of the work. Mark as unread marks
-   * the one whose turn ended last, the session the user would come back to.
-   */
   const toggleRead = (): void => {
     const records = useGlobalSessionsStore.getState().entityById;
     if (unreadSessionId) {
@@ -208,7 +190,6 @@ export function useWorktreeWork({ group, projectId, collapsed, onNavigate }: Arg
       }
       return;
     }
-    // A session whose turn ended beats any without one, such as a new empty chat.
     let target: string | null = null;
     let targetRank: [number, number] = [-1, -1];
     for (const id of workSessionIds) {

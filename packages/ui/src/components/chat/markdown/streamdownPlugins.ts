@@ -46,7 +46,7 @@ const schema: NonNullable<Parameters<typeof rehypeSanitize>[0]> = {
   attributes: {
     '*': ['align', 'alt', 'checked', 'colSpan', 'height', 'media', 'open', 'rowSpan', 'start', 'title', 'width'],
     a: ['href', 'id', 'ariaDescribedBy', 'ariaLabel', 'dataFootnoteRef', 'dataFootnoteBackref', 'dataOcLinkSource', 'dataOcReference', 'dataOcGuestLink'],
-    // `:` for GitLab's suggestion fences (`suggestion:-0+2`).
+    // external: https://docs.gitlab.com/user/project/merge_requests/reviews/suggestions/ Suggestion fence languages can include colon-delimited line ranges.
     code: [['className', /^language-[\w#+.:-]+$/, 'math-inline', 'math-display'], 'metastring'],
     img: ['src', 'srcSet', 'alt', 'dataOcMediaSource'],
     source: ['src', 'srcSet', 'type', 'media', 'dataOcMediaSource'],
@@ -90,20 +90,11 @@ function remarkSessionLinks() {
   };
 }
 
-/**
- * Text a person typed reads as typed: `<b>` and `&amp;` stay those characters
- * instead of becoming HTML or `&`. The parser never sees them as HTML or
- * character references, so inline code and formulas keep their characters
- * too, which escaping the source cannot give: an entity there is shown
- * literally (`a&lt;b` in code, a broken formula).
- */
 export function remarkLiteralText(this: Processor) {
   const data = this.data();
   (data.micromarkExtensions ??= []).push({ disable: { null: ['htmlFlow', 'htmlText', 'characterReference'] } });
 }
 
-// Static mode parses the whole document without the streaming BlockComponent.
-// Match the original top-level source policy without stripping inline joiners.
 function remarkVisibleBlocks() {
   return (tree: Root, file: { value: string | Uint8Array }) => {
     // external: https://github.com/micromark/micromark/blob/main/packages/micromark/dev/lib/preprocess.js Micromark omits the initial BOM from source offsets.
@@ -125,7 +116,6 @@ function createOptions(allowRawHtml: boolean, isVSCode: boolean, singleTilde: bo
       [rehypeSanitize, schema],
       defaultRehypePlugins.harden,
       rehypeRestoreMarkdownLinks,
-      // After sanitation, which drops `dir` from raw HTML.
       rehypeTextDirection,
     ],
   };

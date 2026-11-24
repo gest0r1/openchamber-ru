@@ -47,10 +47,6 @@ type CachedGitDiffEntry = CachedGitDiff & { fetchedAt: number; sizeBytes: number
 
 interface DirectoryGitState {
   isGitRepo: boolean | null;
-  /**
-   * Git's message when it could not tell whether the directory is a
-   * repository (`GIT_REPOSITORY_UNREADABLE`); `isGitRepo` stays unknown then.
-   */
   repoUnreadable: string | null;
   status: GitStatus | null;
   branches: GitBranch | null;
@@ -130,8 +126,6 @@ const inFlightDiffFetchesByDirectory = new Map<string, Set<string>>();
 const diffFetchGenerationByDirectory = new Map<string, number>();
 const inFlightStatusFetches = new Map<string, { promise: Promise<boolean>; statusMutationRevision: number }>();
 const inFlightEnsureAllByDirectory = new Map<string, Promise<void>>();
-// Reads in a row that Git could not answer, per runtime and directory; any
-// answer from Git resets it (see `repoUnreadable`).
 const unreadableReadsInARow = new Map<string, number>();
 const directoriesAskingRemotes = new Set<string>();
 const inFlightNestedRepoDiscovery = new Map<string, Promise<void>>();
@@ -699,8 +693,6 @@ export const useGitStore = create<GitStore>()(
         directoriesAskingRemotes.clear();
         inFlightNestedRepoDiscovery.clear();
         unreadableReadsInARow.clear();
-        // Outstanding transports still consume capacity on their captured
-        // runtime, even after its visible cache has been reset.
         for (const [key, requests] of inFlightDiffFetchesByDirectory) {
           if (requests.size === 0) inFlightDiffFetchesByDirectory.delete(key);
         }
@@ -885,11 +877,6 @@ export const useGitStore = create<GitStore>()(
             }
           } catch (error) {
             console.error('Failed to fetch git status:', error);
-            // Git could not answer: say so instead of probing forever. A
-            // repository whose status is on screen keeps it through one such
-            // read (a timeout under load); the next one in a row shows Git's
-            // message. One known only from a cache, with no status yet, shows it
-            // at once, or it would wait forever.
             const unreadable = error instanceof GitRepositoryUnreadableError ? error.message : null;
             if (unreadable !== null && isRequestCurrent(token, directory)) {
               const strikeKey = runtimeDirectoryKey(getRuntimeKey(), directory);
@@ -1539,7 +1526,6 @@ export const useGitIdentity = (directory: string | null) => {
   });
 };
 
-/** Git's message when it could not tell whether `directory` is a repository, else null. */
 export const useGitRepoUnreadable = (directory: string | null) => {
   return useGitStore((state) => (directory ? state.directories.get(directory)?.repoUnreadable ?? null : null));
 };

@@ -1,14 +1,6 @@
 import { create } from 'zustand';
 import { z } from 'zod';
 
-/**
- * Sessions whose agent waits on pull requests, as the OpenChamber server's
- * watches say (`packages/web/server/lib/pr-watch`). The server follows each
- * pull request and wakes the session; this is only what the UI shows while it
- * waits: the composer row and a row that reads as working. Kept free of the
- * transport (`pr-watch-sync.ts` reads and writes the server), so session
- * activity can read it the way it reads `workflow-activity.ts`.
- */
 const watchSchema = z.object({
   sessionID: z.string().min(1),
   directory: z.string().min(1),
@@ -29,7 +21,6 @@ export const prWatchUpdatedEventSchema = z.object({
     revision: z.number(),
     sessionID: z.string().min(1),
     watch: watchSchema.nullable(),
-    // Absent from servers where a session waited on one pull request at most.
     watches: z.array(watchSchema).optional(),
   }),
 });
@@ -37,7 +28,6 @@ export const prWatchUpdatedEventSchema = z.object({
 export type PrWatchUpdatedEvent = z.infer<typeof prWatchUpdatedEventSchema>;
 
 type PrWatchState = {
-  /** Watches of the active runtime by session, in the order it started them; never an empty list. */
   bySession: ReadonlyMap<string, readonly PrWatch[]>;
 };
 
@@ -52,7 +42,6 @@ const publish = (next: Map<string, readonly PrWatch[]>): void => {
   usePrWatchStore.setState({ bySession: next.size === 0 ? NONE : next });
 };
 
-/** One session's watches from the server, unless something newer was applied. */
 export const applyPrWatches = (revision: number, sessionID: string, watches: readonly PrWatch[]): void => {
   if (snapshotRevision > revision || (appliedRevisions.get(sessionID) ?? -1) > revision) return;
   appliedRevisions.set(sessionID, revision);
@@ -78,12 +67,10 @@ export const applyPrWatchSnapshot = (snapshot: z.infer<typeof prWatchSnapshotSch
   publish(next);
 };
 
-/** What an optimistic stop took, and what the projection knew when it did. */
 type TakenPrWatches = { sessionID: string; watches: readonly PrWatch[]; revision: number | undefined; snapshotRevision: number; generation: number };
 
 let generation = 0;
 
-/** Removes the session's watch of `url`, or every one without it, for an optimistic stop; returns what it took. */
 export const takePrWatches = (sessionID: string, url?: string): TakenPrWatches | undefined => {
   const current = usePrWatchStore.getState().bySession;
   const watches = current.get(sessionID) ?? [];
@@ -97,11 +84,6 @@ export const takePrWatches = (sessionID: string, url?: string): TakenPrWatches |
   return { sessionID, watches: taken, revision: appliedRevisions.get(sessionID), snapshotRevision, generation };
 };
 
-/**
- * Puts back watches an optimistic stop removed when the request failed, unless
- * the server said anything newer about the session meanwhile: their removal
- * may have arrived even though the response to the stop did not.
- */
 export const restorePrWatches = (taken: TakenPrWatches): void => {
   const { sessionID } = taken;
   if (taken.generation !== generation || taken.snapshotRevision !== snapshotRevision) return;

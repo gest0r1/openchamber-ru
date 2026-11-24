@@ -1,8 +1,3 @@
-/**
- * Root OpenChamber must never ask opencode's Git process to create files in
- * /root. Git runs in an opencode-owned scratch checkout; the root UI imports a
- * validated, read-only snapshot into its extension store.
- */
 import fs from 'node:fs/promises';
 import { constants } from 'node:fs';
 import path from 'node:path';
@@ -45,12 +40,6 @@ const scan = async (root: string, requireRoot = false) => {
 
 export const validateGuestGitTree = scan;
 
-/**
- * Root import anchored to directory file descriptors. Every source component
- * is opened with O_NOFOLLOW and verified by fstat. We never call fs.cp on an
- * opencode-writable path: that would leave a symlink-swap race when root reads.
- * The /proc/self/fd path intentionally makes this Linux-only and fail-closed.
- */
 const secureSnapshot = async (source: string, target: string) => {
   const flags = constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK;
   const dirFlags = flags | constants.O_DIRECTORY;
@@ -73,8 +62,6 @@ const secureSnapshot = async (source: string, target: string) => {
           throw new Error('ROOT_GIT_CHECKOUT_UNSAFE_ENTRY');
         }
         if (stat.isDirectory()) {
-          // Re-open with O_DIRECTORY to reject a file substituted during the
-          // walk. entryFd already anchors the inode; use that for recursion.
           await copyDir(entryFd, destinationFile);
         } else {
           entries += 1;
@@ -132,18 +119,13 @@ const checkedUid = () => {
   return { uid, gid };
 };
 
-/**
- * The ordinary non-root installation path remains unchanged.
- * prepare(destination) calls the existing Git network/authentication logic;
- * child_process is already forced to opencode by the trusted root boundary.
- */
 type PrepareResult = { ok: true; root?: string } | { ok: false; code: string };
 
 export async function prepareGuestGitCheckout(
   destination: string,
   prepare: (checkout: string) => Promise<PrepareResult>,
 ): Promise<PrepareResult> {
-  if (typeof process.getuid !== 'function' || process.getuid() !== 0) {
+  if (process.getuid?.() !== 0) {
     return prepare(destination);
   }
   const { uid, gid } = checkedUid();

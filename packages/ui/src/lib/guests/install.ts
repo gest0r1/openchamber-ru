@@ -31,7 +31,6 @@ const errorSchema = z.object({
   ]),
   required: z.string().trim().min(1).max(64).optional(),
   id: z.string().trim().min(1).max(128).optional(),
-  /** Why the manifest did not parse, in the parser's words. */
   reason: z.string().trim().min(1).max(1000).optional(),
 });
 
@@ -43,7 +42,6 @@ export type InstallGuestErrorCode =
   | 'id-taken'
   | 'already-installed'
   | 'missing-build'
-  /** `contributes.opencodePlugin` names a folder that is missing or holds no entry file OpenCode finds. */
   | 'invalid-opencode-plugin'
   | 'host-too-old'
   | 'bundled'

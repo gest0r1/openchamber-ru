@@ -224,10 +224,6 @@ export const MobileFullscreenSurface: React.FC<MobileFullscreenSurfaceProps> = (
       style={{
         background: 'rgb(0 0 0 / 0.45)',
         opacity: entered ? 1 : 0,
-        // 'chat' matches every other mobile overlay (the sessions sidebar keeps
-        // its width); 'app' ignores the panels and centers on the window.
-        // Plus the screen's own side insets: a landscape notch, the status bar
-        // column of iPhone Duo.
         paddingLeft: `calc(${dialogAlign === 'chat' ? `max(1rem, ${chatInsets.left}px)` : '1rem'} + var(--oc-safe-area-left, 0px))`,
         paddingRight: `calc(${dialogAlign === 'chat' ? `max(1rem, ${chatInsets.right}px)` : '1rem'} + var(--oc-safe-area-right, 0px))`,
         paddingTop: 'max(1rem, var(--oc-safe-area-top, 0px))',

@@ -6,24 +6,12 @@ interface ToolbarFit {
   overflowSteps?: readonly string[];
 }
 
-/**
- * The controls that move into the diff toolbar's "More actions" menu when the
- * row does not fit: only the walkthrough, which the rail opens as well. The
- * view options (tree, wrap, whitespace, side by side) live in that menu at
- * every width.
- */
 export const DIFF_TOOLBAR_MENU_STEPS = {
   walkthrough: 'data-diff-toolbar-more-walkthrough',
 } as const;
 
 const DIFF_TOOLBAR_MENU_STEP_ORDER = [DIFF_TOOLBAR_MENU_STEPS.walkthrough];
 
-/**
- * The diff toolbar: first the walkthrough label, then the review and expand
- * labels and the scope count. Its `.truncate` texts include the base and
- * commit pickers. Then, only while the row still overflows (a picker cut down
- * to its icon is no reason), the walkthrough moves into "More actions".
- */
 const DIFF_TOOLBAR_FIT: ToolbarFit = {
   steps: ['data-diff-toolbar-compact-walkthrough', 'data-diff-toolbar-compact', ...DIFF_TOOLBAR_MENU_STEP_ORDER],
   clippedText: '.truncate',

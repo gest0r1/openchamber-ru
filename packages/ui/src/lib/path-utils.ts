@@ -138,13 +138,6 @@ export const getRelativeFilePath = (filePath: string | null | undefined, directo
 
 const endsWithPath = (path: string, tail: string): boolean => path === tail || path.endsWith(`/${tail}`);
 
-/**
- * Whether a path git reports names an absolute file. Git answers relative to
- * the repository's top, which can sit above `directory` (a project in a
- * subfolder of a repository), so inside `directory` the listed path has to end
- * with the file's path there: `vendor/README.md` is not the root's `README.md`.
- * A file outside `directory` can only be told by the end of its own path.
- */
 export const isSameRepoFile = (
   filePath: string | null | undefined,
   directory: string | null | undefined,
@@ -164,12 +157,6 @@ export const isSameRepoFile = (
     : endsWithPath(path, listed);
 };
 
-/**
- * The entry of a git listing that names an absolute file. Several can match,
- * since the root's `a.md` also matches a listed `docs/a.md`. The longest entry
- * the file's whole path ends with is the exact one; the shortest match stands
- * in when none does, as with a file reached through a symlink.
- */
 export const findRepoFile = (
   filePath: string | null | undefined,
   directory: string | null | undefined,

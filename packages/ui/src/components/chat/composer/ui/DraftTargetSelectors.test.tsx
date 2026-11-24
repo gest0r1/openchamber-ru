@@ -97,3 +97,44 @@ describe('draft project picker', () => {
         await act(async () => root.unmount());
     });
 });
+
+describe('draft folder destination', () => {
+    test('names the folder the send files the session in, and hides it once the draft leaves that scope', async () => {
+        const win = new Window({ url: 'http://localhost' });
+        for (const [key, value] of Object.entries({ window: win, document: win.document, navigator: win.navigator, IS_REACT_ACT_ENVIRONMENT: true })) {
+            Object.defineProperty(globalThis, key, { configurable: true, value });
+        }
+        const previousFolders = useSessionFoldersStore.getState().foldersMap;
+        const previousDraft = useSessionUIStore.getState().newSessionDraft;
+        const container = document.createElement('div');
+        document.body.appendChild(container);
+        const root = createRoot(container);
+        const draft = { ...previousDraft, open: true, target: 'project' as const, directoryOverride: '/repo', pendingWorktreeRequestId: null, targetFolderId: 'folder' };
+        try {
+            useSessionFoldersStore.setState({ foldersMap: { '/repo': [{ id: 'folder', name: 'Plans', sessionIds: [], createdAt: 1 }] } });
+            useSessionUIStore.setState({ newSessionDraft: draft });
+            await act(async () => root.render(<I18nProvider><DraftFolderTarget /></I18nProvider>));
+            expect(container.textContent).toBe('In folder Plans');
+            await act(async () => useSessionFoldersStore.setState({ foldersMap: { '/repo': [{ id: 'folder', name: 'Renamed', sessionIds: [], createdAt: 1 }] } }));
+            expect(container.textContent).toBe('In folder Renamed');
+            await act(async () => useSessionUIStore.setState({ newSessionDraft: { ...draft, directoryOverride: '/other' } }));
+            expect(container.textContent).toBe('');
+            await act(async () => useSessionUIStore.setState({ newSessionDraft: draft }));
+            await act(async () => root.render(<I18nProvider><ComposerDraftTargets
+                isVSCode isMobile={false} showSelectors={false} exiting={false}
+                presentationClassName="" onOpenPicker={() => {}} selectedProject={null} projects={[]}
+                selectedDirectory="/repo" selectedBranchLabel={null} selectedBranchIsKnown={false}
+                hasUncommittedChanges={false} projectRootBranchOption={null} worktreeBranchOptions={[]}
+                spaceBranchOptions={[]} branchItems={[]} showBranchSelector={false}
+                onProjectChange={() => {}} onDirectoryChange={() => {}} theme={themes[0]}
+            /></I18nProvider>));
+            expect(container.textContent).toBe('In folder Renamed');
+            await act(async () => useSessionFoldersStore.setState({ foldersMap: { '/repo': [] } }));
+            expect(container.textContent).toBe('');
+        } finally {
+            await act(async () => root.unmount());
+            useSessionFoldersStore.setState({ foldersMap: previousFolders });
+            useSessionUIStore.setState({ newSessionDraft: previousDraft });
+        }
+    });
+});

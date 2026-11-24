@@ -12,7 +12,6 @@ import { changedPathName } from './changesTree';
 import { ChangedPathLabel } from './ChangedPathLabel';
 import { DiffCount } from '@/components/ui/diff-count';
 
-/** Line counts of a changed file; the side with nothing to say stays out on a narrow row. */
 export const ChangeStats: React.FC<{ insertions: number; deletions: number; hideZero?: boolean }> = ({ insertions, deletions, hideZero = false }) => (
   <DiffCount added={insertions} removed={deletions} hideZero={hideZero} className="typography-micro" />
 );
@@ -108,7 +107,6 @@ export const ChangeRow = React.memo<ChangeRowProps>(function ChangeRow({
           onClick={handleRevertClick}
           disabled={isReverting}
           className={cn(
-            // On a phone a long press on the row reverts; the button stays for screen readers.
             isMobile ? 'sr-only' : 'flex size-5 shrink-0 items-center justify-center rounded text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50',
           )}
           aria-label={t('gitView.changes.revertFileAria', { path: file.path })}

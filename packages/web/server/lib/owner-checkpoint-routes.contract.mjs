@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { registerOwnerCheckpointRoutes } from './owner-checkpoint-routes.js';
+import { registerOwnerCheckpointRoutes } from './owner-checkpoint-routes.ts';
 
 const makeApp = () => {
   const endpoints = {};

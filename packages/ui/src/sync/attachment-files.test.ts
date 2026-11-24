@@ -1,7 +1,5 @@
 import { describe, expect, mock, test } from "bun:test"
 import {
-  ACCEPTED_ATTACHMENT_EXTENSIONS,
-  ATTACHMENT_ACCEPT,
   HeicConversionError,
   getAttachmentInputModality,
   getUnsupportedAttachmentInputs,

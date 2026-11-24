@@ -1,10 +1,18 @@
-/**
- * Enforce that a root-owned OpenChamber UI never executes PTY command payloads
- * with root credentials. Do not silently fall back to root on an unsupported
- * platform, missing Linux setpriv, or incomplete owner configuration.
- */
-export function separatePtyLaunch({ executable, args, env }, options = {}) {
-  const uid = options.uid ?? (typeof process.getuid === 'function' ? process.getuid() : -1);
+type PtyLaunch = {
+  executable: string;
+  args: string[];
+  env: NodeJS.ProcessEnv;
+};
+
+type RootExecutionOptions = {
+  uid?: number;
+  platform?: NodeJS.Platform;
+  mode?: string;
+  target?: string;
+};
+
+export function separatePtyLaunch({ executable, args, env }: PtyLaunch, options: RootExecutionOptions = {}): PtyLaunch {
+  const uid = options.uid ?? process.getuid?.() ?? -1;
   const platform = options.platform ?? process.platform;
   const mode = options.mode ?? process.env.OPENCHAMBER_ROOT_MODE;
   if (uid !== 0) return { executable, args, env };
@@ -13,8 +21,7 @@ export function separatePtyLaunch({ executable, args, env }, options = {}) {
   }
   const target = options.target ?? process.env.OPENCHAMBER_EXECUTION_USER;
   if (target !== 'opencode') throw new Error('ROOT_PTY_EXECUTION_FORBIDDEN: execution user must be opencode');
-  // Never leak UI cookies/auth credentials or a root HOME to model-controlled PTYs.
-  const clean = {};
+  const clean: NodeJS.ProcessEnv = {};
   for (const [key, value] of Object.entries(env || {})) {
     if (/^(TERM|COLORTERM|COLORFGBG|LANG|LC_[A-Z_]+|GIT_TERMINAL_PROMPT|NO_COLOR|CLICOLOR)$/.test(key)) {
       clean[key] = value;
@@ -34,8 +41,7 @@ export function separatePtyLaunch({ executable, args, env }, options = {}) {
   };
 }
 
-/** All other root command paths must use a dedicated unprivileged dispatcher. */
-export function assertRootExecutionDisabled(kind, options = {}) {
-  const uid = options.uid ?? (typeof process.getuid === 'function' ? process.getuid() : -1);
+export function assertRootExecutionDisabled(kind: string, options: Pick<RootExecutionOptions, 'uid'> = {}) {
+  const uid = options.uid ?? process.getuid?.() ?? -1;
   if (uid === 0) throw new Error(`ROOT_COMMAND_EXECUTION_FORBIDDEN: ${kind}`);
 }

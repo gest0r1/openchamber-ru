@@ -11,7 +11,7 @@ import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
 import { SortableTabsStrip, type SortableTabsStripItem } from '@/components/ui/sortable-tabs-strip';
 import { TerminalView } from '@/components/views/TerminalView';
 import { useI18n } from '@/lib/i18n';
-import { orderMobileWorkspaceTabs, stripMobileWorkspaceTabs, type MobileWorkspaceTab } from '@/lib/mobileWorkspaceTabs';
+import { orderMobileWorkspaceTabs, stripMobileWorkspaceTabs, withReceivedPagesTab, type MobileWorkspaceTab } from '@/lib/mobileWorkspaceTabs';
 import { GuestIcon } from '@/components/layout/GuestRailIcon';
 import { usePhoneGuestPanelModes } from '@/hooks/useGuestSurfaces';
 import { useGuestBadgeStore } from '@/lib/guests/badge-store';
@@ -26,13 +26,14 @@ import { useUIStore } from '@/stores/useUIStore';
 
 import { MobileChangesSurface } from './MobileChangesSurface';
 import type { MobileChangesCommitRequest } from './mobileChangesCommitRequest';
+import type { MobileChangesInitialDiff } from '@/hooks/useMobileChangesNavigation';
 import { MobileFilesSurface } from './MobileFilesSurface';
 import { MobileStatusPane } from './MobileStatusPane';
 import { useEdgeSwipe } from './useEdgeSwipe';
 import { isVimEditorEventTarget } from '@/lib/editorFocus';
 import { MOBILE_HEADER_BUTTON_CLASS, MOBILE_HEADER_CLASS } from '@/components/ui/mobileHeader';
 
-// Loaded with the first extension tab the user opens.
+const MobileBrowserSurface = React.lazy(() => import('./MobileBrowserSurface').then((module) => ({ default: module.MobileBrowserSurface })));
 const GuestPanelContent = React.lazy(() => import('@/components/layout/GuestPanelContent').then((module) => ({ default: module.GuestPanelContent })));
 
 const DRAWER_ROOT_ID = 'mobile-surface-root';
@@ -40,34 +41,18 @@ const ENTER_DELAY_MS = 16;
 const ENTER_DURATION_MS = 320;
 const DRAWER_EASING = 'cubic-bezier(0.22, 1, 0.36, 1)';
 
-/** The workspace surfaces as tabs (Status / Changes / Files / Terminal / Notes,
-    then one per extension that opted its panel into the phone).
-
-    Two hosts, same content and same state:
-     - `drawer` (default) covers the app and slides in from the right edge —
-       the phone, and a tablet in portrait where a side panel would leave no
-       usable chat column;
-     - `panel` renders inline so the caller can size it as a real sidebar
-       beside the chat (tablet, landscape). The caller owns the width and the
-       open/close animation there; this component only fills it.
-
-    Closes via the header X, a left-edge swipe back toward the right (the
-    mirror of the gesture that opened it), Escape (unless the terminal tab owns
-    the keys), or the Android back button (handled by MobileShell). */
 export const MobileWorkspaceDrawer: React.FC<{
   open: boolean;
   onClose: () => void;
   tab: MobileWorkspaceTab;
   onTabChange: (tab: MobileWorkspaceTab) => void;
-  /** When set, the Changes tab opens directly into the per-file diff. */
-  pendingChangesDiff: { path: string; staged: boolean; scope?: 'turn' } | null;
-  /** When set, the Changes tab switches to the commit scope (`host.openCommit` selected the commit). */
+  registerPreviewBackHandler: (handler: (() => boolean) | null) => void;
+  pendingChangesDiff: MobileChangesInitialDiff | null;
   pendingChangesCommit: MobileChangesCommitRequest | null;
-  /** Notes tab: opens a plan fullscreen (layered above the drawer). */
   onOpenPlan: (plan: { id: string; title: string; projectRef: ProjectRef }) => void;
   onOpenReceivedPage: (page: { receivedId: string; title: string }) => void;
   variant?: 'drawer' | 'panel';
-}> = ({ open, onClose, tab, onTabChange, pendingChangesDiff, pendingChangesCommit, onOpenPlan, variant = 'drawer' }) => {
+}> = ({ open, onClose, tab, onTabChange, registerPreviewBackHandler, pendingChangesDiff, pendingChangesCommit, onOpenPlan, onOpenReceivedPage, variant = 'drawer' }) => {
   const { t, direction } = useI18n();
   const rootRef = React.useRef<HTMLElement | null>(null);
   const drawerRef = React.useRef<HTMLElement>(null);
@@ -81,9 +66,9 @@ export const MobileWorkspaceDrawer: React.FC<{
   const hiddenTabs = useUIStore((state) => state.mobileWorkspaceHiddenTabs);
   const setTabOrder = useUIStore((state) => state.setMobileWorkspaceTabOrder);
   const extensionTabs = usePhoneGuestPanelModes();
+  const receivedPagesShown = hasReceivedPages(useReceivedPages());
   const guests = useGuestsStore((state) => state.guests);
   const guestBadges = useGuestBadgeStore((state) => state.countByGuest);
-  // The Status tab's section picker opens from the tab row, beside the close button.
   const [statusSectionsOpen, setStatusSectionsOpen] = React.useState(false);
   const tabRef = React.useRef(tab);
   React.useEffect(() => {
@@ -96,11 +81,6 @@ export const MobileWorkspaceDrawer: React.FC<{
     ...(direction === 'rtl' ? { onRightEdgeSwipe: closeFromEdge } : { onLeftEdgeSwipe: closeFromEdge }),
   });
 
-  // Tabs the user has actually opened — their panes stay mounted afterwards.
-  // An extension's frame too, as on the desktop rail: its page keeps its
-  // state across a tab switch or a closed drawer. An extension that leaves the
-  // catalog (disabled, removed, another server) unmounts and starts fresh
-  // when it comes back.
   const [visitedTabs, setVisitedTabs] = React.useState<ReadonlySet<MobileWorkspaceTab>>(() => new Set());
   React.useEffect(() => {
     if (!open) return;
@@ -118,7 +98,6 @@ export const MobileWorkspaceDrawer: React.FC<{
       return new Set([...current].filter((id) => !gone.includes(id)));
     });
   }, [extensionTabs]);
-  // Opening an extension's tab is seeing what it counted, as a rail click is.
   const clearGuestBadge = useGuestBadgeStore((state) => state.clearBadge);
   React.useEffect(() => {
     if (open && isPluginContextPanelMode(tab)) clearGuestBadge(pluginIdFromMode(tab));
@@ -171,6 +150,7 @@ export const MobileWorkspaceDrawer: React.FC<{
     terminal: { id: 'terminal', label: t('mobile.menu.terminal'), icon: <Icon name="terminal" className="h-3.5 w-3.5" /> },
     preview: { id: 'preview', label: t('contextPanel.mode.browser'), icon: <Icon name="global" className="h-3.5 w-3.5" /> },
     notes: { id: 'notes', label: t('contextRail.surface.notes'), icon: <Icon name="sticky-note" className="h-3.5 w-3.5" /> },
+    pages: { id: 'pages', label: t('contextPanel.mode.pages'), icon: <Icon name="pages" className="h-3.5 w-3.5" /> },
   } satisfies Record<Exclude<MobileWorkspaceTab, PluginContextPanelMode>, SortableTabsStripItem>;
   const extensionTabItem = (mode: PluginContextPanelMode): SortableTabsStripItem => {
     const guestId = pluginIdFromMode(mode);
@@ -184,7 +164,6 @@ export const MobileWorkspaceDrawer: React.FC<{
         ? t(count === 1 ? 'contextRail.surface.plugin.badgeAriaSingle' : 'contextRail.surface.plugin.badgeAriaPlural', { label, count })
         : label,
       icon: (
-        // The count sits on the icon: inactive tabs show only their icon.
         <span className="relative flex">
           <GuestIcon
             icon={resolveGuestIconName(guest?.icon ?? '')}
@@ -203,9 +182,8 @@ export const MobileWorkspaceDrawer: React.FC<{
       ),
     };
   };
-  // The user's tabs in their order (Settings > General), plus a hidden one
-  // while something opened it.
-  const stripTabs = stripMobileWorkspaceTabs(tabOrder, hiddenTabs, tab, extensionTabs);
+  const orderedTabs = stripMobileWorkspaceTabs(tabOrder, hiddenTabs, tab, extensionTabs);
+  const stripTabs = receivedPagesShown || tab === 'pages' ? withReceivedPagesTab(orderedTabs) : orderedTabs;
   const tabItems = stripTabs.map((id) => (isPluginContextPanelMode(id) ? extensionTabItem(id) : tabDefinitions[id]));
   const soleTab = tabItems.length === 1 ? tabItems[0] : null;
   const reorderTabs = (activeId: string, overId: string) => {
@@ -234,8 +212,6 @@ export const MobileWorkspaceDrawer: React.FC<{
                 if (next) onTabChange(next);
               }}
               onReorder={reorderTabs}
-              // Extension tabs can outgrow the row: past the built-in five
-              // the strip scrolls sideways instead of clipping the last ones.
               layoutMode={tabItems.length > 5 ? 'scrollable' : 'fit'}
               variant="active-pill"
               nonCompositedIndicator
@@ -320,6 +296,13 @@ export const MobileWorkspaceDrawer: React.FC<{
           <div className={cn('h-full', tab !== 'notes' && 'hidden')}>
             <ErrorBoundary>
               <ProjectContextPanel visible={open && tab === 'notes'} onActionComplete={onClose} onOpenPlan={onOpenPlan} />
+            </ErrorBoundary>
+          </div>
+        ) : null}
+        {visitedTabs.has('pages') ? (
+          <div className={cn('h-full overflow-y-auto', tab !== 'pages' && 'hidden')}>
+            <ErrorBoundary>
+              <ReceivedPagesList onOpen={(page, title) => onOpenReceivedPage({ receivedId: page.receivedId, title })} />
             </ErrorBoundary>
           </div>
         ) : null}

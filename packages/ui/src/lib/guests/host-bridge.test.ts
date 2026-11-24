@@ -137,6 +137,16 @@ describe('answerGuestMessage', () => {
     expect(reply).toMatchObject({ type: 'result', id: 'oc-3b', ok: false, code: 'NO_DIRECTORY' });
   });
 
+  test('a walkthrough request reaches the pane with its base and answers with its outcome', async () => {
+    const message: GuestMessage = { channel: OPENCHAMBER_SDK_CHANNEL, v: 1, type: 'open-walkthrough', id: 'wt-1', payload: { base: 'main' } };
+    const seen: string[] = [];
+    expect(await answerGuestMessage(message, effects({ openWalkthrough: async (base) => { seen.push(base); return { ok: true }; } })))
+      .toMatchObject({ type: 'result', id: 'wt-1', ok: true });
+    expect(seen).toEqual(['main']);
+    expect(await answerGuestMessage(message, effects({ openWalkthrough: async () => ({ ok: false, code: 'NOT_FOUND', message: 'No such base.' }) })))
+      .toMatchObject({ type: 'result', id: 'wt-1', ok: false, code: 'NOT_FOUND', error: 'No such base.' });
+  });
+
   test('a block answer reaches the block, and a refusal tells the frame why', async () => {
     const message: GuestMessage = { channel: OPENCHAMBER_SDK_CHANNEL, v: 1, type: 'block-answer', id: 'answer-1', payload: { text: 'Explain' } };
     const seen: string[] = [];

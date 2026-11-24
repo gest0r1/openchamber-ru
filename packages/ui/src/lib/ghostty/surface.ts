@@ -734,12 +734,6 @@ export class GhosttyTerminalSurface {
     scrollbarThumb.className = 'oc-terminal-scrollbar-thumb';
     scrollbar.append(scrollbarThumb);
     mount.replaceChildren(canvas, input, preedit, scrollbar);
-    // Size the backing store before the browser paints this canvas for the
-    // first time. The font loads below yield to the compositor, and a canvas
-    // whose intrinsic size later changes while its CSS box stays put (the box
-    // is 100% of the mount) keeps showing the first, stretched image in
-    // Gecko until something else invalidates layout — a brand-new tab was
-    // blurry until a reload or a panel resize.
     const initialRatio = window.devicePixelRatio || 1;
     if (mount.clientWidth > 0 && mount.clientHeight > 0) {
       canvas.width = Math.max(1, Math.round(mount.clientWidth * initialRatio));
@@ -856,7 +850,6 @@ export class GhosttyTerminalSurface {
     this.metrics = measureGhosttyCell(this.context, this.fontSize, this.fontFamily);
     this.core.resize(this.cols, this.rows, this.metrics.width, this.metrics.height);
     this.stylePreedit();
-    // Cached IME textarea coordinates are stale in the new cell geometry.
     this.inputLeft = -1;
     this.inputTop = -1;
     this.forceFullRender = true;
@@ -1228,8 +1221,6 @@ export class GhosttyTerminalSurface {
   }
 
   private primeCopy(selection: string): void {
-    // Rewriting the field ends the composition with no compositionend, leaving
-    // it open forever. The clipboard still gets the selection from the caller.
     if (this.composing) return;
     this.primedCopySelection = selection;
     if (selection.length === 0) {
@@ -1952,18 +1943,12 @@ export class GhosttyTerminalSurface {
     style.backgroundColor = `rgb(${background.r}, ${background.g}, ${background.b})`;
   }
 
-  /** An empty string ends the display: the composition was committed or cancelled. */
   private showPreedit(text: string): void {
     this.preedit.textContent = text;
     this.preedit.hidden = text.length === 0;
     this.positionPreedit();
   }
 
-  /**
-   * Starts at the cursor's cell, also when the program hides the cursor, and
-   * slides left only as far as the terminal's right edge requires. A cursor
-   * scrolled out of the viewport leaves nowhere to draw.
-   */
   private positionPreedit(): void {
     if (this.preedit.hidden) return;
     const cursorX = this.snapshot?.cursorX ?? -1;
@@ -1974,10 +1959,8 @@ export class GhosttyTerminalSurface {
     const cursorLeft = CONTENT_PADDING + cursorX * this.metrics.width;
     const maxLeft = this.mount.clientWidth - CONTENT_PADDING - this.preedit.offsetWidth;
     const left = Math.max(CONTENT_PADDING, Math.min(cursorLeft, maxLeft));
-    // Cells start at fractions of a pixel; rounding right would leave a sliver of the block cursor.
     this.preedit.style.left = `${Math.floor(left)}px`;
     this.preedit.style.top = `${this.originY + cursorY * this.metrics.height}px`;
-    // Text wider than the terminal keeps its end, where the user is typing, in view.
     this.preedit.scrollLeft = this.preedit.scrollWidth;
   }
 

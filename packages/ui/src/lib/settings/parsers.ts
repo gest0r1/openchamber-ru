@@ -114,7 +114,6 @@ export const parseCustomProviderIcons: SettingsParser<Record<string, CustomProvi
   return result;
 };
 
-/** Provider ID -> uploaded logo metadata; malformed entries are dropped one by one. */
 export const parseCustomProviderLogos = fromSchema(looseObject.transform((record) => {
   const result: Record<string, CustomProviderLogo> = {};
   for (const [providerID, logo] of Object.entries(record)) {

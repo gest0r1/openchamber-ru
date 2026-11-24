@@ -110,7 +110,6 @@ function ArchiveSearchResultRow({ result, query, context, mobile, onOpen, onOpen
   </div>;
 }
 
-// Subsessions of one parent sit together, at the place of the first of them.
 const groupByParent = (sessions: Session[]): Session[] => {
   const byParent = new Map<string, Session[]>();
   for (const session of sessions) {
@@ -133,12 +132,6 @@ const groupByParent = (sessions: Session[]): Session[] => {
   return grouped;
 };
 
-/**
- * The archive itself, mounted only while it is on screen, so every open starts
- * fresh. `page` is the desktop surface that replaces the chat area; `mobile`
- * is the single-column list inside the phone's fullscreen surface. `onLeave`
- * runs once an archived session has been opened.
- */
 export function ArchiveSessionsView({ layout, onLeave }: {
   layout: 'page' | 'mobile';
   onLeave: () => void;
@@ -154,22 +147,13 @@ export function ArchiveSessionsView({ layout, onLeave }: {
   const worktreesByProject = useSessionUIStore((state) => state.availableWorktreesByProject);
   const gitBranches = useGitAllBranches(true);
   const spaceList = useSidebarSpaces();
-  // Narrow selections: the cache's entity map changes with every active
-  // session update, and the page only depends on which archived sessions are
-  // listed and on their parents' titles.
-  const listedSessions = useGlobalSessionsStore(useShallow((state) => state.archivedSessions
-    .filter((session) => isRestorableOnItsOwn(session, state.entityById))));
-  const activeSessions = useGlobalSessionsStore(useShallow((state) => state.activeSessions
-    .filter((session) => isRestorableOnItsOwn(session, state.entityById))));
-  const parentTitlePairs = useGlobalSessionsStore(useShallow((state) => state.archivedSessions.flatMap((session) => {
-    const parent = session.parentID ? state.entityById.get(session.parentID) : undefined;
-    return parent ? [parent.id, parent.title] : [];
-  })));
+  const listedSessions = useGlobalSessionsStore(useShallow(selectArchivedSessions));
+  const activeSessions = useGlobalSessionsStore(useShallow(selectActiveArchiveSessions));
+  const parentTitlePairs = useGlobalSessionsStore(useShallow(selectArchiveParentTitles));
   const sessionsStatus = useGlobalSessionsStore((state) => state.status);
   const [selectedKey, setSelectedKey] = React.useState<string | null>(null);
   const [visibleCount, setVisibleCount] = React.useState(PAGE_SIZE);
   const spaceArchives = useSpaceArchivesStore((state) => state.byDirectory);
-  // The whole search state: the words and where to look for them. Nothing is remembered.
   const [text, setText] = React.useState('');
   const [searchScope, setSearchScope] = React.useState<SearchScope>('everything');
   const searchScopes = useSearchScopes();
@@ -190,9 +174,6 @@ export function ArchiveSessionsView({ layout, onLeave }: {
 
   const openCodeProjects = useGlobalSyncStore((state) => state.projects);
 
-  // Sessions belong to their project the way the sidebar groups them: by
-  // folder, then by OpenCode's project, which is what still places a session
-  // of a worktree that is gone.
   const ownershipCandidates = React.useMemo(() => [...listedSessions, ...activeSessions], [activeSessions, listedSessions]);
   const ownershipProjects = React.useMemo(() => projects.flatMap((project) => {
     const normalizedPath = normalizePath(project.path);
@@ -206,7 +187,6 @@ export function ArchiveSessionsView({ layout, onLeave }: {
     [],
     openCodeProjects,
   ), [openCodeProjects, ownershipCandidates, ownershipProjects, worktreesByProject]);
-  // Isolated spaces name the sessions that live in them. Only search results need that index, so browsing does not build it.
   const searchOwnership = React.useMemo(() => (hasSearchQuery ? createSessionOwnershipIndex(
     ownershipCandidates,
     ownershipProjects,
@@ -246,9 +226,6 @@ export function ArchiveSessionsView({ layout, onLeave }: {
   }) : NO_SEARCH_LOCATIONS), [gitBranches, homeDirectory, locationProjects, ownershipCandidates, searchOwnership, spaceLabelById, worktreesByProject]);
   const locationProjectById = React.useMemo(() => new Map(locationProjects.map((project) => [project.id, project])), [locationProjects]);
 
-  // A worktree that is gone matches no project by folder, so its sessions are
-  // listed once the server confirms the folder is missing. A folder that still
-  // exists stays behind admission, whatever project OpenCode files it under.
   const unadmittedOwnedDirectories = React.useMemo(() => [...new Set(ownershipCandidates.flatMap((session) => {
     const directory = resolveGlobalSessionDirectory(session);
     return directory && ownership.bySessionId.has(session.id) && !isSessionDirectoryAdmitted(directory, projects, worktreesByProject) ? [directory] : [];
@@ -354,7 +331,6 @@ export function ArchiveSessionsView({ layout, onLeave }: {
     return owner.scopeDirectory.split('/').filter(Boolean).pop() || owner.scopeDirectory;
   }, [ownership, topologyWorktrees]);
   const selectedBucket = selectedKey === null ? null : buckets.find((bucket) => bucket.key === selectedKey) ?? null;
-  // A search looks through the archive, or through the group picked on the left.
   const searchedSessions = selectedBucket?.sessions ?? sortedSessions;
   const searchedSessionById = React.useMemo(() => new Map(searchedSessions.map((session) => [session.id, session])), [searchedSessions]);
   const archiveSearchResultContext = React.useCallback(({
@@ -388,14 +364,12 @@ export function ArchiveSessionsView({ layout, onLeave }: {
       extras,
     });
   }, [homeDirectory, locationProjectById, parentTitles, projectById, searchLocationBySessionId, searchedSessionById, spaceArchives]);
-  // The folders message search may look in: the picked group's, or every one the archive can show.
   const searchDirectories = React.useMemo<readonly string[]>(() => {
     if (!hasSearchQuery) return NO_DIRECTORIES;
     const directories = new Set<string>();
     if (!selectedBucket) {
       for (const directory of topologyDirectories) directories.add(directory);
     } else if (selectedBucket.kind === 'project') {
-      // A project is its root, its worktrees, and the folders of sessions it owns whose worktree is gone.
       directories.add(selectedBucket.directory);
       for (const worktree of topologyWorktrees) {
         const directory = normalizePath(worktree.path);
@@ -417,12 +391,10 @@ export function ArchiveSessionsView({ layout, onLeave }: {
     return { sessionId: session.id, title: session.title || t('sessions.sidebar.session.untitled'), projectLabel: projectLabelFor(session, directory), worktreeLabel: worktreeLabelFor(session), directory, archived: true, updatedAt: session.time?.archived ?? session.time?.updated };
   }), [projectLabelFor, searchedSessions, t, worktreeLabelFor]);
   const conversationSearch = useConversationSearch({
-    // Without a folder to name, a message request would span the whole index.
     enabled: hasSearchQuery, text: normalizedQuery, lifecycle: 'archived', searchIn: searchDirectories.length === 0 ? 'titles' : searchIn, author, metadataItems, directories: searchDirectories,
     isAdmitted: (directory) => Boolean(directory && searchDirectories.includes(directory)) && (isSessionDirectoryAdmitted(directory, projects, worktreesByProject) || Boolean(directory && spaceArchives?.has(directory)) || Boolean(directory && goneDirectories.has(directory))),
     branchOnly: true, pageSize: PAGE_SIZE,
   });
-  // A phone has no tooltips, so a failed message search says so in words under the field.
   const contentStatus = conversationSearch.contentStatus;
   const searchFailure = useSearchFailureText(contentStatus, searchIn === 'messages');
 
@@ -444,7 +416,6 @@ export function ArchiveSessionsView({ layout, onLeave }: {
   );
 
   const searchResults = conversationSearch.results;
-  // What the list shows while not searching: everything, or the picked group's loose sessions.
   const filteredSessions = React.useMemo(() => {
     if (selectedBucket === null) return groupByParent(sortedSessions);
     return groupByParent(selectedBucket.sessions.filter((session) => !inWorktreeGroup.has(session.id)));
@@ -453,7 +424,6 @@ export function ArchiveSessionsView({ layout, onLeave }: {
   const visibleSessions = filteredSessions.slice(0, visibleCount);
   const remainingCount = (hasSearchQuery ? searchResults.length : filteredSessions.length) - visibleCount;
   const archiveCount = sortedSessions.length;
-  // Null while the server cannot give an exact total.
   const searchCount = conversationSearch.totalCount;
   const searchCountsByDirectory = conversationSearch.countsByDirectory;
   const countForBucket = React.useCallback((bucket: ArchiveBucket): number | null => {
@@ -475,13 +445,11 @@ export function ArchiveSessionsView({ layout, onLeave }: {
     return count;
   }, [hasSearchQuery, ownership, ownershipCandidates, projects, searchCountsByDirectory, spaceArchives, topologyWorktrees]);
 
-  // Picking a group filters the list, and narrows a search to that group.
   const selectBucket = React.useCallback((key: string | null) => {
     setSelectedKey(key);
     setVisibleCount(PAGE_SIZE);
   }, []);
 
-  // A new search starts across the whole archive, and a cleared one drops its scope.
   const search = (next: string) => {
     setText(next);
     if (next === '') setSearchScope('everything');
@@ -520,7 +488,6 @@ export function ArchiveSessionsView({ layout, onLeave }: {
   const countText = (count: number) => (count === 1
     ? t('sessions.archivePage.countSingle', { count })
     : t('sessions.archivePage.countPlural', { count }));
-  // One count, in one place: what the list holds, or what the search found once that total is exact.
   const shownCount = hasSearchQuery ? searchCount : filteredSessions.length;
   const countLabel = shownCount === null ? null : countText(shownCount);
   const searchInput = (
@@ -537,8 +504,6 @@ export function ArchiveSessionsView({ layout, onLeave }: {
     />
   );
 
-  // An empty list is only "no archived sessions" once the session list has
-  // actually loaded; before that, or after a failed load, say so instead.
   const emptyLabel = () => {
     if (archiveCount === 0 && sessionsStatus === 'error') return t('sessions.sidebar.group.empty.loadFailed');
     if (archiveCount === 0 && sessionsStatus !== 'ready') return t('sessions.sidebar.group.empty.loadingSessions');
@@ -553,7 +518,6 @@ export function ArchiveSessionsView({ layout, onLeave }: {
   );
 
   const searchResultRows = (mobile: boolean) => (searchResults.length === 0 ? emptyState : searchResults.slice(0, visibleCount).map((result) => {
-    // A result the page does not list, or a deleted space's chat, has nowhere to be restored to.
     const session = searchedSessionById.get(result.sessionId);
     return <ArchiveSearchResultRow
       key={result.sessionId}
@@ -595,9 +559,7 @@ export function ArchiveSessionsView({ layout, onLeave }: {
       const title = session.title || t('sessions.sidebar.session.untitled');
       const restorable = !(spaceArchives?.has(sessionDirectory) ?? false);
       const parentTitle = parentTitleAbove(rows, index);
-      // Only a list that mixes groups names each row's group.
       const showGroup = selectedBucket === null;
-      // In a worktree's tile the titles line up with the worktree's name, past its icon.
       const indent = inTile ? (session.parentID ? 'ps-[2.875rem]' : 'ps-[2.125rem]') : (session.parentID ? 'ps-7' : 'ps-4');
       return (
         <React.Fragment key={session.id}>
@@ -661,7 +623,6 @@ export function ArchiveSessionsView({ layout, onLeave }: {
             {searchInput}
             {hasSearchQuery && searchFailure ? <p data-archive-search-failure role="status" className="px-2.5 pt-1 typography-micro text-muted-foreground">{searchFailure}</p> : null}
           </div>
-          {/* The groups narrow the list, and a search within it. */}
           {buckets.length > 0 ? (
             <div className="flex gap-1.5 overflow-x-auto px-3 pb-0.5 [scrollbar-width:none]">
               {renderChip('__all__', t('sessions.archivePage.all'), hasSearchQuery ? searchCount : archiveCount, selectedKey === null, () => selectBucket(null))}
@@ -760,7 +721,6 @@ export function ArchiveSessionsView({ layout, onLeave }: {
 
   const renderSessionRow = (session: Session, index: number, rows: Session[], indent = false) => {
               const sessionDirectory = normalizePath(resolveGlobalSessionDirectory(session)) ?? '';
-              // A deleted space's chat has nowhere to be restored to.
               const restorable = !(spaceArchives?.has(sessionDirectory) ?? false);
               const parentTitle = parentTitleAbove(rows, index);
               return (
@@ -842,7 +802,6 @@ export function ArchiveSessionsView({ layout, onLeave }: {
   return (
     <div data-archive-page="desktop" className="@container absolute inset-0 z-10 flex flex-col bg-background">
       <div className="flex min-h-0 flex-1">
-        {/* Directory filter panel */}
         <div className="hidden w-64 flex-shrink-0 flex-col border-e border-edge @min-[42rem]:flex">
           <ScrollableOverlay outerClassName="flex-1 min-h-0" className="space-y-0.5 p-2" disableHorizontal>
             {renderDirectoryItem(
@@ -866,13 +825,11 @@ export function ArchiveSessionsView({ layout, onLeave }: {
         </div>
 
         <div className="flex min-w-0 flex-1 flex-col">
-          {/* The search shares the list's column, so the two line up. */}
           <div data-archive-toolbar className="px-6 pt-3">
             <div className="mx-auto flex w-full max-w-3xl items-center gap-3">
               <div className="min-w-0 flex-1">
                 {searchInput}
               </div>
-              {/* Pages have no close button: you leave via the sidebar. */}
               {countLabel ? (
                 <span data-archive-count role="status" className="hidden h-8 flex-shrink-0 items-center typography-micro text-muted-foreground @min-[42rem]:flex">
                   {countLabel}
@@ -883,7 +840,6 @@ export function ArchiveSessionsView({ layout, onLeave }: {
 
           <ScrollableOverlay outerClassName="min-h-0 flex-1" className="px-6 py-3" disableHorizontal>
             <div data-archive-search-results className="mx-auto w-full max-w-3xl space-y-0.5">
-              {/* Each archived worktree is a tile holding its sessions; the loose sessions follow. */}
               {worktreeGroups.length > 0 ? (
                 <div className={cn('space-y-2', visibleSessions.length > 0 && 'pb-3')}>
                   {worktreeGroups.map(({ archive, sessions: groupSessions }) => (
@@ -918,6 +874,5 @@ export function ArchiveView(): React.ReactNode {
   const setOpen = useUIStore((state) => state.setArchivePageOpen);
   const leave = React.useCallback(() => setOpen(false), [setOpen]);
   if (!open) return null;
-  // Keyed by open, so opening it again while it is on screen starts fresh.
   return <ArchiveSessionsView key={openCount} layout="page" onLeave={leave} />;
 }

@@ -53,8 +53,6 @@ import { fileURLToPath } from "node:url"
 
 import { fixtureMessageText, planScriptedResponse } from "./fixture-conversations.mjs"
 
-import { planScriptedResponse } from "./fixture-conversations.mjs"
-
 const FIXTURE_PROVIDER_ID = "perf"
 const FIXTURE_RATES = [100, 300, 600, 1200]
 const FIXTURE_CODE_RATES = [300, 1200]
@@ -511,6 +509,9 @@ export const fixtureProviderConfig = (port) => ({
           { name: `Fixture agent, ${calls} tool calls ${parallel} at a time, then ${rate} characters/s`, tool_call: true },
         ])),
         ["agent-20tools-wait3000ms-300cps", { name: "Fixture agent, 20 tool calls, 3 s to each step's first token, then 300 characters/s", tool_call: true }],
+        // OpenCode gives `patch` instead of `edit` and `write` to models named
+        // `gpt-*`; this one exists so a scripted turn can call `patch`.
+        ["gpt-5-scripted", { name: "Fixture GPT-style model, patch tool", tool_call: true }],
       ]),
     },
   },

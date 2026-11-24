@@ -378,9 +378,6 @@ export const HelpDialog: React.FC = () => {
             const descriptionKey = shortcut.descriptionKey
               ?? (action?.customizable ? action.settingsLabelKey : undefined);
             if (!descriptionKey || (action && !isShortcutAvailable(action))) return null;
-            // This dialog lists what the keyboard can do right now;
-            // an action without a binding belongs to the command
-            // palette and Settings, not here.
             if (shortcut.id && !getEffectiveShortcutCombo(shortcut.id, shortcutOverrides)) {
               return null;
             }
@@ -405,7 +402,6 @@ export const HelpDialog: React.FC = () => {
                     {t(descriptionKey)}
                   </span>
                 </div>
-                {/* The leader only guides the eye to the keys: well under the text. */}
                 <div aria-hidden className="min-w-4 flex-1 border-b border-dotted border-border opacity-35" />
                 <div className="flex shrink-0 items-center gap-1">
                   {(Array.isArray(displayKeys) ? displayKeys : [displayKeys]).map((keyCombo: string, i: number) => (
@@ -415,8 +411,6 @@ export const HelpDialog: React.FC = () => {
                           {t('helpDialog.keyCombiner.or')}
                         </span>
                       )}
-                      {/* A keycap is a tone step above the dialog, the same in both
-                          themes and in Settings > Shortcuts; no outline. */}
                       <kbd className="oc-tile-inset inline-flex items-center gap-1 rounded px-1.5 py-0.5 typography-meta text-foreground">
                         {keyCombo}
                       </kbd>

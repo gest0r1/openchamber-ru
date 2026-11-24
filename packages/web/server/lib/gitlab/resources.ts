@@ -1258,18 +1258,19 @@ export function createGitLabResourceService({ origin, client, download, resolveP
       return { ready: !request.draft };
     },
 
-    async draftChangeRequest(payload) {
+    async draftChangeRequest(payload: ActionPayload) {
       const { target, projectId, number } = await resolveMutationActionTarget(payload);
-      const validate = (raw) => (payload.providerTarget
+      const validate = (raw: Reply) => (payload.providerTarget
         ? requireMutationResponse(raw, target.project, payload.providerTarget, payload.expectedTarget)
-        : requireMapped(mapGitLabMergeRequest(raw, identity, target.project), 'GitLab returned an invalid merge request'));
+        : requireMapped(mapGitLabMergeRequest(obj(raw), identity, target.project), 'GitLab returned an invalid merge request'));
       const current = validate(await client.MergeRequests.show(projectId, number));
       if (current.draft) return { draft: true };
       const request = validate(await client.MergeRequests.edit(projectId, number, { title: asDraftTitle(current.title) }));
       return { draft: request.draft };
     },
 
-    async listChangeRequests(directory, options = {}) {
+    async listChangeRequests(directory: string, options: ListOptions = {}) {
+      const filter = await listFilter(options, 'pull');
       const resolved = await resolveDirectoryProjects(directory, options.remote);
       const targets = await expandTargets([resolved.projects[0]], { requireComplete: canonicalReads });
       const target = last(targets);
@@ -1422,13 +1423,9 @@ export function createGitLabResourceService({ origin, client, download, resolveP
       };
     },
 
-    /**
-     * Both sides of one file as GitLab has them, for expanding collapsed
-     * context without the working tree. The base side is the merge base the
-     * diff was taken against, never the target branch tip. A fork's head
-     * commit is reachable from the target project, so every read goes there.
-     */
-    async changeRequestFileContents(directory, number, { project, remote, path, previousPath, status, binary, linked }) {
+    async changeRequestFileContents(directory: string, number: number, { project, remote, path, previousPath, status, binary, linked }: ReadOptions & {
+      path: string; previousPath?: string | undefined; status?: string | undefined; binary?: boolean | undefined;
+    }) {
       const { target, raw } = await findByNumber(directory, number, project, {
         constrainToPrimary: true, remote, requireNetwork: true, linked,
       });

@@ -99,7 +99,6 @@ export const ApplyPatchFileButtons = ({
                         <Text
                             variant={animate ? 'generate-effect' : 'static'}
                             className={cn('min-w-0 max-w-full truncate', textClassName)}
-                            // An openable name takes the button's colour, which brightens on hover.
                             style={canOpen ? undefined : { color: 'var(--tools-description)' }}
                             title={canOpen ? undefined : entry.path}
                         >

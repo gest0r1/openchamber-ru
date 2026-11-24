@@ -478,15 +478,6 @@ export const trackerProviderSchemasV1 = {
 
 export const trackerProviderMethodSchema = z.enum(TRACKER_PROVIDER_METHODS);
 
-/*
- * Host-side parse of what a usage provider answers. The envelope and the
- * error are the Git host's. The data is a built-in's result before OpenChamber
- * derives the remaining share and the formatted strings, bounded in count and
- * length and asserted both ways against the type the service writes against,
- * so the two cannot drift. A failed parse is a malformed answer, never an
- * empty result. Window and model names are object keys the UI iterates, so
- * the names that would reach `Object.prototype` are refused.
- */
 
 const QUOTA_RESERVED_NAMES: ReadonlySet<string> = new Set(['__proto__', 'constructor', 'prototype']);
 const quotaName = z.string().min(1).max(QUOTA_PROVIDER_NAME_MAX).refine((name) => !QUOTA_RESERVED_NAMES.has(name), { message: 'reserved name' });
@@ -530,7 +521,6 @@ const quotaDataSchemas = {
   'usage.read': quotaUsageDataSchema,
 } satisfies Record<QuotaProviderMethod, z.ZodType>;
 
-/** Wire 1 of the quota role, as the host parses it. `data[method]` checks an `ok: true` answer's `data`. */
 export const quotaProviderSchemasV1 = {
   envelope: envelopeSchema,
   error: errorSchema,

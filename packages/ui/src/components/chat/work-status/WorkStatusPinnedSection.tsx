@@ -126,7 +126,6 @@ export const WorkStatusPinnedSection: React.FC<Props> = ({ sessionId, directory 
           leading={(
             <Tooltip>
               <TooltipTrigger asChild>
-                {/* A row turns off pointer events on all but buttons; the span keeps the tooltip on a disabled one. */}
                 <span className="pointer-events-auto inline-flex shrink-0">
                   <button
                     type="button"

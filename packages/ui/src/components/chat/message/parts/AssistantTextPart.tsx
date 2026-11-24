@@ -31,9 +31,6 @@ const AssistantTextPart: React.FC<AssistantTextPartProps> = ({
     onShowPopup,
     range,
 }) => {
-    // Use part directly from props — parent provides the latest version from the store.
-    // No store subscription here to avoid re-render cascade from unrelated delta events.
-    // The extension catalog changes on install or pause, never per delta.
     const guestLinks = useGuestLinkRules();
     const partWithText = part as PartWithText;
     const rawText = typeof partWithText.text === 'string' ? partWithText.text : '';

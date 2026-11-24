@@ -96,7 +96,8 @@ export const createQuickWorktree = async (
     setupCommands,
     returnAfterDirectoryCreated: true,
   });
-  // Do not expose a draft to the composer until the Git checkout has completed.
+  // A directory-created result is not a usable checkout. Never hand a draft
+  // back to the composer until Git and project setup are fully ready.
   await waitForWorktreeBootstrap(metadata.path);
   return metadata;
 };

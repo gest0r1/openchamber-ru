@@ -1,30 +1,3 @@
-/**
- * Highlights for chat quotes inside the transcript, painted with the CSS
- * Custom Highlight API so the rendered markdown is never touched.
- *
- * - Marks: every quote waiting in the composer's context chips stays softly
- *   highlighted in its message, so the reader sees where they left off. The
- *   mark the user hovers in the chip preview is drawn stronger.
- * - Reveal: clicking a quote (a chip entry, or a sent quote card) scrolls to
- *   its message and briefly flashes the fragment.
- * - Popover: hovering a mark (desktop) or tapping it (touch) opens its
- *   comment with edit and remove, acting on the draft through the publisher.
- *
- * The column owns a store (`hooks/chatQuoteHighlightStore.ts`) that publishers
- * write to, and renders `ChatQuoteHighlightLayer`, which subscribes to it and holds
- * all hover, popover and scroll-follow state. Highlight activity therefore
- * re-renders only the layer, never the chat column.
- *
- * Ranges are re-resolved from their anchors whenever a marked message
- * re-renders or remounts in the virtualized list. Runtimes without
- * `CSS.highlights` get the scroll without the highlight.
- *
- * A quote taken inside a page the agent showed (`openchamber_render`) has a
- * `page` in its anchor. A UI page is found in the chat by its source message
- * and render part; a framed page paints, scrolls and hit-tests through
- * `pageQuoteBridge.ts`. A frame's popover opens on click only because the
- * pointer over it is invisible to the app.
- */
 
 import React from 'react';
 
@@ -282,8 +255,6 @@ export const ChatQuoteHighlightLayer = React.memo(function ChatQuoteHighlightLay
             if (!loaded || !isCurrent()) return;
 
             if (anchor.page && anchor.page.kind !== 'ui') {
-                // Scroll to the frame before revealing the quote inside it.
-                // The row may still be mounting after the scroll request.
                 const { partId } = anchor.page;
                 await scrollToMessage(messageId, { behavior: 'auto' }).catch(() => false);
                 for (let attempt = 0; attempt < REVEAL_ATTEMPTS; attempt += 1) {
@@ -296,8 +267,6 @@ export const ChatQuoteHighlightLayer = React.memo(function ChatQuoteHighlightLay
             const targetMessageId = anchor.page?.kind === 'ui'
                 ? resolveUiPageMessageIdRef.current?.(messageId, anchor.page.partId) ?? messageId
                 : messageId;
-            // Scrolling through the timeline controller releases live follow
-            // and mounts the row when the virtualized list dropped it.
             const uiRoot = anchor.page && scrollNode ? findUiRenderQuoteRoot(scrollNode, messageId, anchor.page.partId) : null;
             const mounted = uiRoot !== null || (scrollNodeRef.current ? findChatQuoteRoots(scrollNodeRef.current, messageId).length > 0 : false);
             let pageRowRequested = anchor.page?.kind === 'ui' && uiRoot === null && scrollToUiPageRowRef.current?.(messageId) === true;
@@ -315,16 +284,9 @@ export const ChatQuoteHighlightLayer = React.memo(function ChatQuoteHighlightLay
                     pageRowRequested = true;
                     return;
                 }
-                // A lazy fallback can contain raw Markdown on mobile. Wait for
-                // the renderer before treating a failed match as final.
                 if (roots.length === 0 || roots.some((root) => root.querySelector('[data-chat-quote-pending]'))) return;
                 const parts = resolveChatQuoteRanges(roots, anchor);
-                // A long answer's later rows mount as they near the view: step
-                // down past the lowest one drawn while the message continues.
                 if (!parts && steps < REVEAL_ATTEMPTS && messageContinuesBelow(scrollNode, targetMessageId)) {
-                    // Navigation holds the message's first row in place
-                    // (`settleNavigationTarget`); it lets go first, or the
-                    // two would fight.
                     dispatchNavigationRelease(scrollNode);
                     scrollToNextSlice(scrollNode, targetMessageId);
                     steps += 1;

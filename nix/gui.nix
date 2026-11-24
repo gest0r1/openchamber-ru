@@ -160,6 +160,9 @@ stdenv.mkDerivation {
         CFBundleURLTypes=[dict(CFBundleURLName="OpenChamber", CFBundleURLSchemes=["openchamber"])],
         NSLocalNetworkUsageDescription=package["build"]["mac"]["extendInfo"]["NSLocalNetworkUsageDescription"],
         NSAppleEventsUsageDescription=package["build"]["mac"]["extendInfo"]["NSAppleEventsUsageDescription"],
+        # Finder and openchamber:// links start this executable directly, past the
+        # wrapper's PATH, so name the pinned CLI here too. Settings still win.
+        LSEnvironment=dict(OPENCODE_BINARY="${opencodeCli}/bin/opencode"),
     )
     with open(path, "wb") as handle:
         plistlib.dump(info, handle)

@@ -19,13 +19,6 @@ import type { WalkthroughTarget } from '@/lib/walkthrough/types';
 import { diffCommentOriginFromTarget } from '@/lib/diffCommentOrigin';
 import { MOBILE_HEADER_BUTTON_CLASS, MOBILE_HEADER_CLASS, MOBILE_HEADER_TITLE_CLASS } from '@/components/ui/mobileHeader';
 
-/**
- * The walkthrough of what the phone's Changes shows, pushed over its list the
- * way a file's diff is. It opens on the contents (what the change is about and
- * its steps); a step opens the stream there, with the step list and arrows in
- * the header. The model, the language and Regenerate wait in the options
- * sheet, except before the first walkthrough, when the empty state offers them.
- */
 export const MobileWalkthroughScreen: React.FC<{
   directory: string;
   target: WalkthroughTarget;

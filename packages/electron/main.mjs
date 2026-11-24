@@ -17,8 +17,9 @@ import { ElectronSshManager } from './ssh-manager.mjs';
 import { collectLocalFileDiagnostics, collectSshBufferDiagnostics } from '@openchamber/web/server/lib/diagnostics/local-files.js';
 import { replaceFileWithRetry } from './windows-file-replace.mjs';
 import { persistMainWindowState } from './window-state.mjs';
+import { createWindowGeometryState } from './window-geometry-state.mjs';
 import { attachWindowEvents, isNativeWindowVisible } from './window-events.mjs';
-import { createTrayController } from './tray.mjs';
+import { createTrayController, createTrayLocaleRouter } from './tray.mjs';
 import { buildDockMenuTemplate, buildUnreadJumpList, isJumpListSessionId } from './dock-menu.mjs';
 import { createSessionLinkGate } from './session-link-gate.mjs';
 import { applyDevDockIdentity, applyDockBadge } from './dev-dock-identity.mjs';
@@ -312,12 +313,8 @@ const state = {
   installingUpdate: false,
   updateInstallPending: false,
   pendingUpdate: null,
-  // The channel and source ('mirror' or 'github') the updater's feed was last
-  // pointed at (applyUpdaterChannel), and the update check in flight, if any.
   updaterChannel: null,
   updaterSource: null,
-  // When the Stable mirror last failed a check or a download; checks read
-  // GitHub for a while after (pickUpdaterSource).
   updaterMirrorFailedAt: null,
   updateCheck: null,
   updateDownloadPromise: null,
@@ -1815,8 +1812,6 @@ const takePendingSessionDeepLinks = () => {
   return taken;
 };
 
-// `openchamber://extensions/install?url=…`: any web page can raise this link, so
-// only an https repository passes, and the app asks before it fetches anything.
 const extensionInstallUrl = (link) => {
   if (link.value !== 'install') return null;
   const value = readDeepLinkQueryParam(link.raw, 'url');
@@ -2064,8 +2059,6 @@ const closeTabOrWindow = () => {
   target.close();
 };
 
-// The combos the renderer sends for menu items Settings can rebind. Until the
-// first update the menus use their built-in keys.
 let menuShortcuts = {};
 let appMenuLocale = 'en';
 const menuKey = (id, fallback) => menuAccelerator(menuShortcuts, id, fallback);
@@ -3272,19 +3265,10 @@ const UPDATER_E2E_BUILD = typeof __OPENCHAMBER_UPDATER_E2E_BUILD__ !== 'undefine
 
 const readUpdateChannel = () => normalizeUpdateChannel(readSettingsRoot().desktopUpdateChannel, APP_VERSION);
 
-/**
- * Points the updater at the chosen channel's feed; every check re-reads the
- * stored channel, so a switch takes effect on the next check without a
- * restart. Stable from a Canary build allows the downgrade to the latest
- * release, which is the way back; a release build never downgrades.
- */
 const applyUpdaterChannel = (channel, source = pickUpdaterSource({ mirrorFailedAt: state.updaterMirrorFailedAt })) => {
   if (state.updaterChannel === channel && state.updaterSource === source) return;
-  // An update found on the other channel is not this channel's; the next
-  // check starts clean (a failed feed otherwise keeps it, #5921).
   if (state.updaterChannel !== null && state.updaterChannel !== channel) state.pendingUpdate = null;
   const feed = resolveUpdaterFeed({ testBuild: UPDATER_E2E_BUILD, channel, source });
-  // Every published feed carries the Windows ARM64 manifest; the E2E fixture does not.
   const updaterChannel = [PRODUCTION_UPDATER_FEED, CANARY_UPDATER_FEED, STABLE_MIRROR_UPDATER_FEED, CANARY_MIRROR_UPDATER_FEED].includes(feed)
     ? resolveUpdaterChannel({ platform: process.platform, architecture: process.arch })
     : null;
@@ -4269,7 +4253,7 @@ const handleInvoke = async (browserWindow, command, args = {}) => {
             locale: normalizeMenuLocale(readPreferredLocale()),
             onAction: (action) => { void dispatchTrayAction(action); },
           });
-          // An empty menu clears it; Electron 45 rejects null here.
+          // external: https://www.electronjs.org/docs/latest/api/dock#docksetmenumenu Use an empty menu to clear it; Electron 45 rejects null.
           app.dock.setMenu(Menu.buildFromTemplate(template));
         }
         if (process.platform === 'win32' && app.isPackaged) {
@@ -4618,9 +4602,6 @@ const handleInvoke = async (browserWindow, command, args = {}) => {
       }
       const channel = readUpdateChannel();
       applyUpdaterChannel(channel);
-      // The source this check started on. A check running beside it can fall
-      // back first and move the shared state to GitHub; this one still owes
-      // its caller the same fallback.
       const startedOn = state.updaterSource;
       const currentVersion = APP_VERSION;
       const runCheck = () => checkForDesktopUpdate({
@@ -4629,15 +4610,11 @@ const handleInvoke = async (browserWindow, command, args = {}) => {
         pendingUpdate: state.pendingUpdate,
         missingFeedIsError: state.updaterSource === 'mirror',
       });
-      // The whole check, the GitHub retry included, is what a channel switch
-      // waits for: a switch that ran between the two would have its feed
-      // replaced by the retry.
       const check = (async () => {
         try {
           return await runCheck();
         } catch (error) {
           if (startedOn !== 'mirror') throw error;
-          // The mirror failed: GitHub answers this check and the next ones for a while.
           log.warn('[electron] update mirror failed, checking GitHub', error instanceof Error ? error.message : String(error));
           state.updaterMirrorFailedAt = Date.now();
           applyUpdaterChannel(channel, 'github');
@@ -4687,8 +4664,6 @@ const handleInvoke = async (browserWindow, command, args = {}) => {
         }));
         return null;
       } catch (error) {
-        // A retry checks first (useUpdateStore.downloadUpdate), so marking the
-        // mirror failed sends the retry's check and download to GitHub.
         if (state.updaterSource === 'mirror') state.updaterMirrorFailedAt = Date.now();
         throw error;
       } finally {
@@ -4815,7 +4790,6 @@ const handleInvoke = async (browserWindow, command, args = {}) => {
       return pendingHostActions.splice(0, pendingHostActions.length);
 
     case 'desktop_take_pending_extension_installs':
-      // Install links open in the main window only.
       if (!browserWindow || !state.mainWindow || browserWindow.id !== state.mainWindow.id) return [];
       return takePendingExtensionInstalls();
     case 'desktop_take_pending_session_links':
@@ -5259,22 +5233,13 @@ const trackBrowserPanelPopup = (contents, popup) => {
   });
 };
 
-/**
- * Gives a popup the panel's user agent. The popup already runs in the panel's
- * session, but Electron applies that session's user agent to a window.open
- * window only on navigations the app starts (electron/electron#45897): the
- * opener's own navigation sends Electron's default agent, and every later
- * navigation in the popup inherits it. So the first navigation is cancelled
- * before it sends anything and started again from here. A form posted into a
- * new window keeps Electron's agent: starting it again would drop the form.
- */
+// external: https://github.com/electron/electron/issues/45897 Restart non-POST popup navigation from main so it uses the panel session user agent.
 const loadBrowserPanelPopupWithPanelUserAgent = (popup, { url, referrer }) => {
   const contents = popup.webContents;
   contents.once('will-navigate', (event, navigationUrl) => {
     if (navigationUrl !== url) return;
     event.preventDefault();
     setImmediate(() => {
-      // The page may close its popup before this runs.
       if (contents.isDestroyed()) return;
       loadUrlInsideWebContents(contents, url, {
         userAgent: contents.session.getUserAgent(),
@@ -5295,8 +5260,23 @@ app.on('web-contents-created', (_event, contents) => {
     log.warn(`[electron] could not give a panel page its default background: ${error?.message || error}`);
   });
 
+  contents.on('before-input-event', (event, input) => {
+    const action = browserPanelKeyAction(input, process.platform);
+    if (!action) return;
+    event.preventDefault();
+    runBrowserPanelAction(contents, action);
+  });
+  contents.on('before-mouse-event', (event, mouse) => {
+    const action = browserPanelMouseAction(mouse);
+    if (!action) return;
+    event.preventDefault();
+    if (mouse.type === 'mouseUp') runBrowserPanelAction(contents, action);
+  });
+
+  const isBrowsingPage = () => isBrowsingSession(contents.session);
+
   contents.setWindowOpenHandler(({ url, disposition, postBody, referrer }) => {
-    const target = isUserPanelPage()
+    const target = isBrowsingPage()
       ? browserPanelWindowOpenTarget({ url, disposition, hasPostBody: Boolean(postBody) })
       : 'in-place';
     if (target === 'popup') {
@@ -5308,7 +5288,6 @@ app.on('web-contents-created', (_event, contents) => {
           autoHideMenuBar: true,
           webPreferences: BROWSER_PANEL_POPUP_WEB_PREFERENCES,
         },
-        // Created here so the window is tied to this request and its form body.
         createWindow: (options) => {
           const popup = new BrowserWindow(options);
           trackBrowserPanelPopup(contents, popup);
@@ -5354,32 +5333,6 @@ const isLocalSender = (webContents) => {
   }
 };
 
-const COMMANDS_SAFE_FOR_REMOTE = new Set([
-  'desktop_hosts_get',
-  'desktop_host_probe',
-  'desktop_switch_to_local',
-  'desktop_new_window',
-  'desktop_set_menu_shortcuts',
-  'desktop_new_window_at_url',
-  'desktop_new_window_for_host',
-  'desktop_set_window_title',
-  'desktop_set_window_theme',
-  'desktop_set_close_tab_target',
-  'desktop_is_window_fullscreen',
-  'desktop_start_window_drag',
-  'desktop_minimize_current_window',
-  'desktop_toggle_current_window_maximized',
-  'desktop_close_current_window',
-  'desktop_get_current_window_state',
-  'desktop_get_app_version',
-  'desktop_get_lan_address',
-  'desktop_capture_page_rect',
-  'desktop_tray_update',
-  'desktop_tray_actions_ready',
-  // A remote page can only dismiss delivered notifications of a session id it names.
-  'desktop_clear_session_notifications',
-]);
-
 ipcMain.handle('openchamber:invoke', async (event, command, args) => {
   if (!isLocalSender(event.sender) && !COMMANDS_SAFE_FOR_REMOTE.has(command)) {
     log.warn(`[ipc] rejected ${command} from non-local origin: ${event.sender?.getURL?.() || '(unknown)'}`);
@@ -5401,8 +5354,6 @@ ipcMain.on('openchamber:read-runtime-config', (event) => {
       localOrigin: state.localOrigin || state.sidecarUrl || '',
       apiBaseUrl: state.apiBaseUrl || state.sidecarUrl || '',
       clientToken: state.clientToken || '',
-      // The asking window's own: a window opened for another host must not
-      // send the main window's headers there.
       requestHeaders: sanitizeRuntimeRequestHeaders(BrowserWindow.fromWebContents(event.sender)?.__ocRuntimeConfig?.requestHeaders || {}),
     }
     : null;

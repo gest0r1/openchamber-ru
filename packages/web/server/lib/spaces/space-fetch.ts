@@ -30,16 +30,22 @@ const readBody = (response: IncomingMessage, cap: number) => new Promise<string>
   response.on('close', () => { if (!ended) reject(new Error('the answer closed before its end')); });
 });
 
-/**
- * `requestInside` is the dispatcher's. Returns `fetchFor(spaceId)`, a `fetch` that answers a
- * standard `Response`: the inside's status and body for a `200`, the status alone otherwise.
- * A refused path, a dead channel, an answer past the cap, past `timeoutMs` for the whole read or
- * past the caller's own signal rejects, as a failed `fetch` does.
- */
-export function createSpaceFetch({ requestInside, maxBytes = DEFAULT_MAX_BYTES, timeoutMs = DEFAULT_TIMEOUT_MS, allowShell = false }) {
-  return (spaceId) => async (url, { method = 'GET', signal } = {}) => {
+export interface SpaceFetchOptions {
+  requestInside: (spaceId: string, request: {
+    path: string;
+    headers: Record<string, string>;
+    timeoutMs: number;
+  }) => Promise<IncomingMessage>;
+  allowShell?: boolean;
+  maxBytes?: number;
+  timeoutMs?: number;
+}
+
+export function createSpaceFetch({ requestInside, maxBytes = DEFAULT_MAX_BYTES, timeoutMs = DEFAULT_TIMEOUT_MS, allowShell = false }: SpaceFetchOptions) {
+  return (spaceId: string) => async (url: string | URL, { method = 'GET', signal }: { method?: string; signal?: AbortSignal | null } = {}) => {
     const { pathname, search } = new URL(url);
-    if (method !== 'GET' || !(isSessionPath(pathname) || (allowShell && (pathname === '/api/shell' || pathname === '/api/notifications/telegram/pending')))) {
+    const activityPath = allowShell && (pathname === '/api/shell' || pathname === '/api/notifications/telegram/pending');
+    if (method !== 'GET' || !(isSessionPath(pathname) || activityPath)) {
       throw new Error(`a space is asked only to read its sessions, not ${method} ${pathname}`);
     }
     const deadline = AbortSignal.timeout(timeoutMs);

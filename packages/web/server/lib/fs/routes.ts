@@ -689,8 +689,6 @@ export const registerFsRoutes = (app: Application, dependencies: FsRouteDependen
     managedChatsRoot,
     cloneRepository,
     environmentRuntime = null,
-    // The realpath settings store projects under (Node's JS `fs.realpath`): the
-    // native one also resolves Windows `subst` and mapped drives, which settings keep.
     projectRealpath = fsPromises.realpath.bind(fsPromises),
   } = dependencies;
   const chatsRoot = managedChatsRoot && managedChatsRoot.trim()
@@ -1114,11 +1112,8 @@ export const registerFsRoutes = (app: Application, dependencies: FsRouteDependen
     }
 
     const fsSearch = createFsSearchRuntime({ fsPromises, path, spawn, resolveGitBinaryForSpawn, workspaceSearch: true });
-    // A client that moved on (a new letter, a closed list) ends the walk and its
-    // Git reads instead of letting them finish for nobody.
     const abort = new AbortController();
     res.on('close', () => abort.abort());
-    // A client gone during the checks above has already closed the response.
     if (res.destroyed) abort.abort();
     let results;
     try {
@@ -1209,10 +1204,8 @@ export const registerFsRoutes = (app: Application, dependencies: FsRouteDependen
         if (!stats.isDirectory()) {
           return { path: directoryPath, isDirectory: false, reason: 'not-directory' };
         }
-        // The path settings store a project under, so a link to an added
-        // project can be recognised before adding it again.
         const realPath = await projectRealpath(resolvedPath).catch(() => null);
-        const result = { path: directoryPath, isDirectory: true };
+        const result: DirectoryStatResult = { path: directoryPath, isDirectory: true };
         if (realPath) result.realPath = realPath;
         return result;
       } catch (error) {
@@ -1702,7 +1695,7 @@ export const registerFsRoutes = (app: Application, dependencies: FsRouteDependen
       if (isErrorObject(err) && err.code === 'ENOENT') {
         return res.status(404).json({ error: 'Destination directory not found', reason: 'not-found' });
       }
-      if (err && typeof err === 'object' && err.uploadTooLarge) {
+      if (isErrorObject(err) && err.uploadTooLarge) {
         return res.status(413).json({
           error: `File exceeds maximum size of ${maxUploadBytes} bytes`,
           reason: 'too-large',

@@ -353,8 +353,6 @@ export const OpenChamberVisualSettings: React.FC<OpenChamberVisualSettingsProps>
         };
     }, [setMobileKeyboardMode, showMobileKeyboardModeSetting, showPwaInstallNameSetting, showPwaOrientationSetting]);
 
-    // General's "Panels and links" holds this checkbox; VS Code has no such
-    // section, so there it stays with the layout settings here.
     const scrollbarSetting = shouldShow('scrollbars') && !hasThemeSettings ? (
         <SettingsCheckboxRow
             checked={alwaysShowScrollbars}
@@ -367,9 +365,6 @@ export const OpenChamberVisualSettings: React.FC<OpenChamberVisualSettingsProps>
 
     return (
         <>
-                {/* By what people come for: the theme, type and density, language,
-                    then what is set once per device. Sections stay direct children of
-                    the page, so the layout drops the divider above whichever renders first. */}
                 {hasThemeSettings && (
                     <ThemeAppearancePicker />
                 )}

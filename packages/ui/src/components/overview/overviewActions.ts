@@ -62,7 +62,6 @@ const losesMore = (now: OverviewWorktreeLosses, agreed: OverviewWorktreeLosses):
 export async function removeOverviewWorktree(input: {
   target: OverviewWorktreeTarget;
   agreed: OverviewWorktreeLosses;
-  /** Only from the failure toast's "Delete without teardown". */
   skipTeardown?: boolean;
 }): Promise<OverviewRemoveOutcome> {
   const { target, agreed } = input;

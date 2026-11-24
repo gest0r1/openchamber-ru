@@ -104,8 +104,6 @@ export const SourceControlAccountList: React.FC<SourceControlAccountListProps> =
                     {group.accounts.length > 1 && account.current
                       ? <span className="oc-tile-inset rounded-full px-1.5">{currentLabel}</span> : null}
                   </div>
-                  {/* Actions keep to the row's end, also when a narrow card wraps them under the label:
-                      a borderless action at the start would sit indented by its own padding. */}
                   <div className="ms-auto flex flex-wrap justify-end gap-2">{renderActions(account)}</div>
                 </div>
               );

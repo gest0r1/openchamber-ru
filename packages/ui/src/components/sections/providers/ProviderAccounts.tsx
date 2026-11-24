@@ -145,7 +145,6 @@ export const ProviderAccounts: React.FC<ProviderAccountsProps> = ({
             : (unused ? t('settings.providers.accounts.method.keyUnused') : t('settings.providers.accounts.method.key'));
         const methodIcon = connection.method === 'oauth' ? 'user-3' : connection.method === 'external' ? 'terminal-box' : 'key';
 
-        // The row's right click opens the same menu as its ⋯ button.
         return (
           <ContextMenu key={connection.id} disabled={busy || renamingId === connection.id}>
           <ContextMenuTrigger render={<div className={cn('flex min-w-0 items-center gap-3 py-2.5', unused && 'opacity-60')} />}>

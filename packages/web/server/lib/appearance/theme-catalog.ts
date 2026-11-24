@@ -13,10 +13,8 @@ const tokenRules = z.array(z.object({ scope: z.union([z.string(), z.array(z.stri
 const colorValue = z.string().nullable();
 const sourceSchema = z.object({
   name: z.string().optional(), type: z.string().optional(), include: z.string().optional(),
-  // VS Code ignores a color it cannot read (GitHub Theme ships an array for one);
-  // such entries are dropped so the rest of the theme still loads.
   colors: z.record(z.string(), z.unknown()).default({}).transform((colors) => Object.fromEntries(
-    Object.entries(colors).filter(([, value]) => colorValue.safeParse(value).success),
+    Object.entries(colors).filter((entry): entry is [string, z.infer<typeof colorValue>] => colorValue.safeParse(entry[1]).success),
   )),
   tokenColors: z.union([z.string(), tokenRules]).optional(),
   semanticHighlighting: z.boolean().optional(),
@@ -34,17 +32,25 @@ const manifestSchema = z.object({
     uiTheme: z.enum(['vs', 'vs-dark', 'hc-black', 'hc-light']).optional(),
   })).min(1).max(40) }),
 });
-// An empty query asks for the most downloaded themes, which the catalog opens with.
 const querySchema = z.object({ query: z.string().trim().max(160) });
 const POPULAR_FETCH_SIZE = 60;
 const RESULT_SIZE = 24;
-// The Themes category also holds what is not a color theme to pick: icon and
-// product-icon themes, VS Code's own built-ins, and tools that ship a theme on
-// the side (PowerShell). A popular entry names an icon nowhere and says it is
-// a theme or speaks of colors.
 const iconThemeName = /\bicons?\b/i;
 const colorThemeWords = /theme|colou?r|palette|\bdark\b|\blight\b/i;
-const isPopularColorTheme = (extension) => {
+type CatalogExtension = z.infer<typeof extensionSchema>;
+type ResolvedThemeSource = Omit<z.infer<typeof sourceSchema>, 'include' | 'tokenColors' | 'semanticTokenColors'> & {
+  tokenColors: z.infer<typeof tokenRules>;
+  semanticTokenColors: NonNullable<z.infer<typeof sourceSchema>['semanticTokenColors']>;
+};
+
+export interface CatalogTheme {
+  path: string;
+  name: string;
+  text: string;
+  error: boolean;
+}
+
+const isPopularColorTheme = (extension: CatalogExtension) => {
   const name = extension.displayName || extension.name;
   return extension.namespace !== 'vscode'
     && !iconThemeName.test(name)

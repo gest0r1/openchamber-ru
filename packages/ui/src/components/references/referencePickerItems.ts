@@ -155,18 +155,11 @@ export const REPOSITORY_PEOPLE_LABEL_KEYS = {
 
 type StateLook = { icon: IconName; color: string; labelKey: I18nKey };
 
-/** What an item's look depends on: a listed item, or the live state the server follows. */
 type RepositoryStateOf =
     | Pick<RepositoryIssueReference, 'kind' | 'state'>
     | Pick<RepositoryChangeRequestReference, 'kind' | 'state' | 'draft'>
     | Pick<RepositoryDiscussionReference, 'kind' | 'state' | 'answered'>;
 
-/**
- * Issue and PR states in the theme's PR colours, the way the sidebar shows
- * them: open is open, done is merged, dropped is closed. An open PR turns
- * orange on failed checks or a conflict once its status has arrived
- * (`prVisualStateOf`); until then, and while checks run, it reads as open.
- */
 export const repositoryStateLook = (reference: RepositoryStateOf, status: Pick<ChangeRequestListStatus, 'checks' | 'mergeable' | 'mergeableState'> | null): StateLook => {
     if (reference.kind === 'discussion') return discussionStateLook(reference.state, reference.answered);
     if (reference.kind === 'issue') {

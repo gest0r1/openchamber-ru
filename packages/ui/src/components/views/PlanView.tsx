@@ -58,13 +58,11 @@ type PlanViewProps = {
   savedProjectPlan?: SavedProjectPlanTarget | null;
   onNavigatedToChat?: () => void;
   leading?: React.ReactNode;
-  /** Closes the view: the host calls it when the plan is deleted from its menu. */
   onClose?: () => void;
 };
 
 const NO_PROJECT = { id: '', path: '' };
 
-/** A leading `# Title` line: the toolbar already shows it. */
 const LEADING_HEADING = /^\s*#\s+.+?(?:\n+|$)/;
 
 type PlanSendAction = 'improve' | 'implement';
@@ -181,9 +179,6 @@ export const PlanView: React.FC<PlanViewProps> = ({ visible = true, savedProject
   const togglePlanPin = React.useCallback(async (planId: string, pinned: boolean) => {
     if (!await togglePin('plan', planId, pinned)) toast.error(t('rightSidebar.contextNotesTodo.toast.updatePlanFailed'));
   }, [t, togglePin]);
-  // Stable logical identity, composed from primitives: an effect keyed on the
-  // descriptor object would reload — and flush — the same plan whenever a
-  // parent rebuilds the owner object with identical values.
   const savedPlanKey = savedPlanProjectRef && savedPlanId
     ? JSON.stringify(['saved-plan', activeRuntimeKey, resolveProjectContextId(savedPlanProjectRef), savedPlanId])
     : null;
@@ -220,8 +215,6 @@ export const PlanView: React.FC<PlanViewProps> = ({ visible = true, savedProject
   }, [content]);
   const sendPromptTitle = React.useMemo(() => parsedTitle.trim() || t('planView.title.default'), [parsedTitle, t]);
   const [loading, setLoading] = React.useState(false);
-  // A plan opened from a list is read first, the way a note reads formatted;
-  // one with nothing under its title yet opens to be written.
   const [mdViewMode, setMdViewMode] = React.useState<'preview' | 'edit'>('preview');
   const [startsEmpty, setStartsEmpty] = React.useState(false);
   const viewMode = startsEmpty ? 'edit' : mdViewMode;
@@ -482,8 +475,6 @@ export const PlanView: React.FC<PlanViewProps> = ({ visible = true, savedProject
     };
   }, [activeRuntimeKey, savedPlanId, savedPlanKey, savedPlanProjectRef, saveQueue, scheduleSave]);
 
-  // A move of this plan to or from the team's folder holds the editor and
-  // waits for its typing to be written, under the plan as it is before the move.
   const [heldForMove, setHeldForMove] = React.useState(false);
   React.useEffect(() => {
     if (!savedPlanProjectRef || !savedPlanId || !savedPlanKey || loadedProjectPlanId !== savedPlanId) return;
@@ -492,20 +483,12 @@ export const PlanView: React.FC<PlanViewProps> = ({ visible = true, savedProject
       flush: async () => {
         scheduleSave();
         await saveQueue.pendingFor(savedPlanKey);
-        // The queue settles on failure too; only a written revision counts.
         const doc = docRef.current;
         return doc.key === savedPlanKey && doc.savedRevision >= doc.editRevision;
       },
     });
   }, [loadedProjectPlanId, savedPlanId, savedPlanKey, savedPlanProjectRef, saveQueue, scheduleSave]);
 
-  // An agent can change the open plan, through the knowledge tool or by
-  // editing its file. With no unsaved edits the editor takes the new text, so
-  // a later edit starts from it instead of writing the old document back over
-  // it. Unsaved edits win: the next save replaces the agent's version, the way
-  // typing in a note does. A save through the API announces itself; a file
-  // edit does not, so the open plan also watches or polls its file, as the
-  // file panel does for open files.
   React.useEffect(() => {
     if (!visible || !savedPlanProjectRef || !savedPlanId || !savedPlanKey || loadedProjectPlanId !== savedPlanId) return;
     const doc = docRef.current;
@@ -759,7 +742,6 @@ export const PlanView: React.FC<PlanViewProps> = ({ visible = true, savedProject
     </>
   );
 
-  // Picked from a menu, where a check on the button would never be seen.
   const copyPlanContents = async () => {
     const result = await copyTextToClipboard(content);
     if (result.ok) toast.success(t('planView.toast.copied'));
@@ -774,8 +756,6 @@ export const PlanView: React.FC<PlanViewProps> = ({ visible = true, savedProject
       icon: pinnedPlanIds.has(planLink.id) ? 'pushpin-2-fill' : 'pushpin-2',
       onSelect: () => void togglePlanPin(planLink.id, !pinnedPlanIds.has(planLink.id)),
     },
-    // Sharing stays in the list row: a moved plan gets a new id, and the open
-    // view, its pending save and its todos would keep pointing at the old one.
     ...planActions.actionsFor(planLink, { onDeleted: onClose }).filter((action) => action.id !== 'move').map((action): ToolbarAction => ({
       id: action.id,
       label: action.label,
@@ -785,7 +765,6 @@ export const PlanView: React.FC<PlanViewProps> = ({ visible = true, savedProject
       onSelect: action.onSelect,
     })),
   ] : [];
-  // A plan with nothing under its title has nothing to build or improve.
   const sendDisabled = !previewContent.trim() || isManagedChatPlan;
 
   return (
@@ -813,8 +792,6 @@ export const PlanView: React.FC<PlanViewProps> = ({ visible = true, savedProject
               ) : null}
             </div>
           )}
-          // What a plan is for, said in words: an icon could not tell
-          // "build this" from "rewrite this" without a hover.
           status={hasDocument ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -846,7 +823,6 @@ export const PlanView: React.FC<PlanViewProps> = ({ visible = true, savedProject
               disabled: sendDisabled,
               menu: sendMenu('improve'),
             },
-            // Reads the plan's text, so it works in either mode.
             showMessageTTSButtons && {
               id: 'read-aloud',
               label: isTTSPlaying ? t('planView.tts.stopSpeaking') : t('planView.tts.readAloud'),

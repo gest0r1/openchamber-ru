@@ -79,7 +79,7 @@ export const createSessionActivityProbe = ({ buildOpenCodeUrl, getOpenCodeAuthHe
     return isRecord(statuses) ? statuses : null;
   };
 
-  const hasWorkingWithinDepth = async (sessionId: string, statuses: NonNullable<Awaited<ReturnType<typeof fetchActiveSessionStatuses>>>, maxDepth: number, directOnly = false) => {
+  const hasWorkingWithinDepth = async (sessionId: string, statuses: NonNullable<Awaited<ReturnType<typeof fetchActiveSessionStatuses>>>, maxDepth: number, directOnly = false, strictDepth = false) => {
     const parents = new Map<string, { id: string | null; viaWorkflowLink: boolean } | undefined>();
     const signal = requestSignal();
     let unknown = false;
@@ -112,11 +112,12 @@ export const createSessionActivityProbe = ({ buildOpenCodeUrl, getOpenCodeAuthHe
         }
         current = parent.id;
       }
+      if (strictDepth && current) unknown = true;
     }
     return unknown ? null : false;
   };
 
-  const fetchRunningShells = async (directory: string): Promise<RunningSessionShell[] | null> => {
+  const readRunningShells = async (directory: string) => {
     const base = buildOpenCodeUrl('/api/shell', '');
     const response = await fetchImpl(base, {
       method: 'GET',
@@ -129,12 +130,31 @@ export const createSessionActivityProbe = ({ buildOpenCodeUrl, getOpenCodeAuthHe
     }).catch(() => null);
     if (!response?.ok) return null;
     const parsed = runningShellsSchema.safeParse(unwrapOpenCodeResponse(await response.json().catch(() => null)));
-    if (!parsed.success) return null;
-    return parsed.data.flatMap((shell) => {
+    return parsed.success ? parsed.data : null;
+  };
+
+  const fetchRunningShells = async (directory: string): Promise<RunningSessionShell[] | null> => {
+    const shells = await readRunningShells(directory);
+    return shells?.flatMap((shell) => {
       const owner = shell.metadata?.sessionID;
       if (shell.status !== 'running' || !isString(owner) || !owner) return [];
       return [{ sessionID: owner, command: shell.command, startedAt: shell.time.started }];
-    });
+    }) ?? null;
+  };
+
+  const hasRunningShells = async (directory: string) => {
+    const shells = await readRunningShells(directory);
+    return shells?.some((shell) => shell.status === 'running') ?? null;
+  };
+
+  const hasBlockingRequests = async (sessionId: string, directory: string) => {
+    if (!directory || !sessionId) return null;
+    const sessionPath = '/api/session/' + encodeURIComponent(sessionId);
+    const forms = await openCodeGet(sessionPath + '/form').catch(() => null);
+    if (!Array.isArray(forms)) return null;
+    if (forms.length > 0) return true;
+    const permissions = await openCodeGet(sessionPath + '/permission').catch(() => null);
+    return Array.isArray(permissions) ? permissions.length > 0 : null;
   };
 
   const fetchRunningBackgroundJobs = async (sessionId: string): Promise<RunningSessionJob[] | null | undefined> => {
@@ -161,8 +181,10 @@ export const createSessionActivityProbe = ({ buildOpenCodeUrl, getOpenCodeAuthHe
   return {
     fetchActiveSessionStatuses,
     hasWorkingChildren: (sessionId: string, statuses: NonNullable<Awaited<ReturnType<typeof fetchActiveSessionStatuses>>>) => hasWorkingWithinDepth(sessionId, statuses, MAX_SUBAGENT_DEPTH, true),
-    hasWorkingDescendants: (sessionId: string, statuses: NonNullable<Awaited<ReturnType<typeof fetchActiveSessionStatuses>>>) => hasWorkingWithinDepth(sessionId, statuses, MAX_SUBAGENT_DEPTH),
+    hasWorkingDescendants: (sessionId: string, statuses: NonNullable<Awaited<ReturnType<typeof fetchActiveSessionStatuses>>>, strictDepth = false) => hasWorkingWithinDepth(sessionId, statuses, MAX_SUBAGENT_DEPTH, false, strictDepth),
     fetchRunningShells,
+    hasRunningShells,
+    hasBlockingRequests,
     fetchRunningBackgroundJobs,
   };
 };

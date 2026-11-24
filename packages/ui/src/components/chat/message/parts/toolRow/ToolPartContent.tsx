@@ -104,7 +104,7 @@ export const ToolPartContent: React.FC<ToolPartProps & { header?: ToolRowHeader;
     );
     const description = guestHeader?.subtitle ?? builtInDescription;
     const rowTool = scriptNamespace ?? (normalizedPartTool || part.tool);
-    const displayName = guestHeader?.title ?? toolDisplayName(rowTool, t);
+    const displayName = guestHeader?.title ?? header?.title ?? toolDisplayName(rowTool, t);
 
     const failureDetail = isError && !isExpanded ? failureReason : undefined;
 
@@ -143,7 +143,8 @@ export const ToolPartContent: React.FC<ToolPartProps & { header?: ToolRowHeader;
     });
 
     const iconStyle = isError ? TOOL_ERROR_ICON_STYLE : TOOL_NORMAL_ICON_STYLE;
-    const titleStyle = isError ? TOOL_ERROR_TITLE_STYLE : TOOL_NORMAL_TITLE_STYLE;
+    const titleStyle = isError ? TOOL_ERROR_TITLE_STYLE
+        : header?.titleColor ? { ...TOOL_NORMAL_TITLE_STYLE, color: header.titleColor } : TOOL_NORMAL_TITLE_STYLE;
     const shouldRenderExpandedContent = useDeferredExpandedContent(isExpanded);
     const storeDirectory = useChatTranscriptDirectory();
     const contentCompletion = useToolContentCompletion(

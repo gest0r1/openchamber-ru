@@ -32,13 +32,13 @@ const touchDistance = (a: Touch, b: Touch): number => Math.hypot(a.clientX - b.c
 
 export type ImageNeighbor = { name: string; open: () => void };
 
-// With the focus nowhere, the browser scrolls whatever was clicked last, so
-// the keys belong to the viewer only after a click in its panel. The panel
-// outlives the remount a step causes; a clicked arrow button does not.
 let lastPointerRegion: Element | null = null;
 
-// Controls that move with the arrow keys themselves keep them.
 const ARROW_KEY_OWNERS = '[role="tablist"], [role="menu"], [role="menubar"], [role="listbox"], [role="radiogroup"], [role="slider"], [role="combobox"], [role="tree"], [role="grid"], [role="toolbar"]';
+
+const FULLSCREEN_SCOPE = '[data-image-fullscreen]';
+
+const ARROW_KEY_SCOPE = `[data-context-panel], ${FULLSCREEN_SCOPE}`;
 
 const NEIGHBOR_BUTTON_CLASS = 'absolute top-1/2 -translate-y-1/2 z-10 h-10 w-10 flex items-center justify-center rounded-full bg-surface-elevated/90 text-surface-elevated-foreground hover:bg-surface-elevated focus:outline-none focus:ring-2 focus:ring-ring';
 
@@ -68,25 +68,7 @@ export type ImageArtifactProps = {
   barClassName?: string;
 };
 
-/**
- * An image the way a designer looks at one: whole first, then closer. Fit never
- * upscales, so a small icon stays its real size instead of blurring across the
- * panel. Zoom follows the pointer: Ctrl/⌘ + wheel or a trackpad pinch
- * (Chromium, Firefox), WebKit gesture events (Safari), a two-finger touch pinch,
- * the − and + steps, or a double-click between fit and 1:1. A zoomed image
- * larger than the viewer pans by dragging.
- *
- * With `neighbors`, arrows at the viewer's edges and the arrow keys show the
- * previous and next image of the folder. The keys work while the focus is in
- * the panel that holds the viewer, or nowhere, and the image is at fit; zoomed,
- * they keep scrolling. A text field or a control that moves with the arrow
- * keys itself keeps them.
- *
- * An empty `src` is an image still being fetched; until it decodes the viewer
- * shows the loading state, and an image the browser cannot decode shows a
- * failure with retry and download in its place.
- */
-const ImageArtifactView: React.FC<ImageArtifactProps> = ({ src, name, sizeBytes, neighbors, onRetry, download }) => {
+const ImageArtifactView: React.FC<ImageArtifactProps> = ({ src, name, sizeBytes, neighbors, onRetry, download, fullscreen, lead, barClassName }) => {
   const { t, direction } = useI18n();
   const [scale, setScale] = React.useState<number | null>(null);
   const [natural, setNatural] = React.useState<Size | null>(null);
@@ -95,7 +77,6 @@ const ImageArtifactView: React.FC<ImageArtifactProps> = ({ src, name, sizeBytes,
   const [viewport, setViewport] = React.useState<Size | null>(null);
   const [dragging, setDragging] = React.useState(false);
   const viewportRef = React.useRef<HTMLDivElement | null>(null);
-  // Stays laid out when the image fails, unlike the viewport.
   const viewerRef = React.useRef<HTMLDivElement | null>(null);
   const imageRef = React.useRef<HTMLImageElement | null>(null);
   const anchorRef = React.useRef<ZoomAnchor | null>(null);
@@ -260,7 +241,6 @@ const ImageArtifactView: React.FC<ImageArtifactProps> = ({ src, name, sizeBytes,
     setDragging(false);
   };
 
-  // "Previous" sits at the start of the row: on the right in RTL.
   const handleKeyDown = (event: KeyboardEvent) => {
     if (!neighbors || scale !== null || event.defaultPrevented) return;
     if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
@@ -269,7 +249,7 @@ const ImageArtifactView: React.FC<ImageArtifactProps> = ({ src, name, sizeBytes,
     if (event.key !== previousKey && event.key !== nextKey) return;
     const viewer = viewerRef.current;
     if (!viewer || viewer.getClientRects().length === 0) return;
-    const scope = viewer.closest('[data-context-panel]') ?? viewer;
+    const scope = viewer.closest(ARROW_KEY_SCOPE) ?? viewer;
     const target = event.target;
     if (target === document.body) {
       if (!lastPointerRegion || !scope.contains(lastPointerRegion)) return;
@@ -280,20 +260,21 @@ const ImageArtifactView: React.FC<ImageArtifactProps> = ({ src, name, sizeBytes,
     event.preventDefault();
     (event.key === previousKey ? neighbors.previous : neighbors.next).open();
   };
-  // On the document: a click on a file in the tree leaves the focus on its row
-  // or nowhere, and the keys should step from there too.
   const keyDownRef = React.useRef(handleKeyDown);
   keyDownRef.current = handleKeyDown;
   React.useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => keyDownRef.current(event);
+    const keyRoot: EventTarget = viewerRef.current?.closest(FULLSCREEN_SCOPE) ?? document;
+    const onKeyDown = (event: Event) => {
+      if (event instanceof KeyboardEvent) keyDownRef.current(event);
+    };
     const onPointerDown = (event: PointerEvent) => {
       const target = event.target instanceof Element ? event.target : null;
-      lastPointerRegion = target?.closest('[data-context-panel]') ?? target;
+      lastPointerRegion = target?.closest(ARROW_KEY_SCOPE) ?? target;
     };
-    document.addEventListener('keydown', onKeyDown);
+    keyRoot.addEventListener('keydown', onKeyDown);
     document.addEventListener('pointerdown', onPointerDown, true);
     return () => {
-      document.removeEventListener('keydown', onKeyDown);
+      keyRoot.removeEventListener('keydown', onKeyDown);
       document.removeEventListener('pointerdown', onPointerDown, true);
     };
   }, []);
@@ -359,6 +340,7 @@ const ImageArtifactView: React.FC<ImageArtifactProps> = ({ src, name, sizeBytes,
                 {t('filesView.artifact.image.fit')}
               </Button>
             </ButtonTooltip>
+            {fullscreen ? <ImageFullscreenButton {...fullscreen} /> : null}
           </>
         )}
       />

@@ -20,9 +20,6 @@ export const useMiniChatKeyboardShortcuts = () => {
   const dispatcherRef = React.useRef<ShortcutDispatcher | null>(null);
   const currentSessionId = useSessionUIStore((state) => state.currentSessionId);
   const { phase: sessionPhase } = useCurrentSessionActivity();
-  // Double Escape from Mini Chat's composer stops its own session's run, as
-  // in the main window, so its composer can keep one disc while a draft is
-  // typed during a run (ComposerActionButtons).
   const { handleKeyDown: handleAbortEscapeKeyDown } = useComposerAbortEscape({
     isBlocked: () => hasOpenDropdown() || Boolean(document.querySelector('[role="dialog"], [role="alertdialog"]')),
     resolveTarget: () => ({ sessionId: currentSessionId, working: sessionPhase !== 'idle' }),

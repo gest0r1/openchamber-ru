@@ -106,16 +106,18 @@ export default defineConfig({
       },
     },
     {
-      files: ["packages/web/server/index.js"],
-      env: { node: true },
-      globals: {
-        AbortSignal: "readonly",
-        fetch: "readonly",
-        URL: "readonly",
-      },
+      files: ["packages/web/server/**/*.ts", "packages/web/bin/**/*.ts"],
       rules: {
-        "eslint/no-undef": "error",
-      },
+        "openchamber/server-js-specifiers": "error",
+        "openchamber/origin-check-awaited": "error",
+        "typescript/no-non-null-assertion": "error",
+        "typescript/ban-ts-comment": ["error", {
+          "ts-ignore": "allow-with-description",
+          "ts-expect-error": "allow-with-description",
+          "ts-nocheck": true,
+          "minimumDescriptionLength": 10
+        }]
+      }
     },
     {
       files: ["packages/ui/src/**/*.ts", "packages/ui/src/**/*.tsx"],

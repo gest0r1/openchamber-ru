@@ -48,9 +48,6 @@ function usePinnedToastStyles(container: HTMLElement | null, shadow: string) {
   React.useEffect(() => {
     if (!container) return
 
-    // Writes only what differs: the observer watches `style`, so the pin must
-    // not depend on an unchanged write producing no mutation record. Values
-    // are compared in the form the style declaration serializes them to.
     const probe = document.createElement("div").style
     const pinned = ([["box-shadow", shadow], ["outline", "none"]] as const).map(([property, value]) => {
       probe.setProperty(property, value)

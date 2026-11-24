@@ -9,21 +9,11 @@ type MessageRecord = {
 
 const RECOVERY_DELAYS_MS = [0, 500, 1500] as const
 
-/**
- * The session's own directory wins over the directory a caller selected: a
- * moved session leaves a stale selected directory behind, and reading it
- * would repopulate the copy the session left. The selected directory is only
- * a fallback when the session read does not name one.
- */
 export const resolveRecoveryDirectory = (
   session: Pick<Session, "directory"> | null,
   fallback: string | null,
 ): string | null => normalizePath(session?.directory ?? null) ?? normalizePath(fallback)
 
-/**
- * v2 has no `form` tool: a form is raised by the tool that blocks on it, which
- * today is `question`.
- */
 const isActiveFormTool = (part: Part): boolean => {
   if (part.type !== "tool" || !isQuestionTool(part.tool)) return false
   const status = part.state.status

@@ -77,7 +77,6 @@ const ActionsGrid: React.FC<{ setup: ProjectSetup; setupState: ProjectSetupState
         {entries.map((entry) => {
           const platforms = entry.action.platforms ?? [];
           const menu = menuFor(entry);
-          // The row's right click opens the same menu as its ⋯ button.
           return (
             <ContextMenu key={`${entry.source}:${entry.action.id}`}>
             <ContextMenuTrigger render={<li className="flex items-center gap-2 pe-2 transition-colors hover:bg-[var(--interactive-hover)]" />}>

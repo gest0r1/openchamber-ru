@@ -97,7 +97,6 @@ export const MobileAgentButton: React.FC<MobileAgentButtonProps> = ({ onCycleAge
                 'touch-none',
                 className
             )}
-            // At rest in the composer: the agent's hue, quieted.
             style={unavailableText ? undefined : { color: restingAgentColor(agentColor.color) }}
             title={unavailableText ?? agentLabel}
             aria-label={unavailableText}

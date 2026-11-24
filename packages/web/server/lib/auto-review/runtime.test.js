@@ -416,6 +416,7 @@ describe('createAutoReviewRuntime', () => {
       await runtime.startRun(startInput({ handoff: { text: 'Write a handoff.', instructions: '  ' } }));
 
       expect(await until(() => openCode.state.prompts.length >= 1)).toBe(true);
+      await runtime.flush();
       const reads = openCode.fetchImpl.mock.calls.filter(([url]) => new URL(url).pathname === `/api/session/${ORIGINAL}`);
       expect(reads).toEqual([]);
     });
@@ -487,12 +488,20 @@ describe('createAutoReviewRuntime', () => {
     expect(await until(() => openCode.state.prompts.length === 1)).toBe(true);
 
     runtime.stop();
-    const flushed = runtime.flush();
-    // The prompt is answered after the flush began; the send then saves its run.
-    setTimeout(answer, 5);
-    await flushed;
+    let flushReturned = false;
+    const flushed = runtime.flush().then(() => { flushReturned = true; });
+    try {
+      // While the response is held, the saved send must remain pending and
+      // flush must not return, even after a separate disk read completes.
+      const stored = JSON.parse(await fs.readFile(path.join(dataDir, 'auto-review.json'), 'utf8'));
+      expect(stored.runs[0].send.text).toBe('Write a handoff.');
+      expect(flushReturned).toBe(false);
+    } finally {
+      answer();
+      await flushed;
+    }
     await fs.rm(dataDir, { recursive: true, force: true });
-    await new Promise((resolve) => setTimeout(resolve, 20));
+    await runtime.flush();
     await expect(fs.stat(dataDir)).rejects.toMatchObject({ code: 'ENOENT' });
   });
 

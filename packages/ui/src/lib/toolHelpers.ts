@@ -167,7 +167,6 @@ const TOOL_METADATA: Record<string, ToolMetadata> = {
        ]
      },
 
-    // The chat row takes the Work Status section's localized name (`ToolPart`).
     todowrite: {
       displayName: 'Tasks',
       category: 'ai',
@@ -289,8 +288,6 @@ function formatUnknownToolDisplayName(toolName: string): string {
     .replace(/^./, (char) => char.toUpperCase());
 }
 
-// OpenCode's `opencode` namespace goes by one name, as OpenChamber's tools do;
-// what each call did is the row's description.
 const OPENCODE_NAMESPACE_METADATA: ToolMetadata = {
   displayName: 'OpenCode',
   category: 'system',
@@ -299,9 +296,7 @@ const OPENCODE_NAMESPACE_METADATA: ToolMetadata = {
 };
 
 export function getToolMetadata(toolName: string): ToolMetadata {
-  // The namespace itself names a script whose calls all went to it.
   if (toolName === 'opencode' || opencodeNamespaceTool(toolName)) return OPENCODE_NAMESPACE_METADATA;
-  // Namespaced tools (`opencode.session_rename`) are keyed by their last segment.
   return TOOL_METADATA[toolName] || TOOL_METADATA[normalizeToolName(toolName)] || {
     displayName: formatUnknownToolDisplayName(toolName),
     category: 'system',
@@ -776,7 +771,6 @@ export function isDelimitedTableFile(filePath: string): boolean {
   return ext === 'csv' || ext === 'tsv';
 }
 
-/** Office documents the viewer can draw. The older doc, xls and ppt formats stay downloads. */
 const OFFICE_PREVIEW_EXTENSIONS = new Set(['docx', 'xlsx', 'pptx', 'odt', 'ods', 'odp']);
 
 export function isOfficePreviewFile(filePath: string): boolean {
@@ -787,17 +781,14 @@ export function isNotebookFile(filePath: string): boolean {
   return getFileExtension(filePath) === 'ipynb';
 }
 
-/** Zip archives under the names they go by. */
 export function isArchiveFile(filePath: string): boolean {
   return ['zip', 'jar', 'war'].includes(getFileExtension(filePath));
 }
 
-/** Tables kept in a binary file, read in the viewer. */
 export function isDataFile(filePath: string): boolean {
   return ['sqlite', 'sqlite3', 'db', 'parquet'].includes(getFileExtension(filePath));
 }
 
-/** Files whose diff is the two versions themselves, not a text patch. */
 export function hasFileVersionsDiff(filePath: string): boolean {
   return isImageFile(filePath) || isOfficePreviewFile(filePath);
 }

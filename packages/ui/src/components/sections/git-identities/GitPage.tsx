@@ -136,7 +136,6 @@ export const GitPage: React.FC = () => {
           settingsItem="git.identities"
         >
           <div className={cn('flex flex-col', !isMobile && 'overflow-hidden rounded-lg bg-[var(--surface-elevated)]/70')}>
-            {/* Global identity */}
             {globalIdentity && (
               <IdentityRow
                 profile={globalIdentity}
@@ -284,7 +283,6 @@ const IdentityRow: React.FC<IdentityRowProps> = ({
           <div
             className={cn(
               'group flex cursor-pointer items-center justify-between gap-3',
-              // Flat on a phone, like the other lists there.
               isMobile
                 ? 'min-h-11 rounded-md px-0 py-1.5 active:bg-interactive-hover'
                 : 'px-4 py-2.5 transition-colors hover:bg-[var(--interactive-hover)]/30',

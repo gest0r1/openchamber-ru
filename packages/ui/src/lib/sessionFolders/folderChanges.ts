@@ -10,11 +10,6 @@ export type FolderChange =
   | { type: 'forget-sessions'; sessionIds: string[] }
   | { type: 'forget-scopes'; scopeKeys: string[] };
 
-/**
- * Which folder of the scope each chat was in when the user moved it (null: in
- * none). A chat that has since moved elsewhere stays there, so a move sent late
- * or sent twice cannot undo a newer one from another client.
- */
 export type ChatPlacement = Record<string, string | null>;
 
 const id = z.string().min(1);
@@ -68,12 +63,10 @@ const chatsStillInPlace = (folders: readonly SessionFolder[], sessionIds: readon
     const expected = from?.[sessionId];
     if (expected === undefined) return true;
     const holding = folderHolding(folders, sessionId);
-    // A chat left in no folder because its folder was deleted was not moved by anyone.
     return holding === expected || (holding === null && !folders.some((folder) => folder.id === expected));
   })
 );
 
-/** A folder and every folder under it. */
 export const collectFolderSubtree = (folders: readonly SessionFolder[], rootId: string): Set<string> => {
   const result = new Set([rootId]);
   let grew = true;

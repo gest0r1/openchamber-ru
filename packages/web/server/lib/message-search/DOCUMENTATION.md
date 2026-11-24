@@ -49,7 +49,7 @@ throwaway OpenCode: `env -i HOME PATH TMPDIR OPENCODE_SERVER_PASSWORD=<throwaway
 ## On by default
 
 Search is on unless `messageSearchEnabled` (instance scope, `settings.json`)
-is `false` (`isMessageSearchEnabled` in `opencode/settings-helpers.js`). A
+is `false` (`isMessageSearchEnabled` in `settings/settings-helpers.js`). A
 settings file that never mentions the key belongs to a user who never chose
 and gets the default; an explicit `false` is a choice and stays. The settings
 response always carries the resolved value, because the client keeps its own
@@ -94,14 +94,18 @@ overlays before the file closes under them.
   preserve indexed rows and cursors. Reopening also completes a schema 3 file
   that already has either lifecycle column from an interrupted development
   migration. Unknown older files rebuild because the file is derived. Session
-  rows retain archive state and whether it is known.
+  rows retain archive state and whether it is known. SQLite keeps its
+  write-ahead log and shared-memory index in `-wal` and `-shm` files beside
+  the index; deleting the index removes all three, and the reported size adds
+  them. Settled message text is immutable, so a re-read writes a row only
+  when its text changed.
   It also builds snippets: FTS5's `snippet()` counts trigrams and cuts a hit to
   a few characters, so the window is taken in JS on the returned hits.
 - `indexer.ts` keeps the index in step with OpenCode.
 - `runtime.ts` follows the setting, wires the indexer to the global event hub
   while on, answers queries, reports status (state, file size, progress) and
   deletes the file (while on, a fresh index starts at once: "rebuild").
-- `routes.js` serves `GET /api/openchamber/message-search`,
+- `routes.ts` serves `GET /api/openchamber/message-search`,
   `GET /api/openchamber/message-search/sessions`,
   `GET .../message-search/status` and `DELETE .../message-search/index`.
 
@@ -198,6 +202,26 @@ property presence so the existing truthy-message fallback and JSON value survive
   translator confirms the archive pair at
   `packages/ui/src/lib/opencode/events.ts:367-371`.
 
+### Why the OpenCode client is built per call
+
+The client is created at each use instead of once at startup, so a restarted
+or re-pointed OpenCode is picked up as soon as it exists. The directory goes
+into `x-opencode-directory` URI-encoded because OpenCode 2 scopes requests by
+that header and rejects non-ASCII header values.
+
+### Why an unusable record is skipped instead of failing the session
+
+Each record is parsed for the fields the index uses; anything else on it is
+ignored. A record this reader does not understand carries nothing it can
+index, so it is passed over and the rest of the session stays searchable.
+
+### Why a location-less event has no directory
+
+The hub envelope names the event's directory, and uses `'global'` when the
+event has no location; the indexer reads that as the empty directory. When
+the envelope has none and the translated payload carries
+`properties.directory`, the payload's directory is used.
+
 ## Queries
 
 Hits carry the message id; pages are cut by row id, since a reply and its
@@ -206,6 +230,11 @@ be looked up and are left out, and a query made only of them answers
 `query-too-short` rather than everything. Newest first by default; `before`
 pages by creation time with the message id breaking ties, so pages never
 repeat or skip. Snippets mark matches with U+E000 / U+E001 and are plain text.
+The markers are private-use characters, which ordinary text cannot contain,
+and they are not markup, so a snippet is never rendered as HTML. A snippet is
+cut in JS rather than by FTS5's `snippet()`, because that counts trigrams and
+cuts a hit to a few characters. Where lowercasing changes a string's length
+(rare scripts), offsets would drift, so that text is returned unmarked.
 The grouped endpoint filters lifecycle, directory and role before grouping. It
 uses the newest matching row per session as its representative and counts
 distinct message ids, so a reply and its reasoning produce one match count.
@@ -217,3 +246,35 @@ globally newest filtered match, and applies the cursor to those representatives.
 It stops after `limit + 1` distinct sessions. A second indexed lookup counts
 matching messages only for the selected sessions. Totals inspect at most 20,000
 matching rows and return `null` when they reach that cap.
+
+### Why a snippet centres on the longest term
+
+In "git rebase" the rare term says more than a short one that also matches
+inside "github", so the window is centred on the longest query term. The cut
+is then extended to whole words at both edges.
+
+## HTTP
+
+`GET /api/openchamber/message-search` takes `q` (every word must occur, each
+three characters or more), `session` (only this session), repeatable
+`directory`, `role` (`user`, `assistant` or `reasoning`), `lifecycle`
+(`active`, `archived` or `all`), `reasoning=0` (leave reasoning hits out while
+the reader hides them), `order` (`desc`, newest first, or `asc`), `before`
+(a previous answer's `next`, `<createdAt>:<id>`) and `limit` (1..200, default
+20). It answers `{ status: 'ok', hits, next, index }` or
+`{ status: 'query-too-short', hits: [] }`, and 503 when no index runs: search
+is off, or this server has no SQLite.
+
+`GET .../message-search/sessions` groups hits by session. It requires `q` and
+takes the same `directory`, `role`, `reasoning`, `lifecycle` and `before`,
+plus `exclude` (up to 200 session ids left out of the first page's totals and
+directory counts) and `limit` (1..100, default 20). Its `next` is
+`<createdAt>:<sessionId>`, and it answers `{ status, hits, next, totals, index }`.
+
+`GET .../message-search/status` answers
+`{ state: 'unsupported' | 'off' | 'on' | 'failed', sizeBytes, index }`.
+`DELETE .../message-search/index` deletes the file and answers the status
+afterwards; while search is on a new one starts at once.
+
+Repeated query keys arrive as arrays, so every field accepts the shape it may
+take.

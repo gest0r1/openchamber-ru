@@ -16,33 +16,6 @@ const splitAddress = (address: string): { host: string; rest: string } | null =>
   return { host: match[2], rest: match[3] };
 };
 
-const ToolbarButton: React.FC<ToolbarButtonProps> = ({ icon, label, onClick, disabled, pressed }) => (
-  <Tooltip>
-    <TooltipTrigger asChild>
-      {/* The span keeps the tooltip on a disabled button, which takes no pointer events. */}
-      <span className="inline-flex shrink-0">
-        <Button
-          type="button"
-          variant={pressed ? 'secondary' : 'ghost'}
-          size="xs"
-          className={cn(
-            'w-6 shrink-0 rounded-full px-0 text-muted-foreground',
-            'hover:text-foreground',
-            pressed && 'text-foreground',
-          )}
-          onClick={onClick}
-          disabled={disabled}
-          aria-label={label}
-          aria-pressed={pressed}
-        >
-          <Icon name={icon} className="size-3.5" aria-hidden="true" />
-        </Button>
-      </span>
-    </TooltipTrigger>
-    <TooltipContent sideOffset={6}>{label}</TooltipContent>
-  </Tooltip>
-);
-
 type BrowserToolbarProps = {
   address: string;
   addressMark?: { icon: IconName; label: string };

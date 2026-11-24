@@ -6,25 +6,10 @@ import { getRuntimeKey, subscribeRuntimeEndpointChanged } from '@/lib/runtime-sw
 
 import { isSameLocalDay, rangeStart, type UsageRange } from './usageStatsModel';
 
-/**
- * In-memory cache of Stats page reports for the app session, one entry per
- * (runtime, range, project). Reopening the page or going back to a filter
- * shows the cached report without refetching; only a key with nothing cached
- * loads on its own, and the refresh button forces a new read. A runtime
- * switch drops every entry and ignores answers still in flight.
- *
- * `7d`/`30d` are relative to now: an entry reports the range it was fetched
- * for (`stats.range`) and when (`fetchedAt`), which the page shows.
- *
- * `1d` is the one range that expires: its name says today, so a report read on
- * an earlier local day is dropped and read again, whether or not it was forced.
- */
-
 export type UsageStatsRequest = { range: UsageRange; projectDirectory: string | null };
 
 export type UsageStatsEntry = {
   stats: UsageStats | null;
-  /** When the read of `stats` started, so a read that crosses midnight counts as the old day's. */
   fetchedAt: number | null;
   loading: boolean;
   error: string | null;
@@ -49,11 +34,6 @@ export const usageStatsKey = (runtimeKey: string, request: UsageStatsRequest): s
 
 type UsageStatsStore = {
   entries: Record<string, UsageStatsEntry>;
-  /**
-   * Loads a report for the request under the current runtime. Without `force`
-   * this only reads a key that has no report, no error and no read running,
-   * or whose `1d` report is from an earlier local day.
-   */
   load: (request: UsageStatsRequest, options?: { force?: boolean }) => Promise<void>;
   toolEntries: Record<string, UsageToolsEntry>;
   toolsRequested: boolean;
@@ -85,8 +65,6 @@ export function createUsageStatsStore(
   toolsFetcher: UsageToolsFetcher = fetchToolsFromOpencode,
 ) {
   let controller = new AbortController();
-  // The tool read each key still wants: a read left over from an expired
-  // Today report must not land on the new day's tools, whichever finishes last.
   const currentToolReads = new Map<string, symbol>();
 
   return create<UsageStatsStore>()((set, get) => {
@@ -117,8 +95,6 @@ export function createUsageStatsStore(
 
         const { signal } = controller;
         if (expired) {
-          // Dropped before the read, so a failed read shows as an error and
-          // never as yesterday's totals under Today.
           patch(key, { stats: null, fetchedAt: null, loading: true, error: null });
           currentToolReads.delete(key);
           set((state) => {
@@ -131,10 +107,7 @@ export function createUsageStatsStore(
         try {
           const stats = await fetcher(request, signal);
           if (signal.aborted) return;
-          // Written under the key the read started for: switching filters
-          // while it runs never lets it land on another filter.
           patch(key, { stats, fetchedAt: startedAt, loading: false, error: null });
-          // A refreshed report moves the window, so tools already shown follow it.
           if (get().toolsRequested) void get().loadTools(request, { force: Boolean(get().toolEntries[key]?.tools) });
         } catch (error) {
           if (signal.aborted) return;
@@ -177,15 +150,8 @@ export function createUsageStatsStore(
 
 export const useUsageStatsStore = createUsageStatsStore(fetchFromOpencode, getRuntimeKey);
 
-/** How often an open Today report checks whether the local day has changed. */
 const TODAY_CHECK_INTERVAL_MS = 60_000;
 
-/**
- * Keeps Today current while the page stays open. `load` reads only once the
- * day has changed, so the checks cost nothing the rest of the time. A clock
- * check survives sleep and daylight saving, where a timer aimed at midnight
- * would not.
- */
 export function useTodayRollover(enabled: boolean, load: () => void): void {
   React.useEffect(() => {
     if (!enabled) return undefined;

@@ -271,9 +271,6 @@ const FormDockPanel: React.FC<{
                 toast.error(t('chat.chatInput.toast.agentUnavailable', { agent: unavailableAgent }));
                 return;
             }
-            // The reply gate refused before anything was sent, so say that
-            // instead of implying the server rejected the answer. The
-            // answer stays in the draft, so the retry sends it as picked.
             const connectionLost = connectionLostMessage(error instanceof Error ? error : null, t);
             if (connectionLost) {
                 toast.error(connectionLost);
@@ -387,7 +384,6 @@ const FormDockPanel: React.FC<{
                 </TooltipTrigger>
                 <TooltipContent side="top" sideOffset={6}>{collapsed ? t('chat.formDock.expandAria') : t('chat.formDock.collapseAria')}</TooltipContent>
                 </Tooltip>
-                {/* One dot per question: filled when answered, the current one solid. */}
                 {!collapsed ? (
                     <div className="flex shrink-0 items-center gap-1" role="tablist">
                         {shown.map((field, index) => (

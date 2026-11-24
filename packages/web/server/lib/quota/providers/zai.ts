@@ -1,6 +1,9 @@
 import { readOpenCodeCredentials } from '../../opencode/auth.js';
+import type { LegacyAuthFile } from '../../opencode/auth.js';
+import type { UsageWindow } from '../utils/contracts.js';
 import { asNonEmptyString } from '../../shared/guards.js';
-import { envelopeError } from './zhipuai-coding-plan.js';
+import { isString } from '../../shared/object-guards.js';
+import { envelopeError, formatCreditValueLabel, hasDataFields, hasPayloadFields, isCreditLimit, isLimitArray, isNumber, isTimeLimit } from './zhipuai-coding-plan.js';
 import {
   getAuthEntry,
   normalizeAuthEntry,
@@ -119,7 +122,7 @@ export const isConfigured = (auth: LegacyAuthFile) => {
 const ZAI_GIFT_RESET_USE_URL = 'https://api.z.ai/api/biz/customer-package-reset/use';
 export const giftResetTypes = ['FIVE_HOUR', 'WEEK'];
 
-export const useZaiGiftReset = async ({ recordId, resetType, grantType }) => {
+export const useZaiGiftReset = async ({ recordId, resetType, grantType }: GiftResetRequest) => {
   const auth = await readOpenCodeCredentials();
   const entry = authEntry(auth);
   const apiKey = entry?.key ?? entry?.token;
@@ -134,9 +137,6 @@ export const useZaiGiftReset = async ({ recordId, resetType, grantType }) => {
     throw new Error('Invalid gift reset request');
   }
 
-  // z.ai requires grantType (added to the contract in late Oct 2026). The value
-  // comes from the list record the user activates; GLOBAL is the only value
-  // observed so far, so it doubles as the fallback for records without one.
   const response = await fetch(ZAI_GIFT_RESET_USE_URL, {
     method: 'POST',
     headers: {

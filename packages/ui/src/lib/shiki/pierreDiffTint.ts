@@ -46,11 +46,6 @@ export const PIERRE_DIFF_TINT_CSS = `
   }
 `;
 
-// The row between hunks ("N unmodified lines"): muted text on the diff's own
-// background (24px, the height the virtualized Changes view lays rows out
-// with), the same in the Changes view and in
-// a tool's diff in the chat. A tinted band with hairlines read heavier than
-// the rows it introduces. Injected into each diff's shadow root.
 export const PIERRE_SEPARATOR_CSS = `
   [data-diff-header],
   [data-diff] {

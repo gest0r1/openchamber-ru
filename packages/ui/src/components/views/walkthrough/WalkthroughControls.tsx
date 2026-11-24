@@ -44,7 +44,6 @@ export const WalkthroughLanguagePicker = ({
     <DropdownMenu open={open} onOpenChange={setOpen}>
       <Tooltip>
         <TooltipTrigger asChild>
-          {/* The span takes the sizing and the header's fold class: an open tooltip marks its trigger as open, which would paint the picker pressed. */}
           <span className={cn('inline-flex min-w-0', className)}>
             <DropdownMenuTrigger asChild>
               <button
@@ -89,7 +88,6 @@ export const WalkthroughLanguagePicker = ({
   );
 };
 
-/** Choosing a roomier model for a risky change is a per-review call, so this is review state rather than a settings edit. */
 export const WalkthroughModelPicker = ({ review, className }: { review: WalkthroughReview; className?: string }) => {
   const { t } = useI18n();
   return (
@@ -97,7 +95,6 @@ export const WalkthroughModelPicker = ({ review, className }: { review: Walkthro
       providerId={review.activeProviderId ?? ''}
       modelId={review.activeModelId}
       onChange={review.selectModel}
-      // While the auth list is loading, allow none — not every provider.
       allowedProviderIds={review.modelProviders ?? []}
       isModelAllowed={review.isStructuredOutputCapable}
       tooltipsEnabled={false}
@@ -151,7 +148,6 @@ export const WalkthroughGenerateButton = ({
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        {/* The span keeps the tooltip on a disabled button, and takes the sizing and the header's fold class so a folded button leaves no gap. */}
         <span className={cn('inline-flex', className)}>
           <Button
             type="button"
@@ -268,9 +264,6 @@ export const WalkthroughBanners = ({ review, view }: { review: WalkthroughReview
                   variant="ghost"
                   size="xs"
                   disabled={review.generateDisabled}
-                  // Not forced: if an entry for this exact request existed the banner
-                  // would not be here, and a forced run would refuse the cache it may
-                  // find on the way.
                   onClick={() => review.handleGenerate(false)}
                 >
                   {t('walkthrough.action.generate')}
@@ -295,8 +288,6 @@ export const WalkthroughBanners = ({ review, view }: { review: WalkthroughReview
                 variant="ghost"
                 size="xs"
                 className="ms-auto shrink-0"
-                // Clicking this again mid-flight would abort the running generation
-                // and start another — paying for the same answer twice.
                 disabled={review.isGenerating}
                 onClick={() => review.handleGenerate(true)}
               >

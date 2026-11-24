@@ -76,7 +76,6 @@ export async function filterMissingInlineAttachments(
     };
 }
 
-/** The given paths known not to exist. One the check could not reach is left out. */
 export async function findMissingPaths(
     paths: readonly string[],
     lister: DirectoryLister,
@@ -93,9 +92,6 @@ export async function findMissingPaths(
         try {
             return { files, entries: await lister.listLocalDirectory(directory) };
         } catch (error) {
-            // A parent directory that does not exist (`@types/node`,
-            // `@acme.io/careers`) cannot hold the file. Any other failure
-            // keeps that directory's paths: the check could not run.
             const parentMissing = error instanceof FilesystemError
                 && (error.reason === 'not-found' || error.reason === 'not-directory');
             return { files, entries: parentMissing ? [] : null };
@@ -106,10 +102,6 @@ export async function findMissingPaths(
     for (const { files, entries } of results) {
         if (entries === null) continue;
         const present = new Set(entries.map((entry) => normalizePath(entry.path)));
-        // Case-insensitive fallback: macOS and Windows resolve `readme.md` to
-        // `README.md`, and VS Code reports a lowercase Windows drive letter.
-        // On a case-sensitive disk this keeps the path, which is the
-        // pre-check behaviour rather than a wrong drop.
         const presentFolded = new Set([...present].map((path) => path.toLowerCase()));
         for (const file of files) {
             const target = normalizePath(file);

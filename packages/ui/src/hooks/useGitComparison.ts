@@ -114,7 +114,6 @@ export function useGitComparison(
     return fetchPullRequestFile(directory, target, context, { path: file.path, previousPath: file.previousPath, status: file.status });
   }, [directory, enabled, filesByPath, key, t]);
 
-  // A document is compared in the viewer, so it needs both whole versions.
   const fetchVersions = useCallback(async (filePath: string): Promise<{ original: string; modified: string }> => {
     const { key: targetKey, source: target, enabled: active, readContext: context } = sourceRef.current;
     const file = filesByPath.get(filePath);

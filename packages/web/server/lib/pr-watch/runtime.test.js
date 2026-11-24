@@ -471,15 +471,15 @@ describe('createPrWatchRuntime', () => {
     const { tracked, readers, move } = createTracked(readEach);
     // OpenCode never shows the turn the first wake started as running by the
     // time the second wake asks, so the second one is admitted right away.
-    const { runtime, openCode } = await createRuntime();
+    const { runtime, openCode, until } = await createRuntime();
     runtime.attach({ trackedItems: tracked, readers });
     await runtime.watch({ sessionID: SESSION, directory: DIRECTORY, url: URL_7 });
     await runtime.watch({ sessionID: SESSION, directory: DIRECTORY, url: URL_8 });
 
     move(pull({ checks: { state: 'failure' } }));
-    expect(await until(() => openCode.state.admitted.length === 1)).toBe(true);
+    expect(await openCode.until(() => openCode.state.admitted.length === 1)).toBe(true);
     move(pull({ number: 8, checks: { state: 'success' } }), undefined, URL_8);
-    expect(await until(() => openCode.state.admitted.length === 2)).toBe(true);
+    expect(await openCode.until(() => openCode.state.admitted.length === 2)).toBe(true);
 
     expect(openCode.state.admitted.map((wake) => wake.metadata.url)).toEqual([URL_7, URL_8]);
     expect(openCode.state.admitted.every((wake) => wake.delivery === 'steer' && wake.resume === true)).toBe(true);
@@ -495,14 +495,14 @@ describe('createPrWatchRuntime', () => {
       if (new URL(url).pathname.endsWith('/synthetic') && JSON.parse(init.body).metadata.url === URL_7) return json({ error: 'broken' }, 500);
       return admit(url, init);
     });
-    const { runtime } = await createRuntime({ openCode });
+    const { runtime, until } = await createRuntime({ openCode });
     runtime.attach({ trackedItems: tracked, readers });
     await runtime.watch({ sessionID: SESSION, directory: DIRECTORY, url: URL_7 });
     await runtime.watch({ sessionID: SESSION, directory: DIRECTORY, url: URL_8 });
 
     move(pull({ checks: { state: 'success' } }));
     move(pull({ number: 8, checks: { state: 'success' } }), undefined, URL_8);
-    expect(await until(() => openCode.state.admitted.length === 1)).toBe(true);
+    expect(await openCode.until(() => openCode.state.admitted.length === 1)).toBe(true);
     expect(openCode.state.admitted[0].metadata.url).toBe(URL_8);
     expect(await until(() => runtime.snapshot().watches.length === 0)).toBe(true);
   });

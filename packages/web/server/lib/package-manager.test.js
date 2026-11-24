@@ -643,30 +643,6 @@ describe('fetchRequiredOpenCodeVersion', () => {
   });
 });
 
-describe('fetchRequiredOpenCodeVersion', () => {
-  let originalFetch;
-  beforeEach(() => {
-    originalFetch = globalThis.fetch;
-  });
-  afterEach(() => {
-    globalThis.fetch = originalFetch;
-  });
-
-  it('reads the oldest OpenCode from engines.opencode of the published release', async () => {
-    const cases = [
-      [{ opencode: '>=2.3.0' }, '2.3.0'],
-      [{ node: '>=24.14.0' }, null],
-      [{ opencode: '^2.3.0' }, null],
-    ];
-    for (const [engines, expected] of cases) {
-      globalThis.fetch = createFetchMock().when('@openchamber%2Fweb/2.7.1', { ok: true, json: async () => ({ version: '2.7.1', engines }) });
-      expect(await fetchRequiredOpenCodeVersion('2.7.1')).toBe(expected);
-    }
-    globalThis.fetch = createFetchMock().when('@openchamber%2Fweb/2.7.1', { ok: false, status: 404 });
-    expect(await fetchRequiredOpenCodeVersion('2.7.1')).toBeNull();
-  });
-});
-
 describe('getUpdateCommand', () => {
   it('pins the exact target version instead of re-resolving the latest dist-tag', () => {
     expect(getUpdateCommand('npm', { targetVersion: '1.24.1' })).toBe('npm install -g @openchamber/web@1.24.1');

@@ -31,7 +31,6 @@ const SortableVisibilityRow: React.FC<{
       className={cn('relative flex items-center gap-2', isDragging && 'z-10 opacity-60')}
     >
       {item.groupStart ? <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 -top-px h-px bg-edge-muted" /> : null}
-      {/* Closed during a drag: an open tooltip takes Escape, which cancels a keyboard drag. */}
       <Tooltip open={isDragging ? false : undefined}>
         <TooltipTrigger asChild>
           <Button

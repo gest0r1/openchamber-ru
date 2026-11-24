@@ -150,7 +150,6 @@ export function NewWorktreeDialog({
     [projectDirectory, projectId],
   );
 
-  // A project's own create command can take a while; the footer says what runs.
   const [usesCreateCommand, setUsesCreateCommand] = React.useState(false);
   React.useEffect(() => {
     setUsesCreateCommand(false);
@@ -164,7 +163,6 @@ export function NewWorktreeDialog({
     };
   }, [open, projectRef]);
 
-  // Each tab keeps its own fields while the user switches between them.
   const [mode, setMode] = React.useState<Mode>('new-branch');
   const [newBranch, setNewBranch] = React.useState<BranchDraft>(EMPTY_DRAFT);
   const [itemBranch, setItemBranch] = React.useState<BranchDraft>(EMPTY_DRAFT);
@@ -457,7 +455,8 @@ export function NewWorktreeDialog({
       })();
 
       const metadata = await createWorktreeWithDefaults(projectRef, args);
-      // Background Git attach may still be running. A directory alone is not ready.
+      // The server returns after creating a directory, before Git checkout.
+      // Do not open a session or report success for a failed bootstrap.
       await waitForWorktreeBootstrap(metadata.path);
 
       if (metadata.provenance?.kind === 'contributor-fork') {

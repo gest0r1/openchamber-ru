@@ -55,8 +55,6 @@ export type SessionMessageLoadState = {
   olderCompletedReplyIds: ReadonlySet<string>
 }
 
-// Stays true through a later tail refresh: `resolved` marks a first read that
-// landed, and only retention (`evicted`) takes that history away again.
 const entryCoversHistory = (entry: LoaderEntry): boolean => entry.snapshot.resolved && !entry.evicted
 
 type LoaderEntry = {
@@ -633,7 +631,6 @@ export class SessionMessageLoader {
     return normalized ? this.getEntry(normalized).snapshot : EMPTY_SESSION_MESSAGE_LOAD_STATE
   }
 
-  /** Whether the session's history was read from the server and not evicted since. */
   coversHistory(target: SessionMessageTarget): boolean {
     const normalized = this.normalizeTarget(target)
     const entry = normalized ? this.entries.get(this.keyFor(normalized)) : undefined

@@ -70,14 +70,41 @@ which of the two a write goes to. The UI side is `packages/ui/src/stores/useSess
 
 ## Decisions
 
+### Why routes declare the HTTP methods they use
+
+The server check has no Express declarations. The local route contract describes
+registration, unknown request bodies, path parameters and the response methods
+used here, following the other converted route modules without a dependency
+or a replacement declaration for Express.
+
+### Why thrown messages have an optional unknown type
+
+The original optional property reads accept inherited fields and box primitive
+values. Any non-nullish JavaScript value supports that property read; the guard
+promises neither that `message` exists nor that it is a string. Direct access
+keeps the original receiver and proxy behavior. Requiring an Error instance or
+a string message would discard values the routes already return.
+
+### Why the runtime accepts the shared translated event type
+
+`server/runtime.js` forwards translated events directly to `processPayload`,
+including events this module ignores. The event-stream module owns
+`TranslatedEvent`; warming imports that contract and retains its schemas for
+the status and deletion fields it consumes. Model inputs use their schema's
+inferred type, including unchecked passthrough fields.
+
+Thrown values retain unchecked `message` and `code` fields through a nullish
+guard, preserving inherited properties, boxed primitives and proxy reads.
+
 ### Why the ping interval follows the cache lifetime and not a fixed 4 minutes
 
 Four minutes keeps a 5-minute cache alive, and against an hour-long cache it
 sends 13 pings where one would do, each one reading the whole context. When a
 window starts, the runtime reads the session's model (`GET /api/session/:id`)
 and its entry in `/api/model`: a configured `cache.ttl` gives the lifetime,
-and Claude Agent on a subscription, which OpenCode lists without a price, gets
-an hour, because Claude Code caches a subscriber's SDK requests that long.
+and the ping goes at 90% of it, the share OpenCode's own `interval: "auto"`
+uses. Claude Agent on a subscription, which OpenCode lists without a price,
+gets an hour, because Claude Code caches a subscriber's SDK requests that long.
 That hour is Claude Code's own choice and OpenCode does not report it, so a
 subscriber on extra usage, which Claude Code drops to 5 minutes, loses the
 warming between pings; a gateway with a custom base URL also lists no price.

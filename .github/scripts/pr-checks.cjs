@@ -376,6 +376,7 @@ module.exports = {
   IN_HOUSE_LABEL,
   MISSING_SCREENSHOTS,
   TEAM_LABEL,
+  UNPROVEN_RUNTIME,
   evaluateContributionGate,
   evaluateRuntimeProof,
   evaluateVisualEvidence,

@@ -17,7 +17,6 @@ type OpenGuestCommitOptions = {
   directory: string | null;
   git: Pick<GitAPI, 'getGitLog'> | null;
   currentBranch: (directory: string) => Promise<string | null>;
-  /** VS Code has no Diff view commit scope for guests. */
   supported: boolean;
 };
 
@@ -41,9 +40,6 @@ export const openGuestCommit = async ({ sha, directory, git, currentBranch, supp
   const branch = await currentBranch(directory);
   if (getRuntimeKey() !== runtimeKey) return { ok: false, code: 'HOST_UNAVAILABLE', message: 'The connection changed.' };
   useCommitSelectionStore.getState().select(commitSelectionKey(directory, branch, useGitStore.getState().runtimeKey), entry);
-  // The phone's Changes tab reads the same selection in its commit scope, once
-  // it shows this repository: the request names it, as the desktop opens the
-  // Diff tab under this directory.
   if (isMobileSurfaceRuntime()) {
     return openMobileWorkspace({ tab: 'changes', commit: { directory } })
       ? { ok: true }

@@ -64,6 +64,11 @@ export function interruptedTurnToolParts(
         errorSource: "local",
         time: { start, end: now },
       },
+      timing: {
+        startMeasured: part.state.status === 'running' && part.timing?.startMeasured !== false,
+        endMeasured: false,
+        endSource: 'interruption_observed',
+      },
     }
   })
 

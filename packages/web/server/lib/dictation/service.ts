@@ -101,14 +101,7 @@ export function createDictationService({ modelsDir }: { modelsDir: string }) {
     return promise;
   };
 
-  /**
-   * The model to dictate with. Without a model the user picked (or with one
-   * the catalog no longer has), someone who already dictated with Parakeet v2,
-   * the default before v3, keeps it: it is installed and better on English.
-   * Someone with only v3, the default before Ultra, dictates with v3 until
-   * Ultra is installed (createSttSession downloads it in the background).
-   */
-  const resolveLocalModelId = async (requested) => {
+  const resolveLocalModelId = async (requested: DictationStartOptions['localModel']) => {
     if (isLocalSttModelId(requested)) {
       return requested;
     }
@@ -152,8 +145,6 @@ export function createDictationService({ modelsDir }: { modelsDir: string }) {
     }
 
     const modelId = await resolveLocalModelId(options.localModel);
-    // A failed upgrade download waits for the next server start rather than
-    // restarting with every dictation.
     if (modelId === REPLACED_DEFAULT_LOCAL_STT_MODEL && !isLocalSttModelId(options.localModel)
       && downloadStates.get(DEFAULT_LOCAL_STT_MODEL) !== 'error') {
       void startModelDownload(DEFAULT_LOCAL_STT_MODEL);

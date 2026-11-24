@@ -2,9 +2,15 @@ import { readFile, writeFile, rename, mkdir } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import { z } from 'zod';
 
-export const createTelegramConfig = (filePath) => {
-  let writes = Promise.resolve();
-  const read = async () => {
+import { hasErrorCode } from '../guests/input-guards.js';
+import type { TelegramSender } from './telegram-runtime.js';
+
+type TelegramConfig = { version: 1; enabled: boolean; botToken: string; defaultAlias: string; sender: TelegramSender };
+type PublicTelegramConfig = Omit<TelegramConfig, 'version' | 'botToken'> & { hasBotToken: boolean };
+
+export const createTelegramConfig = (filePath: string) => {
+  let writes: Promise<PublicTelegramConfig | void> = Promise.resolve();
+  const read = async (): Promise<TelegramConfig> => {
     try {
       const raw = z.object({
         version: z.literal(1), enabled: z.boolean(),
@@ -13,11 +19,11 @@ export const createTelegramConfig = (filePath) => {
       }).parse(JSON.parse(await readFile(filePath, 'utf8')));
       return { version: 1, enabled: raw.enabled, botToken: raw.botToken || '', defaultAlias: raw.defaultAlias || '', sender: raw.sender || 'legacy' };
     } catch (error) {
-      if (error?.code === 'ENOENT') return { version: 1, enabled: false, botToken: '', defaultAlias: '', sender: 'legacy' };
+      if (hasErrorCode(error) && error.code === 'ENOENT') return { version: 1, enabled: false, botToken: '', defaultAlias: '', sender: 'legacy' };
       throw error;
     }
   };
-  const update = (patch) => {
+  const update = (patch: Partial<Omit<TelegramConfig, 'version'>>) => {
     const task = writes.then(async () => {
       const old = await read();
       const next = { ...old, ...patch };
@@ -30,9 +36,6 @@ export const createTelegramConfig = (filePath) => {
     writes = task.catch(() => {});
     return task;
   };
-  // A crash can interrupt legacy -> paused -> sdk. An unowned paused state
-  // must never persist across restarts: no SDK sender has been admitted yet.
-  // Restore the previous safe legacy owner before starting its watcher.
   const recoverInterruptedSwitch = async () => {
     if ((await read()).sender !== 'paused') return false;
     await update({ sender: 'legacy' });

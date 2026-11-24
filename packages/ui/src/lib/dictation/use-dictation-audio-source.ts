@@ -9,11 +9,6 @@ export interface DictationAudioSourceConfig {
 export type DictationLevelListener = (level: number) => void;
 
 export interface DictationAudioSource {
-    /**
-     * Resolves true when this call started capture, false when it did not:
-     * capture was already running, or stop() retired it while the microphone
-     * prompt was open. A retired start never rejects.
-     */
     start: () => Promise<boolean>;
     stop: () => Promise<void>;
     subscribeLevel: (listener: DictationLevelListener) => () => void;
@@ -174,9 +169,6 @@ export function useDictationAudioSource(config: DictationAudioSourceConfig): Dic
             throw new Error('AudioContext unavailable');
         }
 
-        // Create and resume the context while still inside the user's click:
-        // iOS Safari and WKWebView keep a context created after the
-        // microphone prompt suspended, and capture then delivers no audio.
         const context = new AudioContextCtor();
         const graph = emptyGraph();
         graph.context = context;
@@ -197,8 +189,6 @@ export function useDictationAudioSource(config: DictationAudioSourceConfig): Dic
                 return stream;
             });
             const [stream] = await Promise.all([acquired, resumed]);
-            // Stopped while the microphone prompt was open: stop() has closed
-            // the context, but the stream arrived after it and is released here.
             if (graphRef.current !== graph) {
                 stopTracks(stream);
                 return false;
@@ -244,13 +234,10 @@ export function useDictationAudioSource(config: DictationAudioSourceConfig): Dic
         } catch (error) {
             graph.started = false;
             stopTracks(graph.stream);
-            // A capture stopped meanwhile has nobody left to report to.
             if (graphRef.current !== graph) {
                 return false;
             }
             graphRef.current = emptyGraph();
-            // Not awaited: a Cancel or unmount during a slow close must not
-            // find this start still pending and get its error afterwards.
             void context.close().catch(() => undefined);
             throw error instanceof Error ? error : new Error(String(error));
         }
@@ -258,8 +245,6 @@ export function useDictationAudioSource(config: DictationAudioSourceConfig): Dic
 
     const stop = useCallback(async () => {
         const graph = graphRef.current;
-        // Retire the graph at once, including a start still waiting for the
-        // microphone, so its late stream is stopped and a new start is free.
         graphRef.current = emptyGraph();
         graph.started = false;
         emitLevel(0);
@@ -281,9 +266,6 @@ export function useDictationAudioSource(config: DictationAudioSourceConfig): Dic
             onPcmSegmentRef.current(int16ToBase64(pending));
         }
 
-        // The microphone is off and the tail is flushed. Closing the context
-        // can take about a second on mobile, so it does not hold up the
-        // transcription or the next start.
         if (graph.context) {
             void graph.context.close().catch(() => undefined);
         }

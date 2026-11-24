@@ -33,6 +33,10 @@ export interface SessionControlExecute {
 }
 
 export interface ControlInput {
+  alias?: string;
+  file?: string;
+  caption?: string;
+  mode?: string;
   name?: unknown;
   title?: unknown;
   model?: unknown;

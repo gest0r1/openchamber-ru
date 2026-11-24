@@ -128,8 +128,6 @@ export function useRouter(): void {
       if (isApplyingRouteRef.current) return false;
       const route = parseRoute(target.searchParams);
       pushRouteEntry({}, target.href);
-      // Acceptance acknowledges ownership, not completion of session fetching.
-      // Slow network reads must not cause the worker to reload a responsive app.
       void applyRoute(route).catch((error) => {
         console.error('[PWA] notification navigation failed:', error);
       });

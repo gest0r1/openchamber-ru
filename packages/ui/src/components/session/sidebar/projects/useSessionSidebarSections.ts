@@ -186,12 +186,6 @@ export const useSessionSidebarSections = (args: Args) => {
     sessionOrderRanks,
   ]);
 
-  // Flat display sections: one merged group per project containing every
-  // non-archived session from the project root and all of its worktrees.
-  // Worktree grouping stays available in `projectSections` for data consumers
-  // (bootstrap demand planning, ownership); rendering is flat.
-  // The per-section cache keeps merged group references stable so the
-  // memoized SessionGroupSection subtree skips unrelated update waves.
   const flatSectionCacheRef = React.useRef<WeakMap<ProjectSection, ProjectSection>>(new WeakMap());
   const flatSectionsForRender = React.useMemo<ProjectSection[]>(() => {
     const cache = flatSectionCacheRef.current;

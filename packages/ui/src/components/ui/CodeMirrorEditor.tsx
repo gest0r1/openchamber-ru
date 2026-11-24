@@ -151,11 +151,6 @@ type CodeMirrorEditorProps = {
 const gutterWidthMeasureKey = {};
 const lineNumbersCompartment = new Compartment();
 const editableCompartment = new Compartment();
-/**
- * Read-only both ways: not editable by the pointer and keyboard input, and a
- * read-only state, so commands such as undo or indent cannot change it either.
- * `editable` alone left those keybindings working.
- */
 const readOnlyExtensions = (readOnly: boolean | undefined) => [
   EditorView.editable.of(!readOnly),
   EditorState.readOnly.of(Boolean(readOnly)),

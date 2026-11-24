@@ -134,15 +134,11 @@ const ContextPanelRailItem: React.FC<RailItemProps> = ({
             data-context-surface={surface.id}
             className={cn(
               'flex h-7 w-7 touch-none select-none items-center justify-center rounded-md transition-colors',
-              // Selection, not an action: the neutral selection fill, so the
-              // accent stays with primary actions.
               isActive
                 ? 'oc-selected text-interactive-selection-foreground'
                 : 'text-muted-foreground hover:text-foreground',
             )}
           >
-            {/* Every rail glyph is a plain outline in the rail's tone; the
-                diff's red and green tint read as a state it does not have. */}
             <GuestIcon
               icon={surface.icon}
               iconSrc={surface.iconSrc}
@@ -448,8 +444,6 @@ export const ContextPanelRail: React.FC = () => {
       <DndContext sensors={sensors} collisionDetection={collisionDetection} onDragStart={handleDragStart} onDragCancel={handleDragCancel} onDragEnd={handleDragEnd}>
         {groups.map((group, groupIndex) => (
           <React.Fragment key={contextSurfaceGroup(group[0])}>
-          {/* Groups are set apart by space alone: a 6px spacer between two gaps
-              makes 22px against the 8px inside a group, plainly a new group. */}
           {groupIndex > 0 ? <div aria-hidden="true" className="h-1.5 shrink-0" /> : null}
           <SortableContext items={group.map((surface) => surface.id)} strategy={verticalListSortingStrategy}>
           {group.map((surface) => {
@@ -516,9 +510,6 @@ export const ContextPanelRail: React.FC = () => {
             onClick={() => setIsSurfacesDialogOpen(true)}
             className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:text-foreground"
           >
-            {/* Choosing which surfaces show: one glyph for every control that
-                configures what a list shows (this, the Session card's sections,
-                the session sidebar's view options). */}
             <Icon name="list-settings" className="h-[17px] w-[17px]" />
           </button>
         </TooltipTrigger>

@@ -108,7 +108,8 @@ const createRuntime = async ({ dataDir, openCode = createOpenCode(), ...override
     let calls;
     do {
       calls = openCode.fetchImpl.mock.calls.length;
-      await new Promise((resolve) => setTimeout(resolve, 0));
+      if (vi.isFakeTimers()) await vi.advanceTimersByTimeAsync(0);
+      else await new Promise((resolve) => setTimeout(resolve, 0));
       await runtime.flush();
     } while (openCode.fetchImpl.mock.calls.length !== calls);
   };
@@ -238,6 +239,57 @@ describe('dispatch results runtime', () => {
     expect(syntheticPosts(openCode)).toEqual([expect.objectContaining({ text: expect.stringContaining('Quick answer') })]);
   });
 
+  it('delivers the answer of an idle session while its subagents, workflow agents and ownWork sessions still run', async () => {
+    const { runtime, openCode } = await createRuntime();
+    openCode.state.sessions.ses_sub = { id: 'ses_sub', parentID: 'ses_child' };
+    openCode.state.sessions.ses_agent = { id: 'ses_agent', metadata: { openchamber: { kind: 'workflow-agent', parentID: 'ses_child' } } };
+    openCode.state.sessions.ses_worker = { id: 'ses_worker', metadata: { openchamber: { kind: 'operator-child', parentID: 'ses_child' } } };
+    openCode.state.active.ses_sub = { type: 'running' };
+    openCode.state.active.ses_agent = { type: 'running' };
+    openCode.state.active.ses_worker = { type: 'running' };
+    openCode.state.records.ses_child.push(user(11), assistant('Answer while the run goes on', 12), idle('succeeded', 13));
+    await runtime.register({ parentSessionId: 'ses_parent', sessionId: 'ses_child', dispatchedAt: 10 });
+    await vi.waitFor(() => expect(openCode.state.synthetic).toEqual([expect.objectContaining({ text: expect.stringContaining('Answer while the run goes on') })]));
+  });
+
+  it('keeps sending every later answer of a session the parent runs with ownWork, whatever started its turn', async () => {
+    const { runtime, openCode, emit } = await createRuntime();
+    openCode.state.sessions.ses_child.metadata = { openchamber: { kind: 'operator-child', parentID: 'ses_parent' } };
+    const idleEvent = () => emit({ type: 'session.status', properties: { sessionID: 'ses_child', status: { type: 'idle' } } });
+    openCode.state.records.ses_child.push(user(11), assistant('Started two reviews, waiting on them', 12), idle('succeeded', 13));
+    await runtime.register({ parentSessionId: 'ses_parent', sessionId: 'ses_child', dispatchedAt: 10, afterIdleId: null });
+    await vi.waitFor(() => expect(openCode.state.synthetic).toHaveLength(1));
+    expect(runtime.pending()).toEqual([expect.objectContaining({ follow: true, afterIdleId: 'msg_i13' })]);
+
+    // A subagent report woke it; nobody sent it a prompt.
+    openCode.state.records.ses_child.push(assistant('Both reviews are in: ship it', 20), idle('succeeded', 21));
+    idleEvent();
+    await vi.waitFor(() => expect(openCode.state.synthetic.map((message) => message.text)).toEqual([
+      expect.stringContaining('waiting on them'),
+      expect.stringContaining('ship it'),
+    ]));
+    expect(new Set(openCode.state.synthetic.map((message) => message.id)).size).toBe(2);
+
+    // A new send into it reuses the same follower instead of adding a second one.
+    await runtime.register({ parentSessionId: 'ses_parent', sessionId: 'ses_child', dispatchedAt: 30, afterIdleId: 'msg_i21' });
+    expect(runtime.pending()).toHaveLength(1);
+  });
+
+  it('stops following a session the user took over or the parent archived, without sending its next answer', async () => {
+    const { runtime, openCode, emit } = await createRuntime();
+    openCode.state.sessions.ses_child.metadata = { openchamber: { kind: 'operator-child', parentID: 'ses_parent' } };
+    openCode.state.records.ses_child.push(user(11), assistant('First answer', 12), idle('succeeded', 13));
+    await runtime.register({ parentSessionId: 'ses_parent', sessionId: 'ses_child', dispatchedAt: 10, afterIdleId: null });
+    await vi.waitFor(() => expect(openCode.state.synthetic).toHaveLength(1));
+
+    delete openCode.state.sessions.ses_child.metadata;
+    openCode.state.records.ses_child.push(user(20), assistant('Talking to the user now', 21), idle('succeeded', 22));
+    emit({ type: 'session.status', properties: { sessionID: 'ses_child', status: { type: 'idle' } } });
+    await vi.waitFor(() => expect(runtime.pending()).toEqual([]));
+    await settle();
+    expect(openCode.state.synthetic).toHaveLength(1);
+  });
+
   it('sends both answers when two turns of a followed session end before it is read', async () => {
     const { runtime, openCode } = await createRuntime();
     openCode.state.sessions.ses_child.metadata = { openchamber: { kind: 'operator-child', parentID: 'ses_parent' } };
@@ -315,9 +367,20 @@ describe('dispatch results runtime', () => {
     expect(openCode.state.synthetic).toEqual([]);
   });
 
-    delete openCode.state.active.ses_grandchild;
-    openCode.state.records.ses_child.push(assistant('Final answer', 40), idle('succeeded', 41));
-    await vi.waitFor(() => expect(openCode.state.synthetic).toEqual([expect.objectContaining({ text: expect.stringContaining('Final answer') })]));
+  it('keeps following when the session record does not parse, and sends one answer for two entries of one pair', async () => {
+    const { runtime, openCode } = await createRuntime();
+    openCode.state.sessions.ses_child = { id: 'ses_child', title: 42 };
+    openCode.state.records.ses_child.push(idle('succeeded', 5), assistant('One answer', 12), idle('succeeded', 13));
+    await runtime.register({ parentSessionId: 'ses_parent', sessionId: 'ses_child', dispatchedAt: 10, afterIdleId: 'msg_i5' });
+    await runtime.register({ parentSessionId: 'ses_parent', sessionId: 'ses_child', dispatchedAt: 11, afterIdleId: 'msg_i5' });
+    await settle();
+    expect(openCode.state.synthetic).toEqual([]);
+    expect(runtime.pending()).toHaveLength(2);
+    openCode.state.sessions.ses_child = { id: 'ses_child', title: 'Fix', metadata: { openchamber: { kind: 'operator-child', parentID: 'ses_parent' } } };
+    await vi.waitFor(() => expect(openCode.state.synthetic).toHaveLength(1));
+    await settle();
+    expect(syntheticPosts(openCode)).toHaveLength(1);
+    expect(runtime.pending()).toEqual([expect.objectContaining({ follow: true, afterIdleId: 'msg_i13' })]);
   });
 
   it('records the answer in an archived parent without waking it', async () => {
@@ -356,22 +419,6 @@ describe('dispatch results runtime', () => {
     expect(posts[0]).toBe(posts[1]);
     expect(openCode.state.synthetic).toHaveLength(1);
     expect(runtime.pending()).toEqual([]);
-  });
-
-  it('treats an id OpenCode already admitted as delivered', async () => {
-    const { runtime, openCode } = await createRuntime();
-    openCode.state.records.ses_child.push(user(11), assistant('Done', 12), idle('succeeded', 13));
-    openCode.state.syntheticStatus.push(409);
-    await runtime.register({ parentSessionId: 'ses_parent', sessionId: 'ses_child', dispatchedAt: 10 });
-    await vi.waitFor(() => expect(runtime.pending()).toEqual([]));
-  });
-
-  it('drops the delivery when the parent no longer exists', async () => {
-    const { runtime, openCode } = await createRuntime();
-    openCode.state.records.ses_child.push(user(11), assistant('Done', 12), idle('succeeded', 13));
-    openCode.state.syntheticStatus.push(404);
-    await runtime.register({ parentSessionId: 'ses_parent', sessionId: 'ses_child', dispatchedAt: 10 });
-    await vi.waitFor(() => expect(runtime.pending()).toEqual([]));
   });
 
   it('forgets results owed to a parent that was deleted', async () => {

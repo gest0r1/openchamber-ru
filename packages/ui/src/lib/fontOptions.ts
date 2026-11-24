@@ -201,13 +201,6 @@ export const isUiFontOption = (value: unknown): value is UiFontOption =>
 export const isMonoFontOption = (value: unknown): value is MonoFontOption =>
     value === CUSTOM_FONT_ID || (typeof value === 'string' && value in CODE_FONT_OPTION_MAP);
 
-/**
- * A stack that tries each family named in `list`, then `fallback` (the system
- * font), so a name that is not installed still renders and a mixed-script list
- * (a Latin primary with a CJK fallback) works. `list` is comma-separated;
- * empty entries are dropped and quotes or characters that could end the CSS
- * value are stripped from each family.
- */
 export const customFontStack = (list: string, fallback: string): string => {
     const families = list
         .split(',')

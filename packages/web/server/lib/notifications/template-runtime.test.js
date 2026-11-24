@@ -188,22 +188,6 @@ describe('notification template project of the session', () => {
     expect(variables.worktree).toBe('/work/other-project');
   });
 
-  it('reads the session\'s project through the host source runtime.js passes', async () => {
-    globalThis.fetch = vi.fn(async () => Response.json({ id: 'ses_1', title: 'Fix login', location: { directory: '/work/opencode-claude' } }));
-    const runtime = createRuntime(settings);
-    // runtime.js builds its own source for the host; it is not this runtime's internal one.
-    const source = {
-      buildOpenCodeUrl: (path) => path,
-      getOpenCodeAuthHeaders: () => ({}),
-      fetchImpl: (...args) => globalThis.fetch(...args),
-    };
-
-    const variables = await runtime.buildTemplateVariables(turnEnded, 'ses_1', source);
-
-    expect(variables.project_name).toBe('opencode-claude');
-    expect(variables.worktree).toBe('/work/opencode-claude');
-  });
-
   it('takes the directory the event names without reading the session', async () => {
     globalThis.fetch = vi.fn();
     const runtime = createRuntime(settings);

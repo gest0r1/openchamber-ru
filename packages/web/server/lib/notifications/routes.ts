@@ -366,17 +366,13 @@ export const registerNotificationRoutes = (app: {
     });
   });
 
-  // Cross-project seed for clients that do not initialize every directory:
-  // live status per session, the permission requests and forms still waiting
-  // for an answer, and each session's latest context reading. All come from
-  // the server's single upstream stream.
   app.get('/api/sessions/status', async (_req, res) => {
     await ensureSessionWatcher();
     const snapshot = getSessionStateSnapshot();
     res.json({
       sessions: snapshot,
-      pending: typeof getPendingBlockingRequestsSnapshot === 'function' ? getPendingBlockingRequestsSnapshot() : {},
-      context: typeof getSessionContextSnapshot === 'function' ? getSessionContextSnapshot() : {},
+      pending: getPendingBlockingRequestsSnapshot ? getPendingBlockingRequestsSnapshot() : {},
+      context: getSessionContextSnapshot ? getSessionContextSnapshot() : {},
       serverTime: Date.now(),
     });
   });
@@ -399,14 +395,10 @@ export const registerNotificationRoutes = (app: {
     });
   });
 
-  // Whether a session is unread is OpenCode's own state (`time.viewed`, set by
-  // `POST /api/session/:id/view`). These two routes tell the native push badge
-  // that the user is engaging with the app, and remove the session's pushed
-  // notifications from every device: the user saw it or answered it.
   app.post('/api/sessions/:id/view', (req, res) => {
     const sessionId = req.params.id;
-    if (typeof clearPendingPushBadge === 'function') clearPendingPushBadge();
-    void clearSessionPushNotifications?.(sessionId);
+    if (clearPendingPushBadge) clearPendingPushBadge();
+    void clearSessionPushNotifications?.(sessionId, { viewed: true });
 
     return res.json({
       success: true,
@@ -417,9 +409,7 @@ export const registerNotificationRoutes = (app: {
 
   app.post('/api/sessions/:id/message-sent', (req, res) => {
     const sessionId = req.params.id;
-    // Sending a message means the user is active in the app; reset the native
-    // push badge so it counts only notifications since this engagement.
-    if (typeof clearPendingPushBadge === 'function') clearPendingPushBadge();
+    if (clearPendingPushBadge) clearPendingPushBadge();
     void clearSessionPushNotifications?.(sessionId);
 
     return res.json({

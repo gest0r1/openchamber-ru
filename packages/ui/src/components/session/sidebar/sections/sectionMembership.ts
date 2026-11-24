@@ -34,12 +34,7 @@ export const resolveVisibleSidebarSections = ({
   show: Readonly<Record<Exclude<BuiltinSidebarSectionId, 'projects' | 'pages'>, boolean>>;
   keepWorkInPlace: boolean;
   keepPinnedInPlace: boolean;
-  /** False where the user's sections do not apply (VS Code). */
   customSections: boolean;
-  /**
-   * False where the sidebar does not list the app's pages (VS Code, phones).
-   * Pages has no show toggle of its own: it follows the hidden list.
-   */
   pages: boolean;
 }): VisibleSidebarSection[] => {
   const entries: SidebarSectionEntry[] = [...sections];
@@ -70,17 +65,9 @@ type SidebarSectionMembership = {
   custom: ReadonlyMap<string, readonly SidebarWorkRef[]>;
   projectGroups: ReadonlyMap<string, readonly string[]>;
   claimedKeys: ReadonlySet<string>;
-  /** Projects a group of projects took from the Projects section and the list by time. */
   claimedProjectIds: ReadonlySet<string>;
 };
 
-/**
- * Which works each section lists. The user's sections list every work that
- * matches, so one work can show in several; a section that takes its works
- * (`claims`) takes them out of their projects only, and a group of projects
- * takes its projects from the Projects section. Pinned and In work never share
- * a work: a pinned work is never in work, so their order decides nothing.
- */
 export const resolveSidebarSectionMembership = ({
   sections,
   pinned,

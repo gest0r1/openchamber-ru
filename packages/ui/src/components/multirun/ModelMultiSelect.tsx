@@ -70,7 +70,6 @@ interface ModelMultiSelectProps {
   triggerIcon?: React.ReactNode;
   portal?: boolean;
   addButtonAriaLabel?: string;
-  /** Tooltip on the trigger. */
   addButtonTooltip?: string;
 }
 

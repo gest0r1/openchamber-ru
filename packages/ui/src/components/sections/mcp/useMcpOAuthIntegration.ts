@@ -3,13 +3,6 @@ import type { Integration as IntegrationInfo } from '@/lib/opencode/model';
 import { opencodeClient } from '@/lib/opencode/client';
 import { findMcpIntegration, getMcpOAuthMethods } from './mcpOAuthIntegration';
 
-/**
- * The OAuth integration OpenCode registered for an MCP server, or null while
- * it is unknown or when the server has no OAuth sign-in. Nothing is read
- * while `enabled` is false. `onUnavailable` runs once when the lookup ends
- * without a sign-in to offer: the retries ran out, or the integration has no
- * OAuth method. Null alone cannot tell that apart from "still looking".
- */
 export const useMcpOAuthIntegration = (
   serverName: string,
   directory: string | null,

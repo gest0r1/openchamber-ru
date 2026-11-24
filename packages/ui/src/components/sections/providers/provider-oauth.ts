@@ -1,24 +1,3 @@
-/**
- * Provider OAuth flow helpers.
- *
- * OpenCode v2 signs a provider in through its *integration*:
- * `integration.oauth.connect` opens an attempt and answers with the mode that
- * decides what the client has to do next:
- *
- * - `auto` — the user finishes in the browser and the client polls
- *   `integration.oauth.status` until the attempt completes. The credential is
- *   only stored once the attempt reports `complete`.
- * - `code` — the user copies a code out of the browser and hands it to
- *   `integration.oauth.complete`.
- *
- * An `auto` attempt marked `paste` (MCP servers, OpenCode 2.2.6+) also takes
- * the address the browser landed on through `integration.oauth.complete`, for
- * a browser the provider's redirect cannot bring back (a phone over the relay,
- * OpenCode on another machine). The result still arrives through the status.
- *
- * An attempt the user walks away from is dropped with
- * `integration.oauth.cancel`, and every attempt carries its own expiry.
- */
 
 import type { FormField, FormValue, FormWhen } from '@/lib/opencode/model';
 import type { I18nKey, I18nParams } from '@/lib/i18n';
@@ -32,7 +11,6 @@ export interface OAuthAttempt {
   mode: OAuthCompletionMode;
   url: string;
   instructions: string;
-  /** `auto` only: the attempt also takes the address the browser landed on, for a redirect that cannot come back. */
   paste: boolean;
 }
 

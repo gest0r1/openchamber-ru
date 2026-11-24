@@ -121,36 +121,27 @@ export const formatQuotaResetLabel = (
   }
 };
 
-/**
- * A reset time short enough for a narrow row: the time alone today
- * ("17:00"), weekday and time within the week ("Wed 12:09"), month and day
- * beyond it ("Dec 1"), in the user's locale and clock. The full date and time
- * belong in a tooltip (`formatQuotaResetLabel`).
- */
 export const formatQuotaResetShort = (
   resetAt: number | null,
   fallback?: string | null,
   timeFormatPreference: TimeFormatPreference = 'auto',
-  now: Date = new Date(),
+  { providerId, now = new Date() }: { providerId?: string; now?: Date } = {},
 ): string => {
   if (!resetAt) return fallback ?? '';
-  const resetDate = new Date(resetAt);
+  const resetDate = getQuotaResetDate(resetAt, providerId, now);
   if (!Number.isFinite(resetDate.getTime())) return fallback ?? '';
   if (resetDate.toDateString() === now.toDateString()) {
     return formatTimeForPreference(resetDate, timeFormatPreference, { fallback: fallback ?? '' });
   }
-  const untilMs = resetDate.getTime() - now.getTime();
-  if (untilMs > 0 && untilMs < 7 * 24 * 60 * 60 * 1000) {
+  const displayTime = resetDate.getTime();
+  const cutoff = now.getTime() + WEEK_MS;
+  const withinWeek = providerId === 'claude' ? displayTime <= roundToMinute(cutoff) : displayTime < cutoff;
+  if (displayTime > now.getTime() && withinWeek) {
     return formatDateTimeForPreference(resetDate, timeFormatPreference, { weekday: 'short', hour: 'numeric', minute: '2-digit' });
   }
   return formatDateTimeForPreference(resetDate, timeFormatPreference, { month: 'short', day: 'numeric' });
 };
 
-/**
- * A provider's count label with its long numbers compacted as token counts
- * are ("10.2 / 20,000 used" reads "10.2 / 20K used"); numbers under 10,000
- * stay as written. The full label belongs in a tooltip.
- */
 export const compactQuotaValueLabel = (label: string): string => (
   label.replace(/\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d{5,}(?:\.\d+)?/g, (match) => {
     const value = Number(match.replace(/,/g, ''));
@@ -191,7 +182,6 @@ export const formatWindowLabel = (label: string): string => {
   if (label === 'plan_limit') return t('quota.window.planLimit');
   if (label === 'auto') return t('quota.window.auto');
   if (label === 'api') return t('quota.window.api');
-  // A product name, the same in every language.
   if (label === 'vibe') return 'Vibe';
   if (label === 'on_demand') return t('quota.window.onDemand');
   if (label === 'session') return t('quota.window.session');

@@ -6,13 +6,13 @@ An assistant reply can carry fenced `openui-lang` blocks. This module owns the c
 
 ## Invariants
 
-- Only an assistant reply on screen draws blocks: `MarkdownRenderer` sets `uiBlocks` for the `assistant` variant, and a subagent call's expanded row draws the subagent's reply the same way (`ToolPart`). Copies and image exports keep the source. User messages, reasoning, other tool output and documents show the fence as code.
+- Assistant replies and their image exports draw blocks: `MarkdownRenderer` sets `uiBlocks` for the `assistant` variant, and a subagent call's expanded row draws the subagent's reply the same way (`ToolPart`). Copies keep the source. User messages, reasoning, other tool output and documents show the fence as code.
 - The catalog in `catalog.ts` is the one source for the parser, validation and the agent's signatures of the built-in components. An extension's component never takes a catalog name or one an earlier extension holds. After changing it, run `bun run --cwd packages/ui ui-blocks:generate`; `guidance.test.ts` fails while the server copy is stale.
 - A finished block that has any parser error, an undefined or unused name, state, a query or a mutation, or no `Stack` root draws nothing but its source and a short note. One exception: a reply's block with no fields, Buttons or expressions that is not cut short draws its sound parts and says what it lost, under the block. A block never shows with parts silently dropped.
 - While a block streams, a node keeps drawing its last props that parsed against its schema; a node that never parsed draws nothing.
 - Fields and Buttons act only once a block is finished and has somewhere to answer: an assistant reply that has settled, or a page whose call still waits. Anywhere else they show disabled.
 - A page takes one answer: a press answers the waiting call at once, and the block freezes.
-- In a reply a press only chooses. A decision is the buttons of one card whose title no other card in the block shares, named by the title; elsewhere, the buttons that share a `value` (buttons without one make one more). Each decision takes one answer: a button, the card's note alone, or both. Once every decision has one, or the user presses "Send chosen", the answers go to the agent in one piece and the block freezes. An answered card without fields folds to one line with its answer and a way to change it before sending; the fold and the notes come back after a reload.
+- In a reply a press only chooses. A decision is the buttons of one card whose title no other card in the block shares, named by the title; elsewhere, the buttons that share a `value` (buttons without one make one more). Each decision takes one answer: a button, the card's note alone, or both. Once every decision has one, or the user presses "Send chosen", the answers go to the agent in one piece and the block freezes. An answered card without fields folds with its answer and a way to change it before sending. Narrow cards give the title its own row.
 - A reply block with fields and no Button has no press to send them, so it gets the "Send" button a waiting form gets and the same Sent / Not sent line. It stays disabled until a field has a value and is gone after the send. After a failed send, clearing every field leaves it disabled and hides only the "Not sent" line, which returns with a value; a block with a frame that answers keeps the line. A block with any Button sends through its buttons alone, so it gets no second one.
 - A primary button is the agent's pick and is tinted until its decision has an answer; then only the chosen button is, with a check.
 - `@openuidev/lang-core` is a dependency of this private package only, bundled at build time. It never goes into `packages/web`'s dependencies.
@@ -26,6 +26,12 @@ An assistant reply can carry fenced `openui-lang` blocks. This module owns the c
 - Choice controls own keyboard focus and stop their click from bubbling to the clickable option row, so one press changes the selection once. Disabling a date field includes its time inputs and menu.
 
 ## Decisions
+
+### Why image exports draw an inert block
+
+Detached exports use `UiBlock` because they have no session provider. Nested Markdown inherits the image purpose, theme and highlighting. Both renderers load before capture; animations stop so bars retain their full size.
+
+Extension frames have no offscreen snapshot, so exports keep their source and diagnostic beside sound built-in parts. A failed chunk also keeps source. Export loading retries without navigation because a reload would cancel capture ([on-demand imports](../../../lib/DOCUMENTATION.md#on-demand-imports)).
 
 ### Why an extension's component is a frame in the block
 
@@ -105,7 +111,7 @@ A triage of five cards was a wall of buttons in which the undecided cards were h
 
 ### Why an `<openui-lang>` tag, an `openui` fence and a bare fence draw as a block
 
-The guidance reaches the agent inside XML context tags, and weaker models (GLM Flash) answered with the block wrapped in `<openui-lang>…</openui-lang>`: the program was valid, but the chat showed it as one paragraph. Other models open the fence as `openui`, the library's name, and the chat showed the program as code. The guidance spells the fence out, and `taggedBlocks.ts` turns both into an `openui-lang` fence before an assistant or subagent reply renders, so replies already written that way draw too. Only a tag or fence at the start of a line outside other code fences counts. Rejecting them as model errors was the alternative; the program inside is correct, and the user loses the reply over a label.
+The guidance reaches the agent inside XML context tags, and weaker models (GLM Flash) answered with the block wrapped in `<openui-lang>…</openui-lang>`: the program was valid, but the chat showed it as one paragraph. Other models open the fence as `openui`, the library's name, or drop the language entirely, and the chat showed the program as code. The guidance spells the fence out, and `taggedBlocks.ts` turns all three into an `openui-lang` fence before an assistant or subagent reply renders, so replies already written that way draw too. A bare fence counts only at the top level of the reply, outside list items and quotes, and only when the OpenUI parser accepts its whole body; while it still streams, its first statement after `//` comments has to be `root = Stack(`. The parser loads on demand with the first such fence, so until it arrives the fence shows as code. A fence with any other label, `text` included, stays source: that label is the agent saying it wants to show the program, not run it. Tags and fences inside other code fences never count; fence boundaries come from the Markdown parser, so a quote or list that ends also ends its fence. An image export keeps a prompt's fences as source, as the chat shows them. Rejecting them as model errors was the alternative; the program inside is correct, and the user loses the reply over a label.
 
 ### Why a subagent's reply draws its blocks
 

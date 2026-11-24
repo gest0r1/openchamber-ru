@@ -38,8 +38,6 @@ export const CONTEXT_SURFACES: readonly ContextSurfaceDescriptor[] = [
     id: 'context',
     descriptionKey: 'contextRail.surface.context.description',
     mode: 'context',
-    // Its own glyph, apart from the context ring the header and the Session
-    // card show for the fill, and an outline like its rail neighbours.
     icon: 'pie-chart',
     labelKey: 'contextPanel.mode.context',
     availability: 'always',
@@ -72,7 +70,6 @@ export const CONTEXT_SURFACES: readonly ContextSurfaceDescriptor[] = [
     id: 'walkthrough',
     descriptionKey: 'contextRail.surface.walkthrough.description',
     mode: 'walkthrough',
-    // Its own icon: `signpost` is Routing's (automatic model choice) in Settings.
     icon: 'route',
     labelKey: 'contextPanel.mode.walkthrough',
     availability: 'always',

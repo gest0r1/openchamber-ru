@@ -30,17 +30,10 @@ const escapeMarkdownLinkText = (text: string): string => text.replace(/[\\`*_~[\
 
 const joinTrailing = (text: string, at: number): string => (CHIP_TRAILING_PUNCTUATION.test(text.slice(at, at + 8)) ? '\u2060' : '');
 
-/**
- * Turns each `[name.png]` citation of one of
- * the message's own attachments into an attachment link, which the Markdown
- * renderer draws as a file chip. Brackets around anything else stay text.
- */
 const withAttachmentCitations = (
     segment: string,
     attachments: ReadonlyArray<AttachmentCitationLink>,
 ): string => {
-    // HTML and character references stay text in the renderer (`literalText`),
-    // so the text needs no escaping: entities would show inside code and formulas.
     if (attachments.length === 0) return segment;
     const byName = new Map(attachments.map((attachment) => [attachment.filename.trim().toLowerCase(), attachment]));
     let output = '';

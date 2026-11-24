@@ -52,9 +52,9 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
       - name: Non-root extension checkout tests
-        run: bun test packages/web/server/lib/guests/root-guest-checkout.test.ts
+        run: bun run --cwd packages/web test -- server/lib/guests/root-guest-checkout.test.js
       - name: Real UID root to nobody Git clone and read-only adoption
-        run: sudo -n env PATH="$PATH" bun test packages/web/server/lib/guests/root-guest-checkout.test.ts
+        run: sudo -n env PATH="$PATH" bun run --cwd packages/web test -- server/lib/guests/root-guest-checkout.test.js
 
   tests:
     runs-on: ubuntu-24.04
@@ -115,7 +115,7 @@ jobs:
           [[ "${#packages[@]}" == 1 ]] || { echo 'Expected one OpenChamber package' >&2; exit 1; }
           export BUN_INSTALL="$RUNNER_TEMP/oc-p1-bun"
           bun add -g --ignore-scripts "${packages[0]}"
-          test "$("$BUN_INSTALL/bin/openchamber" --version | sed -E 's/^OpenChamber[[:space:]]+v?//;s/^v//')" = 2.7.1
+          test "$("$BUN_INSTALL/bin/openchamber" --version | sed -E 's/^OpenChamber[[:space:]]+v?//;s/^v//')" = "$(node -p 'require("./packages/web/package.json").version')"
           "$BUN_INSTALL/bin/openchamber" serve --help >/dev/null
       - name: Build VS Code extension
         run: bun run --cwd packages/vscode build

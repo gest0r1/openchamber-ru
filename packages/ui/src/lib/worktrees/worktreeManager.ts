@@ -202,7 +202,6 @@ const deriveSdkWorktreeNameFromDirectory = (directory: string): string => {
   return parts[parts.length - 1] ?? normalized;
 };
 
-/** The commands as one `&&` chain for the server, so the first failure stops the rest. */
 const joinWorktreeCommands = (args: {
   projectDirectory: string;
   commands: string[];
@@ -740,14 +739,6 @@ const forgetRemovedWorktree = (project: ProjectRef, worktree: WorktreeMetadata):
   clearWorktreeRemoval(worktree.path);
 };
 
-/**
- * What the server runs in the worktree before it goes; may ask for trust
- * first, unless `ask` is false (a removal nobody started by hand), where
- * untrusted shared commands reject instead. Nothing is asked for a checkout
- * the server runs no teardown in: one whose bootstrap failed never ran its
- * setup, and a contributor fork runs no project command before its checkout
- * trust passes.
- */
 export const resolveWorktreeTeardownCommand = async (
   project: ProjectRef,
   worktree: WorktreeMetadata,
@@ -761,11 +752,6 @@ export const resolveWorktreeTeardownCommand = async (
   });
 };
 
-/**
- * Archives the worktree: the server records its state with `sessionIds` (the
- * sessions the caller archived for it) under a private ref and removes the
- * folder, keeping the branch. The row shows the removal until git answers.
- */
 export async function archiveProjectWorktree(
   project: ProjectRef,
   worktree: WorktreeMetadata,
@@ -791,7 +777,6 @@ export async function removeProjectWorktree(project: ProjectRef, worktree: Workt
     sourceControl: Pick<SourceControlAPI, 'repositoryBinding'>;
     git: Pick<GitAPI, 'planNetworkOperation' | 'executeNetworkOperation' | 'getNetworkOperation'>;
   };
-  /** Only from the failure toast's "Delete without teardown" after the teardown failed. */
   skipTeardown?: boolean;
 }): Promise<void> {
   const projectDirectory = normalizePath(project.path);
@@ -807,9 +792,6 @@ export async function removeProjectWorktree(project: ProjectRef, worktree: Workt
   try {
     let teardownCommand = options?.skipTeardown === true ? undefined : await resolveWorktreeTeardownCommand(project, worktree);
     if (deleteRemote && branchName && remoteName && options?.network) {
-      // The teardown runs on its own once the remote is known ready (a remote
-      // that refuses stops nothing) and before the remote branch goes (a
-      // failing teardown deletes nothing); the removal then has nothing left to run.
       const teardownFirst = teardownCommand;
       await runBoundRemoteBranchDelete({
         beforePlan: teardownFirst

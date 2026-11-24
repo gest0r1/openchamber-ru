@@ -188,8 +188,6 @@ export const AddCatalogDialog: React.FC<AddCatalogDialogProps> = ({ open, onOpen
           return;
         }
 
-        // With no identity that signs in on its own the picker is hidden, so
-        // the toast leads to Git settings instead of asking to pick one.
         if (!showIdentityPicker) {
           toast.error(t('settings.skills.catalog.add.toast.privateRepoNoIdentity'), {
             action: {

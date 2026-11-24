@@ -60,17 +60,9 @@ export type SessionTabMenuArgs = {
   isActive: boolean;
   select: () => void;
   closeOtherTabs: () => void;
-  /** Menu primitives for the surface the menu opens in. */
   components: SessionMenuSlots;
 };
 
-/**
- * One tab, active or not. The tab drags to reorder; on hover the close
- * control takes the project icon's slot at the tab's start. The session menu, supplied by the
- * header via `renderMenu`, opens on right-click under the cursor without
- * changing the active tab. While the active tab is renaming, the close
- * control is hidden; only the rename controls show.
- */
 const SessionTabItem: React.FC<{
   tab: SessionTab;
   tabNumber: number;
@@ -139,8 +131,6 @@ const SessionTabItem: React.FC<{
                   aria-selected={isActive}
                   tabIndex={isActive ? undefined : 0}
                   onClick={(event) => {
-                    // Alt toggles the unread mark, Shift opens the session
-                    // in the side panel, as on a sidebar row.
                     if (event.altKey) {
                       toggleSessionRead(tab.id, isUnread, t);
                       return;
@@ -219,7 +209,6 @@ const SessionTabItem: React.FC<{
         </TooltipTrigger>
         <TooltipContent side="bottom" sideOffset={6}><TooltipLabelWithShortcut label={title} shortcut={tabShortcut} /></TooltipContent>
         </Tooltip>
-        {/* The shared menu: its glass, keyboard navigation and redraw guard. */}
         <ContextMenuContent finalFocus={() => menuReturnsFocus?.() ?? true} className="min-w-[190px]">
           {renderMenu(menuArgs)}
         </ContextMenuContent>
@@ -232,10 +221,6 @@ export const SessionTabsStrip: React.FC<{
   renderMenu: (args: SessionTabMenuArgs) => React.ReactNode;
   onMenuOpenChangeComplete?: (open: boolean) => void;
   suppressActiveTabControls?: boolean;
-  /**
-   * Whether a closing tab menu gives focus back to its tab. False while a
-   * Rename from the menu opens the title field, which takes the focus.
-   */
   menuReturnsFocus?: () => boolean;
   children: React.ReactNode;
 }> = ({ renderMenu, onMenuOpenChangeComplete, suppressActiveTabControls = false, menuReturnsFocus, children }) => {

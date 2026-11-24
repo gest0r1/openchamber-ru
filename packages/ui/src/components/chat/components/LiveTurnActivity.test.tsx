@@ -47,9 +47,10 @@ plugin({
     },
 });
 
-// Loaded after the plugin: its markdown imports reach the worker URL import
-// that Bun cannot resolve on its own.
+// Loaded after the plugin: its imports reach the logo glob that Bun cannot
+// expand on its own.
 const { TurnFold, TurnPagesRow } = await import('./LiveTurnActivity');
+const { TurnChangedFilePills } = await import('../message/body/TurnChangedFilePills');
 
 const unavailable = (): never => { throw new Error('Activity rendering must not call runtime APIs'); };
 const runtimeApis: RuntimeAPIs = {

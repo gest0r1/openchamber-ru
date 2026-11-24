@@ -111,9 +111,6 @@ export function translateWireEvent(payload: JsonValue) {
       if (!sessionID) return [];
       return [event('session.deleted', { sessionID, info: { id: sessionID } })];
 
-    // Their own events, never a `session.updated`: the consumers of that one
-    // (goal mode, lineage, notifications) would take an archive or a restore
-    // for an edit.
     case 'session.archived':
       if (!sessionID) return [];
       return [event('session.archived', { sessionID })];

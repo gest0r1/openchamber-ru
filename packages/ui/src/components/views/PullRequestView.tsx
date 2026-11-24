@@ -29,8 +29,6 @@ export const PullRequestView: React.FC = () => {
   const { t } = useI18n();
   const { git, sourceControl } = useRuntimeAPIs();
   const currentDirectory = useEffectiveDirectory();
-  // The pull-request workflow operates on the picked repository, or the root
-  // when nothing is picked.
   const { rootIsGitRepo, gitDirectory, nestedRepos, repositoryOptions, unreadable } = useNestedGitDirectory(currentDirectory ?? null, { recheckOnOpen: true });
   const status = useGitStatus(gitDirectory ?? null);
   const branches = useGitBranches(gitDirectory ?? null);
@@ -169,9 +167,6 @@ export const PullRequestView: React.FC = () => {
     return <GitRepositoryUnreadableState directory={unreadable.directory} message={unreadable.message} />;
   }
 
-  // Non-repo root: surface nested-repository resolution while the operating
-  // directory has not proven to be a repository (discovering, failed,
-  // unsupported, none found, or settling on the auto-selected one).
   if (rootIsGitRepo === false && isGitRepo !== true) {
     return (
       <NestedRepoResolutionStates

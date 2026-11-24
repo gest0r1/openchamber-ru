@@ -4,14 +4,6 @@ import { isCapacitorApp } from '@/lib/platform';
 export type HostedSurface = 'desktop' | 'mobile';
 
 const MOBILE_SURFACE_MAX_WIDTH = 768;
-/**
- * Smallest viewport side that earns the tablet layout, following Android's
- * long-standing `sw600dp` size class. The SHORT side is what makes this a size
- * question rather than a device question: a phone reports ~360-430 whichever
- * way it is held, a 7"+ tablet or an unfolded book foldable reports ~600+, and
- * a foldable folded shut drops back under it. So a fold is just a resize, and
- * nothing here has to know what a foldable is.
- */
 export const TABLET_LAYOUT_MIN_SHORT_SIDE_PX = 600;
 const SURFACE_SWITCH_DEBOUNCE_MS = 800;
 
@@ -42,8 +34,6 @@ const isPhoneViewport = (): boolean => {
   const viewportWidthMatches = Number.isFinite(width)
     && width <= MOBILE_SURFACE_MAX_WIDTH
     && isTouchOrCoarsePointer();
-  // Rotation swaps the viewport width, so a phone is recognized by its short
-  // screen side. Tablets and fine-pointer touch desktops keep the width rule.
   const screenShortSideMatches = Number.isFinite(screenWidth)
     && screenWidth > 0
     && Number.isFinite(screenHeight)

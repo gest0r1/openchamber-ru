@@ -249,13 +249,23 @@ The composer compares normalized attachment MIME types with the selected model's
 
 Attachment drafts stay in memory for the page's lifetime, including composer remounts, independently of text persistence. `selectAttachmentDraft` saves the outgoing list and restores the rendered composer's runtime, directory, and session before paint. Switching cancels unfinished attachment reads. Send and queue recovery pass their captured draft identity so a late failure restores files to the source rather than the currently open session. Clearing or deleting a draft releases only its files. Opening a new-session draft leaves the outgoing session's files available for a return visit. With a chat pinned in the side panel two composers are on screen; each shows its own draft's files (`useDraftAttachedFiles`) and the selected slot follows the composer the user works in (composer documentation, *Pinned composer*).
 
+### Why unknown binary files stay local until Send
+
+OpenCode cannot pass arbitrary binary formats such as archives to the model, and a web or hosted-mobile picker has no path on OpenCode's filesystem. Saving the bytes at attach time would upload files the user may still remove, to whichever instance was open then. So such a file stays a local attachment, and at Send `model-attachment-paths.ts` saves it in OpenCode's temp folder and sends a path note, whatever the model's metadata says. On the desktop it has its own path and attaches as a note at once, as before. Office and OpenDocument files keep their `documentAttachBehavior` choice; "convert" that yields no text keeps refusing the file.
+
 ### Why a large desktop file goes as a note and not as a `file://` URL
 
 OpenCode reads every `file://` attachment whole, detects its type from the bytes, and hands all of it to the model: a 15 MB PDF becomes a 21 MB request, a 15 MB log overflows the context, and a type it has no use for, such as EPUB or a ZIP, is stored and left out of the request with no error. Over 20 MB it refuses the send.
 
 So on the desktop a file past `MAX_INLINE_ATTACHMENT_BYTES`, or one `attachment-files.ts` cannot prepare, attaches as a short `text/plain` note that gives its path and size, with `agentPath` set to that path and no size limit. The agent reads what it needs with its own tools. The note is a plain data URL attachment, so the chip, queue, drafts, restore and resend need no case of their own. Outside the desktop OpenCode may not share the disk, so these files are refused or fail intake as before.
 
-A HEIC the bundled decoder cannot read (`HeicConversionError`, Apple's HDR gain-map photos) goes as the same note in every runtime, and the agent converts the file it names with its own tools. On the desktop the note names the file's own path. Everywhere else the store first writes the original bytes into OpenCode's temp folder (`opencodeClient.writeOpenCodeTempFiles`, the route the composer's `savePastedImagesAsFiles` uses), so the file lands on the machine OpenCode runs on, and the note names that copy. Only when that write fails is the file refused, with a toast that names it and asks for it to be saved as JPEG. An image inside a document that cannot be converted keeps the older behavior and refuses the whole document, because the dropped file in that case is the document, not the HEIC.
+A HEIC the bundled decoder cannot read (`HeicConversionError`, Apple's HDR gain-map photos) goes as the same note in every runtime, and the agent converts the file it names with its own tools. On the desktop the note names the file's own path. Everywhere else the store holds the original bytes in the draft (`saveOnSend`) and writes nothing; Send or Queue writes them into OpenCode's temp folder, so the file lands on the machine OpenCode runs on, and the note names that copy. A file shared from another app (`addAttachedFile`'s `shared` option) is held the same way. The `shared` option lets a shared file land in the draft it names even when the user switched drafts while it was read, which an ordinary read treats as stale. Nothing reaches OpenCode's machine before Send. `addAttachedFile`'s `saveOnSend` option holds a file in the draft: `reference` keeps the original bytes (`saveOnSend`: an unreadable HEIC, an Office document attached as is, an image saved as a file for a model that cannot read images), and `copy` prepares the file as usual and marks it `saveCopyOnSend` (an image saved as a file for a model that reads images). A held file over the 20 MB send limit is refused by name before it is read; a `copy` image too large to attach inline is held as a `reference`. A `reference` keeps its bytes even on the desktop with a native path, because a desktop app can run against an OpenCode on another machine. `saveAttachmentsHeldForSend` writes the held files the outgoing message cites (the caller passes their ids, so a file whose citation the user deleted is neither written nor able to block the send) where OpenCode runs when Send, Queue or a parallel launch starts, bound to the runtime instance captured when it starts; a second call for the same draft while one is running gets the same result instead of writing again, and the writer (`lib/opencode/temp-files.ts`) replaces the characters a Windows filesystem cannot hold in a name (`<>:"|?*`), and swaps each `reference` for its path reference and each `copy` for the file plus a path note to the saved copy under the same name, so the file's one citation sends both. A write that fails keeps the file held and names it, and the send stops. The reference keeps the held original as its `original`, marked `saveOnSend`, so a queued message's Edit puts the document back held for Send instead of the reference to a copy already written. A `copy` needs no `original`: the queued file is the original, and Edit gets it back with the note to its copy, so a resend writes nothing again. The enqueue request carries originals only while it stays under 40 MiB, below the server's 50 MB JSON parser limit; an original past that is left out and Edit gets the path note, so two large documents still queue instead of failing with 413 after they were written. An image inside a document that cannot be converted keeps the older behavior and refuses the whole document, because the dropped file in that case is the document, not the HEIC.
+
+An attachment whose input type the selected model does not support goes as a path note (`model-attachment-paths.ts`). This includes images sent to text-only models and PDFs sent to models without PDF input. `routeMessage` converts files for prompts and commands, and the composer converts queued files before handing them to the server queue, which bypasses `routeMessage`. The note keeps the attachment's filename and links to its location so the agent can open it with tools. A data URL is written into a fresh folder under OpenCode's temp directory for each attachment, avoiding collisions even when names repeat. Each write is bound to the runtime instance captured when the send or queue began: after a switch it writes nothing to the new instance, and the send stops with the draft kept for its own instance. A `file://` reference already on OpenCode's machine supplies its own path; VS Code file references can carry `text/plain` MIME, so image and PDF extensions also identify them. A write failure aborts the send with `AttachmentPathSaveError`; the composer restores its attachments and text and shows a localized toast. A failed queue conversion leaves the draft intact. A converted queued attachment keeps the picked bytes as `original`, which the server queue stores but never delivers; Edit puts the original back in the composer, so a later model that reads it gets the file itself. Every path note, this conversion's and the desktop and Send-time references `input-store.ts` makes, carries `PATH_NOTE_MEDIA_TYPE` in its data URL, and the conversion passes such a note through unchanged: it is `text/plain`, so for a model whose metadata lists no text input it would otherwise be saved again under the original file's name and give the agent a second path to the note itself. The parameter rides the data URL rather than a field because sends, the server queue and a queued item's own Send only carry `mime`, `url` and `filename`; OpenCode decodes any `data:<type>;base64,` URL and reads the type from the part's `mime`. A reference an older build stored in the queue has a plain `text/plain` data URL; `toAttachedFile` recognizes it by the path fields every reference carries (a local `text/plain` attachment whose `agentPath` equals its `serverPath`) and gives it the marker when the queue hands it back. A note restored from a sent message by Edit or fork (`addRestoredAttachment`) also comes back as plain `text/plain`, because OpenCode stores the file part without the parameter, and a #7309 note keeps the original file's name rather than a path; `withRestoredPathNoteMarker` recognizes it by the opening every note OpenChamber writes starts with (`File on disk: ` or `File saved on disk: `, built in `attachment-files.ts`) and gives it the marker back. A text file of the user's own that starts with the same words would be taken for a note; the cost is that a model without text input gets its text unconverted. Media OpenCode's runner does not hand to the model (audio, video, and images other than PNG, JPEG, GIF and WebP) go as a path note even when the model lists their input type, because OpenCode would drop them. Links and folder references have no input type and pass through. Unknown metadata, `openchamber/auto` included, keeps sending original file parts, except binary bytes no input type covers, which always go as a path.
+
+### Why unsupported attachments convert at send and not at attach
+
+The attachment retains its original type while composing, so the composer previews it and a switch to a model that supports the input sends the original bytes. One conversion in `routeMessage` covers the composer, `/btw`, multi-run and other sends; the composer handles its queue before enqueueing. Converting on intake would miss screenshots added outside the file picker and would bind a draft to the model selected when the file was added.
 
 ### Why an unreadable HEIC goes as a saved file and not as an image part
 
@@ -429,21 +439,39 @@ fetch from restoring deleted messages. The remaining visible records stay in pla
 while the loader establishes fresh coverage. Their optimistic shadows remain
 until an authoritative snapshot confirms them.
 
+Revert actions are serialized per runtime and session from the history refresh
+through the authoritative session read. Descendant input also waits for an
+ancestor's in-flight revert, including when the descendant appears during the
+refresh. Prompts, slash commands and inputs that commit a revert wait before
+reading the marker. A failed revert rejects waiting input. An issued stage stays
+in the wait across a runtime round trip. Until the stage's response and the
+session read that follows it both arrive, the server's marker is unknown: a stage
+request can reach the server and still reject when its response is lost, so the
+next input re-reads the session before it can use the marker, whether or not the
+runtime changed. A failed read keeps that reconciliation pending. Stale revert completions do not restore composer drafts.
+
+### Why input waits for a revert to finish
+
+The optimistic marker appears before descendant reverts and the server's stage
+request finish. Sending against that marker early can commit nothing on the
+server, then a late stage hides the new prompt and answer. Waiting for the full
+operation keeps the server and client on the same branch.
+
 ### Why a send with context commits the revert first and a plain prompt does not
 
 OpenCode's commit also deletes every inbox item admitted after the boundary. Context goes in as synthetic messages before the prompt, so context admitted while the revert is staged lies past the boundary, and the prompt's own commit deletes it while the prompt survives. When a send admits any synthetic message, the prompt and command routes commit the revert themselves (`session.revert.commit`) right before the first one; the server-owned message queue and auto-review do the same for what they deliver. A plain prompt leaves the commit to OpenCode, which makes it only after the prompt's preparation succeeds, so a prompt that fails there keeps the revert staged. Once the send has committed the revert, a failed send no longer restores the marker or the reverted tail: the server has deleted both. When the commit's response was lost, the session record, read once the connection is back, says whether the revert is still staged; a failed read restores it, and the next send's commit of an already committed revert does nothing.
 
 ## Forking after an answer
 
-`/fork`, the fork action on an answer, and `/btw` keep the answer in the fork. OpenCode's fork `before` leaves out the record it names, so `transcriptCutAfterMessage` in `transcript-cut.ts` names the next turn boundary, the first record after the answer that starts something new, such as a prompt, a compaction, a background command's result or a workflow report. Without one, ordinary forks copy the whole transcript; `/btw` looks for the boundary on the server first. A locally visible cut may not be persisted yet. All three paths retry a 404 once with the same cut and captured runtime, then propagate the error so the user can try again.
+`/fork` and the fork action on an answer keep the answer in the fork. OpenCode's fork `before` leaves out the record it names, so `transcriptCutAfterMessage` in `transcript-cut.ts` names the next turn boundary, the first record after the answer that starts something new, such as a prompt, a compaction, a background command's result or a workflow report. Without one, the fork copies the whole transcript. A locally visible cut may not be persisted yet. Both paths retry a 404 once with the same cut and captured runtime, then propagate the error so the user can try again.
 
-### Why `/btw` asks the server before copying a whole transcript, and retries never widen a cut
+`/btw` forks at HEAD (`lib/btw.ts`), so a side question asked mid-turn sees the work in progress. OpenCode copies only settled records into any fork: a step still running, a running shell and a running compaction stay in the parent. A step settles only after all its tool calls returned, so the copy never holds a call without a result. The running step left out reaches the fork's first question as a synthetic text snapshot (its text so far and its tool calls with their status), read from the server right before the fork.
 
-The next prompt can reach the server before the first fork request or between attempts, while this window still shows an idle transcript. An omitted `before` would copy that prompt and its unfinished response into the fork. So when the local transcript has no boundary after the answer, `/btw` reads the server's tail back to the answer and takes the boundary from there. Comparing only the newest record would not do: the server's newest record after a finished turn is the `idle` record, which this window never has. Only when the server also has no boundary does `/btw` omit `before`. Keeping a cut on retry preserves the selected history even when the main chat advances.
+### Why `/btw` forks at HEAD and not after the last finished answer
 
-The current API has no inclusive upper bound at an answer, so a prompt landing between that read and the fork is still copied. Refusing `/btw` on every idle session to close that gap would break its most common use.
+The cut after the last answer dropped the whole running turn, so `/btw` could not answer "what is it doing now", and on a first turn it failed with no answer to cut after. It was there to keep an unanswered tool call away from the provider, which OpenCode's fork has done itself since 2.0 (#43994, #44001). OpenCode's own `/btw` (`session.generate`) cuts its context at the same place, the first running step. The snapshot covers the step OpenCode leaves out as plain text, which no provider rejects. It is read from the server and not from this window's store, because the store trails the server by up to a second and a step that had just settled would then appear twice.
 
-A failed read, an answer the server does not list, and a parent with no completed answer each fail before creating a fork and clear the creating flag so the user can retry. No parent messages are changed.
+A failed read of the parent and a failed fork (an empty parent: OpenCode refuses to fork it) fail before creating a fork and clear the creating flag so the user can retry. No parent messages are changed.
 
 ### Why the next turn boundary and not the next record
 
@@ -505,6 +533,20 @@ it. Sidebar projections, the switcher and tray never use pins or work state as
 admission. Pinned chat columns gate their rendered session identity and
 directory and never admit: pins persist across launches, so admitting from a
 column would register folders nobody opened.
+A subsession in a folder that is not admitted (an agent's worker in a worktree
+that was removed, or in a folder outside every project) is read through its
+nearest admitted ancestor's folder (`resolveAdmittedLineageDirectory` in
+`session-admission-rule.ts`): the sidebar lists it under that parent, opening
+it from the sidebar or Work Status selects it with the ancestor's folder,
+`gateSelection` keeps it, a pinned column reads it there, and `useSync` reads
+its transcript there. Its own folder is never registered and no OpenCode
+location starts in it, so its chat takes no prompts whatever the subagent
+setting says (`resolveChatPromptReadOnly`): a prompt runs in the session's own
+folder. Its banner names the folder and says whether it no longer exists
+(`useProjectFolderMissing`, a server confirmation) or lies outside the
+projects, and its Work Status and Subagents rows are dimmed (`detached`); OpenCode serves a session's messages by id from any
+folder. A root session in such a folder stays hidden as before (maintainer
+decision 2026-11-17).
 Archive rows filter admission without changing the raw archived cache. A session
 of a worktree that is gone stays listed: its folder matches no project, but
 OpenCode's project still places it in one and the server confirms the folder is
@@ -528,6 +570,27 @@ continues only on that answer, so a lost event ends the attempt instead of
 repeating registration; a later listing still admits the session, and a parked
 viewed session comes back then. The sidebar stays the only owner of the
 worktree list: admission never publishes topology itself.
+
+OpenCode keeps a session's folder as its mover spelled it, so an agent's
+`session_move` to `/tmp/x` records `/tmp/x` while git, projects and the
+worktree list name `/private/tmp/x`. The server route moves such a session to
+the canonical folder and answers with it; admission then waits, up to the same
+10 seconds, for the global record to follow before it answers for the
+canonical folder. A running session takes the move at its next step
+boundary, so an open that outlasts the wait ends there, and the record's later
+move still admits the session. An open continues with the folder admission
+answered: a session the global store has not listed has no record to carry the
+canonical folder, and reopening it under the old spelling would register and
+move it again. The server checks the session's folder again right before the
+move, so a move made during registration is never undone.
+
+### Why the server moves a symlinked session instead of the client aliasing it
+
+Every view, child store, event route and queue key in this client matches
+folders by string. An alias from the recorded spelling to the canonical one
+would have to reach each of them, and the session's own events keep arriving
+under the recorded spelling. Moving the session makes OpenCode name one
+folder everywhere; it is the same folder on disk, so nothing else changes.
 
 ### Following a move
 
@@ -602,8 +665,9 @@ The config store owns default selection and discovery-gap behavior, documented
 in `packages/ui/src/stores/DOCUMENTATION.md`.
 
 Changing a draft's project or switching between Project and Chat applies the
-target's agent, model, and effort defaults immediately; a Chat target's are those
-of the managed Chats root. Worktree refinement
+target's agent, model, and effort defaults immediately; a Chat target's are the
+Chats defaults from Settings > Sessions, resolved against the managed Chats
+root's catalog. Worktree refinement
 within the same project preserves manual choices. Activation continuations
 check the runtime, draft identity, target revision, and manual-selection state
 before applying defaults again.
@@ -759,8 +823,9 @@ Cold navigation and prefetch request 100 records (50 on constrained surfaces) an
 Use `useGlobalSessionsStore` when the UI needs a **shared global session cache**.
 
 Each full app root owns one global polling lifecycle through
-`useGlobalSessionsPolling`. The web/desktop root, the desktop Mini Chat window
-root, and the VS Code chat root load a complete snapshot when mounted. After
+`useGlobalSessionsPolling`. The web/desktop root and the VS Code chat root load
+a complete snapshot when mounted; the desktop Mini Chat window does not
+(see *Why Mini Chat reads the newest page and not the complete list*). After
 that the live event stream keeps the list current: it is one global stream,
 and `session.created` reaches the client for every directory, opened or not.
 The list is read again only where the stream cannot answer: a complete
@@ -781,7 +846,7 @@ visible takes one. On desktop the document stays `visible` while the window
 is hidden, minimized or closed to the tray, because windows run with
 background throttling off, so the hook reads the shell's
 `openchamber:window-visibility` instead. A window the shell sends no
-visibility to (Mini Chat) counts as visible.
+visibility to counts as visible.
 The sidebar and tray consume the same store and must not start their own
 full-list timers. The tray renders only the sessions the sidebar can place — a
 configured project or worktree, a managed chat, or an isolated space — because
@@ -806,6 +871,25 @@ had left, so every check republished the store and rebuilt the sidebar
 projection over every session. A gap is the one time the stream may have
 missed a creation, so the head check runs once after it, and the complete
 snapshot every 10 minutes stays the baseline for deletions missed meanwhile.
+
+### Why Mini Chat reads the newest page and not the complete list
+
+The Mini Chat header switcher shows the ten most recent root sessions, and
+nothing else in that window needs every session: the open session is read by
+id, and its directory comes from the window URL. Polling the complete list
+there cost each new window nine requests and 3.3 MB at about 4,000 sessions. The
+window calls `refreshRecentGlobalSessions` when it mounts and each time the
+switcher opens (`SessionSwitcherDropdown` with `recentOnly`): one page of 50
+records, newest first, merged like the first page of a complete load, so
+`hasLoaded` stays false, `authoritativeSessions` stays null and nothing is
+persisted from it. Fifty and not ten because sub-agent sessions and archived
+records share the page with the roots. The rows below the page come from the
+persisted snapshot the main window wrote and from live events. A failed read
+leaves the lists untouched, and a change made while the page was in flight
+wins over it. When something in the window has loaded the complete list (the
+`@` session picker, a due retention run), the same call checks its head.
+Consumers that need a complete list already wait for `hasLoaded` and load it
+themselves.
 
 ### Why head checks and complete snapshots have separate authority
 
@@ -1040,7 +1124,7 @@ An image the agent generates in the background keeps the turn open too (`image`,
 
 An agent waiting on its pull request reads as working too, last in that order (`pullRequest`): the session is idle, but the server wakes it, as a background subagent's result does, so its turn stays open. `pr-watch.ts` is the projection of the server's watches (`packages/web/server/lib/pr-watch`), a list per session in the order it started them: `pr-watch-sync.ts` reads `GET /api/pr-watch` at mount and after every control-stream reconnect and applies `openchamber:pr-watch.updated`, which carries the session's whole list, by revision, so an older update or snapshot never undoes a newer one; a runtime switch clears it. An event from a server older than the list (only `watch`) reads as a list of one. The turn timer keeps running through the wait and settles when the watch ends without a new run; the queue is not held. After a reload the host's turn start resumes the count, read once the watches are known. The composer row (`PullRequestWatchStrip`) stops one watch, or all of the session's, optimistically and puts back what it took when the server refuses, unless the server said something newer about that session meanwhile.
 
-An agent waiting on an extension (`wait.start`, `packages/web/server/lib/extension-waits`) reads as working the same way, after a pull request (`extensionWait`). `extension-waits.ts` projects the server's waits per session, all of a session's waits in one list: `extension-waits-sync.ts` reads `GET /api/extension-waits` at mount and after every control-stream reconnect and applies `openchamber:extension-waits.updated`, which carries a session's whole list, by revision, with the same rules as the pull request projection. Every reader of the pull request waits (the turn state, sidebar sections and collapsed groups, the overview, the tray) reads these beside them. The composer row (`ExtensionWaitStrip`) names one wait and how many more there are, and stops all of the session's waits optimistically, putting them back when the server refuses.
+An agent waiting on a timer or an extension (`wait.start`, `packages/web/server/lib/extension-waits`) reads as working the same way, after a pull request (`extensionWait`). `extension-waits.ts` projects the server's waits per session, all of a session's waits in one list: `extension-waits-sync.ts` reads `GET /api/extension-waits` at mount and after every control-stream reconnect and applies `openchamber:extension-waits.updated`, which carries a session's whole list, by revision, with the same rules as the pull request projection. Every reader of the pull request waits (the turn state, sidebar sections and collapsed groups, the overview, the tray) reads these beside them. The composer row (`ExtensionWaitStrip`) names one wait and how many more there are (the timer in the user's language with the minutes left, updated each minute; the extension's name only for an extension's wait, since the timer and pull requests are the app's own), and stops all of the session's waits optimistically, putting them back when the server refuses.
 
 Starts are persisted so a reload resumes the same count, but a persisted start is a lookup table and never a claim of activity. **A busy status does not mark where a turn begins.** OpenCode publishes busy at every step of the agent loop, so a busy event means "still running", not "just started"; after a refresh one of those repeats normally beats the first status snapshot, so treating it as a turn boundary reset the counter on nearly every reload. Only `session.execution.started` marks a start, and a reload or a late join never sees it. Turn *ends* are marked — `session.idle` and `session.error` fire once, live, and retire the persisted record — while a snapshot that omits a session is not evidence of anything, since it may simply not see it yet.
 
@@ -1131,7 +1215,11 @@ Live activity/status indicators must not depend on this cache. They must use the
 
 `session-unread.ts` owns the unread mark, and OpenCode owns the state behind it. A session record carries `time.idle` (when its last turn ended, whatever the outcome) and `time.viewed` (a watermark of the last turn end a viewer saw, which OpenCode keeps monotone). A top-level, unarchived session whose `idle` is past its `viewed` is unread. Rows, tabs, switchers, collapsed aggregates, run overviews, the tray, the dock badge and the iOS widget all read that one rule from the global sessions store. OpenCode stamps `idle` when a session only idles on background work, so the sidebar's user sections, the tray and the dock badge also leave out a session whose turn is still open (`collectOpenTurnSessionIds`: the running sessions, their ancestors, and sessions waiting on a workflow run, a background command or image, or a pull request). It counts once that work ends, with no change to its record, which is why the tray hook subscribes to those stores even with the tray off. The tray and the dock badge also require a sidebar row (`sessionHasSidebarRow`): an unread session the user cannot see or open would hold a dock count nothing clears. The badge counts a session that only the Chats, Pinned or In work section lists while that section is shown; the tray list keeps it with the section hidden, because a tray row opens the session directly.
 
-Marking a session seen (`markSessionViewed` in `notification-store.ts`, which also clears its native notifications) writes the watermark locally at once and sends `POST /api/session/:id/view` with the `idle` it saw; a failed write restores the previous watermark unless a newer record replaced it. OpenCode announces the view as `session.viewed` to every client, so a session seen on one device stops being unread on the others. The global store's change signatures include `idle` and `viewed`, so these updates publish immediately instead of waiting with recency-only updates. The signatures also carry the usage and selection fields a `session.patched` can change without advancing `updated` (cost, tokens, model, permissions, outcome, revert, subpath): a patch touching only those fields would otherwise read as no change and be dropped by the store's same-record filter, and a deferred usage record rebuilt from the record the deferral started from would drop what an earlier patch in the same stream carried, so usage fields publish at once rather than waiting with recency-only updates.
+Marking a session seen (`markSessionViewed` in `notification-store.ts`, which also clears its native notifications) writes the watermark locally at once and sends `POST /api/session/:id/view` with the `idle` it saw; a failed write restores the previous watermark unless a newer record replaced it. OpenCode announces the view as `session.viewed` to every client, so a session seen on one device stops being unread on the others. The global store's change signatures include `idle` and `viewed`, so these updates publish immediately instead of waiting with recency-only updates. The signatures also carry the usage and selection fields a `session.patched` can change without advancing `updated` (cost, tokens, model, permissions, outcome, revert, subpath): a patch touching only those fields would otherwise read as no change and be dropped by the store's same-record filter. Spend (`cost`, `tokens`) waits with the recency updates: OpenCode reports usage after every step of a turn, the sidebar paints none of it, and publishing it rebuilt the whole sidebar once per step (24 rebuilds and about 2 GB of allocation in one 21-step turn with 3,700 sessions; 4 rebuilds once deferred). Live usage readouts read the directory stores, which apply every step (Work status, subagent cost); a run lane in a folder no store holds gets its spend from the deferred records (`useDeferredGlobalSessions`), which `useMultiRunSessions` lays over the global list. The selection fields (model, permissions, outcome, revert, subpath) still publish at once.
+
+### Why session metadata is parsed once per object
+
+Metadata predicates the sidebar asks of every session (in work, pinned, multi-run lane, workflow agent) go through `parseMetadata` (`lib/metadataParse.ts`), which keeps one zod result per metadata object and schema. A failed `safeParse` builds a `ZodError` with its formatted message, and the sidebar asked thousands of sessions on every rebuild: that was the largest single source of the window's garbage. Metadata objects are replaced, never mutated, so the cache needs no invalidation; a write path that builds new metadata keeps calling zod directly.
 
 The user can also mark a session unread from its menu (rows, work rows, tabs, the mobile long-press menu) or with Alt+click to come back to it. That mark is `metadata.openchamber.markedUnread: { at }` on the session record, written through the OpenChamber metadata route as a merge patch, so OpenCode persists it and every client, VS Code included, gets it with the record. `isSessionUnread` is true for an unseen turn or a mark; `isSessionMarkedUnread` is the mark alone, and rows show it even on the open session, where an unseen turn never shows. Opening the session clears it like a view does, with one exception: a mark made in this window stays while the user is still on the session it was made from, because the open session is marked seen on every record change and on window focus. `releaseKeptUnreadMarks` ends that when `setCurrentSession` moves to another session, so the mark clears on the next visit. Mark as read and Mark all as read (`markSessionRead`, `markAllSessionsViewed`) clear a kept mark at once. A failed write takes the change back, unless something else replaced the metadata meanwhile. On a work row, Mark as unread marks the session whose turn ended last, and Mark as read clears every unread session of the work.
 
@@ -1448,10 +1536,6 @@ Examples of global-store updates performed in `session-actions.ts`:
 ### Blocking-request (form/permission) reply routing
 
 A form reply resumes the turn, so `replyToForm` first puts the session on its composer's selection through `applySendSelection`, the guarded entry the sends use (#6053). The form's record is read from the reply's directory store first, then from every initialized store and the global cache, so a record held elsewhere is still classified (#6555). A root session open in the main chat uses the app-wide composer, and an open review session does too: the codebase treats review sessions as independent conversations even when an older record still carries `parentID` (`chatPromptReadOnly`). Any other session uses only what is held for it: its own unsent model and agent picks and its saved effort still apply, so a pinned chat or a `/btw` fork keeps its own selection, and a child session keeps what a workflow bound it to whichever chat shows it, because the app-wide config can still hold the previous chat's selection when the child was just opened. Only a record marking a non-review child diverts from the composer; an extension's prompt to an open session (`captureGuestPromptSelection` in `lib/guests/start-session.ts`) classifies the same way. When no store holds the record, the reply reads it from the server first (`session.get`) and classifies it exactly like a store record, so a subagent whose record has not loaded yet still keeps its own agent and model, and that record's server-confirmed `directory` addresses the answer. A failed read, or a runtime change during it, sends nothing, switches nothing, and leaves the form pending for a retry (#6555). A location-scoped form has no session to switch. A failed switch or an unavailable agent leaves the answer unsent and the form pending. Auto reaches the session as the sentinel, and the server routes the reply itself (`packages/web/server/lib/routing/DOCUMENTATION.md`). The reply captures the runtime instance before its first wait and rechecks it after the switches, so a switch away, even with a return, stops the answer; a late result from an old runtime touches no local form.
-
-`replyToForm`, `cancelForm`, `respondToPermission`, and `dismissPermission` route the reply through `resolveBlockingRequestTarget`. The directory chosen decides which OpenCode instance resolves the pending request, so it must be the **session record's own server-confirmed directory** (ownership), never the containing child-store key (containment): a project store legitimately holds its worktree sessions, and a reply addressed to the parent instance makes the server answer `FormNotFoundError` while the form stays pending in the worktree instance — the session is then stuck on the running form tool with no recovery. The containment guess from `resolveDirectoryForBlockingRequest` only finds the record. When no store and no global cache holds it, the record is read from the server before anything is sent, and a failed read, or a runtime change during it, sends nothing and keeps the request pending for a retry: a guessed parent's not-found must never dismiss a valid worktree request (#6555). A location-scoped form has no record and keeps its directory; a permission reply with an explicit directory from the raising event uses it as is. When a form reply/cancel comes back not-found, the stale request is removed locally and a `settled-running-tool` tail materialization is enqueued so the trailing tool part converges to the server's actual state instead of leaving the UI on "asking question" forever. A permission reply/reject that comes back not-found only removes the request locally.
-
-A reply or cancel made while the connection is down is refused by `waitForConnectionOrThrow` before any request leaves, with a `ConnectionLostError` (`connection-lost-error.ts`) that keeps the last disconnect reason and whether the page ever connected. The form surfaces turn it into a translated "nothing was sent" toast through `connectionLostMessage` (`form-request-error.ts`), never "could not submit", and keep the answer so the same click retries; there is no automatic retry and the reconnect grace is the same as for sends. The error's English `message` stays for callers that show it as is (the composer, `/btw`).
 
 `replyToForm`, `cancelForm`, `respondToPermission`, and `dismissPermission` route the reply through `resolveBlockingRequestTarget`. The directory chosen decides which OpenCode instance resolves the pending request, so it must be the **session record's own server-confirmed directory** (ownership), never the containing child-store key (containment): a project store legitimately holds its worktree sessions, and a reply addressed to the parent instance makes the server answer `FormNotFoundError` while the form stays pending in the worktree instance — the session is then stuck on the running form tool with no recovery. The containment guess from `resolveDirectoryForBlockingRequest` only finds the record. When no store and no global cache holds it, the record is read from the server before anything is sent, and a failed read, or a runtime change during it, sends nothing and keeps the request pending for a retry: a guessed parent's not-found must never dismiss a valid worktree request (#6555). A location-scoped form has no record and keeps its directory; a permission reply with an explicit directory from the raising event uses it as is. When a form reply/cancel comes back not-found, the stale request is removed locally and a `settled-running-tool` tail materialization is enqueued so the trailing tool part converges to the server's actual state instead of leaving the UI on "asking question" forever. A permission reply/reject that comes back not-found only removes the request locally.
 

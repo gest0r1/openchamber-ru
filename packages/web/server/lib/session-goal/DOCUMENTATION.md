@@ -150,9 +150,8 @@ before touching the filesystem). Rationale: metadata rides every
    - authoritative live-activity check after the quiet window: re-read
      `/api/session/active`, bail if the parent resumed; then read OpenCode's
       job list (2.2.6+) for the whole subagent tree and bail while a
-      background subagent or image runs; then list the parent's child
-      sessions through `GET /api/session?parentID=` (cursor paged) and bail
-      while any of them is active, since child sessions OpenChamber starts
+       background subagent or image runs; then read active sessions' parent
+       links and bail while a direct child is active, since child sessions OpenChamber starts
       itself (workflow agents) are no OpenCode jobs and an older OpenCode has
       no job list. The loop rechecks after
       another quiet window so a missed parent idle event cannot strand the
@@ -172,7 +171,8 @@ before touching the filesystem). Rationale: metadata rides every
      `time.completed`, and without it a compaction looks still running. Other
      plumbing roles are dropped from the view;
    - quiescence check via the message tail (trailing user message or
-     unfinished assistant reply → bail; the next idle transition re-arms);
+     unfinished assistant reply → bail; the next idle transition re-arms,
+     except after an unchecked continuation, below);
    - background commands: the shells in the job list, read again after the
      messages so a command of the turn just read is listed; it includes the
      commands the session's subagents started. An OpenCode without the job
@@ -257,7 +257,23 @@ before touching the filesystem). Rationale: metadata rides every
      consecutive failure settles the goal as `blocked` ("progress audit
      unavailable") — resumable, and settling resets the streak so Resume gets
      fresh tolerance. A dead checker can never drive the loop blind to the turn
-     cap. Measured on 144 hand-written goal-report turns plus 8 real ones (a
+     cap. While the persisted streak is above zero, the loop does not rely on
+     a later `session.status: idle` event to make the second attempt, because
+     that event can be lost and the goal would sit active on Evaluating
+     forever. It rechecks at the activity interval instead: after the
+     continuation, also when the POST was rejected (the recheck finds the same
+     reply at the tail and audits it again); through a busy or retry status
+     event and a tick that finds the session working, until the turn ends (a
+     status event that lands while a tick is in flight makes that tick stale,
+     so the event arms the recheck itself and it waits for the tick to end);
+     after a restart, from the persisted streak alone. An idle session whose
+     tail is the continuation itself, or an unfinished reply, is waited on
+     after 15, 30 and 60 seconds, then the goal is `blocked` with a resumable
+     reason ("The continuation produced no reply to check"); Resume on the
+     same stuck tail waits and blocks again the same way. Recovery never
+     sends a second continuation, and an unreadable message list during it
+     follows the activity-failure backoff. A healthy checker arms none of
+     this. Measured on 144 hand-written goal-report turns plus 8 real ones (a
      private lab outside this repository): Jev 142/144 with both
      misses on the safe side, gpt-6-luna 141/144. Change the questions or the
      threshold only with a new run of that lab. A small, narrow wording change

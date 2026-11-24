@@ -53,7 +53,6 @@ interface ComposerAutocompletePopupsProps {
     onAgentSelect: (agentName: string) => void;
     onSessionSelect?: (session: Session) => void;
     onExtensionMentionSelect?: (mention: GuestMention) => void;
-    /** The session this composer writes to, which `@` never offers. */
     currentSessionId: string | null;
     onEmojiSelect: (emoji: string) => void;
     onClose: () => void;

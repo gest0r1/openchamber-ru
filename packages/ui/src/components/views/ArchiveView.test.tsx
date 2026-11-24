@@ -268,17 +268,21 @@ test('archive rows hide unregistered destinations while preserving raw archived 
 
 test('a session of a worktree that is gone is listed, one in an existing folder of the same OpenCode project is not', async () => {
   const syncProjects = useGlobalSyncStore.getState().projects;
+  jest.useFakeTimers();
+  testRestorers.push(() => {
+    jest.useRealTimers();
+    useGlobalSyncStore.setState({ projects: syncProjects });
+  });
   useGlobalSyncStore.setState({ projects: [{ id: 'project', worktree: '/workspace', time: { created: 1, updated: 1 }, sandboxes: [] }] });
   useGlobalSessionsStore.setState({ archivedSessions: [
     { ...session('gone-worktree', 'Gone worktree'), directory: '/gone/worktree' },
     { ...session('untrusted-clone', 'Untrusted clone'), directory: '/untrusted/clone' },
   ] });
   await act(async () => root.render(<I18nProvider><ArchiveView /></I18nProvider>));
-  // Directory probes share one request after a short window.
-  await act(async () => { await new Promise((resolve) => setTimeout(resolve, 40)); });
+  // The client's DIRECTORY_AVAILABILITY_BATCH_WINDOW_MS batches both directory probes.
+  await act(async () => { jest.advanceTimersByTime(15); });
   expect(document.body.textContent).toContain('Gone worktree');
   expect(document.body.textContent).not.toContain('Untrusted clone');
-  useGlobalSyncStore.setState({ projects: syncProjects });
 });
 
 test('the chats of a deleted space are grouped under its name and cannot be restored', async () => {

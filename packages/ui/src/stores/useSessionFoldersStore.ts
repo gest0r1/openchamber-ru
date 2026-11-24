@@ -43,13 +43,7 @@ interface SessionFoldersActions {
   removeSessionFromFolder: (scopeKey: string, sessionId: string) => void;
   removeSessionEverywhere: (runtimeKey: string, sessionId: string) => void;
   removeSessionsFromFolders: (scopeKey: string, sessionIds: string[]) => void;
-  /**
-   * A session moved to `destination` (inside `destinationWorktree`, when a
-   * worktree holds it) leaves the folders of every scope it no longer belongs
-   * to, so the place it left stops listing it.
-   */
   followSessionMove: (sessionId: string, destination: string, destinationWorktree: string | null) => void;
-  /** Drop every folder of these scopes, for a project that was closed. */
   forgetScopes: (scopeKeys: string[]) => void;
   toggleFolderCollapse: (folderId: string) => void;
   getSessionFolderId: (scopeKey: string, sessionId: string) => string | null;
@@ -69,11 +63,7 @@ const SESSION_FOLDERS_API_PATH = '/api/session-folders';
 const SERVER_WRITE_DEBOUNCE_MS = 150;
 const MAX_CHANGES_PER_REQUEST = 500;
 const MAX_RETRY_DELAY_MS = 30_000;
-// A request that never settles, such as one on a connection that went half-open
-// across sleep, must not hold the folder sync of this window until a reload.
 const FOLDER_REQUEST_TIMEOUT_MS = 15_000;
-// A device's whole copy is the largest body sent here (up to 4 MB). On a slow
-// link 15 s would abort it every time, and each retry starts the upload over.
 const WHOLE_COPY_TIMEOUT_MS = 120_000;
 
 const safeStorage = getDeferredSafeStorage();
@@ -359,8 +349,6 @@ const folderRequest = (init?: RequestInit, timeoutMs = FOLDER_REQUEST_TIMEOUT_MS
   signal: AbortSignal.timeout(timeoutMs),
 });
 
-// A write on its way holds the browser's cache entry for this URL; a read that
-// uses the cache would wait for that write, however long it hangs.
 const readFolders = (): Promise<Response> => folderRequest({ cache: 'no-store' });
 
 const readServerResult = async (request: Promise<Response>): Promise<ServerResult> => {
@@ -517,7 +505,6 @@ const flushChanges = async (): Promise<void> => {
   }
 };
 
-/** Read the server's folders again and show them. A failed read keeps what is shown and tries again. */
 const refreshFromServer = async (): Promise<void> => {
   if (!serverHydrated) {
     await hydrateFromServer();
@@ -538,7 +525,6 @@ const refreshFromServer = async (): Promise<void> => {
       refreshFailed = result.kind === 'failed';
       if (result.kind === 'snapshot') {
         adoptServerSnapshot(result.snapshot);
-        // A write that is still failing keeps its own backoff.
         if (pendingChanges.length === 0) retryAttempt = 0;
       }
     } while (refreshAgain);
@@ -567,7 +553,6 @@ const hydrateFromServer = async (): Promise<void> => {
       const hasLocal = Object.values(localFolders).some((folders) => folders.length > 0) || Object.keys(localDeletions).length > 0;
       const settleQueueAfterImport = (): void => {
         if (pendingChanges.length === 0) return;
-        // The folder ids a queued change started from may have joined server folders.
         pendingChanges = pendingChanges.filter((change) => !coveredByImport.has(change)).map(withoutPlacement);
         writePendingChanges(runtimeKey, pendingChanges);
       };
@@ -613,7 +598,6 @@ export const handleSessionFoldersChanged = (updatedAt: number): void => {
   void refreshFromServer();
 };
 
-/** The event stream (re)connected or the window came back: anything may have changed meanwhile, and waiting changes can go now. */
 export const handleSessionFoldersStreamReady = (): void => {
   if (!isServerSyncAvailable()) return;
   if (!serverHydrated) {

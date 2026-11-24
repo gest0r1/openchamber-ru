@@ -24,11 +24,6 @@ export function getTypographyVariable(key: SemanticTypographyKey): string {
   return `--text-${key.replace(/([A-Z])/g, '-$1').toLowerCase()}`;
 }
 
-/**
- * Inline style that scales the semantic text sizes of one area (the chat) by
- * `percent`, on top of the interface size the rem unit already carries.
- * Undefined at 100%, so the area inherits the root sizes unchanged.
- */
 export function getScaledTypographyStyle(
   percent: number,
   base: Record<SemanticTypographyKey, string> = SEMANTIC_TYPOGRAPHY,

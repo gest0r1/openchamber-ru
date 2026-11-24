@@ -219,7 +219,6 @@ export function IntegrationsCatalogView(): React.ReactNode {
 
   const [selectedId, setSelectedId] = React.useState<string | null>(null);
   const [pendingSignInId, setPendingSignInId] = React.useState<string | null>(null);
-  /** A sign-in in progress keeps its panel while the server reconnects. */
   const [mcpSignInActive, setMcpSignInActive] = React.useState(false);
   const showEntry = React.useCallback((id: string | null) => {
     setSelectedId(id);

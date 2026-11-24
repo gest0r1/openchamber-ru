@@ -38,14 +38,7 @@ const requiredIdentityString = <Value>(value: Value, name: string, provider: str
   return value;
 };
 
-// Extension IDs are opaque strings; whitespace can be part of the verified identity.
-const requiredIdentityString = (value, name, provider, makeError = bindingInputError) => {
-  if (!isExtensionProviderId(provider)) return requiredString(value, name, makeError);
-  if (!isString(value) || !value.length) throw makeError(`${name} is required`);
-  return value;
-};
-
-const providerOrigin = (provider, instance) => {
+const providerOrigin = (provider: string, instance: string) => {
   const descriptor = sourceControlProviderDescriptors.get(provider);
   if (!descriptor) throw bindingInputError('provider is unavailable');
   return descriptor.instance.origin(instance);
@@ -205,10 +198,7 @@ const parseAuxiliary = (value: AuxiliaryBindingInput[] | undefined) => {
   return bindings;
 };
 
-/**
- * A managed credential can serve only the protocol it was issued for.
- */
-const credentialServesEndpoint = (credentialId, rawEndpoint) => {
+const credentialServesEndpoint = (credentialId: string, rawEndpoint: string) => {
   try {
     return parseGitCredentialReference(credentialId).transport === normalizeGitRemoteEndpoint(rawEndpoint).protocol;
   } catch {
@@ -216,17 +206,9 @@ const credentialServesEndpoint = (credentialId, rawEndpoint) => {
   }
 };
 
-/**
- * The grant a submodule or LFS endpoint inherits when none names it.
- *
- * A checkout's submodules and LFS objects are fetched the way the checkout
- * itself is: an unbound repository uses the machine's own Git for them, and
- * a bound one answers with the parent remote's own grant when the endpoint
- * lives on the same host, which is where a project's submodules nearly always
- * are. A different host is a different trust decision and is left to an
- * explicit grant.
- */
-const inheritedAuxiliaryGrant = (binding, parentRemote, rawEndpoint) => {
+const inheritedAuxiliaryGrant = (binding: PresentedBinding | null, parentRemote: string | undefined, rawEndpoint: string): {
+  mode: 'system' | 'managed' | 'anonymous'; readiness: 'ready'; credentialId?: string;
+} | null => {
   if (!binding) return { mode: 'system', readiness: 'ready' };
   const parent = parentRemote ? binding.remotes.find((entry) => entry.name === parentRemote) : null;
   if (!parent || parent.readiness !== 'ready') return null;
@@ -241,9 +223,6 @@ const inheritedAuxiliaryGrant = (binding, parentRemote, rawEndpoint) => {
   }
   if (!endpointHost || endpointHost !== parentHost) return null;
   if (parent.mode === 'managed') {
-    // An SSH key cannot authenticate an HTTPS LFS or submodule endpoint, and
-    // an HTTPS credential cannot authenticate an SSH one. The endpoint needs
-    // its own grant when the parent's transport cannot serve it.
     return parent.credentialId && credentialServesEndpoint(parent.credentialId, rawEndpoint)
       ? { mode: 'managed', readiness: 'ready', credentialId: parent.credentialId }
       : null;
@@ -470,7 +449,7 @@ export function createBindingService({
         || account.status !== 'valid' || !['oauth', 'pat', 'cli'].includes(account.source)
         || !(isExtensionProviderId(reference.provider) && isString(account.user?.id)
           ? account.user.id.length > 0 && account.user.id.length <= 256
-          : Number.isInteger(account.user?.id) && account.user.id >= 0)
+          : isInteger(account.user?.id) && account.user.id >= 0)
         || !isProviderUsername(account.user.login)
         || account.providerUserId !== `${instance}#${account.user.id}`) return unavailablePresentation();
       return {

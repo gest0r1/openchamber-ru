@@ -6,7 +6,7 @@ import fssync from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { prepareRootGuestService, removeRootGuestServiceData } from './root-service-runtime.js';
+import { prepareRootGuestService, removeRootGuestServiceData } from './root-service-runtime.ts';
 
 test('root UI mirrors code and preserves mutable guest data under a genuinely unprivileged UID', async (t) => {
   if (process.getuid?.() !== 0) return t.skip('real-root CI required');

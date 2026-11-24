@@ -25,7 +25,6 @@ type Context = {
   secondaryMeta?: { projectLabel?: string | null; branchLabel?: string | null; inSpace?: boolean } | null;
   renderContext?: SessionSidebarRenderContext;
   detailed?: boolean;
-  /** The session is listed higher up too; see `SessionNodeItemProps.repeat`. */
   repeat?: boolean;
   rowKey?: string;
   dragKey?: string;

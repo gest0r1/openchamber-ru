@@ -285,7 +285,9 @@ export const cloneGitRepository = async (source: string, dest: string, { gitBina
     args.push('--branch', ref);
   }
   args.push('--', source, dest);
-  const result = await runGitNetwork(args, { gitBinary, cwd, timeoutMs, env: network.env });
+  const options: GitOptions = { gitBinary, timeoutMs, env: network.env };
+  if (cwd) options.cwd = cwd;
+  const result = await runGitNetwork(args, options);
   if (result.ok) {
     return { ok: true };
   }

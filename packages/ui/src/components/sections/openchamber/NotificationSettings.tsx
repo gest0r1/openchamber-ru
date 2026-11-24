@@ -484,9 +484,7 @@ export const NotificationSettings: React.FC = () => {
                     : undefined
               }
               ariaLabel={t('settings.notifications.page.delivery.enableAria')}
-              // The event rows render only once notifications are on, so a new one
-              // among them is announced on the switch that reveals it.
-              labelAccessory={nativeNotificationsEnabled && canShowNotifications ? undefined : (
+              labelAccessory={(nativeNotificationsEnabled && canShowNotifications) || localOnlyDevice ? undefined : (
                 <SettingsNewBadge items={['notifications.events', ...(isVSCode ? [] : ['notifications.pullRequests'])]} />
               )}
             />

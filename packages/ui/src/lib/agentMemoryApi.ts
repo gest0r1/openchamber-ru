@@ -1,8 +1,6 @@
 
 import { z } from 'zod';
 
-import { z } from 'zod';
-
 import { createProjectIdFromPath } from './projectId';
 import { runtimeFetch } from './runtime-fetch';
 
@@ -25,11 +23,9 @@ interface AgentMemorySnapshot {
   project: AgentMemoryEntry[];
   globalFailed: boolean;
   projectFailed: boolean;
-  /** The last dreaming pass of each scope, or null where none ran. */
   dream: { global: AgentMemoryDream | null; project: AgentMemoryDream | null };
 }
 
-/** What the last background tidy-up (dreaming) of one scope did. */
 export interface AgentMemoryDream {
   finishedAt: number;
   status: 'done' | 'failed';
@@ -38,7 +34,6 @@ export interface AgentMemoryDream {
   rewritten: number;
   undone: boolean;
   canUndo: boolean;
-  /** Project entries the pass found belong in the project's agent docs. */
   toDocs: string[];
 }
 
@@ -152,13 +147,11 @@ const dreamSchema = z.object({
   canUndo: z.boolean().catch(false),
   toDocs: z.array(z.string()).catch([]),
 });
-/** Each scope's last pass; one that cannot be read shows as none, never fails the load. */
 const dreamsSchema = z.object({
   global: dreamSchema.nullable().catch(null),
   project: dreamSchema.nullable().catch(null),
 }).catch({ global: null, project: null });
 
-/** Puts the scope back as the last dreaming pass found it, keeping what was written since. */
 export const undoAgentMemoryDream = async (
   scope: AgentMemoryScope,
   projectPath: string | null,
@@ -170,7 +163,6 @@ export const undoAgentMemoryDream = async (
   }
 };
 
-/** A user correction from the panel; the agent rewrites by saving again. */
 export const updateAgentMemory = async (
   scope: AgentMemoryScope,
   projectPath: string | null,

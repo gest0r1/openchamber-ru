@@ -362,6 +362,8 @@ mock.module("../session-actions", () => ({
   unshareSession: mock(async () => undefined),
   optimisticSend: mock(async () => undefined),
   commitStagedRevert: mock(async () => undefined),
+  commitSessionRevert: mock(async () => undefined),
+  waitForPendingRevert: mock(async () => undefined),
   refetchSessionMessages: mock(async () => undefined),
   revertToMessage: mock(async () => undefined),
   unrevertSession: mock(async () => undefined),
@@ -717,11 +719,8 @@ describe("issue 2039 draft auto-accept", () => {
     await new Promise((resolve) => setTimeout(resolve, 0))
 
     expect(activateDirectoryCalls).toEqual(["/home/test/.config/openchamber/chats"])
-    expect(applyDefaultModelAgentSelectionCalls.at(-1)).toEqual({
-      projectDefaultAgent: undefined,
-      projectDefaultModel: undefined,
-      projectDefaultVariant: undefined,
-    })
+    expect(applyDefaultModelAgentSelectionCalls.length).toBeGreaterThan(0)
+    expect(applyDefaultModelAgentSelectionCalls.at(-1)).toBeUndefined()
   })
 
 

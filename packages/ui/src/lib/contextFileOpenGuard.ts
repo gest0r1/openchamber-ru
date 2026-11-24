@@ -121,7 +121,6 @@ export const validateContextFileOpen = async (
   path: string,
   options?: ContextFileOpenOptions,
 ): Promise<ContextFileOpenValidationResult> => {
-  // A table opens at any length: past the editor's limits it is read as a table only.
   if (isBinaryFile(path) || isPdfFile(path) || isImageFile(path) || isDelimitedTableFile(path)) {
     return { ok: true };
   }

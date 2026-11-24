@@ -106,7 +106,6 @@ const isPanelIcon = (value: string): boolean => (
   PANEL_ID.test(value) || isGuestPackageSvgIcon(value)
 );
 
-/** An `https` address without credentials. */
 export const isHttpsUrl = (value: string): boolean => {
   try {
     const parsed = new URL(value);
@@ -341,7 +340,6 @@ const sourceControlCapabilitiesSchema = z.object({
 
 const FIXED_USERNAME = /^[A-Za-z0-9._-]{1,64}$/;
 
-/** Shared service-login shape for manifests and public provider descriptors. */
 export const sourceControlServiceLoginSchema = z.object({
   kind: z.literal('service'),
   hint: z.string().min(1).max(2_000),
@@ -534,17 +532,12 @@ const trackerSchema = z.object({
   });
 });
 
-// The OpenCode providers whose credentials a usage provider receives, by
-// shape: a credential can arrive after install, so nothing is checked against
-// what OpenCode holds now. Duplicates fail, as a tracker's duplicate links do.
 const quotaSchema = z.object({
   providers: z.array(z.string().trim().refine(isOpenCodeProviderId, { message: 'must be an OpenCode provider id, like "openrouter"' }))
     .max(QUOTA_PROVIDERS_MAX)
     .refine((ids) => new Set(ids).size === ids.length, { message: 'provider ids must be unique' }),
 }).strict();
 
-// `roles` only means something on a message action and `payload` only on a
-// session action; a dead field is a misconfiguration and fails closed.
 const actionSchema = z.object({
   id: z.string().trim().regex(PANEL_ID).max(64),
   label: z.string().trim().min(1).max(GUEST_ACTION_LABEL_MAX),
@@ -574,8 +567,6 @@ const cardPlaceholders = (template: string): { text: string; root: string; path:
     .map((match) => ({ text: match[0], root: match[1] ?? '', path: (match[2] ?? '').slice(1) }))
 );
 
-// A card draws the tool's output and nothing else, so a template naming
-// another root is refused here instead of rendering the placeholder as written.
 const cardTemplateSchema = z.string().trim().min(1).max(GUEST_TOOL_TEMPLATE_MAX).superRefine((template, ctx) => {
   const placeholders = cardPlaceholders(template);
   const foreign = placeholders.find((placeholder) => placeholder.root !== 'output');
@@ -586,10 +577,6 @@ const cardTemplateSchema = z.string().trim().min(1).max(GUEST_TOOL_TEMPLATE_MAX)
   if (placeholders.length === 0) ctx.addIssue({ code: 'custom', message: 'needs at least one {output.path} placeholder.' });
 });
 
-// The address is an `href`, so the manifest fixes its shape: one placeholder
-// that holds a whole address, or an https address written around placeholders,
-// which is checked here with each placeholder standing for one plain letter.
-// In the host a placeholder is whole labels, never part of one.
 const cardLinkUrlSchema = z.string().trim().min(1).max(GUEST_TOOL_TEMPLATE_MAX).superRefine((template, ctx) => {
   const placeholders = cardPlaceholders(template);
   const foreign = placeholders.find((placeholder) => placeholder.root === 'input' || placeholder.root === 'metadata');
@@ -611,8 +598,6 @@ const cardLinkUrlSchema = z.string().trim().min(1).max(GUEST_TOOL_TEMPLATE_MAX).
     ctx.addIssue({ code: 'custom', message: 'an address written around placeholders starts with https://, has no user name or password, and takes no placeholder as its port.' });
     return;
   }
-  // Encoding keeps dots, so a value written against the host's own text
-  // ("tracker.example{output.path}") would carry the host on to another one.
   const host = template.slice('https://'.length).split(/[/?#\\]/, 1)[0] ?? '';
   const joined = [...host.matchAll(guestToolPlaceholderPattern(GUEST_TOOL_CARD_TEMPLATE_ROOTS))].find((match) => (
     (host[match.index - 1] ?? '.') !== '.' || (host[match.index + match[0].length] ?? '.') !== '.'
@@ -622,7 +607,6 @@ const cardLinkUrlSchema = z.string().trim().min(1).max(GUEST_TOOL_TEMPLATE_MAX).
   }
 });
 
-/** The `card` of a tool rule, shared with the host UI so its catalog read admits exactly what a manifest may declare. */
 export const guestToolCardSchema = z.object({
   label: cardTemplateSchema.optional(),
   title: cardTemplateSchema.optional(),
@@ -645,17 +629,11 @@ export const guestToolCardSchema = z.object({
   { message: 'needs label, title, status or fields; a link alone is not a card.' },
 );
 
-// The hand-written contract and the schema describe the same card; either
-// drifting from the other fails this file's type-check.
 type ParsedToolCard = z.infer<typeof guestToolCardSchema>;
 const assertCardParsed: (value: ParsedToolCard) => GuestToolCard = (value) => value;
 const assertCardContract: (value: GuestToolCard) => ParsedToolCard = (value) => value;
 void assertCardParsed; void assertCardContract;
 
-// `language` only means something for `code`, `columns` only for `table` and
-// `card` only for `card`; a table without columns or a card without its
-// description has nothing to draw. Each is a misconfiguration that fails
-// closed instead of carrying a dead field.
 const toolSchema = z.object({
   match: z.string().trim().min(1).max(GUEST_TOOL_MATCH_MAX).regex(GUEST_TOOL_MATCH),
   name: z.string().trim().min(1).max(GUEST_TOOL_NAME_MAX).optional(),
@@ -699,8 +677,6 @@ const blockSchema = z.object({
   answers: z.boolean().optional(),
 }).strict();
 
-// A link origin: a public https origin with a literal hostname, never an IP
-// literal or loopback, so an extension cannot claim links to the app itself.
 const IPV4_HOSTNAME = /^\d+(?:\.\d+){3}$/;
 const isLinkOrigin = (value: string): boolean => (
   isApprovableOrigin(value) && !IPV4_HOSTNAME.test(new URL(value).hostname)
@@ -730,7 +706,6 @@ const linksSchema = z.object({
       message: `templates start with "/" and use literal segments and ${TRACKER_URL_TOKENS.join(', ')}, with {id} once, in the path or as "?name={id}".`,
     });
   });
-  // A chip names its link: an identifier alone has to fill a template.
   if (value.action === 'attach' && !value.urls?.item.some(isBuildableLinkTemplate)) {
     ctx.addIssue({
       code: 'custom', path: ['urls'],
@@ -738,7 +713,6 @@ const linksSchema = z.object({
     });
     return;
   }
-  // `PROJ-12` in text never has the shape of a number, so it could name no link.
   if (value.action === 'attach' && value.identifier && value.urls?.identifier === 'number') {
     ctx.addIssue({
       code: 'custom', path: ['urls', 'identifier'],
@@ -817,7 +791,6 @@ const contributesSchema = z.object({
   instructions: z.literal(true).optional(),
   marks: z.literal(true).optional(),
   skills: z.string().trim().refine(isSafeAssetPath).optional(),
-  // The value becomes a filesystem path OpenCode executes code from, so only a folder inside the package.
   opencodePlugin: z.string().trim().refine(isSafeAssetPath).optional(),
   mentions: z.object({ label: z.string().trim().min(1).max(GUEST_MENTIONS_LABEL_MAX) }).strict().optional(),
   blocks: blocksSchema.optional(),
@@ -832,7 +805,6 @@ const hasStatusFrame = (contributes: z.output<typeof contributesSchema>): boolea
   contributes.statusSection === true || Boolean(contributes.statusSection?.entry)
 );
 
-/** A full-screen page that names its own entry; `true` reuses `panel.entry`. */
 const hasPageFrame = (contributes: z.output<typeof contributesSchema>): boolean => (
   Boolean(contributes.page && contributes.page !== true)
 );
@@ -843,10 +815,6 @@ const runtimeContributions = (contributes: z.output<typeof contributesSchema>): 
   if (contributes.attach !== undefined && contributes.attach !== false) declared.push('attach');
   if (contributes.capabilities && contributes.capabilities.length > 0) declared.push('capabilities');
   if (contributes.integration !== undefined) declared.push('integration');
-  // A service the host starts itself (it provides a role or a surface, keeps
-  // running, runs on a schedule, receives session events, answers the composer
-  // or checks waits) needs no frame; one that only answers a panel's
-  // `serviceRequest` has no caller without one.
   if (contributes.service !== undefined && !contributes.service.provides?.length && !contributes.service.surface
     && !contributes.service.keepRunning && !contributes.service.schedule
     && !hasStatusSource(contributes) && contributes.sessionEvents === undefined
@@ -864,8 +832,6 @@ export const openChamberManifestSchema = z.object({
     openchamber: z.string().trim().regex(OPENCHAMBER_ENGINE_PATTERN),
   }).strict().optional(),
   contributes: contributesSchema.superRefine((contributes, ctx) => {
-    // A card link's `{settings.<id>}` is a field the user fills on the
-    // integration card, and never one that card masks.
     const settingFields = new Map((contributes.integration?.settings ?? []).map((field) => [field.id, field]));
     contributes.tools?.forEach((tool, index) => {
       for (const id of guestToolLinkSettingIds([tool])) {
@@ -879,8 +845,6 @@ export const openChamberManifestSchema = z.object({
         });
       }
     });
-    // The Git host and the role that serves it come together, and the host
-    // names it `ext-<panel.id>` within the 32-character provider id.
     const providesSourceControl = contributes.service?.provides?.includes('source-control') === true;
     if (providesSourceControl !== (contributes.sourceControl !== undefined)) {
       ctx.addIssue({
@@ -933,7 +897,6 @@ export const openChamberManifestSchema = z.object({
       });
       return;
     }
-    // The usage provider and the role that serves it come together, named `ext-<panel.id>` in the quota registry.
     const providesQuota = contributes.service?.provides?.includes('quota') === true;
     if (providesQuota !== (contributes.quota !== undefined)) {
       ctx.addIssue({
@@ -949,7 +912,6 @@ export const openChamberManifestSchema = z.object({
       });
       return;
     }
-    // Docking only means something for a page beside a shared surface.
     const docked = contributes.panel.dock !== undefined || contributes.panel.size !== undefined;
     if (docked && !(contributes.service?.surface && hasGuestPage(contributes))) {
       ctx.addIssue({
@@ -979,7 +941,6 @@ export const openChamberManifestSchema = z.object({
       });
       return;
     }
-    // `open` hands the link to the extension's page; without one there is nothing to open.
     if (contributes.links?.action === 'open' && !hasGuestPage(contributes)) {
       ctx.addIssue({
         code: 'custom', path: ['links', 'action'],
@@ -1009,10 +970,6 @@ export const openChamberManifestSchema = z.object({
       return;
     }
     if (hasStatusFrame(contributes) || contributes.fileEditors || contributes.blocks || hasPageFrame(contributes)) {
-      // A status section, file editor, block or full-screen page with its own
-      // entry runs code and may use what the package is granted, but it only
-      // hosts itself: things the host opens or invokes elsewhere need a panel
-      // or background entry.
       const needsFrame = [];
       if (contributes.page === true) needsFrame.push('page');
       if (contributes.attach !== undefined && contributes.attach !== false) needsFrame.push('attach');
@@ -1057,11 +1014,6 @@ const identityBlockSchema = z.looseObject({
   contributes: z.looseObject({ panel: z.looseObject({}).optional() }).optional(),
 });
 
-/**
- * An extension names itself beside `contributes`; `contributes.panel` is its
- * rail page, when it has one. Older packages keep all of it in `panel`, so the
- * parsed manifest stays in that one shape for everything downstream.
- */
 const liftIdentity = (block: z.input<typeof identityBlockSchema>): z.input<typeof identityBlockSchema> => {
   const parsed = identityBlockSchema.safeParse(block);
   if (!parsed.success) return block;
@@ -1073,7 +1025,6 @@ const liftIdentity = (block: z.input<typeof identityBlockSchema>): z.input<typeo
 
 const envelopeBlockSchema = z.looseObject({ openchamber: identityBlockSchema });
 
-/** The same lift for a bare manifest and for a whole package.json. */
 const withLiftedIdentity = (document: ManifestDocument): ManifestDocument | z.input<typeof identityBlockSchema> => {
   const envelope = envelopeBlockSchema.safeParse(document);
   if (envelope.success) return { ...envelope.data, openchamber: liftIdentity(envelope.data.openchamber) };
@@ -1184,7 +1135,6 @@ const failureFromIssue = (issue: { path: ReadonlyArray<PropertyKey>; code: strin
     );
   }
   if (path.startsWith('contributes.tools')) {
-    // A card's own rules say which field broke them; the rest answer with the whole shape.
     return fail('invalid-tools', issue.code === 'custom' && segments.includes('card')
       ? `${fieldPath(issue.path)}: ${issue.message}`
       : `contributes.tools lists up to 16 entries with a match of 1 to 128 characters ([A-Za-z0-9_.:-], "*" only at the end), optional name (1 to 40), icon (Remixicon name or package .svg path), title and subtitle templates (1 to 200), output "auto" | "text" | "json" | "markdown" | "code" | "table" | "card", language (code only), columns (table only, 1 to 16), and card (card only): { label?, title?, status?: { value, tones?: up to ${GUEST_TOOL_CARD_TONES_MAX} of "status text": ${GUEST_TONES.map((tone) => `"${tone}"`).join(' | ')} }, fields?: 1 to ${GUEST_TOOL_CARD_FIELDS_MAX} of { label, value }, link?: { label, url } } with no other keys, where label, title, status.value, fields[].value and link.url are templates (1 to 200) and the other labels are text (1 to 40).`);

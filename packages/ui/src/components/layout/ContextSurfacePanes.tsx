@@ -52,7 +52,6 @@ const DiffView = lazyWithChunkRecovery(() => import('@/components/views/DiffView
 const FilesView = lazyWithChunkRecovery(() => import('@/components/views/FilesView').then((m) => ({ default: m.FilesView })));
 const GuestPanelContent = React.lazy(() => import('./GuestPanelContent').then((module) => ({ default: module.GuestPanelContent })));
 
-/** A browser tab with the project it belongs to, which may not be the one on screen. */
 type PanelBrowserTab = {
   directory: string;
   id: string;
@@ -493,11 +492,8 @@ export const ContextSurfacePanes: React.FC = () => {
   const headerSlotFor = (zone: ContextZone, active: boolean): HTMLElement | null => (active ? headerSlots[zone] : null);
 
 
-  // A tab restored from the last run starts its page the first time it shows:
-  // an extension nobody looked at this run runs nothing. After that it stays
-  // mounted, which keeps the page's state while another tab is in front.
   const [seenPluginTabs, setSeenPluginTabs] = React.useState<ReadonlySet<string>>(() => new Set());
-  const newlyShownPluginTabs = pluginTabs.filter((tab) => {
+  const newlyShownPluginTabs = [...pluginTabs, ...pageTabs].filter((tab) => {
     if (seenPluginTabs.has(tab.id)) return false;
     const zone = zoneFor(tab.mode);
     return zone.isOpen && zone.activeTab?.id === tab.id;
@@ -661,11 +657,6 @@ export const ContextSurfacePanes: React.FC = () => {
         if (!isPluginContextPanelMode(tab.mode)) return null;
         const pluginZone = zoneFor(tab.mode);
         if (!seenPluginTabs.has(tab.id)) return null;
-        // A shared-surface extension's picture is drawn by the host and
-        // mounted only while shown, so an unwatched surface holds no socket
-        // and its service can idle out. Its own page, when it has one, is
-        // docked to one edge of the picture and stays mounted like any
-        // panel iframe.
         const guestId = pluginIdFromMode(tab.mode);
         const sharedSurface = surfaceGuestIds.has(guestId);
         const docking = surfaceDockings.get(guestId);
@@ -682,7 +673,7 @@ export const ContextSurfacePanes: React.FC = () => {
             className={cn('absolute inset-0', shown ? 'block' : 'hidden')}
           >
             <React.Suspense fallback={null}>
-              <GuestPanelContent mode={tab.mode} sharedSurface={sharedSurface} docking={docking ?? null} surfaceMounted={surfaceMounted} />
+              <GuestPanelContent mode={tab.mode} sharedSurface={sharedSurface} docking={docking ?? null} surfaceMounted={surfaceMounted} panelOpen={Boolean(panelState && getZoneView(panelState, pluginZone.zone).isOpen) || isZoneDisplaced(directoryKey, pluginZone.zone)} />
             </React.Suspense>
           </ZonePane>
         );

@@ -75,7 +75,6 @@ const OnDemand: React.FC<{
 const LeftSidebar = React.memo<{ isMobile: boolean }>(({ isMobile }) => {
     const isSidebarOpen = useUIStore((state) => state.isSidebarOpen);
     const peek = useSidebarPeek({ enabled: !isSidebarOpen && !isMobile, layoutAnimationMs: useLayoutAnimationMs() });
-    // The list's own controls sit in the strip above it, beside the titlebar buttons.
     const [listControlsSlot, setListControlsSlot] = React.useState<HTMLDivElement | null>(null);
     return (
         <Sidebar
@@ -126,15 +125,10 @@ export const MainLayout: React.FC = () => {
     React.useEffect(() => followZonePlacementOfOtherWindows(), []);
     const isSurfacePageOpen = isScheduledTasksPageOpen || isArchivePageOpen || isIntegrationsCatalogOpen || isUsageStatsPageOpen || isSourceBoardOpen || isOverviewOpen || Boolean(worktreesPageProjectId) || isSpacesPageOpen || isRunOverviewOpen || Boolean(guestPage);
     const mainRef = React.useRef<HTMLElement | null>(null);
-    // Cmd/Ctrl+W in the desktop app closes the page covering the chat before
-    // it closes the window. The page is the place the user last worked in, so
-    // it also wins over the session tabs while it is open.
     React.useEffect(() => {
         if (!isSurfacePageOpen) return;
         return registerCloseTabTarget(() => useUIStore.getState().closeMainSurfaces(), mainRef, 1);
     }, [isSurfacePageOpen]);
-    // The work-status card sits in the right slot, outside the hidden chat,
-    // so the slot is told to hide it with the chat.
     React.useLayoutEffect(() => {
         setChatCovered(isSurfacePageOpen);
     }, [isSurfacePageOpen]);

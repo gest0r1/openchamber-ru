@@ -108,7 +108,10 @@ test('an annotation keeps its comment when the shared session limit is full', as
       });
     });
     const drafts = useInlineCommentDraftStore.getState();
-    expect(drafts.getDrafts({ directory, sessionKey: 'ses_new' })[0]?.code).toContain('Comment: Change this');
+    // The comment is the draft's own text; the prompt for the model leaves it out.
+    const [saved] = drafts.getDrafts({ directory, sessionKey: 'ses_new' });
+    expect(saved?.text).toBe('Change this');
+    expect(saved?.code).not.toContain('Comment:');
     expect(drafts.getDrafts({ directory, sessionKey: 'ses_0' })).toHaveLength(1);
   } finally {
     await act(async () => root.unmount());

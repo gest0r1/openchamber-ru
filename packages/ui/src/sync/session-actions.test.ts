@@ -28,7 +28,19 @@ const sessionRecords = new Map<string, Session>()
 // shape the cache-miss read without the lookup chain finding the record.
 const fetchedSessionRecords = new Map<string, Session>()
 const failingRevertSessionIds = new Set<string>()
+// Stages that reach the server and then reject, as when the response is lost.
+const lostStageResponseSessionIds = new Set<string>()
+let sessionReadErrorOnce: Error | null = null
+let stageRevertGate: Promise<void> | null = null
+const stageRevertGates = new Map<string, Promise<void>>()
+let messageReadGate: Promise<void> | null = null
+let refreshGate: Promise<void> | null = null
+let refreshStarted = false
+let sessionReadGate: Promise<void> | null = null
+let gatedSessionReadStarted = false
 let commitRevertError: Error | null = null
+let commitRevertCalls = 0
+let commitRevertGate: Promise<void> | null = null
 let sessionDeleteError: unknown | null = null
 let sessionForkResult: Session | null = null
 let sessionForkError: Error | null = null
@@ -94,7 +106,18 @@ mock.module("@/lib/opencode/client", () => ({
     getSession: mock(async (sessionId: string, directory?: string | null): Promise<Session> => {
       replyCalls.push({ method: "session.get", params: { sessionID: sessionId, directory } })
       beforeSessionGetResolve?.()
+      const readError = sessionReadErrorOnce
+      if (readError) {
+        sessionReadErrorOnce = null
+        throw readError
+      }
       const record = sessionRecords.get(sessionId) ?? fetchedSessionRecords.get(sessionId)
+      const gate = sessionReadGate
+      if (gate) {
+        sessionReadGate = null
+        gatedSessionReadStarted = true
+        await gate
+      }
       if (!record) throw notFound("Session")
       return record
     }),
@@ -155,7 +178,11 @@ mock.module("@/lib/opencode/client", () => ({
       if (lostStageResponseSessionIds.has(sessionId)) throw new Error("session.revert.stage: network error")
       return { messageID: messageId }
     }),
-    commitRevert: mock(async () => { if (commitRevertError) throw commitRevertError }),
+    commitRevert: mock(async () => { commitRevertCalls++; await commitRevertGate; if (commitRevertError) throw commitRevertError }),
+    clearRevert: mock(async (sessionId: string) => {
+      const record = sessionRecords.get(sessionId)
+      if (record) sessionRecords.set(sessionId, { ...record, revert: undefined })
+    }),
     forkSession: mock(async (
       sessionId: string,
       options?: { before?: string; directory?: string | null },
@@ -208,8 +235,8 @@ mock.module("@/lib/opencode/client", () => ({
         replyCalls.push({ method: "selection.apply", params: { sessionID: sessionId, selection, directory } })
       }
     }),
-    cancelForm: mock(async (sessionId: string, formId: string, directory?: string | null) => {
-      replyCalls.push({ method: "form.cancel", params: { sessionID: sessionId, formID: formId, directory } })
+    cancelForm: mock(async (sessionId: string, formId: string, directory?: string | null, message?: string) => {
+      replyCalls.push({ method: "form.cancel", params: { sessionID: sessionId, formID: formId, directory, message } })
       if (formCancelError) throw formCancelError
       return true
     }),

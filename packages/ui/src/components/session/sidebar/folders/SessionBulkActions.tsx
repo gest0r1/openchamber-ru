@@ -9,7 +9,6 @@ import { useSidebarBulkActions } from './useSidebarBulkActions';
 import { finishBulkDoneWork, markSessionsDone } from '../works/workActions';
 import type { SessionRowOrderWork } from '../sessions/sessionRowOrder';
 
-// Archive on Done is read when the batch ends, as the row's Done reads it on click.
 const finishWorkOnBulkDone = (work: SessionRowOrderWork, doneIds: ReadonlySet<string>) => (
   finishBulkDoneWork(work, doneIds, useUIStore.getState().worktreeArchiveOnDoneEnabled)
 );

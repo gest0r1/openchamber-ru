@@ -1,4 +1,3 @@
-import { androidWidgetsI18n } from './android-widgets.i18n';
 import type { I18nKey } from './en';
 import { settingsDict } from './ar.settings';
 import { linearIssuePickerI18n } from './linear-issue-picker.i18n';
@@ -31,17 +30,23 @@ import { compactionSettingsI18n } from './compaction-settings.i18n';
 import { heapSnapshotI18n } from './heap-snapshot.i18n';
 import { consoleBudgetsI18n } from './console-budgets.i18n';
 import { imageToolI18n } from './image-tool.i18n';
+import { sharePagesI18n } from './share-pages.i18n';
+import { receivedPagesI18n } from './received-pages.i18n';
 import { memoryDreamingI18n } from './memory-dreaming.i18n';
 import { usageToolI18n } from './usage-tool.i18n';
+import { externalOpenCodePluginI18n } from './external-opencode-plugin.i18n';
 import { openchamberToolsLayoutI18n } from './openchamber-tools-layout.i18n';
 import { openchamberToolOutputI18n } from './openchamber-tool-output.i18n';
 import { opencodeToolOutputI18n } from './opencode-tool-output.i18n';
 import { agentStatusI18n } from './agent-status.i18n';
+import { androidWidgetsI18n } from './android-widgets.i18n';
 import { selectionApprovalI18n } from './selection-approval.i18n';
 import { snippetsI18n } from './snippets.i18n';
 import { sidebarWorkI18n } from './sidebar-work.i18n';
 import { sidebarSectionsI18n } from './sidebar-sections.i18n';
 import { worktreeArchiveI18n } from './worktree-archive.i18n';
+import { operatorChildrenI18n } from './operator-children.i18n';
+import { leadI18n } from './lead.i18n';
 import { omniSearchI18n } from './omni-search.i18n';
 import { overviewI18n } from './overview.i18n';
 import { isolatedSpacesI18n } from './isolated-spaces.i18n';
@@ -784,7 +789,7 @@ export const dict: Record<I18nKey, string> = {
   'sessions.sidebar.session.status.backgroundCommand': 'أمر يعمل في الخلفية',
   'sessions.sidebar.session.status.backgroundImage': 'صورة قيد الإنشاء في الخلفية',
   'sessions.sidebar.session.status.waitingOnPullRequest': 'بانتظار الفحوصات أو مراجعة',
-  'sessions.sidebar.session.status.waitingOnExtension': 'بانتظار إضافة',
+  'sessions.sidebar.session.status.waitingOnExtension': 'بانتظار مؤقّت أو إضافة',
   'sessions.sidebar.session.status.pinned': 'جلسة مثبّتة',
   'sessions.sidebar.session.status.movingToWorktree': 'جارٍ نقل الجلسة إلى شجرة عمل جديدة',
   'sessions.sidebar.session.status.permissionRequired': 'مطلوب إذن',
@@ -2371,7 +2376,6 @@ export const dict: Record<I18nKey, string> = {
   'session.githubIntegration.validation.branchAlreadyCheckedOut': 'الفرع مسحوب بالفعل في شجرة عمل (worktree)',
   'session.githubIntegration.validation.failed': 'تعذّر التحقق',
   'chat.fileAttachment.toast.tooLarge': '{name} كبير جدًا بحيث لا يمكن إرفاقه (أكثر من {size}). إذا كان ضمن المشروع، فاذكره باستخدام @.',
-  'chat.fileAttachment.toast.heicConversionFailed': 'تعذّر تحويل {name} من HEIC إلى JPEG، لذا لم يُرفق. احفظ الصورة بصيغة JPEG وأرفقها مرة أخرى.',
   'chat.fileAttachment.toast.overSendLimit': '{name} كبير جدًا بحيث لا يمكن إرفاقه (أكثر من {size}).',
   'chat.fileAttachment.toast.documentAttachedAsPath': 'تعذّر تحويل {name} إلى نص، لذا يحصل الوكيل على مساره ويقرأ الملف بنفسه.',
   'chat.fileAttachment.activeEditor.addFile': 'إضافة file:{name} إلى السياق',
@@ -3498,6 +3502,7 @@ export const dict: Record<I18nKey, string> = {
   'markdownRenderer.code.actions.copyTitle': 'نسخ الشيفرة',
   'markdownRenderer.code.actions.copiedTitle': 'تم النسخ',
   'markdownRenderer.code.actions.runTitle': 'تشغيل الأمر. سيتابع الوكيل من مخرجاته',
+  'markdownRenderer.code.actions.runInTerminalTitle': 'تشغيل في الطرفية',
   'markdownRenderer.code.actions.stopTitle': 'إيقاف الأمر',
   'markdownRenderer.code.run.startFailed': 'تعذر بدء الأمر',
   'markdownRenderer.code.run.running': 'قيد التشغيل',
@@ -3668,6 +3673,7 @@ export const dict: Record<I18nKey, string> = {
   'chat.workStatus.breakdown.planCountSingle': '{count} خطة',
   'chat.workStatus.breakdown.planCountPlural': '{count} خطط',
   'chat.workStatus.linkedPlans.open': 'فتح الخطة {title}',
+  'chat.workStatus.loadedSkills.open': 'فتح المهارة {name}',
   'chat.workStatus.sections.open': 'اختيار الأقسام',
   'chat.workStatus.sections.dialogTitle': 'أقسام اللوحة',
   'chat.workStatus.sections.reorder': 'اسحب {label} لإعادة الترتيب',
@@ -3975,8 +3981,11 @@ export const dict: Record<I18nKey, string> = {
   ...heapSnapshotI18n.ar,
   ...consoleBudgetsI18n.ar,
   ...imageToolI18n.ar,
+  ...sharePagesI18n.ar,
+  ...receivedPagesI18n.ar,
   ...memoryDreamingI18n.ar,
   ...usageToolI18n.ar,
+  ...externalOpenCodePluginI18n.ar,
   ...openchamberToolsLayoutI18n.ar,
   ...openchamberToolOutputI18n.ar,
   ...opencodeToolOutputI18n.ar,
@@ -3986,6 +3995,8 @@ export const dict: Record<I18nKey, string> = {
   ...sidebarWorkI18n.ar,
   ...sidebarSectionsI18n.ar,
   ...worktreeArchiveI18n.ar,
+  ...operatorChildrenI18n.ar,
+  ...leadI18n.ar,
   ...omniSearchI18n.ar,
   ...overviewI18n.ar,
   ...isolatedSpacesI18n.ar,
@@ -4081,5 +4092,4 @@ export const dict: Record<I18nKey, string> = {
   'chat.promptHistorySearch.hint': "↑ ↓ للتصفح · Enter للتحميل · Esc للإغلاق",
   'helpDialog.item.searchPromptHistory': "البحث في سجل المطالبات (إدخال الدردشة)",
 
-  "settings.openchamber.keyboardShortcuts.action.new_lead.label": "قائد جديد",
 } as const;

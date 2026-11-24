@@ -8,6 +8,7 @@ import {
   SERVER_SHUTDOWN_GRACE_MS,
   hasInstanceFields,
 } from './cli-process.js';
+import type { InstanceFileFields } from './cli-process.js';
 import { findStartupServiceInstance, restartStartupService } from './cli-startup.js';
 import {
   intro as clackIntro,
@@ -123,10 +124,6 @@ function createUpdateCommand({
     }
     updateSpin?.message(`Updating to ${updateInfo.version || 'latest'}...`);
 
-    // The process manager starts the service again whenever its process
-    // exits, so the old release would come back while the package manager
-    // replaces its files. The service keeps running through the install and
-    // the manager restarts it afterwards, the way the Update button does.
     let serviceInstance;
     try {
       serviceInstance = startupService.findInstance(runningInstances);
