@@ -314,3 +314,7 @@ parentheses.
 Orphans are rare on Windows: libuv puts every spawned child in a job object that
 is killed with the host, even on a hard kill, so the Windows branch of the
 reaper is a safety net.
+
+### Server Browser configuration during package replacement
+
+The Server Browser fork reads its operator configuration from its installed package. When updating or replacing a copied package, the host preserves that configuration in staging before moving the installed package. The copy accepts a bounded regular file and refuses symlinks. An unreadable configuration leaves the old package available. A full uninstall removes the package configuration. The Server Browser profile root lives outside the package under the execution user's home or the operator's configured path.

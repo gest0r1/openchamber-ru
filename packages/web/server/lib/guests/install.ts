@@ -30,6 +30,7 @@ import type { PublicGuest } from './catalog.js';
 import type { AddressLookup, PublicAddress } from './clone.js';
 import type { TcpNetConnectOpts } from 'node:net';
 import { isString } from './input-guards.js';
+import { preserveServerBrowserConfig } from './server-browser-config.js';
 import { prepareGuestGitCheckout } from './root-guest-checkout.js';
 
 type InstallOptions = { openchamberVersion?: string | undefined; replace?: boolean; folders?: readonly string[] | undefined };
@@ -174,6 +175,7 @@ const installCopiedGuest = async ({ source, prepare, persistPath, openchamberVer
     try {
       if (registered) {
         await stopGuestService(inspected.guest.id);
+        await preserveServerBrowserConfig(inspected.guest.id, dest, packageRoot);
         await fs.rename(dest, backup);
         backedUp = true;
       }
