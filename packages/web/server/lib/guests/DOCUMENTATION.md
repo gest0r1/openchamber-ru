@@ -318,3 +318,7 @@ reaper is a safety net.
 ### Server Browser configuration during package replacement
 
 The Server Browser fork reads its operator configuration from its installed package. When updating or replacing a copied package, the host preserves that configuration in staging before moving the installed package. The copy accepts a bounded regular file and refuses symlinks. An unreadable configuration leaves the old package available. A full uninstall removes the package configuration. The Server Browser profile root lives outside the package under the execution user's home or the operator's configured path.
+
+### Root Git extension lifecycle
+
+In split-root mode installed extensions remain root-private. Every root update check uses a disposable execution-owned bare Git scratch repository and fetches the configured origin/ref only to read its manifest; it never changes the installed tree. Install and update share the same checked scratch allocator and secure snapshot. The root UI needs CAP_CHOWN for scratch and service data ownership transfer, not CAP_FOWNER: permissions are set before transfer. Neither CAP_CHOWN nor DAC_OVERRIDE is ambient or effective in unprivileged child processes. Preparation exceptions log schema-validated error categories/syscalls and known boundary messages, not arbitrary exception text. Local Git fixtures use no hardlinks.

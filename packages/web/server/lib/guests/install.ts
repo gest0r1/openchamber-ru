@@ -12,7 +12,7 @@ import {
   toPublicGuest,
 } from './catalog.js';
 import { forgetServiceFailure, stopGuestService } from './service.js';
-import { cloneGitRepository, isHttpsZipUrl, isPublicHostname, parseGitInstallUrl, publicAddressesOf } from './clone.js';
+import { cloneGitRepository, guestGitFailureSchema, logGuestGitFailure, isHttpsZipUrl, isPublicHostname, parseGitInstallUrl, publicAddressesOf } from './clone.js';
 import { isReservedBuiltInId } from './builtins.js';
 import { enterpriseBlockedCapabilities } from './enterprise.js';
 import { extractZipBuffer, unwrapGuestRoot } from './extract-zip.js';
@@ -205,7 +205,8 @@ const installCopiedGuest = async ({ source, prepare, persistPath, openchamberVer
     } finally {
       if (packageRoot !== staging) await removeDir(staging);
     }
-  } catch {
+  } catch (error) {
+    if (source === 'git') logGuestGitFailure('install', guestGitFailureSchema.parse(error));
     await removeDir(staging);
     return { ok: false, code: source === 'git' ? 'clone-failed' : 'extract-failed' };
   }

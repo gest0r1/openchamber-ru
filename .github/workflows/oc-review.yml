@@ -55,6 +55,11 @@ jobs:
         run: bun run --cwd packages/web test -- server/lib/guests/root-guest-checkout.test.js
       - name: Real UID root to nobody Git clone and read-only adoption
         run: sudo -n env PATH="$PATH" bun run --cwd packages/web test -- server/lib/guests/root-guest-checkout.test.js
+      - name: Extension lifecycle with production root capability set
+        run: |
+          sudo -n env PATH="$PATH" P1_ROOT_EXTENSION_ACCEPTANCE=1 \
+            setpriv --bounding-set=-all,+chown,+dac_override,+setuid,+setgid \
+            --no-new-privs bun run --cwd packages/web test -- server/lib/guests/root-extension-lifecycle.test.js
 
   tests:
     runs-on: ubuntu-24.04
