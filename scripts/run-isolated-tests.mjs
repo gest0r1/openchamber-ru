@@ -132,11 +132,8 @@ files.sort();
 const failures = [];
 const unknown = [];
 let passed = 0;
-let next = 0;
-
-const worker = async () => {
-  while (next < files.length) {
-    const file = files[next++];
+const worker = async (takeNext) => {
+  for (let file = takeNext(); file; file = takeNext()) {
     const relative = path.relative(process.cwd(), file);
     const resolved = resolveCommand(file);
     if (!resolved) {
@@ -157,7 +154,12 @@ const worker = async () => {
   }
 };
 
-await Promise.all(Array.from({ length: Math.min(MAX_PARALLEL, files.length) }, worker));
+const browserFiles = files.filter((file) => file.endsWith('.browser.test.mjs') || file.endsWith(path.join('verify', 'browser.test.mjs')));
+const regularFiles = files.filter((file) => !browserFiles.includes(file));
+let next = 0;
+await Promise.all(Array.from({ length: Math.min(MAX_PARALLEL, regularFiles.length) }, () => worker(() => regularFiles[next++])));
+let browserNext = 0;
+await worker(() => browserFiles[browserNext++]);
 
 for (const failure of failures) {
   console.error(`\n===== ${failure.relative} (${failure.label}) =====\n${failure.output}`);

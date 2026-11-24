@@ -79,6 +79,7 @@ test('chat Markdown tables expand into spare transcript width and show hidden-ed
   const server = await createServer({
     configFile: false,
     root: fixture,
+    cacheDir: path.join(fixture, 'vite-cache'),
     logLevel: 'error',
     css: { postcss: repo },
     resolve: { alias: { '@': path.join(repo, 'packages/ui/src'), '@openchamber/sdk': path.join(repo, 'packages/sdk/src/index.ts') } },

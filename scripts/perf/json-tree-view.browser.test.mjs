@@ -44,6 +44,7 @@ test('JSON tree stays bounded and its tail remains reachable', { skip: !chrome &
   const server = await createServer({
     configFile: false,
     root: fixture,
+    cacheDir: path.join(fixture, 'vite-cache'),
     logLevel: 'error',
     css: { postcss: repo },
     resolve: { alias: { '@': path.join(repo, 'packages/ui/src'), '@openchamber/sdk': path.join(repo, 'packages/sdk/src/index.ts') } },
