@@ -12,7 +12,7 @@ const continuation = z.object({
   message_id: z.string().regex(/^msg_[a-f0-9]{32}$/),
   run_id: identity, pipeline_id: identity, stage: identity, session_id: identity,
   workspace: z.string().regex(/^[a-f0-9]{64}$/),
-  operation: z.enum(['plan.final_manifest.approve', 'owner.accept', 'plan.unfreeze', 'plan.unfreeze.abort']),
+  operation: z.enum(['plan.final_manifest.approve', 'owner.accept', 'owner.amend', 'plan.unfreeze', 'plan.unfreeze.abort']),
   current: z.literal(true), decision: z.literal('approved'),
 });
 const session = z.object({ id: identity, location: z.object({ directory: z.string() }), time: z.object({ archived: z.unknown().optional() }).optional() });
@@ -31,6 +31,7 @@ interface ContinuationOptions extends SessionActivityOptions {
 const ownerApprovalContinuationMessage = (entry: Pick<z.infer<typeof continuation>, 'run_id' | 'pipeline_id' | 'stage' | 'operation'>): string => {
   const actions = {
     'plan.final_manifest.approve': 'Retry the paused PLAN approval step and verify the currently approved manifest.',
+    'owner.amend': 'Retry the paused bounded owner amendment using the approved scope.',
     'plan.unfreeze': 'Retry the paused PLAN unfreeze invocation using the approved scope.',
     'plan.unfreeze.abort': 'Retry the paused PLAN unfreeze cancellation and verify the currently approved scope.',
     'owner.accept': `Recheck the owner acceptance for ${entry.pipeline_id}/${entry.stage} and the current candidate SHA before continuing.`,
