@@ -142,7 +142,7 @@ import { createNotificationTemplateRuntime } from './lib/notifications/template-
 import { createPermissionAutoAcceptRuntime } from './lib/permission-auto-accept/runtime.js';
 import { createMessageQueueRuntime } from './lib/message-queue/runtime.js';
 import { createAutoReviewRuntime } from './lib/auto-review/runtime.js';
-import { createDispatchResultsRuntime } from './lib/dispatch-results/runtime.js';
+import { startPipelineDeliveries } from './lib/server-frame/pipeline-deliveries.js';
 import { createPrWatchRuntime } from './lib/pr-watch/runtime.js';
 import { createExtensionWaitsRuntime } from './lib/extension-waits/runtime.js';
 import { createLaterPages } from './lib/openchamber-control/later-pages.js';
@@ -1351,14 +1351,13 @@ const messageQueueRuntime = createMessageQueueRuntime({
 });
 messageQueueRuntime.start();
 
-const dispatchResultsRuntime = createDispatchResultsRuntime({
+const dispatchResultsRuntime = startPipelineDeliveries({
   globalEventHub: globalMessageStreamHub,
   buildOpenCodeUrl,
   getOpenCodeAuthHeaders,
   dataDir: OPENCHAMBER_DATA_DIR,
   isSessionArchived: (sessionID) => openChamberSessionService.sessionArchive.isArchived(sessionID),
 });
-dispatchResultsRuntime.start();
 
 const prWatchRuntime = createPrWatchRuntime({
   buildOpenCodeUrl,

@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="referrer" content="no-referrer">
+    <title>Pipeline Approval</title>
+    <style>
+      body { font: 14px system-ui, sans-serif; margin: 12px; color-scheme: light dark; }
+      header, li { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+      h2 { overflow-wrap: anywhere; }
+      ul { list-style: none; padding: 0; }
+      li { border-block-start: 1px solid GrayText; padding-block: 8px; }
+      li span { flex: 1 1 10rem; overflow-wrap: anywhere; }
+      button { font: inherit; cursor: pointer; padding: 6px 10px; }
+    </style>
+  </head>
+  <body>
+    <header><button id="refresh"></button></header>
+    <p id="status" role="status"></p>
+    <main id="projects"></main>
+    <button id="older" hidden></button>
+    <script src="main.js"></script>
+  </body>
+</html>

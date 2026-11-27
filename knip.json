@@ -13,11 +13,13 @@
         "oxlint.config.ts",
         "oxlint.anti-slop.config.ts",
         "postcss.config.js",
-        "scripts/**/*.{js,cjs,mjs,ts}"
+        "scripts/**/*.{js,cjs,mjs,ts}",
+        "packages/extensions/*/{panel,service}/main.ts"
       ],
       "project": [
         "*.{js,cjs,mjs,ts}",
-        "scripts/**/*.{js,cjs,mjs,ts}"
+        "scripts/**/*.{js,cjs,mjs,ts}",
+        "packages/extensions/**/*.ts"
       ]
     },
     "packages/ui": {
@@ -37,6 +39,7 @@
     "packages/web": {
       "entry": [
         "bin/cli.js",
+        "bin/owner-approval.ts",
         "server/lib/opencode/login-shell-env.ts",
         "server/index.js",
         "scripts/build-server.mjs",

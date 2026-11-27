@@ -241,6 +241,7 @@ jobs:
           grep -q '^package/dist/' "$package_list"
           grep -Fxq 'package/build/server/index.js' "$package_list"
           grep -Fxq 'package/build/bin/cli.js' "$package_list"
+          grep -Fxq 'package/build/bin/owner-approval.js' "$package_list"
           test_root="$RUNNER_TEMP/openchamber-global"
           mkdir -p "$test_root"
           BUN_INSTALL="$test_root" bun add -g "$GITHUB_WORKSPACE/artifacts/$ASSET"

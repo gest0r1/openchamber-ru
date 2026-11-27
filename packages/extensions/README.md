@@ -14,6 +14,6 @@ Output goes to `packages/web/server/built-in-extensions/`. It is generated, igno
 
 Packaged Electron unpacks these resources from ASAR so future service entries can run as ordinary files. The backend selects its app-owned registry; user extensions and user data are stored separately.
 
-The registry is currently empty. Builds still ship an empty registry and remove resources from previously bundled extensions. Build tests create temporary fixtures instead of shipping a demo.
+Pipeline Approval groups requests by repository, displays their status and opens the exact request on the configured owner-approval origin. The extension is available from the web, desktop and mobile workspace panels. Its service reads checkpoint summaries and provides session marks on hosts that support them. Returning to the panel refreshes the list and **Open session** navigates to the original chat.
 
 Implementation and trust rules: [DOCUMENTATION.md](./DOCUMENTATION.md).

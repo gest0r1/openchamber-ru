@@ -1,0 +1,25 @@
+{
+  "name": "@openchamber/builtin-pipeline-approval",
+  "version": "2.8.0",
+  "private": true,
+  "type": "module",
+  "openchamber": {
+    "apiVersion": 1,
+    "engines": { "openchamber": ">=2.8.0" },
+    "id": "openchamber-builtin-pipeline-approval",
+    "name": "Pipeline Approval",
+    "icon": "shield-check",
+    "contributes": {
+      "panel": { "entry": "panel/index.html", "mobile": true },
+      "page": true,
+      "sessions": true,
+      "marks": true,
+      "service": {
+        "entry": "service/main.js",
+        "runtime": "host",
+        "keepRunning": true,
+        "permissions": { "sockets": [{ "id": "checkpoints", "candidates": { "linux": ["/run/my-opencode-approval/agent.sock"] } }] }
+      }
+    }
+  }
+}
