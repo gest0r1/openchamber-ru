@@ -20,6 +20,8 @@ const synthetic = z.object({
   id: z.string(), sessionID: z.string(), type: z.literal('synthetic'),
   payload: z.object({ text: z.string(), description: z.string() }), delivery: z.literal('queue'),
 });
+const storedSynthetic = z.object({ id: z.string(), type: z.literal('synthetic'), text: z.string(), description: z.string() });
+const missingMessage = z.object({ _tag: z.literal('MessageNotFoundError'), sessionID: z.string(), messageID: z.string() });
 const pending = z.object({ pending: z.array(continuation) });
 const description = 'Pipeline owner decision';
 
@@ -77,6 +79,17 @@ export async function reconcileOwnerApprovalContinuations({ buildOpenCodeUrl, ge
     const identity = { request_id: entry.request_id, session_id: entry.session_id, message_id: entry.message_id };
     const claim = z.object({ claimed: z.boolean() }).parse(await broker({ action: 'claim_continuation', ...identity }, socket));
     if (!claim.claimed) continue;
+    const storedMessage = await call(`${path}/message/${encodeURIComponent(entry.message_id)}`);
+    if (storedMessage.ok) {
+      const existing = storedSynthetic.safeParse(unwrapOpenCodeResponse(await storedMessage.json()));
+      if (existing.success && existing.data.id === entry.message_id && existing.data.text === text && existing.data.description === description) {
+        await broker({ action: 'ack_continuation', ...identity }, socket);
+      }
+      continue;
+    }
+    if (storedMessage.status !== 404) continue;
+    const missing = missingMessage.safeParse(await storedMessage.json());
+    if (!missing.success || missing.data.sessionID !== entry.session_id || missing.data.messageID !== entry.message_id) continue;
     const delivery = await call(`${path}/synthetic`, { id: entry.message_id, text, description, delivery: 'queue', resume: true });
     if (!delivery.ok) continue;
     const stored = synthetic.safeParse(unwrapOpenCodeResponse(await delivery.json()));

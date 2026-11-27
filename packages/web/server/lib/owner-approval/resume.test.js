@@ -7,17 +7,25 @@ const sessionId = 'ses_original';
 const sessionPath = `/api/session/${sessionId}`;
 const messageId = `msg_${'a'.repeat(32)}`;
 
-async function fixture({ busy = false, workspaceMismatch = false, wrongMessage = false } = {}) {
+async function fixture({ busy = false, workspaceMismatch = false, wrongMessage = false, loseAcknowledgement = false } = {}) {
   const directory = await realpath(process.cwd());
   const entry = {
     request_id: 'b'.repeat(32), message_id: messageId, run_id: 'run', pipeline_id: 'app', stage: 'accept', session_id: sessionId,
     workspace: createHash('sha256').update(workspaceMismatch ? '/' : directory).digest('hex'),
     current: true, decision: 'approved', operation: 'owner.accept',
   };
+  let accepted;
+  let acknowledgementLost = false;
   const broker = vi.fn(async ({ action }) => {
     if (action === 'scan_continuations') return { pending: [entry] };
     if (action === 'claim_continuation') return { claimed: true };
-    if (action === 'ack_continuation') return { ok: true };
+    if (action === 'ack_continuation') {
+      if (loseAcknowledgement && !acknowledgementLost) {
+        acknowledgementLost = true;
+        throw new Error('interrupted after OpenCode persisted the wake');
+      }
+      return { ok: true };
+    }
     throw new Error('unexpected broker action');
   });
   const fetchImpl = vi.fn(async (raw, options) => {
@@ -27,8 +35,12 @@ async function fixture({ busy = false, workspaceMismatch = false, wrongMessage =
       case '/api/experimental/job':
       case `${sessionPath}/form`:
       case `${sessionPath}/permission`: return Response.json({ data: [] });
+      case `${sessionPath}/message/${messageId}`: return accepted
+        ? Response.json({ data: accepted })
+        : Response.json({ _tag: 'MessageNotFoundError', sessionID: sessionId, messageID: messageId }, { status: 404 });
       case `${sessionPath}/synthetic`: {
         const { id, text, description, delivery } = JSON.parse(options.body);
+        accepted = { id, type: 'synthetic', text, description };
         return Response.json({ data: { id, sessionID: wrongMessage ? 'ses_other' : sessionId,
           type: 'synthetic', payload: { text, description }, delivery } });
       }
@@ -61,5 +73,13 @@ describe('owner continuation', () => {
     const { broker, reconcile } = await fixture({ wrongMessage: true });
     await reconcile();
     expect(broker.mock.calls.map(([request]) => request.action)).toEqual(['scan_continuations', 'claim_continuation']);
+  });
+
+  it('acknowledges a persisted wake after a lost response without submitting another resume', async () => {
+    const { broker, fetchImpl, reconcile } = await fixture({ loseAcknowledgement: true });
+    await expect(reconcile()).rejects.toThrow('interrupted');
+    await reconcile();
+    expect(fetchImpl.mock.calls.filter(([url]) => url.endsWith('/synthetic'))).toHaveLength(1);
+    expect(broker.mock.calls.filter(([request]) => request.action === 'ack_continuation')).toHaveLength(2);
   });
 });
