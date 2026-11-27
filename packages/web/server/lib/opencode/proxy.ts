@@ -19,6 +19,9 @@ import { diagnosticApiRoute, diagnosticErrorMessage } from '../diagnostics/vocab
 import { withUnreadBaseline } from '../openchamber-sessions/unread-baseline.js';
 import { OPENCODE_TRUST_ROUTE, isGlobalRead, readMoveDestination, sessionMoveOf } from '../opencode-trust/index.js';
 import { createSessionDirectoryResolver } from '../opencode-trust/session-directory.js';
+import { registerGoalCommandGuard } from '../session-goal/routes.js';
+import type { SessionGoalRuntime } from '../session-goal/runtime.js';
+import { replayParsedBody } from './proxy-request-body.js';
 import type { Application, Request, Response, NextFunction, RequestHandler } from '../shared/http-contracts.js';
 import type { OpenCodeLifecycleState } from './lifecycle.js';
 import type { RealpathCacheOptions } from '../path-realpath-cache.js';
@@ -55,6 +58,7 @@ export interface OpenCodeProxyDependencies {
   hiddenSessions?: ReturnType<typeof createHiddenSessionRegistry> | null;
   openCodeTrust?: OpenCodeTrust | null;
   mcpOAuthSignIn?: ReturnType<typeof createMcpOAuthSignIn> | null;
+  beforeSessionCommand?: SessionGoalRuntime['beforeCommand'] | undefined;
 }
 
 interface ErrorFields {
@@ -437,6 +441,7 @@ export const registerOpenCodeProxy = (app: Application, deps: OpenCodeProxyDepen
     hiddenSessions = null,
     openCodeTrust = null,
     mcpOAuthSignIn = null,
+    beforeSessionCommand,
   } = deps;
 
   const readArchivedSessions = async () => {
@@ -544,67 +549,6 @@ export const registerOpenCodeProxy = (app: Application, deps: OpenCodeProxyDepen
   const canonicalizeDirectoryQuery = createDirectoryQueryCanonicalizer({
     realpath: fs?.promises?.realpath?.bind(fs.promises),
   });
-
-  const hasParsedBodyValue = <Body>(body: Body) => {
-    if (body === undefined || body === null) return false;
-    if (Buffer.isBuffer(body)) return body.length > 0;
-    if (isString(body)) return body.length > 0;
-    if (Array.isArray(body)) return body.length > 0;
-    if (isObject(body)) return Object.keys(body).length > 0;
-    return true;
-  };
-
-  const getContentType = (proxyReq: http.ClientRequest, req: Request) => {
-    const value = proxyReq.getHeader?.('content-type') ?? req.headers?.['content-type'] ?? '';
-    if (Array.isArray(value)) return value[0] || '';
-    return String(value || '');
-  };
-
-  const serializeUrlEncodedBody = <Body>(body: Body) => {
-    if (!isObject(body) || Buffer.isBuffer(body)) {
-      return String(body ?? '');
-    }
-
-    const params = new URLSearchParams();
-    for (const [key, value] of Object.entries(body)) {
-      if (value === undefined || value === null) continue;
-      if (Array.isArray(value)) {
-        for (const entry of value) {
-          if (entry !== undefined && entry !== null) params.append(key, String(entry));
-        }
-        continue;
-      }
-      params.append(key, String(value));
-    }
-    return params.toString();
-  };
-
-  const serializeParsedBody = (req: Request, proxyReq: http.ClientRequest) => {
-    if (req.method === 'GET' || req.method === 'HEAD') return null;
-    if (req.body === undefined || req.body === null) return null;
-    const originalContentLength = Number.parseInt(req.headers?.['content-length'] || '0', 10) || 0;
-    if (!hasParsedBodyValue(req.body) && originalContentLength <= 0) return null;
-
-    const contentType = getContentType(proxyReq, req).toLowerCase();
-    if (Buffer.isBuffer(req.body)) return req.body;
-    if (contentType.includes('application/json')) return Buffer.from(JSON.stringify(req.body));
-    if (contentType.includes('application/x-www-form-urlencoded')) return Buffer.from(serializeUrlEncodedBody(req.body));
-    if (isString(req.body)) return Buffer.from(req.body);
-    return null;
-  };
-
-  const replayParsedBody = (proxyReq: http.ClientRequest, req: Request) => {
-    const body = serializeParsedBody(req, proxyReq);
-    if (!body) {
-      if (proxyReq.getHeader('content-length') !== undefined) {
-        proxyReq.removeHeader('transfer-encoding');
-      }
-      return;
-    }
-    proxyReq.removeHeader('transfer-encoding');
-    proxyReq.setHeader('content-length', String(body.length));
-    proxyReq.write(body);
-  };
 
   const normalizeProxyTarget = (candidate: string | null) => {
     if (!isString(candidate)) {
@@ -1289,5 +1233,6 @@ export const registerOpenCodeProxy = (app: Application, deps: OpenCodeProxyDepen
 
   app.use('/api', applyProxyResponseDeadline);
   mcpOAuthSignIn?.registerStartRoutes(app, { readBody });
+  if (beforeSessionCommand) registerGoalCommandGuard(app, express, beforeSessionCommand);
   app.use('/api', apiProxy);
 };

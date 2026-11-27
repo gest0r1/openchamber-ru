@@ -8,7 +8,7 @@ import { isString } from '../shared/object-guards.js';
 interface ServerUtilsDependencies extends Pick<OpenCodeProxyDependencies,
   'getRuntime' | 'getOpenCodeAuthHeaders' | 'buildOpenCodeUrl' | 'ensureOpenCodeApiPrefix'
   | 'getArchivedSessions' | 'getUnreadBaseline' | 'hiddenSessions' | 'getStoredSessionMetadata'
-  | 'openCodeTrust' | 'mcpOAuthSignIn'> {
+  | 'openCodeTrust' | 'mcpOAuthSignIn' | 'beforeSessionCommand'> {
   fs: NonNullable<OpenCodeProxyDependencies['fs']> & Pick<typeof import('node:fs'), 'existsSync'>;
   os: Pick<typeof import('node:os'), 'homedir'>;
   path: Pick<typeof import('node:path'), 'join' | 'delimiter'>;
@@ -67,6 +67,7 @@ export const createServerUtilsRuntime = (dependencies: ServerUtilsDependencies) 
     getStoredSessionMetadata = null,
     openCodeTrust = null,
     mcpOAuthSignIn = null,
+    beforeSessionCommand,
     readWorktreeBootstrapStatus,
   } = dependencies;
 
@@ -244,6 +245,7 @@ export const createServerUtilsRuntime = (dependencies: ServerUtilsDependencies) 
       hiddenSessions,
       openCodeTrust,
       mcpOAuthSignIn,
+      beforeSessionCommand,
       readWorktreeBootstrapStatus,
     };
     registerOpenCodeProxy(app, proxyDependencies);

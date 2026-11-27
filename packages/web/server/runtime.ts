@@ -1142,6 +1142,7 @@ const sessionAssistRuntime = createSessionAssistRuntime({
   }),
 });
 
+const persistCreatedSessionGoal = createGoalPersistence(persistSessionMetadataPatch, updateSessionMetadataWith);
 const sessionGoalRuntime = createSessionGoalRuntime({
   buildOpenCodeUrl,
   getOpenCodeAuthHeaders,
@@ -1149,12 +1150,10 @@ const sessionGoalRuntime = createSessionGoalRuntime({
   classifierEndpoint: () => routingRuntime.classifierEndpoint(),
   jev: createJevClient({ timeoutMs: JEV_BACKGROUND_TIMEOUT_MS }),
   readSessionMetadata: readStoredSessionMetadata,
-  persistSessionGoal: createGoalPersistence(persistSessionMetadataPatch, updateSessionMetadataWith),
+  persistSessionGoal: persistCreatedSessionGoal,
   emitGoalNotification: async ({ sessionId, directory, status, goal }) => {
     const settings = await readSettingsFromDisk();
-    if (settings.notifyOnCompletion === false) {
-      return;
-    }
+    if (settings.notifyOnCompletion === false) return;
     const title = status === 'complete'
       ? 'Goal complete'
       : (status === 'budgetLimited' ? 'Goal reached its token budget' : 'Goal blocked');
@@ -1341,8 +1340,8 @@ const messageQueueRuntime = createMessageQueueRuntime({
   sessionKnowledgeRuntime,
   broadcastGlobalUiEvent: broadcastOpenChamberUiEvent,
   resolveAutoSelection: (send) => routingRuntime.resolveAutoSelection(send),
-  persistSessionGoal: (sessionID, directory, goal) =>
-    persistSessionMetadataPatch(sessionID, { openchamber: { goal } }, { directory }),
+  persistSessionGoal: persistCreatedSessionGoal,
+  beforeSessionCommand: sessionGoalRuntime.beforeCommand,
   isDeliveryHeld: (sessionId) => autoReviewRuntime.holdsDelivery(sessionId),
   deliveryHoldReady: autoReviewRuntime.startupLoad,
   beforeScheduledTaskSend: (...args) => scheduledTasksRuntime.beforeScheduledTaskSend(...args),
@@ -1702,6 +1701,7 @@ const serverUtilsRuntime = createServerUtilsRuntime({
   hiddenSessions,
   openCodeTrust,
   mcpOAuthSignIn,
+  beforeSessionCommand: sessionGoalRuntime.beforeCommand,
   readWorktreeBootstrapStatus: (directory) => getWorktreeBootstrapGateStatus(directory, { bootstrapStore: worktreeBootstrapStore }),
   fs,
   os,
@@ -2054,8 +2054,7 @@ const scheduledTasksRuntime = createScheduledTasksRuntime({
   getOpenCodeAuthHeaders,
   waitForOpenCodeReady,
   sessionKnowledgeRuntime,
-  persistSessionGoal: (sessionID, directory, goal) =>
-    persistSessionMetadataPatch(sessionID, { openchamber: { goal } }, { directory }),
+  persistSessionGoal: persistCreatedSessionGoal,
   setSessionAutoAccept: (sessionId, enabled, directory) => permissionAutoAcceptRuntime.setSessionPolicy(sessionId, enabled, directory),
   emitTaskRunEvent: (event) => {
     for (const client of uiOpenChamberEventClients) {
@@ -2162,6 +2161,7 @@ const openChamberSessionService = createOpenChamberSessionService({
   sessionMetadataStore,
   persistSessionMetadata: persistSessionMetadataPatch,
   updateSessionMetadata: updateSessionMetadataWith,
+  beforeSessionCommand: sessionGoalRuntime.beforeCommand,
   broadcastGlobalUiEvent: broadcastOpenChamberUiEvent,
   resolveAutoSelection: (input) => routingRuntime.resolveAutoSelection(input),
   isAutoReady: async () => (await routingRuntime.describe()).autoReady,

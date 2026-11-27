@@ -21,7 +21,7 @@ import { expandSnippets } from '../snippets/snippets.js';
 import { AUTO_MODEL_REF, isAutoModel } from '../routing/defaults.js';
 import { parseScheduledCommandPrompt } from '../scheduled-tasks/runtime.js';
 import { CHATS_SCOPE_PUBLIC_ID, readChatsDefaults } from '../scheduled-tasks/chats-scope.js';
-import { buildGoalIntroText, createSessionGoal } from '../session-goal/create.js';
+import { buildGoalIntroText, createSessionGoal, resolveGoalInput, type GoalInput } from '../session-goal/create.js';
 import { OpenChamberControlError, asControlError, controlErrorFields } from '../openchamber-control/error.js';
 import type { ControlErrorDetails } from '../openchamber-control/error.js';
 import { readObjective, writeObjective } from '../session-goal/objectives.js';
@@ -116,6 +116,7 @@ export interface SessionServiceDependencies {
   broadcastGlobalUiEvent?: (event: { type: string; properties: { sessionID: string; archivedAt?: number | null; metadata?: SessionMetadata | undefined } }) => void;
   onSessionArchived?: ((sessionID: string, archivedAt: number | null) => void) | null;
   createSessionGoal?: typeof createSessionGoal;
+  beforeSessionCommand?: (sessionId: string, name: string, directory: string) => Promise<void>;
   sessionKnowledgeRuntime?: { sync: (sessionID: string, directory: string, responseStyle?: string) => Promise<boolean | void> } | null;
   worktreeBootstrapStore: BootstrapStore;
   hydrateWorktreeCheckout: FeatureRoutesRuntime['hydrateBoundCheckout'];
@@ -179,7 +180,6 @@ interface SessionSelectionInput extends SelectionRequest {
   projectId: string | undefined;
   reuseSessionSelection?: boolean;
 }
-type GoalInput = { ok: true; enabled: boolean; tokenBudget: number | null } | { ok: false; error: string };
 interface DispatchInput extends SessionSelectionInput {
   sessionID: string;
   baseUrl: string;
@@ -256,29 +256,6 @@ const requiredDataDir = (value: string | null) => {
 
 const FALLBACK_PROVIDER_ID = 'opencode';
 const FALLBACK_MODEL_ID = 'big-pickle';
-const MIN_GOAL_TOKEN_BUDGET = 1_000;
-const MAX_GOAL_TOKEN_BUDGET = 100_000_000;
-
-
-const resolveGoalInput = (payload: SessionPayload, prompt: string | null): GoalInput => {
-  const enabled = payload?.goal === true;
-  if (payload?.goalTokenBudget !== undefined && !enabled) {
-    return { ok: false, error: 'goalTokenBudget requires goal' };
-  }
-  if (enabled && !prompt) {
-    return { ok: false, error: 'prompt is required when goal is enabled' };
-  }
-  if (payload?.goalTokenBudget === undefined) {
-    return { ok: true, enabled, tokenBudget: null };
-  }
-  const tokenBudget = payload.goalTokenBudget;
-  if (!isSafeInteger(tokenBudget)
-    || tokenBudget < MIN_GOAL_TOKEN_BUDGET
-    || tokenBudget > MAX_GOAL_TOKEN_BUDGET) {
-    return { ok: false, error: `goalTokenBudget must be an integer from ${MIN_GOAL_TOKEN_BUDGET} to ${MAX_GOAL_TOKEN_BUDGET}` };
-  }
-  return { ok: true, enabled, tokenBudget };
-};
 
 const isPrimaryAgentMode = (mode: AgentInfo['mode']) => !mode || mode === 'primary' || mode === 'all';
 
@@ -659,6 +636,7 @@ export const createOpenChamberSessionService = (dependencies: SessionServiceDepe
     broadcastGlobalUiEvent,
     onSessionArchived = null,
     createSessionGoal: createSessionGoalOverride,
+    beforeSessionCommand,
     sessionKnowledgeRuntime = null,
     worktreeBootstrapStore,
     hydrateWorktreeCheckout,
@@ -1049,6 +1027,7 @@ export const createOpenChamberSessionService = (dependencies: SessionServiceDepe
 
     if (resolvedCommand) {
       try {
+        await beforeSessionCommand?.(sessionID, resolvedCommand.command, directory);
         await client.session.command({
           sessionID,
           name: resolvedCommand.command,

@@ -15,6 +15,11 @@ the UI owns arming goals and presenting their state.
 
 ## Invariants
 
+- `/pipeline-*` commands pause an active Goal before dispatch. The pause is
+  persisted in session metadata so the Goal stays paused across reconnects
+  and server restarts. The objective, progress and manual Resume stay available.
+- Command dispatch waits for the pause to save. A pending pause prevents another
+  Goal tick and cancels a continuation that has yet to send.
 - Goal writes re-read OpenChamber's metadata and check the logical goal id so a
   replacement or clear during a tick drops the stale write. Metadata updates
   preserve neighbouring feature payloads.

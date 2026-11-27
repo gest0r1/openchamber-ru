@@ -2,7 +2,7 @@ import { OpenCode } from '@opencode/client';
 import { DateTime } from 'luxon';
 import { CronExpressionParser } from 'cron-parser';
 import { expandSnippets } from '../snippets/snippets.js';
-import { buildGoalIntroText, createSessionGoal } from '../session-goal/create.js';
+import { allowsSessionGoalForPrompt, buildGoalIntroText, createSessionGoal } from '../session-goal/create.js';
 import { discoverLoops } from './loops.js';
 import { assertOpenCodeApiResponse } from '../opencode/prompt-response.js';
 import { createExistingSessionTasks } from './existing-session.js';
@@ -650,7 +650,7 @@ export const createScheduledTasksRuntime = (deps: ScheduledTasksDependencies) =>
   const runPrompt = async ({ client, sessionID, projectPath, task }: RunContext & { sessionID: string }) => {
     await syncKnowledge(sessionID, projectPath);
 
-    if (task.execution.goalEnabled) {
+    if (task.execution.goalEnabled && allowsSessionGoalForPrompt(task.execution.prompt)) {
       await client.session.synthetic({ sessionID, text: buildGoalIntroText(task.execution.goalTokenBudget), resume: false });
     }
 
@@ -945,7 +945,7 @@ export const createScheduledTasksRuntime = (deps: ScheduledTasksDependencies) =>
 
       const scheduledCommand = await resolveScheduledCommand({ client, projectPath: runDirectory, task });
 
-      if (task.execution.goalEnabled) {
+      if (task.execution.goalEnabled && allowsSessionGoalForPrompt(task.execution.prompt)) {
         const commandObjective = scheduledCommand
           ? expandCommandGoalObjective(scheduledCommand.template, scheduledCommand.arguments)
           : null;

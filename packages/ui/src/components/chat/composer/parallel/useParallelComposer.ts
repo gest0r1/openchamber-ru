@@ -9,6 +9,7 @@ import { attachmentWireName, attachmentsCitedIn } from '@/lib/attachmentIdentity
 import { useMultiRunStore } from '@/stores/useMultiRunStore';
 import { useProjectsStore } from '@/stores/useProjectsStore';
 import { useSessionGoalArmStore } from '@/stores/useSessionGoalArmStore';
+import { allowsSessionGoalForInput } from '@/lib/sessionGoalActions';
 import { useUIStore } from '@/stores/useUIStore';
 import type { CreateMultiRunParams } from '@/types/multirun';
 import type { ComposerText } from '../state/composerText';
@@ -216,7 +217,7 @@ export function useParallelComposer(input: {
       autoFusion: current.fuse
         ? { providerID: current.fuse.providerID, modelID: current.fuse.modelID, variant: current.fuse.variant, agent: config.currentAgentName || undefined }
         : undefined,
-      goal: useSessionGoalArmStore.getState().armed
+      goal: useSessionGoalArmStore.getState().armed && variants.some((variant) => allowsSessionGoalForInput(variant.text))
         ? { tokenBudget: ui.sessionGoalDefaultBudgetEnabled ? ui.sessionGoalDefaultBudget : null }
         : undefined,
     };

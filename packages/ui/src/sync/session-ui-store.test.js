@@ -2723,6 +2723,25 @@ describe('goal objective directory scoping', () => {
     expect(metadataWrites).toHaveLength(0);
     expect(useSessionGoalArmStore.getState().armed).toBe(true);
   });
+
+  test.each([
+    ['the composer arm', undefined],
+    ['a queued goal', { objective: 'the whole plan', tokenBudget: 5000 }],
+  ])('a pipeline command leaves %s out of the send', async (_source, queuedGoal) => {
+    useCommandsStore.setState({ commandsByDirectory: {
+      '/repo/worktree': [{ name: 'pipeline-plan', template: 'Plan $ARGUMENTS.' }],
+    } });
+    const calls = [];
+    opencodeClient.sendCommand = async (params) => { calls.push(params); };
+
+    await sendQueued('/pipeline-plan auth flow', queuedGoal);
+
+    expect(metadataWrites).toEqual([]);
+    expect(calls).toHaveLength(1);
+    expect(calls[0]).toMatchObject({ command: 'pipeline-plan', arguments: 'auth flow' });
+    expect(calls[0].context ?? []).toEqual([]);
+    expect(useSessionGoalArmStore.getState().armed).toBe(true);
+  });
 });
 
 describe('archiveSessions option forwarding', () => {

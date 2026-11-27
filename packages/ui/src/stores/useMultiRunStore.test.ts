@@ -297,6 +297,17 @@ describe('useMultiRunStore', () => {
     await settleDispatch();
     expect(dispatchedSessionIds).toEqual(['ses_multirun_2']);
   });
+  test('a pipeline lane skips the shared goal, while an ordinary lane keeps it', async () => {
+    await useMultiRunStore.getState().createMultiRun({
+      ...goalRun,
+      groups: [{ ...goalRun.groups[0]!, prompt: '/pipeline-plan example' }, goalRun.groups[1]!],
+    });
+    await settleDispatch();
+    expect(goalWrites).toEqual([
+      { sessionId: 'ses_multirun_2', directory: '/repo', objective: 'Variant B', tokenBudget: 1000 },
+    ]);
+    expect(dispatchedParts.get('ses_multirun')).toBeUndefined();
+  });
   test('a rejected prompt takes its goal back, so the lane does not stay working', async () => {
     rejectPromptFor = 'ses_multirun';
     await useMultiRunStore.getState().createMultiRun(goalRun);

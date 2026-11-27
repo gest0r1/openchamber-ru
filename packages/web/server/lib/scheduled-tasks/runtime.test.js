@@ -351,13 +351,14 @@ describe('scheduled-tasks runtime prompt dispatch', () => {
     vi.unstubAllGlobals();
   });
 
-  it('sends the complete multiline command body to OpenCode', async () => {
+  it.each(['review', 'pipeline-review'])('sends the complete multiline %s command body to OpenCode', async (command) => {
     const posts = [];
+    const persistSessionGoal = vi.fn(async () => undefined);
     vi.stubGlobal('fetch', vi.fn(async (input, init = {}) => {
       const { pathname } = new URL(String(input));
       if (init.method === 'POST') posts.push({ pathname, body: JSON.parse(init.body) });
       if (pathname === '/api/session/ses_run/command') return new Response(null, { status: 204 });
-      const data = pathname === '/api/session' ? { id: 'ses_run' } : pathname === '/api/command' ? [{ name: 'review' }] : {};
+      const data = pathname === '/api/session' ? { id: 'ses_run' } : pathname === '/api/command' ? [{ name: command }] : {};
       return new Response(JSON.stringify({ location: { directory: '/repo' }, data }), { status: 200, headers: { 'content-type': 'application/json' } });
     }));
     const task = {
@@ -365,7 +366,7 @@ describe('scheduled-tasks runtime prompt dispatch', () => {
       name: 'Nightly',
       enabled: true,
       schedule: { kind: 'daily', times: ['03:00'], timezone: 'UTC' },
-      execution: { prompt: '/review\r\nfirst  line\r\n\r\n  indented text', providerID: 'openai', modelID: 'gpt-5' },
+      execution: { prompt: `/${command}\r\nfirst  line\r\n\r\n  indented text`, providerID: 'openai', modelID: 'gpt-5', goalEnabled: true },
       state: { createdAt: 1, updatedAt: 1 },
     };
     const runtime = createScheduledTasksRuntime({
@@ -379,6 +380,7 @@ describe('scheduled-tasks runtime prompt dispatch', () => {
       buildOpenCodeUrl: () => 'http://127.0.0.1:1/',
       getOpenCodeAuthHeaders: () => ({}),
       waitForOpenCodeReady: async () => {},
+      persistSessionGoal,
       logger: { info: () => {}, warn: () => {}, error: () => {} },
     });
     try {
@@ -387,10 +389,11 @@ describe('scheduled-tasks runtime prompt dispatch', () => {
       expect(result.error).toBeUndefined();
       expect(result).toMatchObject({ ok: true });
       expect(posts.find((post) => post.pathname === '/api/session/ses_run/command')?.body).toEqual({
-        name: 'review',
+        name: command,
         text: 'first  line\r\n\r\n  indented text',
       });
       expect(posts.some((post) => post.pathname.endsWith('/prompt'))).toBe(false);
+      expect(persistSessionGoal).toHaveBeenCalledTimes(command === 'review' ? 1 : 0);
     } finally {
       runtime.stop();
     }

@@ -13,7 +13,7 @@ import { createMessageId } from '../dispatch-results/runtime.js';
 import { assertPromptResponse } from '../opencode/prompt-response.js';
 import { unwrapOpenCodeResponse } from '../opencode/response-envelope.js';
 import { attachmentHint } from '../routing/runtime.js';
-import { buildGoalIntroText, createSessionGoal } from '../session-goal/create.js';
+import { allowsSessionGoalForPrompt, buildGoalIntroText, createSessionGoal } from '../session-goal/create.js';
 import { parseAttachment, toPublicAttachment, type PublicQueuedAttachment, type QueuedAttachment } from './attachments.js';
 
 const QUEUE_FILE_NAME = 'message-queue.json';
@@ -89,6 +89,7 @@ export interface MessageQueueOptions {
   onScheduledTaskResult?: ReturnType<typeof createExistingSessionTasks>['result'];
   resolveAutoSelection?: ReturnType<typeof createRoutingRuntime>['resolveAutoSelection'] | null;
   persistSessionGoal?: Parameters<typeof createSessionGoal>[0]['persistSessionGoal'];
+  beforeSessionCommand?: (sessionId: string, name: string, directory: string) => Promise<void>;
   isDeliveryHeld?: (sessionId: string) => boolean;
   deliveryHoldReady?: Promise<unknown>;
   dataDir: string;
@@ -228,7 +229,7 @@ const queuedItemInputSchema = z.unknown().transform((value): QueuedItemInput => 
   const contextPreview = asNonEmptyString(raw.contextPreview).slice(0, 103);
   if (contextPreview) item.contextPreview = contextPreview;
   item.sendConfig = sendConfig ?? {};
-  if (goal) item.goal = goal;
+  if (goal && allowsSessionGoalForPrompt(text)) item.goal = goal;
   if (provenance) {
     item.scheduledTask = { projectId, taskId };
     const agent = asNonEmptyString(hasReadableFields(raw.sendConfig) ? raw.sendConfig.agent : undefined);
@@ -330,6 +331,7 @@ export function createMessageQueueRuntime({
   onScheduledTaskResult,
   resolveAutoSelection = null,
   persistSessionGoal = null,
+  beforeSessionCommand,
   isDeliveryHeld = () => false,
   deliveryHoldReady = Promise.resolve(),
   dataDir,
@@ -520,11 +522,7 @@ export function createMessageQueueRuntime({
     if (!name) return null;
     const commands = asList(await openCodeFetch('/api/command', { directory })) ?? [];
     const match = commands.map((command) => asRecord(command)).find((command) => command?.name === name);
-    if (!match) return null;
-    return {
-      name,
-      arguments: tail.join(' '),
-    };
+    return match ? { name, arguments: tail.join(' ') } : null;
   };
 
   const toPromptFile = (attachment: QueuedAttachment) => {
@@ -626,6 +624,7 @@ export function createMessageQueueRuntime({
     }
 
     if (command) {
+      await beforeSessionCommand?.(sessionId, command.name, directory);
       const body: CommandBody = { name: command.name, text: command.arguments };
       if (promptFiles.length > 0) body.files = promptFiles;
       await openCodeFetch(`/api/session/${encodeURIComponent(sessionId)}/command`, {

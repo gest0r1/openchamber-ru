@@ -1942,6 +1942,26 @@ describe('openchamber session routes', () => {
     expect(sessionPromptMock).not.toHaveBeenCalled();
   });
 
+  it('dispatches a pipeline command without applying the requested goal', async () => {
+    const createSessionGoal = vi.fn(async () => undefined);
+    const beforeSessionCommand = vi.fn(async () => undefined);
+    commandListMock.mockResolvedValue({ data: [{ name: 'pipeline-plan' }] });
+
+    const { app } = createApp({ createSessionGoal, beforeSessionCommand });
+    const response = await request(app)
+      .post('/api/openchamber/sessions/ses_source/send')
+      .send({ directory: '/repo/app', prompt: '/pipeline-plan LIN-123', model: 'openai/gpt-5.5', goal: true, goalTokenBudget: 5000 })
+      .expect(200);
+
+    expect(response.body).toMatchObject({ dispatchedAsCommand: true });
+    expect(response.body.goalEnabled).toBeUndefined();
+    expect(createSessionGoal).not.toHaveBeenCalled();
+    expect(sessionSyntheticMock).not.toHaveBeenCalled();
+    expect(sessionCommandMock).toHaveBeenCalledWith(expect.objectContaining({ name: 'pipeline-plan', text: 'LIN-123' }));
+    expect(beforeSessionCommand).toHaveBeenCalledWith('ses_source', 'pipeline-plan', '/repo/app');
+    expect(beforeSessionCommand.mock.invocationCallOrder[0]).toBeLessThan(sessionCommandMock.mock.invocationCallOrder[0]);
+  });
+
   it('writes standing project context into the session ahead of a dispatched slash command', async () => {
     commandListMock.mockResolvedValue({ data: [{ name: 'review', description: 'Review' }] });
     const sync = vi.fn(async () => true);

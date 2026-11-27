@@ -20,6 +20,10 @@ UI-side queue and foreground auto-send hook.
   be sent.
 - The queue file holds conversation content, so it is readable by its owner
   only (`0o600`).
+- Pipeline commands (`/pipeline-*`) ignore attached Goal settings at queue
+  admission and when loading saved items. They use the pipeline's own runtime
+  and checkpoints. The dispatcher waits for an active Goal to pause before
+  it sends a pipeline command to OpenCode.
 
 ## TypeScript boundaries
 

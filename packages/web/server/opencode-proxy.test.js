@@ -475,6 +475,43 @@ describe('OpenCode proxy SSE forwarding', () => {
     expect(Number(data.contentLength)).toBeGreaterThan(0);
   });
 
+  it('waits for the persisted goal pause before forwarding a pipeline command', async () => {
+    const upstream = express();
+    const received = [];
+    upstream.post('/api/session/:id/command', express.json(), (req, res) => {
+      received.push(req.body);
+      res.sendStatus(204);
+    });
+    upstreamServer = await listen(upstream);
+    const upstreamPort = upstreamServer.address().port;
+    const pause = Promise.withResolvers();
+    const beforeSessionCommand = vi.fn(() => pause.promise);
+    const app = express();
+    registerOpenCodeProxy(app, {
+      OPEN_CODE_READY_GRACE_MS: 0,
+      getRuntime: () => ({ openCodePort: upstreamPort, isOpenCodeReady: true }),
+      getOpenCodeAuthHeaders: () => ({}),
+      buildOpenCodeUrl: (requestPath) => `http://127.0.0.1:${upstreamPort}${requestPath}`,
+      ensureOpenCodeApiPrefix: () => {},
+      beforeSessionCommand,
+    });
+    proxyServer = await listen(app);
+    const url = `http://127.0.0.1:${proxyServer.address().port}/api/session/ses_1/command`;
+    const body = { name: 'pipeline-run', text: 'example', files: [{ uri: 'data:text/plain,example' }] };
+    const send = () => fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const pending = send();
+
+    await vi.waitFor(() => expect(beforeSessionCommand).toHaveBeenCalledWith('ses_1', 'pipeline-run'));
+    expect(received).toEqual([]);
+    pause.resolve();
+    expect((await pending).status).toBe(204);
+    expect(received).toEqual([body]);
+
+    beforeSessionCommand.mockRejectedValueOnce(new Error('metadata store unavailable'));
+    expect((await send()).status).toBe(503);
+    expect(received).toEqual([body]);
+  });
+
   it('forwards an unparsed chunked prompt body to OpenCode', async () => {
     const upstream = express();
     upstream.post('/api/session/abc/prompt', express.json(), (req, res) => {
