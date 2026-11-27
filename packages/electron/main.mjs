@@ -108,10 +108,8 @@ import { menuAccelerator, normalizeMenuShortcuts } from './menu-shortcuts.mjs';
 import { createCopyLinkMenuHook } from './context-menu-clipboard.mjs';
 import { createCopyMenuAction } from './menu-copy-action.mjs';
 import {
-  CANARY_MIRROR_UPDATER_FEED,
   CANARY_UPDATER_FEED,
   PRODUCTION_UPDATER_FEED,
-  STABLE_MIRROR_UPDATER_FEED,
   isCanaryVersion,
   isUpdateChannel,
   normalizeUpdateChannel,
@@ -3268,8 +3266,8 @@ const readUpdateChannel = () => normalizeUpdateChannel(readSettingsRoot().deskto
 const applyUpdaterChannel = (channel, source = pickUpdaterSource({ mirrorFailedAt: state.updaterMirrorFailedAt })) => {
   if (state.updaterChannel === channel && state.updaterSource === source) return;
   if (state.updaterChannel !== null && state.updaterChannel !== channel) state.pendingUpdate = null;
-  const feed = resolveUpdaterFeed({ testBuild: UPDATER_E2E_BUILD, channel, source });
-  const updaterChannel = [PRODUCTION_UPDATER_FEED, CANARY_UPDATER_FEED, STABLE_MIRROR_UPDATER_FEED, CANARY_MIRROR_UPDATER_FEED].includes(feed)
+  const feed = resolveUpdaterFeed({ testBuild: UPDATER_E2E_BUILD, channel });
+  const updaterChannel = [PRODUCTION_UPDATER_FEED, CANARY_UPDATER_FEED].includes(feed)
     ? resolveUpdaterChannel({ platform: process.platform, architecture: process.arch })
     : null;
   if (updaterChannel) {

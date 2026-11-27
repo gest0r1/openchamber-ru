@@ -35,7 +35,7 @@
     {
       "id": "claude",
       "name": "Claude Code sign-in instructions",
-      "sources": ["packages/ui/src/components/sections/usage/UsagePage.tsx", "packages/ui/src/components/sections/usage/UsageSidebar.tsx", "packages/ui/src/components/sections/usage/ClaudeCodeSignIn.tsx"],
+      "sources": ["packages/ui/src/components/sections/usage/UsagePage.tsx", "packages/ui/src/components/sections/usage/UsageSidebar.tsx"],
       "what": "Without the Claude Code integration, its usage page gives the terminal sign-in command, including when the integration catalog cannot be read.",
       "reach": "Settings > Usage > Claude.",
       "proof": "The signed-out warning and claude auth login command appear; selecting another provider removes that command.",
