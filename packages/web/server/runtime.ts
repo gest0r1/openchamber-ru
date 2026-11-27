@@ -2839,6 +2839,7 @@ async function main(options: WebUiServerOptions = {}) {
         : null;
       return {
         openCodePort,
+        managedOpenCodePid: isExternalOpenCode ? null : openCodeProcess?.pid ?? null,
         openCodeRunning: Boolean(openCodePort && isOpenCodeReady && !isRestartingOpenCode),
         openCodeSecureConnection: isOpenCodeConnectionSecure(),
         openCodeAuthSource: openCodeAuthSource || null,
