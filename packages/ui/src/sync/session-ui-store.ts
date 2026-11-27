@@ -95,7 +95,7 @@ import { useSessionGoalArmStore } from "@/stores/useSessionGoalArmStore"
 import { trackPreparedChatFolder } from "@/lib/unconfirmedSends"
 import type { SendMessageOptions } from "./send-message-options"
 export type { SendMessageOptions, SentMessage } from "./send-message-options"
-import { sessionGoalIntro, setSessionGoal } from "@/lib/sessionGoalActions"
+import { allowsSessionGoalForInput, sessionGoalIntro, setSessionGoal } from "@/lib/sessionGoalActions"
 import { useUIStore } from "@/stores/useUIStore"
 import { useSelectionStore } from "./selection-store"
 import { getViewportSessionMemory, useViewportStore, viewportSessionKey } from "./viewport-store"
@@ -1805,7 +1805,7 @@ export const useSessionUIStore = create<SessionUIState>()((set, get) => ({
         : fetchResponseStyleInstruction().catch(() => undefined)
 
       const queuedGoal = options?.queuedGoal
-      const goalArm = inputMode === "shell" || content.trim().length === 0
+      const goalArm = inputMode === "shell" || content.trim().length === 0 || !allowsSessionGoalForInput(content)
         ? { armed: false, objectiveOverride: null }
         : queuedGoal !== undefined
           ? { armed: queuedGoal !== null, objectiveOverride: queuedGoal?.objective ?? null }

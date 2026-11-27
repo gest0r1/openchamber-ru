@@ -3,7 +3,10 @@ import os from 'os';
 import path from 'path';
 
 import { assertPromptResponse } from '../opencode/prompt-response.js';
-import { GOAL_OBJECTIVE_CHAR_LIMIT, readObjective } from './objectives.js';
+import { readObjective } from './objectives.js';
+import { isPipelineCommand } from './create.js';
+import { GOAL_REASON_CHAR_LIMIT, parseGoalMetadata, type SessionGoal } from './metadata.js';
+export type { SessionGoal } from './metadata.js';
 import { buildContinuationPrompt } from './continuation.js';
 import { createGoalInterruptions, type GoalTick, type PersistSessionGoal } from './interruption.js';
 import {
@@ -22,37 +25,17 @@ import type { JsonObject, JsonValue } from '../shared/json-values.js';
 import type { SessionActivityOptions } from '../opencode/session-activity.js';
 import type { ClassifierEndpoint } from '../routing/classifier.js';
 import type { createJevClient } from '../routing/jev.js';
-import type { generateSmallModelText, GeneratedTextResult } from '../small-model/index.js';
+import type { generateSmallModelText } from '../small-model/index.js';
 import type { SessionMetadata } from '../openchamber-sessions/session-metadata-store.js';
 import type { AuditInput } from './audit.js';
 
 type GoalChecker = 'classifier' | 'small-model';
-type GoalStatus = typeof GOAL_STATUSES[number];
 type SettledGoalStatus = 'blocked' | 'budgetLimited' | 'complete';
 
 interface GoalSettings {
   enabled: boolean;
   checker: GoalChecker;
   maxAutoTurns: number;
-}
-
-export interface SessionGoal {
-  id: string;
-  objective: string;
-  objectiveFile: boolean;
-  status: GoalStatus;
-  tokenBudget: number | null;
-  tokensUsed: number;
-  tokensBaseline: number;
-  tokensCommitted: number;
-  turnsUsed: number;
-  auditFailStreak: number;
-  statusReason: string;
-  evaluationProviderID: GeneratedTextResult['providerID'];
-  evaluationModelID: GeneratedTextResult['modelID'];
-  lastAccountedMessageID: string;
-  createdAt: number;
-  updatedAt: number;
 }
 
 interface GoalSession {
@@ -87,6 +70,7 @@ type SessionMetadataInput = SessionMetadata | null | undefined;
 export interface SessionGoalRuntime {
   processPayload: (payload: JsonValue | undefined, directoryHint?: string) => void;
   notifyGoalChanged: (sessionId: string, directory: string, metadata: SessionMetadataInput) => Promise<void>;
+  beforeCommand: (sessionId: string, name: string, directory?: string) => Promise<void>;
   recoverActiveGoals: () => Promise<void>;
   stop: () => void;
 }
@@ -145,7 +129,6 @@ const RESUME_KICKOFF_MS = 250;
 const FETCH_TIMEOUT_MS = 10_000;
 const SESSION_READ_RETRIES = 3;
 const MESSAGE_FETCH_LIMIT = 40;
-const REASON_CHAR_LIMIT = 200;
 const DEFAULT_MAX_AUTO_TURNS = 20;
 const MAX_AUTO_TURNS_LIMIT = 200;
 
@@ -153,9 +136,6 @@ export const normalizeMaxAutoTurns = (value: JsonValue | undefined) => (
   isInteger(value) && value >= 1 && value <= MAX_AUTO_TURNS_LIMIT ? value : DEFAULT_MAX_AUTO_TURNS
 );
 const AUDIT_FAIL_LIMIT = 2;
-
-const GOAL_STATUSES = ['active', 'paused', 'blocked', 'budgetLimited', 'complete'] as const;
-const isGoalStatus = (value: unknown): value is GoalStatus => GOAL_STATUSES.some((status) => status === value);
 
 const extractSessionStatus = (payload: JsonObject | undefined) => {
   if (!payload || payload.type !== 'session.status') return null;
@@ -189,38 +169,6 @@ const extractSessionUpdate = (payload: JsonObject | undefined) => {
     sessionId: info.id,
     directory: isString(info.directory) ? info.directory : '',
     parentID: isString(info.parentID) ? info.parentID : '',
-  };
-};
-
-const parseGoalMetadata = (session: { metadata?: unknown } | undefined) => {
-  const metadata = session?.metadata;
-  if (!isRecord(metadata)) return null;
-  const namespace = metadata.openchamber;
-  if (!isRecord(namespace)) return null;
-  const goal = namespace.goal;
-  if (!isRecord(goal)) return null;
-  const objective = isString(goal.objective) ? goal.objective.trim() : '';
-  const objectiveFile = goal.objectiveFile === true;
-  const id = isString(goal.id) ? goal.id : '';
-  const status = isGoalStatus(goal.status) ? goal.status : '';
-  if (!id || !status || (!objective && !objectiveFile)) return null;
-  return {
-    id,
-    objective: objective.slice(0, GOAL_OBJECTIVE_CHAR_LIMIT),
-    objectiveFile,
-    status,
-    tokenBudget: positiveNumber(goal.tokenBudget) ? Math.floor(goal.tokenBudget) : null,
-    tokensUsed: positiveNumber(goal.tokensUsed) ? Math.floor(goal.tokensUsed) : 0,
-    tokensBaseline: positiveNumber(goal.tokensBaseline) ? Math.floor(goal.tokensBaseline) : 0,
-    tokensCommitted: positiveNumber(goal.tokensCommitted) ? Math.floor(goal.tokensCommitted) : 0,
-    turnsUsed: positiveNumber(goal.turnsUsed) ? Math.floor(goal.turnsUsed) : 0,
-    auditFailStreak: positiveNumber(goal.auditFailStreak) ? Math.floor(goal.auditFailStreak) : 0,
-    statusReason: isString(goal.statusReason) ? goal.statusReason.slice(0, REASON_CHAR_LIMIT) : '',
-    evaluationProviderID: isString(goal.evaluationProviderID) ? goal.evaluationProviderID : '',
-    evaluationModelID: isString(goal.evaluationModelID) ? goal.evaluationModelID : '',
-    lastAccountedMessageID: isString(goal.lastAccountedMessageID) ? goal.lastAccountedMessageID : '',
-    createdAt: isFiniteNumber(goal.createdAt) ? goal.createdAt : 0,
-    updatedAt: isFiniteNumber(goal.updatedAt) ? goal.updatedAt : 0,
   };
 };
 
@@ -486,7 +434,7 @@ export const createSessionGoalRuntime = ({
       if (current.status !== 'active' || (isCurrent && !isCurrent())) return null;
       const patch: Partial<SessionGoal> = {
         status,
-        statusReason: String(statusReason ?? '').trim().slice(0, REASON_CHAR_LIMIT),
+        statusReason: String(statusReason ?? '').trim().slice(0, GOAL_REASON_CHAR_LIMIT),
         auditFailStreak: 0,
       };
       if (tokensUsed !== undefined) patch.tokensUsed = tokensUsed;
@@ -1072,5 +1020,11 @@ export const createSessionGoalRuntime = ({
     interruptions.stop();
   };
 
-  return { processPayload, notifyGoalChanged, recoverActiveGoals, stop };
+  const beforeCommand: SessionGoalRuntime['beforeCommand'] = async (sessionId, name, directory = '') => {
+    if (!isPipelineCommand(name)) return;
+    readAttempts.delete(sessionId);
+    await interruptions.pauseForCommand(sessionId, directory);
+  };
+
+  return { processPayload, notifyGoalChanged, beforeCommand, recoverActiveGoals, stop };
 };

@@ -18,6 +18,7 @@ import { useUIStore } from '@/stores/useUIStore';
 import { type QueuedContextPart, type QueuedMessageGoal } from '@/stores/messageQueueStore';
 import { withOriginalAttachment } from '@/stores/messageQueueAttachments';
 import { useSessionGoalArmStore } from '@/stores/useSessionGoalArmStore';
+import { allowsSessionGoalForInput } from '@/lib/sessionGoalActions';
 import { useSelectionStore } from '@/sync/selection-store';
 import { prepareUserMessageResume } from '@/sync/user-message-resume';
 import { attachedFilesForModel, AttachmentPathSaveError } from '@/sync/model-attachment-paths';
@@ -192,7 +193,7 @@ export function useComposerQueueActions({
             syntheticTexts: [...syntheticParts.map((part) => part.text), ...(actionsNote?.text ? [actionsNote.text] : [])],
             references: [...linkedToQueue.map(toContextReference), ...sessionMentionsIn(messageToQueue)],
         }, skillInstruction);
-        const goalArm = textToQueue.trim()
+        const goalArm = textToQueue.trim() && allowsSessionGoalForInput(textToQueue)
             ? useSessionGoalArmStore.getState().consume()
             : { armed: false, objectiveOverride: null };
         const goalSettings = useUIStore.getState();
@@ -364,7 +365,9 @@ export function useComposerQueueActions({
                 useInputStore.getState().setAttachedFiles([...currentAttachments, ...queued.attachments.map(withOriginalAttachment)]);
             }
             setMessage(withMissingCitations(queued.content, queued.attachments ?? []));
-            if (queued.goal) useSessionGoalArmStore.getState().setArmed(true, queued.goal.objective ?? null);
+            if (queued.goal && allowsSessionGoalForInput(queued.text)) {
+                useSessionGoalArmStore.getState().setArmed(true, queued.goal.objective ?? null);
+            }
             restoreQueuedContext(queued.context ?? []);
             setTimeout(() => {
                 composerRef.current?.focus();

@@ -14,6 +14,8 @@ import {
 const isRecord = (value: unknown): value is Metadata =>
   Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 
+export const allowsSessionGoalForInput = (text: string): boolean => !text.trimStart().startsWith('/pipeline-');
+
 const createGoalId = (): string =>
   `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
 

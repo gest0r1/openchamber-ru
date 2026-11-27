@@ -4,7 +4,7 @@ import { resolveGoalObjective, routeMessage, useSessionUIStore } from '@/sync/se
 import { devtools } from 'zustand/middleware';
 import type { CreateMultiRunParams, CreateMultiRunResult, MultiRunGoal } from '@/types/multirun';
 import { opencodeClient } from '@/lib/opencode/client';
-import { clearSessionGoal, sessionGoalIntro, setSessionGoal } from '@/lib/sessionGoalActions';
+import { allowsSessionGoalForInput, clearSessionGoal, sessionGoalIntro, setSessionGoal } from '@/lib/sessionGoalActions';
 import { syncSessionKnowledge } from '@/lib/sessionKnowledgeApi';
 import { getWorktreeSetupWaitEnabled, saveWorktreeSetupCommands } from '@/lib/openchamberConfig';
 import type { ProjectRef } from '@/lib/worktrees/worktreeManager';
@@ -99,12 +99,13 @@ export async function dispatchRunPrompt(input: {
   const expandText = useSnippetsStore.getState().expandText;
   const knowledgeSync = syncSessionKnowledge(input.directory, input.sessionId, null, input.runtimeKey);
   const text = await expandText(input.prompt).catch(() => input.prompt);
+  const goal = allowsSessionGoalForInput(text) ? input.goal : undefined;
   input.assertCurrent();
-  if (input.goal) {
+  if (goal) {
     await setSessionGoal(
       input.sessionId,
       input.directory,
-      { objective: resolveGoalObjective(text, input.directory), tokenBudget: input.goal.tokenBudget },
+      { objective: resolveGoalObjective(text, input.directory), tokenBudget: goal.tokenBudget },
       null,
       input.runtimeKey,
     );
@@ -121,11 +122,11 @@ export async function dispatchRunPrompt(input: {
       variant: input.variant,
       agent: input.agent,
       files: input.files,
-      additionalParts: input.goal ? [{ text: sessionGoalIntro(input.goal.tokenBudget), synthetic: true }] : undefined,
+      additionalParts: goal ? [{ text: sessionGoalIntro(goal.tokenBudget), synthetic: true }] : undefined,
       ready: knowledgeSync,
     });
   } catch (error) {
-    if (input.goal) await clearSessionGoal(input.sessionId, input.directory).catch(() => undefined);
+    if (goal) await clearSessionGoal(input.sessionId, input.directory).catch(() => undefined);
     throw error;
   }
 }

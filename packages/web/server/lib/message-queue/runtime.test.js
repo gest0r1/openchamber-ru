@@ -98,7 +98,7 @@ const createOpenCode = () => {
   return { state, fetchImpl };
 };
 
-const createRuntime = ({ dataDir = makeDataDir(), openCode = createOpenCode(), knowledge = null, retryDelayMs, resolveAutoSelection, now, beforeScheduledTaskSend, onScheduledTaskResult, persistSessionGoal, isDeliveryHeld, deliveryHoldReady } = {}) => {
+const createRuntime = ({ dataDir = makeDataDir(), openCode = createOpenCode(), knowledge = null, retryDelayMs, resolveAutoSelection, now, beforeScheduledTaskSend, onScheduledTaskResult, persistSessionGoal, beforeSessionCommand, isDeliveryHeld, deliveryHoldReady } = {}) => {
   let eventHandler = () => {};
   let statusHandler = () => {};
   const broadcasts = [];
@@ -118,6 +118,7 @@ const createRuntime = ({ dataDir = makeDataDir(), openCode = createOpenCode(), k
     dispatchQuietMs: 0,
     abortHoldMs: 50,
     beforeScheduledTaskSend,
+    beforeSessionCommand,
     onScheduledTaskResult,
   };
   if (retryDelayMs) options.retryDelayMs = retryDelayMs;
@@ -935,6 +936,29 @@ describe('message queue runtime', () => {
     });
     await replayAfterSend();
     expect(sendPosts(openCode)).toEqual([{ path: `/api/session/${SESSION}/command`, body: { name: 'review', text: 'src' } }]);
+  });
+
+  it('dispatches a queued pipeline command without starting a goal', async () => {
+    const persisted = [];
+    const pause = Promise.withResolvers();
+    const beforeSessionCommand = vi.fn(() => pause.promise);
+    const { runtime, openCode, emit, replayAfterSend } = createRuntime({
+      persistSessionGoal: async (...args) => { persisted.push(args); },
+      beforeSessionCommand,
+    });
+    runtime.start();
+    openCode.state.commands = [{ name: 'pipeline-run' }];
+    const text = '/pipeline-run auth-flow';
+    await runtime.enqueue(SESSION, DIRECTORY, item({ content: text, text, goal: { tokenBudget: 5000 } }));
+    emit({ type: 'session.status', properties: { sessionID: SESSION, status: { type: 'idle' } } });
+
+    await vi.waitFor(() => expect(beforeSessionCommand).toHaveBeenCalledWith(SESSION, 'pipeline-run', DIRECTORY));
+    expect(sendPosts(openCode)).toEqual([]);
+    pause.resolve();
+    await vi.waitFor(() => expect(openCode.state.sent.at(-1)?.path).toBe(`/api/session/${SESSION}/command`));
+    await replayAfterSend();
+    expect(persisted).toEqual([]);
+    expect(sendPosts(openCode)).toEqual([{ path: `/api/session/${SESSION}/command`, body: { name: 'pipeline-run', text: 'auth-flow' } }]);
   });
 
   it('delivers captured context as synthetic messages, instructions first', async () => {

@@ -1,11 +1,12 @@
 import { isSessionNotFound, type MetadataDecider, type SessionMetadata } from '../openchamber-sessions/session-metadata-store.js';
 import type { SessionGoal } from './runtime.js';
+import type { CreatedSessionGoal } from './create.js';
 
 type GoalUpdate = (metadata: SessionMetadata | null | undefined) => SessionGoal | null;
 export type PersistSessionGoal = (
   sessionId: string,
   directory: string,
-  goal: SessionGoal | { update: GoalUpdate },
+  goal: SessionGoal | CreatedSessionGoal | { update: GoalUpdate },
   canWrite?: ((metadata: SessionMetadata | null | undefined) => boolean) | null,
 ) => Promise<SessionMetadata | boolean | void>;
 
@@ -46,6 +47,7 @@ export const createGoalInterruptions = ({ persistSessionGoal, parseGoalMetadata,
   const pauses = new Map<string, PersistenceAttempt>();
   const rollbacks = new Map<string, PersistenceAttempt>();
   const activeTicks = new Map<string, GoalTick>();
+  const commandPauses = new Map<string, Promise<void>>();
   const busy = new Set<string>();
   const stopsInFlight = new Set<string>();
   const supersededStops = new Set<string>();
@@ -95,6 +97,27 @@ export const createGoalInterruptions = ({ persistSessionGoal, parseGoalMetadata,
       if (goal?.status !== 'active') return null;
       return { ...goal, status: 'paused', statusReason: 'paused after abort', updatedAt: Date.now() };
     }, 'pause after abort failed');
+  };
+
+  const pauseForCommand = (sessionId: string, directory: string): Promise<void> => {
+    const pending = commandPauses.get(sessionId);
+    if (pending) return pending;
+    if (!persistSessionGoal) return Promise.resolve();
+
+    const tick = activeTicks.get(sessionId);
+    if (tick) tick.aborted = true;
+    const write = persistSessionGoal(sessionId, directory, {
+      update: (metadata) => {
+        const goal = parseGoalMetadata({ metadata });
+        if (goal?.status !== 'active') return null;
+        return { ...goal, status: 'paused', statusReason: 'paused for pipeline command', updatedAt: Date.now() };
+      },
+    }).then(() => undefined).finally(() => {
+      commandPauses.delete(sessionId);
+      if (!stopped) onSettled(sessionId);
+    });
+    commandPauses.set(sessionId, write);
+    return write;
   };
 
   const rollback = (sessionId: string, directory: string, written: SessionGoal) => {
@@ -154,12 +177,13 @@ export const createGoalInterruptions = ({ persistSessionGoal, parseGoalMetadata,
 
   return {
     pause,
+    pauseForCommand,
     sendReserved,
     notifyGoalChanged,
     notifyStatus,
     isSupersededStop: (sessionId: string) => supersededStops.delete(sessionId),
     cancelPause: (sessionId: string) => cancel(pauses, sessionId),
-    hasPending: (sessionId: string) => pauses.has(sessionId) || rollbacks.has(sessionId),
+    hasPending: (sessionId: string) => commandPauses.has(sessionId) || pauses.has(sessionId) || rollbacks.has(sessionId),
     startTick: (sessionId: string, attempt: GoalTick) => activeTicks.set(sessionId, attempt),
     finishTick: (sessionId: string) => activeTicks.delete(sessionId),
     stop: () => {

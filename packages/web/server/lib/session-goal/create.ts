@@ -1,3 +1,4 @@
+import { z } from 'zod';
 import { GOAL_MISSION_INSTRUCTIONS, GOAL_REPORT_INSTRUCTIONS } from './audit.js';
 import { GOAL_OBJECTIVE_CHAR_LIMIT, writeObjective } from './objectives.js';
 
@@ -31,6 +32,39 @@ export interface CreateSessionGoalInput {
 }
 
 const hasMessage = (value: unknown): value is { message?: unknown } => value != null;
+
+export const isPipelineCommand = (name: string): boolean => name.startsWith('pipeline-');
+
+export const allowsSessionGoalForPrompt = (text: string): boolean => {
+  const prompt = text.trimStart();
+  return !prompt.startsWith('/') || !isPipelineCommand(prompt.slice(1));
+};
+
+const MIN_GOAL_TOKEN_BUDGET = 1_000;
+const MAX_GOAL_TOKEN_BUDGET = 100_000_000;
+const goalTokenBudgetSchema = z.number().int().min(MIN_GOAL_TOKEN_BUDGET).max(MAX_GOAL_TOKEN_BUDGET);
+
+export type GoalInput = { ok: true; enabled: boolean; tokenBudget: number | null } | { ok: false; error: string };
+
+export const resolveGoalInput = (payload: { goal?: unknown; goalTokenBudget?: unknown } | null, prompt: string | null): GoalInput => {
+  if (prompt && !allowsSessionGoalForPrompt(prompt)) return { ok: true, enabled: false, tokenBudget: null };
+  const enabled = payload?.goal === true;
+  const tokenBudget = payload?.goalTokenBudget;
+  if (tokenBudget !== undefined && !enabled) {
+    return { ok: false, error: 'goalTokenBudget requires goal' };
+  }
+  if (enabled && !prompt) {
+    return { ok: false, error: 'prompt is required when goal is enabled' };
+  }
+  if (tokenBudget === undefined) {
+    return { ok: true, enabled, tokenBudget: null };
+  }
+  const parsedBudget = goalTokenBudgetSchema.safeParse(tokenBudget);
+  if (!parsedBudget.success) {
+    return { ok: false, error: `goalTokenBudget must be an integer from ${MIN_GOAL_TOKEN_BUDGET} to ${MAX_GOAL_TOKEN_BUDGET}` };
+  }
+  return { ok: true, enabled, tokenBudget: parsedBudget.data };
+};
 
 const TRIM_MARKER = '\n\n[… objective trimmed for the auditor — the full prompt was delivered in the chat message …]\n\n';
 

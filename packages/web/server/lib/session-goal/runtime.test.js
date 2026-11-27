@@ -283,6 +283,25 @@ describe('session goal session-read recovery', () => {
     expect(test.emitGoalNotification).not.toHaveBeenCalled();
   });
 
+  it('pauses the session goal before a pipeline command and suppresses its pending tick', async () => {
+    const gate = Promise.withResolvers();
+    const sessionRead = vi.fn(() => gate.promise);
+    const test = setup(sessionRead);
+    await test.start();
+    expect(sessionRead).toHaveBeenCalledTimes(1);
+
+    await test.runtime.beforeCommand(SESSION_ID, 'review', '/repo');
+    expect(test.metadata.openchamber.goal.status).toBe('active');
+    await test.runtime.beforeCommand(SESSION_ID, 'pipeline-run', '/repo');
+    gate.resolve();
+    test.runtime.processPayload(idle());
+    await vi.advanceTimersByTimeAsync(30_000);
+
+    expect(test.metadata.openchamber.goal).toMatchObject({ id: 'goal_1', status: 'paused', turnsUsed: 0 });
+    expect(test.generate).not.toHaveBeenCalled();
+    expect(test.calls.some((call) => call.method === 'POST')).toBe(false);
+  });
+
   it('resets the failure count after a successful read', async () => {
     const sessionRead = vi.fn().mockRejectedValueOnce(new Error('fetch failed')).mockResolvedValue(undefined);
     const test = setup(sessionRead, { active: { ses_child: { status: 'running' } }, childPages: [[{ id: 'ses_child', parentID: SESSION_ID }]], childrenStatus: 500 });
