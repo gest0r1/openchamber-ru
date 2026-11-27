@@ -11,12 +11,6 @@ export const CANARY_UPDATER_FEED = Object.freeze({
   url: 'https://github.com/openchamber/openchamber/releases/download/canary/',
 });
 
-// The fork has no first-party R2 mirror. The upstream mirror contains upstream
-// releases, NOT fork-signed builds. Keep the SDK updater source contracts, but
-// resolve either source to the authorized GitHub feed until a fork mirror exists.
-export const STABLE_MIRROR_UPDATER_FEED = PRODUCTION_UPDATER_FEED;
-export const CANARY_MIRROR_UPDATER_FEED = CANARY_UPDATER_FEED;
-
 // After the mirror fails a check or a download, the app reads GitHub for this
 // long before trying the mirror again, so a broken mirror costs one failed
 // request, not one per check.
@@ -72,11 +66,8 @@ export const resolveUpdaterFeed = ({
   environment = process.env,
   testBuild = false,
   channel = 'stable',
-  source = 'github',
 } = {}) => {
-  const productionFeed = channel === 'canary'
-    ? (source === 'mirror' ? CANARY_MIRROR_UPDATER_FEED : CANARY_UPDATER_FEED)
-    : (source === 'mirror' ? STABLE_MIRROR_UPDATER_FEED : PRODUCTION_UPDATER_FEED);
+  const productionFeed = channel === 'canary' ? CANARY_UPDATER_FEED : PRODUCTION_UPDATER_FEED;
   if (environment.OPENCHAMBER_E2E !== '1'
     || testBuild !== true) {
     return productionFeed;
