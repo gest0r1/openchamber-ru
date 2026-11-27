@@ -27,3 +27,7 @@
 3. Add source type-check/lint coverage to the root checks when introducing executable package source. Run the build command in the README and the focused build/catalog/route tests.
 4. Check Enable/Disable, retained data, automatic grants, and account placement. A newly requested capability should appear in the server's granted set without an approval dialog.
 5. Verify the web tarball includes the registry and built files. Native services also need the unpacked Electron resource path.
+
+## Pipeline Approval
+
+The guest uses the ordinary SDK service proxy to read `/checkpoints`. The service calls the runtime broker peer for checkpoint summaries and reads the root-owned `/etc/my-opencode/owner-broker-passkey` file for the HTTPS origin. It never sees passkey assertions, enrollment links or the verifier socket. The panel opens an exact checkpoint with `openUrl` and opens the original session with `openSession`. The host SDK draws marks on supported desktop and web sidebar rows. The mobile panel and page are both opted in.

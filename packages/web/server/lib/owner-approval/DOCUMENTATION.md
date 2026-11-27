@@ -1,0 +1,7 @@
+# Independent owner approval
+
+`build/bin/owner-approval.js` serves a fixed HTTPS origin through an administrator-controlled reverse proxy and a systemd-owned Unix socket. The verifier uses its own Linux UID and the broker's verifier socket. Express compares `Host` with the configured origin and compares `Origin` on every POST. WebAuthn requires user verification for enrollment and decisions. The broker owns enrollment tokens, the approved request and the one-time challenge.
+
+The approval view renders the broker's frozen snapshot as text. The separate origin never hosts user extensions or the OpenChamber UI. Its reverse proxy must keep the original host, avoid logging enrollment secrets and route only to the protected Unix listener. The endpoint exposes `/healthz` for readiness.
+
+The main OpenChamber runtime uses only the agent socket to read and claim approved continuations. It checks the original session, workspace and idle state, including requests, child sessions and background jobs. Before submission it reads the exact stable message ID in the original session. OpenCode 2.3.2 can start another turn on a repeated `resume:true` request even if it keeps the same message ID. A matching existing transcript record therefore acknowledges the delivery without another submission. A timeout leaves the outbox pending. The wake asks the agent to retry the paused transition, where the pipeline rechecks the broker and frozen inputs.

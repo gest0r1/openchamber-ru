@@ -38,7 +38,7 @@
     "type-check:ui": "bun run --cwd packages/ui type-check",
     "settings-registry:generate": "bun run --cwd packages/ui src/lib/settings/registry-snapshot.ts",
     "type-check:electron": "bun run --cwd packages/electron type-check",
-    "lint": "bun run --filter '*' lint",
+    "lint": "bun run --filter '*' lint && oxlint -c oxlint.config.ts --report-unused-disable-directives packages/extensions",
     "lint:web": "bun run --cwd packages/web lint",
     "lint:ui": "bun run --cwd packages/ui lint",
     "lint:electron": "bun run --cwd packages/electron lint",
