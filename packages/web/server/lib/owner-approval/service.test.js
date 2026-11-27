@@ -40,6 +40,17 @@ function fixture() {
 const post = (app, path, browserOrigin = origin) => request(app).post(endpoint + path).set('Host', host).set('Origin', browserOrigin);
 
 describe('independent passkey verification', () => {
+  it('publishes a stable verifier identity only while the broker responds', async () => {
+    const broker = vi.fn().mockResolvedValue({ ready: true });
+    const app = createOwnerApprovalService({ origin, broker });
+    const first = await request(app).get('/healthz').set('Host', host).expect(204);
+    const second = await request(app).get('/healthz').set('Host', host).expect(204);
+    expect(second.headers['x-openchamber-verifier-id']).toBe(first.headers['x-openchamber-verifier-id']);
+    expect(first.headers['x-openchamber-verifier-id']).toMatch(/^[a-f0-9-]{36}$/);
+    broker.mockRejectedValue(new Error('broker unavailable'));
+    await request(app).get('/healthz').set('Host', host).expect(503);
+  });
+
   it('uses required UV and sends the verified counter to the broker', async () => {
     const { app, challenge, broker, signResponse } = fixture();
     const options = await post(app, '/challenge').send({ decision: 'approve' }).expect(200);

@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import express from 'express';
 import { generateAuthenticationOptions, generateRegistrationOptions, verifyAuthenticationResponse, verifyRegistrationResponse } from '@simplewebauthn/server';
 import type { AuthenticationResponseJSON } from '@simplewebauthn/server';
@@ -37,6 +38,7 @@ export function createOwnerApprovalService({ origin, broker = callOwnerApprovalB
   }
   const rpID = url.hostname;
   const app = express();
+  const verifierId = randomUUID();
   app.disable('x-powered-by');
   app.use((request, response, next) => {
     response.set({
@@ -59,7 +61,14 @@ export function createOwnerApprovalService({ origin, broker = callOwnerApprovalB
   app.get('/approval.js', (_request, response) => response.type('js').send(pageScript));
   app.get('/enroll', (_request, response) => response.type('html').send(enrollmentPage));
   app.get('/enroll.js', (_request, response) => response.type('js').send(enrollmentScript));
-  app.get('/healthz', (_request, response) => response.sendStatus(204));
+  app.get('/healthz', async (_request, response) => {
+    try {
+      z.object({ ready: z.literal(true) }).parse(await broker({ action: 'health' }));
+      return response.set('X-OpenChamber-Verifier-Id', verifierId).sendStatus(204);
+    } catch {
+      return response.sendStatus(503);
+    }
+  });
   app.get('/api/approval/:requestId', async (request, response) => {
     const id = checkpointId.safeParse(request.params.requestId);
     if (!id.success) return response.sendStatus(404);
